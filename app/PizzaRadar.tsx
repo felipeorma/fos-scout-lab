@@ -5,6 +5,17 @@ import type { RadarMetric } from "@/lib/scouting";
 
 const COLORS = ["#e95b3f", "#d7a62c", "#43a8a0"];
 
+function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
+  const corner = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + corner, y);
+  ctx.arcTo(x + width, y, x + width, y + height, corner);
+  ctx.arcTo(x + width, y + height, x, y + height, corner);
+  ctx.arcTo(x, y + height, x, y, corner);
+  ctx.arcTo(x, y, x + width, y, corner);
+  ctx.closePath();
+}
+
 export function PizzaRadar({ metrics, score }: { metrics: RadarMetric[]; score: number }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -52,11 +63,28 @@ export function PizzaRadar({ metrics, score }: { metrics: RadarMetric[]; score: 
 
         const middle = start + step / 2 - gap;
         const valueRadius = Math.max(inner + 18, radius - 18);
-        ctx.fillStyle = "#ffffff";
-        ctx.font = `700 ${Math.max(10, size * 0.019)}px Arial`;
+        const value = String(metric.percentile);
+        const valueFontSize = Math.max(10, size * 0.019);
+        const valueX = cx + Math.cos(middle) * valueRadius;
+        const valueY = cy + Math.sin(middle) * valueRadius;
+        ctx.font = `800 ${valueFontSize}px Arial`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.fillText(String(metric.percentile), cx + Math.cos(middle) * valueRadius, cy + Math.sin(middle) * valueRadius);
+        const pillWidth = Math.max(valueFontSize * 1.85, ctx.measureText(value).width + valueFontSize * 0.85);
+        const pillHeight = valueFontSize * 1.55;
+        ctx.save();
+        ctx.shadowColor = "rgba(3, 10, 17, .34)";
+        ctx.shadowBlur = Math.max(3, size * 0.009);
+        roundedRect(ctx, valueX - pillWidth / 2, valueY - pillHeight / 2, pillWidth, pillHeight, pillHeight / 2);
+        ctx.fillStyle = "rgba(8, 18, 28, .82)";
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = "rgba(255, 255, 255, .42)";
+        ctx.lineWidth = Math.max(1, size * 0.0018);
+        ctx.stroke();
+        ctx.fillStyle = "#ffffff";
+        ctx.fillText(value, valueX, valueY + valueFontSize * 0.02);
+        ctx.restore();
 
         const labelRadius = outer + size * 0.065;
         const lx = cx + Math.cos(middle) * labelRadius;
