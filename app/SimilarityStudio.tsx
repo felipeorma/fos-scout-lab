@@ -179,17 +179,16 @@ function drawRadar(ctx: CanvasRenderingContext2D, metrics: SimilarityMetricCompa
   area("targetPercentile", targetColor, `${targetColor}33`);
   area("candidatePercentile", candidateColor, `${candidateColor}2b`);
   metrics.forEach((metric, index) => {
-    const label = radarPoint(index, metrics.length, radius + 58, cx, cy);
-    const alignment = Math.cos(label.angle) > .2 ? "left" : Math.cos(label.angle) < -.2 ? "right" : "center";
+    const label = radarPoint(index, metrics.length, radius + 66, cx, cy);
     ctx.fillStyle = theme.ink;
     ctx.font = "700 14px Arial";
-    ctx.textAlign = alignment;
+    ctx.textAlign = "center";
     ctx.fillText(fitText(ctx, metric.label.toUpperCase(), 160), label.x, label.y);
     const badgeWidth = 44;
     const badgeGap = 6;
     const badgeHeight = 22;
     const badgesWidth = badgeWidth * 2 + badgeGap;
-    const badgesX = alignment === "left" ? label.x : alignment === "right" ? label.x - badgesWidth : label.x - badgesWidth / 2;
+    const badgesX = label.x - badgesWidth / 2;
     const badgesY = label.y + 7;
     const percentileBadge = (x: number, value: number, color: string, transparency: number, corner: number) => {
       drawRoundedRect(ctx, x, badgesY, badgeWidth, badgeHeight, corner);

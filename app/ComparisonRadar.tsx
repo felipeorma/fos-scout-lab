@@ -37,7 +37,7 @@ function shortName(value: string) {
 export function ComparisonRadar({ metrics, targetName, candidateName, targetColor, candidateColor, targetLabelColor, candidateLabelColor, targetLabelTransparency, candidateLabelTransparency }: { metrics: SimilarityMetricComparison[]; targetName: string; candidateName: string; targetColor: string; candidateColor: string; targetLabelColor: string; candidateLabelColor: string; targetLabelTransparency: number; candidateLabelTransparency: number }) {
   if (metrics.length < 3) return null;
   const step = Math.PI * 2 / metrics.length;
-  const labelRadius = 278;
+  const labelRadius = 292;
   const target = shortName(targetName);
   const candidate = shortName(candidateName);
   const targetLabelOpacity = `${100 - Math.max(0, Math.min(100, targetLabelTransparency))}%`;
@@ -61,17 +61,15 @@ export function ComparisonRadar({ metrics, targetName, candidateName, targetColo
         const targetPoint = point(index, metrics.length, RADIUS * metric.targetPercentile / 100);
         const candidatePoint = point(index, metrics.length, RADIUS * metric.candidatePercentile / 100);
         const label = point(index, metrics.length, labelRadius);
-        const anchor = Math.cos(label.angle) > .22 ? "start" : Math.cos(label.angle) < -.22 ? "end" : "middle";
-        const labelX = label.x;
         const badgeWidth = 39;
         const badgeGap = 5;
         const badgesWidth = badgeWidth * 2 + badgeGap;
-        const badgesX = anchor === "start" ? labelX : anchor === "end" ? labelX - badgesWidth : labelX - badgesWidth / 2;
+        const badgesX = label.x - badgesWidth / 2;
         const badgesY = label.y;
         return <g key={`values-${metric.key}`}>
           <circle className="comparison-radar-dot target" cx={targetPoint.x} cy={targetPoint.y} r="5" />
           <rect className="comparison-radar-dot candidate" x={candidatePoint.x - 4.5} y={candidatePoint.y - 4.5} width="9" height="9" rx="1.5" />
-          <text className="comparison-radar-label" x={labelX} y={label.y - 7} textAnchor={anchor}>{metric.label}</text>
+          <text className="comparison-radar-label" x={label.x} y={label.y - 7} textAnchor="middle">{metric.label}</text>
           <g className="comparison-radar-percentile" aria-label={`${targetName}: percentil ${metric.targetPercentile}; ${candidateName}: percentil ${metric.candidatePercentile}`}>
             <g className="target">
               <rect x={badgesX} y={badgesY} width={badgeWidth} height="18" rx="9" />
