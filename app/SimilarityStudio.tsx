@@ -166,13 +166,34 @@ function drawRadar(ctx: CanvasRenderingContext2D, metrics: SimilarityMetricCompa
   area("candidatePercentile", candidateColor, `${candidateColor}2b`);
   metrics.forEach((metric, index) => {
     const label = radarPoint(index, metrics.length, radius + 42, cx, cy);
+    const alignment = Math.cos(label.angle) > .2 ? "left" : Math.cos(label.angle) < -.2 ? "right" : "center";
     ctx.fillStyle = theme.ink;
     ctx.font = "700 14px Arial";
-    ctx.textAlign = Math.cos(label.angle) > .2 ? "left" : Math.cos(label.angle) < -.2 ? "right" : "center";
+    ctx.textAlign = alignment;
     ctx.fillText(fitText(ctx, metric.label.toUpperCase(), 160), label.x, label.y);
-    ctx.fillStyle = theme.muted;
-    ctx.font = "700 12px Arial";
-    ctx.fillText(`P${metric.targetPercentile} / P${metric.candidatePercentile}`, label.x, label.y + 17);
+    const badgeWidth = 44;
+    const badgeGap = 6;
+    const badgeHeight = 22;
+    const badgesWidth = badgeWidth * 2 + badgeGap;
+    const badgesX = alignment === "left" ? label.x : alignment === "right" ? label.x - badgesWidth : label.x - badgesWidth / 2;
+    const badgesY = label.y + 7;
+    const percentileBadge = (x: number, value: number, color: string, corner: number) => {
+      drawRoundedRect(ctx, x, badgesY, badgeWidth, badgeHeight, corner);
+      ctx.save();
+      ctx.globalAlpha = .17;
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.restore();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.fillStyle = color;
+      ctx.font = "800 11px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText(`P${value}`, x + badgeWidth / 2, badgesY + 15);
+    };
+    percentileBadge(badgesX, metric.targetPercentile, targetColor, badgeHeight / 2);
+    percentileBadge(badgesX + badgeWidth + badgeGap, metric.candidatePercentile, candidateColor, 4);
   });
 }
 
@@ -502,7 +523,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, targets, the
             </section>
 
             <section className="similarity-color-panel">
-              <div className="similarity-color-heading"><span>PALETA DE COMPARACIÓN</span><b>Asigna un color a cada jugador</b><small>Los grupos métricos mantienen sus colores en la circunferencia exterior.</small></div>
+              <div className="similarity-color-heading"><span>PALETA DE COMPARACIÓN</span><b>Asigna un color a cada jugador</b><small>El color también identifica sus etiquetas de percentil; los grupos métricos mantienen la circunferencia exterior.</small></div>
               <PalettePicker label="Jugador objetivo" player={search.target.player} color={targetColor} colors={paletteColors} onChange={setTargetColorChoice} />
               <PalettePicker label="Jugador comparable" player={selectedCandidate.name} color={candidateColor} colors={paletteColors} onChange={setCandidateColorChoice} />
             </section>

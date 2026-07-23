@@ -59,11 +59,25 @@ export function ComparisonRadar({ metrics, targetName, candidateName, targetColo
         const label = point(index, metrics.length, labelRadius);
         const anchor = Math.cos(label.angle) > .22 ? "start" : Math.cos(label.angle) < -.22 ? "end" : "middle";
         const labelX = anchor === "end" ? Math.max(150, label.x) : anchor === "start" ? Math.min(490, label.x) : label.x;
+        const badgeWidth = 39;
+        const badgeGap = 5;
+        const badgesWidth = badgeWidth * 2 + badgeGap;
+        const badgesX = anchor === "start" ? labelX : anchor === "end" ? labelX - badgesWidth : labelX - badgesWidth / 2;
+        const badgesY = label.y;
         return <g key={`values-${metric.key}`}>
           <circle className="comparison-radar-dot target" cx={targetPoint.x} cy={targetPoint.y} r="5" />
           <rect className="comparison-radar-dot candidate" x={candidatePoint.x - 4.5} y={candidatePoint.y - 4.5} width="9" height="9" rx="1.5" />
-          <text className="comparison-radar-label" x={labelX} y={label.y - 6} textAnchor={anchor}>{metric.label}</text>
-          <text className="comparison-radar-values" x={labelX} y={label.y + 11} textAnchor={anchor}>P{metric.targetPercentile} / P{metric.candidatePercentile}</text>
+          <text className="comparison-radar-label" x={labelX} y={label.y - 7} textAnchor={anchor}>{metric.label}</text>
+          <g className="comparison-radar-percentile" aria-label={`${targetName}: percentil ${metric.targetPercentile}; ${candidateName}: percentil ${metric.candidatePercentile}`}>
+            <g className="target">
+              <rect x={badgesX} y={badgesY} width={badgeWidth} height="18" rx="9" />
+              <text x={badgesX + badgeWidth / 2} y={badgesY + 12.5} textAnchor="middle">P{metric.targetPercentile}</text>
+            </g>
+            <g className="candidate">
+              <rect x={badgesX + badgeWidth + badgeGap} y={badgesY} width={badgeWidth} height="18" rx="3" />
+              <text x={badgesX + badgeWidth + badgeGap + badgeWidth / 2} y={badgesY + 12.5} textAnchor="middle">P{metric.candidatePercentile}</text>
+            </g>
+          </g>
         </g>;
       })}
     </svg>
