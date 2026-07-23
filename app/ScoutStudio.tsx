@@ -22,7 +22,7 @@ import {
   Sparkles,
   Upload,
   X,
-} from "lucide-react";
+} from "./Icons";
 import { PizzaRadar } from "./PizzaRadar";
 import {
   aggregateSeasons,
