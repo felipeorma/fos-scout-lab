@@ -20,12 +20,11 @@ npm run build
 
 This starter does not use `wrangler.jsonc`.
 
-Abre `http://localhost:3000` y usa uno de los dos módulos:
+Abre `http://localhost:3000` y entra a **Reportes**:
 
 - **Reportes:** comienza eligiendo una base o combinando dos o tres archivos;
-  después continúa con jugador, Transfermarkt, imágenes y diseño.
-- **Combinar bases:** procesa dos o tres archivos que pueden representar ligas o
-  temporadas y envía el resultado directamente al creador de informes.
+  la combinación recibe un nombre temporal y después continúa directamente con
+  jugador, Transfermarkt, imágenes y diseño.
 
 ## Editor visual de páginas
 
