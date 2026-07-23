@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Barlow, Barlow_Condensed, Inter, Space_Grotesk } from "next/font/google";
+import { Barlow, Barlow_Condensed, Inter, Oswald, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 
 const barlow = Barlow({
@@ -24,6 +24,12 @@ const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
 });
 
+const oswald = Oswald({
+  variable: "--font-oswald",
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+});
+
 export const metadata: Metadata = {
   title: "FOS Scout Lab | Reportes de scouting",
   description: "Genera reportes de jugadores y combina hasta tres bases de ligas o temporadas.",
@@ -36,7 +42,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
-      <body className={`${barlow.variable} ${barlowCondensed.variable} ${inter.variable} ${spaceGrotesk.variable}`}>
+      <body className={`${barlow.variable} ${barlowCondensed.variable} ${inter.variable} ${spaceGrotesk.variable} ${oswald.variable}`}>
         {children}
       </body>
     </html>

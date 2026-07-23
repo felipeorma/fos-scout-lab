@@ -456,6 +456,96 @@ body::before { position: fixed; inset: 0; z-index: -1; pointer-events: none; bac
 .designer-stage { border-color: rgba(255,255,255,.09); box-shadow: var(--shadow); }
 .empty-preview { color: #6d788c; }
 
+/* ---------- Flujo de datos + ficha Transfermarkt ---------- */
+.dataset-onboarding { max-width: 760px; min-height: 420px; margin: 18px auto 0; padding: 52px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,.09); border-radius: 22px; background: radial-gradient(circle at 50% 0,rgba(79,124,255,.13),transparent 42%), linear-gradient(145deg,rgba(21,27,40,.96),rgba(12,16,24,.98)); box-shadow: var(--shadow), inset 0 1px rgba(255,255,255,.03); text-align: center; }
+.dataset-step { color: #7e9dff; font-family: var(--font-space-grotesk), sans-serif; font-size: 9px; font-weight: 700; letter-spacing: .18em; }
+.dataset-icon { width: 72px; height: 72px; margin: 22px 0 18px; display: grid; place-items: center; border: 1px solid rgba(105,142,255,.24); border-radius: 20px; color: #94acff; background: linear-gradient(145deg,rgba(79,124,255,.17),rgba(112,82,223,.08)); box-shadow: 0 18px 45px rgba(45,78,189,.2); }
+.dataset-onboarding h2 { margin: 0; color: #f3f6fc; font-family: var(--font-space-grotesk), sans-serif; font-size: 28px; letter-spacing: -.035em; }
+.dataset-onboarding p { max-width: 500px; margin: 12px auto 22px; color: #7e899c; font-size: 13px; line-height: 1.65; }
+.dataset-button { min-width: 230px; }
+.dataset-onboarding > small { margin-top: 13px; color: #566174; font-size: 9px; }
+.dataset-onboarding .inline-error { width: 100%; max-width: 500px; }
+
+.report-workspace { grid-template-columns: 350px minmax(0, 1fr); }
+.enrichment-controls { max-height: calc(100vh - 36px); overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(120,142,184,.28) transparent; }
+.player-field { margin-top: 17px; }
+.enrichment-title { align-items: flex-start; }
+.ready-state { color: #74d7c7; background: rgba(69,198,186,.1); }
+.transfermarkt-url { margin-top: 15px; }
+.transfermarkt-url .text-input { font-size: 9.5px; }
+.extract-button { width: 100%; }
+.asset-grid { margin-top: 14px; display: grid; grid-template-columns: 1.35fr 1fr 1fr; gap: 7px; }
+.asset-upload { min-width: 0; height: 91px; padding: 8px 5px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; overflow: hidden; border: 1px dashed rgba(118,142,182,.3); border-radius: 9px; color: #71809a; background: rgba(255,255,255,.025); cursor: pointer; text-align: center; }
+.asset-upload:hover { border-color: rgba(91,132,255,.48); background: rgba(79,124,255,.05); }
+.asset-upload.has-asset { border-style: solid; border-color: rgba(89,132,255,.22); }
+.asset-preview { width: 100%; height: 48px; display: block; object-fit: contain; }
+.asset-upload span { max-width: 100%; overflow: hidden; color: #aab5c7; font-size: 8px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.asset-upload small { color: #5f6b7f; font-size: 7.5px; }
+.asset-help { margin: 9px 0 0; color: #657185; font-size: 8.5px; line-height: 1.45; }
+.profile-details { margin-top: 13px; border-top: 1px solid rgba(255,255,255,.07); }
+.profile-details summary { padding: 13px 0 2px; color: #8492a9; font-size: 9px; font-weight: 700; cursor: pointer; }
+.profile-field-grid { margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.profile-field-grid label span { display: block; margin-bottom: 4px; color: #626f83; font-size: 7.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.profile-field-grid input { width: 100%; height: 31px; padding: 0 7px; border: 1px solid rgba(255,255,255,.085); border-radius: 6px; outline: 0; color: #c5cfdf; background: rgba(255,255,255,.03); font-size: 9px; }
+.profile-field-grid input:focus { border-color: rgba(91,132,255,.5); }
+
+/* ---------- Página 01 · Radar Jordhy Thompson ---------- */
+.jordhy-report { max-width: 1080px; overflow: hidden; border: 1px solid #e3e8f0; border-radius: 17px; color: #16243a; color-scheme: light; background: #fff; font-family: var(--font-barlow), Arial, sans-serif; box-shadow: 0 30px 80px -30px rgba(0,0,0,.56); }
+.dossier-header { min-height: 294px; display: grid; grid-template-columns: 268px minmax(0,1fr); border-bottom: 1px solid #e8ecf2; }
+.dossier-portrait { position: relative; min-height: 294px; display: flex; align-items: flex-end; justify-content: center; overflow: hidden; background: linear-gradient(160deg,#16315f 0%,#0e2347 62%,#13294f 100%); }
+.portrait-glow { position: absolute; top: -75px; right: -60px; width: 240px; height: 240px; border-radius: 50%; background: radial-gradient(circle,rgba(74,131,255,.4),transparent 68%); }
+.dossier-club-logo { position: absolute; top: 19px; left: 19px; z-index: 3; width: 72px; height: 72px; object-fit: contain; filter: drop-shadow(0 4px 7px rgba(0,0,0,.35)); }
+.dossier-club-fallback { position: absolute; top: 19px; left: 19px; z-index: 3; width: 64px; height: 64px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.22); border-radius: 16px; color: #c7d8f9; font-family: var(--font-oswald),var(--font-barlow-condensed),sans-serif; font-size: 21px; font-weight: 700; background: rgba(255,255,255,.08); }
+.shirt-number { position: absolute; top: 20px; right: 18px; z-index: 3; color: #9fc0ff; font-family: var(--font-oswald),var(--font-barlow-condensed),sans-serif; font-size: 28px; letter-spacing: .04em; }
+.dossier-player-image { position: relative; z-index: 2; width: 244px; max-height: 275px; display: block; object-fit: contain; object-position: center bottom; filter: drop-shadow(0 9px 20px rgba(0,0,0,.38)); }
+.dossier-player-fallback { position: relative; z-index: 2; width: 190px; height: 220px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.12); border-bottom: 0; border-radius: 90px 90px 0 0; color: rgba(219,230,251,.7); background: linear-gradient(rgba(255,255,255,.08),rgba(255,255,255,.02)); font-family: var(--font-oswald),var(--font-barlow-condensed),sans-serif; font-size: 55px; }
+.dossier-info { min-width: 0; padding: 25px 30px 21px; }
+.dossier-topline { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.competition-lockup { min-width: 0; display: flex; align-items: center; gap: 13px; }
+.dossier-league-logo { width: 54px; height: 54px; flex: none; object-fit: contain; }
+.competition-lockup span { color: #42536d; font-family: var(--font-barlow-condensed),sans-serif; font-size: 18px; font-weight: 650; letter-spacing: .035em; text-transform: uppercase; }
+.market-lockup { min-width: 126px; text-align: right; }
+.market-lockup small { display: block; color: #93a1b8; font-size: 8px; font-weight: 700; letter-spacing: .13em; }
+.market-lockup strong { display: block; margin-top: 2px; color: #1f5fd6; font-family: var(--font-oswald),var(--font-barlow-condensed),sans-serif; font-size: 34px; line-height: 1; }
+.market-lockup > span { display: inline-block; margin-top: 7px; padding: 3px 6px; border-radius: 3px; color: #fff; background: linear-gradient(90deg,#0e64a3 0 51%,#1d9a43 51%); font-size: 7px; font-weight: 800; letter-spacing: .04em; }
+.dossier-info > h2 { margin: 8px 0 7px; color: #0d1b2a; font-family: var(--font-oswald),var(--font-barlow-condensed),sans-serif; font-size: clamp(38px,4.2vw,52px); font-weight: 700; letter-spacing: .005em; line-height: .92; text-transform: uppercase; }
+.identity-line { display: flex; align-items: center; gap: 10px; }
+.identity-line b { padding: 4px 11px; border-radius: 5px; color: #fff; background: #1f5fd6; font-family: var(--font-barlow-condensed),sans-serif; font-size: 11px; letter-spacing: .035em; text-transform: uppercase; }
+.identity-line span { color: #3c4b63; font-size: 11px; font-weight: 600; }
+.dossier-meta-grid { margin-top: 18px; display: grid; grid-template-columns: repeat(4,1fr); gap: 12px 16px; }
+.dossier-meta-grid span { display: block; color: #93a1b8; font-size: 7.5px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; }
+.dossier-meta-grid b { display: block; margin-top: 3px; overflow: hidden; color: #1d2a3d; font-size: 10.5px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.dossier-season-strip { min-height: 106px; padding: 17px 27px; display: grid; grid-template-columns: minmax(155px,1.65fr) repeat(4,.55fr) 72px; align-items: center; gap: 5px; border-bottom: 1px solid #e8ecf2; background: #f7f9fc; }
+.season-source { min-width: 0; }
+.season-source span { color: #1f5fd6; font-size: 7.5px; font-weight: 700; letter-spacing: .12em; }
+.season-source b { max-width: 220px; margin-top: 4px; display: block; overflow: hidden; color: #0d1b2a; font-family: var(--font-oswald),var(--font-barlow-condensed),sans-serif; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
+.season-source small { display: block; margin-top: 3px; color: #8493ab; font-size: 8px; }
+.dossier-stat { min-height: 50px; padding-left: 12px; display: flex; flex-direction: column; justify-content: center; border-left: 1px solid #e2e7ee; text-align: center; }
+.dossier-stat strong { color: #0d1b2a; font-family: var(--font-oswald),var(--font-barlow-condensed),sans-serif; font-size: 24px; line-height: 1; }
+.dossier-stat span { margin-top: 5px; color: #8493ab; font-size: 7.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.dossier-stat.goals strong { color: #e5202f; }.dossier-stat.assists strong { color: #9e07ae; }
+.score-ring { --score: 0deg; width: 62px; height: 62px; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 50%; background: radial-gradient(circle closest-side,#f7f9fc 77%,transparent 79% 99%),conic-gradient(#1f5fd6 var(--score),#e5eaf2 0); }
+.score-ring b { color: #0d1b2a; font-family: var(--font-oswald),var(--font-barlow-condensed),sans-serif; font-size: 17px; line-height: 1; }.score-ring span { margin-top: 3px; color: #8493ab; font-size: 6.5px; font-weight: 700; text-transform: uppercase; }
+.dossier-radar-row { min-height: 500px; padding: 16px 30px 8px; display: grid; grid-template-columns: minmax(0,1.55fr) minmax(220px,.72fr); align-items: center; gap: 10px; }
+.dossier-radar { min-width: 0; }
+.dossier-radar .pizza-radar { max-height: 495px; margin: 0; }
+.dossier-reading { padding: 8px 2px 8px 18px; }
+.dossier-reading > span { color: #93a1b8; font-size: 8px; font-weight: 700; letter-spacing: .15em; }
+.dossier-reading > h3 { margin: 3px 0 0; color: #0d1b2a; font-family: var(--font-oswald),var(--font-barlow-condensed),sans-serif; font-size: 21px; line-height: 1.08; }
+.average-percentile { margin: 15px 0 17px; display: flex; align-items: flex-end; gap: 9px; }
+.average-percentile strong { color: #1f5fd6; font-family: var(--font-oswald),var(--font-barlow-condensed),sans-serif; font-size: 53px; line-height: .85; }.average-percentile small { color: #6c7c95; font-size: 9px; line-height: 1.2; }
+.dossier-legend { display: flex; flex-direction: column; gap: 9px; }
+.dossier-legend span { display: flex; align-items: center; gap: 8px; color: #33415a; font-family: var(--font-barlow-condensed),sans-serif; font-size: 11px; font-weight: 650; text-transform: uppercase; }
+.dossier-legend i { width: 10px; height: 10px; display: block; border-radius: 3px; }
+.quick-reading { margin-top: 18px; padding: 13px 14px; border: 1px solid #e4e9f2; border-radius: 10px; background: #f5f7fb; }
+.quick-reading b { color: #1f5fd6; font-size: 8px; letter-spacing: .1em; }.quick-reading p { margin: 5px 0 0; color: #41526b; font-size: 9.5px; line-height: 1.5; }
+.metric-breakdown { padding: 5px 30px 18px; display: grid; grid-template-columns: repeat(3,1fr); gap: 22px; }
+.metric-group h3 { margin: 0 0 10px; padding-bottom: 7px; border-bottom: 2px solid; font-family: var(--font-barlow-condensed),sans-serif; font-size: 10px; letter-spacing: .065em; text-transform: uppercase; }
+.metric-group.group-0 h3 { border-color: #f6ccd0; color: #e5202f; }.metric-group.group-1 h3 { border-color: #ead0f0; color: #9e07ae; }.metric-group.group-2 h3 { border-color: #fbe6c2; color: #c77a00; }
+.metric-row { margin-top: 9px; }.metric-row > div { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }.metric-row span { color: #41526b; font-size: 8.5px; }.metric-row b { color: #0d1b2a; font-family: var(--font-oswald),var(--font-barlow-condensed),sans-serif; font-size: 10px; white-space: nowrap; }.metric-row b small { color: #9aa7bd; font-size: 8px; }.metric-row > i { height: 4px; margin-top: 3px; display: block; overflow: hidden; border-radius: 4px; background: #eef1f6; }.metric-row > i em { height: 100%; display: block; border-radius: 4px; background: #e5202f; }.group-1 .metric-row > i em { background: #9e07ae; }.group-2 .metric-row > i em { background: #faa51a; }
+.dossier-footer { min-height: 72px; padding: 16px 30px 20px; display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; border-top: 1px solid #e8ecf2; }
+.dossier-footer p { max-width: 600px; margin: 0; color: #8493ab; font-size: 8px; line-height: 1.5; }.dossier-footer div { text-align: right; white-space: nowrap; }.dossier-footer span { display: block; color: #9aa7bd; font-family: var(--font-oswald),var(--font-barlow-condensed),sans-serif; font-size: 7.5px; font-weight: 650; letter-spacing: .1em; }.dossier-footer b { display: block; color: #0d1b2a; font-family: var(--font-oswald),var(--font-barlow-condensed),sans-serif; font-size: 15px; line-height: 1.05; }.dossier-footer small { display: block; margin-top: 2px; color: #1f5fd6; font-size: 7px; font-weight: 700; letter-spacing: .1em; }
+
 @keyframes pro-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @media (prefers-reduced-motion: reduce) { .page-content { animation: none; } .button, .visual-block, .nav-item { transition: none; } }
 
@@ -533,6 +623,26 @@ body::before { position: fixed; inset: 0; z-index: -1; pointer-events: none; bac
   .visual-block-grid { gap: 10px !important; }
   .block-chrome { padding: 0 7px; }
   .visual-text-content { padding: 16px; }
+  .dataset-onboarding { min-height: 360px; padding: 34px 20px; }
+  .dataset-onboarding h2 { font-size: 24px; }
+  .asset-grid { grid-template-columns: repeat(3,1fr); }
+  .dossier-header { grid-template-columns: 1fr; }
+  .dossier-portrait { min-height: 245px; }
+  .dossier-player-image { max-height: 230px; }
+  .dossier-info { padding: 22px 18px; }
+  .dossier-topline { gap: 12px; }
+  .competition-lockup span { font-size: 14px; }
+  .dossier-league-logo { width: 42px; height: 42px; }
+  .market-lockup { min-width: 92px; }.market-lockup strong { font-size: 25px; }
+  .dossier-info > h2 { margin-top: 16px; font-size: 39px; }
+  .dossier-meta-grid { grid-template-columns: repeat(2,1fr); }
+  .dossier-season-strip { padding: 16px 18px; grid-template-columns: repeat(2,1fr); gap: 14px; }
+  .season-source { grid-column: 1 / -1; }.score-ring { display: none; }
+  .dossier-stat { padding-left: 8px; }
+  .dossier-radar-row { padding: 18px; grid-template-columns: 1fr; }
+  .dossier-reading { padding: 0 2px 16px; }
+  .metric-breakdown { padding: 0 18px 18px; grid-template-columns: 1fr; }
+  .dossier-footer { padding: 15px 18px; align-items: flex-start; flex-direction: column; }.dossier-footer div { text-align: left; }
 }
 
 @media print {

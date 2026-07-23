@@ -19,7 +19,7 @@ This starter does not use `wrangler.jsonc`.
 
 Abre `http://localhost:3000` y usa uno de los dos módulos:
 
-- **Reportes:** carga entre uno y tres archivos, selecciona un jugador y revisa su radar.
+- **Reportes:** carga entre uno y tres archivos, completa la ficha del jugador y revisa su radar.
 - **Combinar bases:** procesa archivos que pueden representar ligas o temporadas y descarga el consolidado.
 
 ## Editor visual de páginas
@@ -35,6 +35,20 @@ Las páginas 2 y 3 del reporte incluyen un editor local con:
 - guardado automático del diseño en el navegador e impresión de la página activa.
 
 Los Excel se procesan completamente en el navegador. No se suben a un servidor.
+
+## Flujo del reporte
+
+1. **Cargar datos:** uno, dos o tres Excel de ligas o temporadas.
+2. **Completar perfil:** seleccionar al jugador y pegar su URL de Transfermarkt.
+   La aplicación extrae dorsal, datos biográficos, valor de mercado, club, liga,
+   escudo, logo de competición y retrato transparente. Los tres recursos visuales
+   también se pueden reemplazar por archivos PNG, WEBP o JPG locales.
+3. **Diseñar reporte:** revisar la ficha imprimible inspirada en
+   `Radar Jordhy Thompson v2`, y editar las páginas de visuales y observaciones.
+
+Los datos extraídos y las personalizaciones del perfil se guardan localmente por
+jugador en el navegador. Transfermarkt solo se consulta cuando el usuario pega
+una URL y presiona el botón de extracción.
 
 ## Reglas para combinar bases
 
