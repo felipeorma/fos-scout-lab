@@ -9,6 +9,7 @@ import {
   similarityOptions,
   type SimilarityFilters,
   type SimilarityMetricComparison,
+  type SimilarityMetricWeights,
   type SimilarityPlayer,
 } from "@/lib/similarity";
 import { formatCell, type DataRow, type PlayerReport } from "@/lib/scouting";
@@ -318,7 +319,10 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
     const y = 793 + index * 39;
     ctx.fillStyle = theme.ink;
     ctx.font = "700 13px Arial";
-    ctx.fillText(fitText(ctx, metric.label.toUpperCase(), 240), 360, y + 5);
+    const metricLabel = metric.weight === 1
+      ? metric.label
+      : `${metric.label} · ${metric.weight === 0 ? "SIN INFLUENCIA" : `PESO ${Math.round(metric.weight * 100)}%`}`;
+    ctx.fillText(fitText(ctx, metricLabel.toUpperCase(), 240), 360, y + 5);
     ctx.fillStyle = theme.line;
     drawRoundedRect(ctx, 620, y - 8, 300, 14, 7);
     ctx.fill();
@@ -382,6 +386,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, targets, the
   const [candidateLabelColorChoice, setCandidateLabelColorChoice] = useState("");
   const [targetLabelTransparency, setTargetLabelTransparency] = useState(82);
   const [candidateLabelTransparency, setCandidateLabelTransparency] = useState(82);
+  const [metricWeights, setMetricWeights] = useState<SimilarityMetricWeights>({});
   const [exportBusy, setExportBusy] = useState(false);
   const [exportStatus, setExportStatus] = useState("");
   const options = useMemo(() => similarityOptions(rows), [rows]);
@@ -397,8 +402,9 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, targets, the
     passport,
     position,
   }), [ageMax, ageMin, minimumMinutes, passport, position, query]);
-  const search = useMemo(() => buildSimilaritySearch(rows, selectedIndex, filters), [filters, rows, selectedIndex]);
+  const search = useMemo(() => buildSimilaritySearch(rows, selectedIndex, filters, metricWeights), [filters, metricWeights, rows, selectedIndex]);
   const candidates = search?.candidates ?? [];
+  const activeMetricWeights = search?.target.metrics.filter((metric) => (metricWeights[metric.key] ?? 1) !== 1).length ?? 0;
   const selectedCandidate = candidates.find((candidate) => candidate.index === selectedCandidateIndex) ?? candidates[0] ?? null;
   const activeCandidateKey = selectedCandidate ? profileStorageKey(selectedCandidate.name) : "";
   const candidateProfile = candidateProfileKey === activeCandidateKey ? candidateProfileState : candidateProfileSeed(selectedCandidate);
@@ -420,6 +426,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, targets, the
   function chooseTarget(index: number) {
     setSelectedCandidateIndex(null);
     setCandidateProfileKey("");
+    setMetricWeights({});
     onSelectTarget(index);
   }
 
@@ -435,6 +442,22 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, targets, the
     setMinimumMinutes("500");
     setPassport("");
     setPosition("");
+  }
+
+  function updateMetricWeight(key: string, percentage: number) {
+    const weight = Math.max(0, Math.min(300, percentage)) / 100;
+    setMetricWeights((current) => {
+      if (weight === 1) {
+        const next = { ...current };
+        delete next[key];
+        return next;
+      }
+      return { ...current, [key]: weight };
+    });
+  }
+
+  function resetMetricWeights() {
+    setMetricWeights({});
   }
 
   function saveProfile(side: ProfileSide, playerName: string, next: TransfermarktProfile) {
@@ -622,6 +645,25 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, targets, the
         <div className="similarity-model-badge"><Sparkles size={16} /><span><b>BASELINE ESTADÍSTICO</b><small>Percentiles + contexto de edad y rol</small></span></div>
       </section>
 
+      <section className="similarity-weight-panel">
+        <header>
+          <div><span>PONDERACIÓN PERSONALIZADA</span><h2>Importancia de las métricas</h2><p>100% mantiene el peso normal. Sube una métrica para que influya más en el ranking o llévala a 0% para excluirla.</p></div>
+          <button type="button" onClick={resetMetricWeights} disabled={!activeMetricWeights}><RotateCcw size={14} /> Restablecer pesos</button>
+        </header>
+        <div className="similarity-weight-grid">
+          {search.target.metrics.map((metric) => {
+            const weight = metricWeights[metric.key] ?? 1;
+            const percentage = Math.round(weight * 100);
+            const group = similarityMetricGroup(metric, search.target.cohort);
+            return <label className={weight !== 1 ? "weighted" : ""} style={{ "--metric-weight-color": group.color } as CSSProperties} key={metric.key}>
+              <span><i /><b>{metric.label}</b><output>{percentage === 0 ? "Sin influencia" : `${percentage}%`}</output></span>
+              <input type="range" min="0" max="300" step="25" value={percentage} onChange={(event) => updateMetricWeight(metric.key, Number(event.target.value))} aria-label={`Peso de ${metric.label}: ${percentage}%`} />
+              <small><span>0%</span><span>Neutral 100%</span><span>Máx. 300%</span></small>
+            </label>;
+          })}
+        </div>
+      </section>
+
       <div className="similarity-workspace">
         <aside className="similarity-filter-panel">
           <div className="similarity-panel-title"><div><Search size={17} /><span><b>Red de filtros</b><small>{candidates.length} coincidencias</small></span></div><button onClick={resetFilters} aria-label="Restablecer filtros"><RotateCcw size={14} /></button></div>
@@ -641,7 +683,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, targets, the
 
         <main className="similarity-results">
           <section className="similarity-ranking-card">
-            <div className="similarity-results-head"><div><span>LISTADO DE JUGADORES</span><h2>Ranking de similitud</h2></div><small>Selecciona un jugador para construir la comparación</small></div>
+            <div className="similarity-results-head"><div><span>LISTADO DE JUGADORES</span><h2>Ranking de similitud</h2></div><small>{activeMetricWeights ? `${activeMetricWeights} métrica${activeMetricWeights === 1 ? "" : "s"} con peso personalizado` : "Todas las métricas tienen peso neutral"}</small></div>
             {candidates.length ? <div className="similarity-table-wrap"><table className="similarity-table"><thead><tr><th>#</th><th>Jugador</th><th>Posiciones</th><th>Edad</th><th>Minutos</th><th>Pasaporte</th><th>Similitud</th><th /></tr></thead><tbody>{candidates.slice(0, 150).map((candidate, index) => <tr key={candidate.index} className={selectedCandidate?.index === candidate.index ? "selected" : ""}><td>{String(index + 1).padStart(2, "0")}</td><td><b>{candidate.name}</b><small>{candidate.team}</small></td><td><PositionRoles positions={candidate.positions} /></td><td>{candidate.age ?? "—"}</td><td>{Math.round(candidate.minutes).toLocaleString("es-CL")}</td><td>{candidate.passport}</td><td><span className="similarity-score-pill">{candidate.similarity}%</span></td><td><button onClick={() => chooseCandidate(candidate)}>Comparar</button></td></tr>)}</tbody></table></div> : <div className="similarity-no-results"><Search size={24} /><b>No hay jugadores con estos filtros</b><span>Reduce los requisitos de edad, minutos, pasaporte o posición.</span></div>}
           </section>
 
@@ -667,7 +709,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, targets, the
                 </div>
                 <div className="similarity-metric-section"><div className="similarity-metric-head"><span style={{ color: targetColor }}>{search.target.player}</span><b>COMPARATIVA MÉTRICA A MÉTRICA</b><span style={{ color: candidateColor }}>{selectedCandidate.name}</span></div><div className="metric-comparison-list">{selectedCandidate.metrics.map((metric) => <MetricComparison key={metric.key} metric={metric} targetName={search.target.player} candidateName={selectedCandidate.name} targetColor={targetColor} candidateColor={candidateColor} />)}</div></div>
               </div>
-              <footer className="dossier-footer similarity-report-footer"><p>Percentiles P0–P100 · métricas comunes {selectedCandidate.coverage}% · comparación sobre la base activa.</p><div className="report-signatures"><div className="report-author"><span>ELABORADO POR</span><b>FELIPE ORMAZABAL</b><small>SCOUTING REPORT</small></div><div className="report-recipient">{recipientLogoReady ? <ReportImage src={recipientLogoUrl.trim()} alt={reportRecipient} className="dossier-footer-club-logo" /> : <span className="dossier-footer-club-fallback">{reportRecipient.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span>}<div><span>REPORTE GENERADO PARA</span><b>{reportRecipient}</b></div></div></div></footer>
+              <footer className="dossier-footer similarity-report-footer"><p>Percentiles P0–P100 · métricas comunes {selectedCandidate.coverage}% · {activeMetricWeights ? `${activeMetricWeights} ponderaciones personalizadas activas` : "pesos métricos uniformes"}.</p><div className="report-signatures"><div className="report-author"><span>ELABORADO POR</span><b>FELIPE ORMAZABAL</b><small>SCOUTING REPORT</small></div><div className="report-recipient">{recipientLogoReady ? <ReportImage src={recipientLogoUrl.trim()} alt={reportRecipient} className="dossier-footer-club-logo" /> : <span className="dossier-footer-club-fallback">{reportRecipient.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span>}<div><span>REPORTE GENERADO PARA</span><b>{reportRecipient}</b></div></div></div></footer>
             </section>
 
             <div className="comparison-actions"><button className="button secondary" onClick={() => void downloadComparison()} disabled={exportBusy}><ArrowDownToLine size={16} /> {exportBusy ? "Preparando…" : "Descargar PNG"}</button><button className="button primary" onClick={() => void addComparisonToReport()} disabled={exportBusy}><ImageIcon size={16} /> Agregar a Página 2</button></div>
@@ -751,7 +793,7 @@ function MetricComparison({ metric, targetName, candidateName, targetColor, cand
   const candidateValue = formatMetricValue(metric.candidateValue, metric.key);
   return <div className="metric-comparison-row" style={{ "--target-color": targetColor, "--candidate-color": candidateColor } as CSSProperties}>
     <div className="metric-player-bar left" aria-label={`${targetName}: ${metric.label}, ${targetValue}`}><span>{targetName}</span><b>{targetValue}</b><i><em style={{ width: `${metric.targetPercentile}%` }} /></i></div>
-    <div className="metric-comparison-label"><span>{metric.label}</span></div>
+    <div className="metric-comparison-label"><span>{metric.label}</span>{metric.weight !== 1 && <small>{metric.weight === 0 ? "Sin influencia" : `Peso ${Math.round(metric.weight * 100)}%`}</small>}</div>
     <div className="metric-player-bar right" aria-label={`${candidateName}: ${metric.label}, ${candidateValue}`}><span>{candidateName}</span><b>{candidateValue}</b><i><em style={{ width: `${metric.candidatePercentile}%` }} /></i></div>
   </div>;
 }

@@ -29,6 +29,7 @@ export type SimilarityMetricComparison = {
   key: string;
   label: string;
   group: number;
+  weight: number;
   targetValue: number;
   candidateValue: number;
   targetPercentile: number;
@@ -62,6 +63,8 @@ export type SimilarityOptions = {
   passports: string[];
   positions: string[];
 };
+
+export type SimilarityMetricWeights = Record<string, number>;
 
 const PLAYER_ALIASES = ["player", "jugador", "player name", "nombre jugador"];
 const TEAM_ALIASES = ["team within selected timeframe", "equipo durante el periodo seleccionado", "team", "equipo"];
@@ -122,7 +125,12 @@ export function similarityOptions(rows: DataRow[]): SimilarityOptions {
   };
 }
 
-export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filters: SimilarityFilters): SimilaritySearchResult | null {
+function metricWeight(key: string, weights: SimilarityMetricWeights) {
+  const value = weights[key];
+  return Number.isFinite(value) ? Math.max(0, Math.min(3, value)) : 1;
+}
+
+export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filters: SimilarityFilters, metricWeights: SimilarityMetricWeights = {}): SimilaritySearchResult | null {
   const target = buildPlayerReport(rows, targetIndex, 0, "AUTO");
   const targetRow = rows[targetIndex];
   if (!target || !targetRow || !target.metrics.length) return null;
@@ -175,6 +183,7 @@ export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filt
         key: metric.key,
         label: metric.label,
         group: metric.group,
+        weight: metricWeight(metric.key, metricWeights),
         targetValue: metric.value,
         candidateValue,
         targetPercentile,
@@ -186,14 +195,18 @@ export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filt
 
     const targetVector = metrics.map((metric) => (metric.targetPercentile - 50) / 50);
     const candidateVector = metrics.map((metric) => (metric.candidatePercentile - 50) / 50);
-    const dot = targetVector.reduce((sum, value, metricIndex) => sum + value * candidateVector[metricIndex], 0);
-    const targetNorm = Math.sqrt(targetVector.reduce((sum, value) => sum + value ** 2, 0));
-    const candidateNorm = Math.sqrt(candidateVector.reduce((sum, value) => sum + value ** 2, 0));
+    const configuredWeights = metrics.map((metric) => metric.weight);
+    const hasWeightedMetrics = configuredWeights.some((weight) => weight > 0);
+    const effectiveWeights = hasWeightedMetrics ? configuredWeights : configuredWeights.map(() => 1);
+    const totalWeight = effectiveWeights.reduce((sum, weight) => sum + weight, 0);
+    const dot = targetVector.reduce((sum, value, metricIndex) => sum + effectiveWeights[metricIndex] * value * candidateVector[metricIndex], 0);
+    const targetNorm = Math.sqrt(targetVector.reduce((sum, value, metricIndex) => sum + effectiveWeights[metricIndex] * value ** 2, 0));
+    const candidateNorm = Math.sqrt(candidateVector.reduce((sum, value, metricIndex) => sum + effectiveWeights[metricIndex] * value ** 2, 0));
     const cosine = targetNorm && candidateNorm ? dot / (targetNorm * candidateNorm) : 0;
     const cosineSimilarity = (cosine + 1) / 2;
-    const rmsDistance = Math.sqrt(targetVector.reduce((sum, value, metricIndex) => sum + (value - candidateVector[metricIndex]) ** 2, 0) / metrics.length);
+    const rmsDistance = Math.sqrt(targetVector.reduce((sum, value, metricIndex) => sum + effectiveWeights[metricIndex] * (value - candidateVector[metricIndex]) ** 2, 0) / totalWeight);
     const distanceSimilarity = 1 - clamp01(rmsDistance / 2);
-    const metricSimilarity = clamp01(cosineSimilarity * 0.42 + distanceSimilarity * 0.58);
+    let metricSimilarity = clamp01(cosineSimilarity * 0.42 + distanceSimilarity * 0.58);
 
     const candidateCohort = cohortOf(rawPosition);
     const candidatePrimaryRole = primaryPositionRole(rawPosition);
@@ -201,6 +214,7 @@ export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filt
     const positionSimilarity = candidatePrimaryRole && candidatePrimaryRole === targetPrimaryRole ? 1 : sharesRole ? 0.9 : candidateCohort === targetCohort ? 0.84 : 0.35;
     const ageSimilarity = targetAge !== null && age !== null ? 1 - clamp01(Math.abs(targetAge - age) / 12) : 0.5;
     const contextSimilarity = clamp01(positionSimilarity * 0.76 + ageSimilarity * 0.24);
+    if (!hasWeightedMetrics) metricSimilarity = contextSimilarity;
     const similarity = clamp01(metricSimilarity * 0.86 + contextSimilarity * 0.14);
 
     return [{
