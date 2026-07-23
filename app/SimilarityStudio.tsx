@@ -11,7 +11,7 @@ import {
   type SimilarityMetricComparison,
   type SimilarityPlayer,
 } from "@/lib/similarity";
-import type { DataRow, PlayerReport } from "@/lib/scouting";
+import { formatCell, type DataRow, type PlayerReport } from "@/lib/scouting";
 import { formatPlayerPositions, type PlayerPosition } from "@/lib/positions";
 import { createEmptyTransfermarktProfile, type TransfermarktProfile } from "@/lib/transfermarkt";
 
@@ -35,6 +35,11 @@ type SimilarityStudioProps = {
 };
 
 const GROUP_COLORS = ["#e95b3f", "#d7a62c", "#43a8a0"];
+const METRIC_GROUPS = [
+  { label: "Finalización / defensa", color: GROUP_COLORS[0] },
+  { label: "Creación / progresión", color: GROUP_COLORS[1] },
+  { label: "Desequilibrio / pase", color: GROUP_COLORS[2] },
+];
 const PLAYER_PALETTE = ["#1f5fd6", "#e95b3f", "#43a8a0", "#9e07ae", "#d7a62c", "#16a34a", "#0f172a", "#f97316"];
 const alphabeticCollator = new Intl.Collator("es", { sensitivity: "base", numeric: true });
 
@@ -46,6 +51,10 @@ function optionalNumber(value: string) {
 
 function safeFileName(value: string) {
   return value.toLocaleLowerCase("es").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function formatMetricValue(value: number, key: string) {
+  return `${formatCell(value)}${key.includes("%") ? "%" : ""}`;
 }
 
 function profileStorageKey(player: string) {
@@ -282,6 +291,18 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
   ctx.fillStyle = theme.muted;
   ctx.font = "700 13px Arial";
   ctx.fillText("SIMILITUD GLOBAL", 800, 731);
+  const legendItemWidth = 205;
+  const legendStartX = 800 - METRIC_GROUPS.length * legendItemWidth / 2;
+  METRIC_GROUPS.forEach((group, index) => {
+    const x = legendStartX + index * legendItemWidth;
+    ctx.fillStyle = group.color;
+    drawRoundedRect(ctx, x, 751, 12, 12, 3);
+    ctx.fill();
+    ctx.fillStyle = theme.ink;
+    ctx.font = "700 11px Arial";
+    ctx.textAlign = "left";
+    ctx.fillText(group.label.toUpperCase(), x + 20, 761);
+  });
   ctx.textAlign = "left";
 
   candidate.metrics.slice(0, 7).forEach((metric, index) => {
@@ -297,7 +318,7 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
     ctx.fill();
     ctx.fillStyle = theme.ink;
     ctx.font = "800 13px Arial";
-    ctx.fillText(`P${metric.targetPercentile}`, 930, y + 4);
+    ctx.fillText(formatMetricValue(metric.targetValue, metric.key), 930, y + 4);
     ctx.fillStyle = theme.line;
     drawRoundedRect(ctx, 1010, y - 8, 300, 14, 7);
     ctx.fill();
@@ -305,7 +326,7 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
     drawRoundedRect(ctx, 1010, y - 8, 300 * metric.candidatePercentile / 100, 14, 7);
     ctx.fill();
     ctx.fillStyle = theme.ink;
-    ctx.fillText(`P${metric.candidatePercentile}`, 1320, y + 4);
+    ctx.fillText(formatMetricValue(metric.candidateValue, metric.key), 1320, y + 4);
   });
 
   ctx.strokeStyle = theme.line;
@@ -533,7 +554,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, targets, the
               <div className="similarity-report-body">
                 <div className="similarity-showdown">
                   <ComparisonPlayer profile={targetProfile} name={search.target.player} team={search.target.team} position={search.target.position} age={search.target.age} passport={search.target.passport} label="JUGADOR OBJETIVO" color={targetColor} />
-                  <div className="similarity-radar-column"><ComparisonRadar metrics={selectedCandidate.metrics} targetName={search.target.player} candidateName={selectedCandidate.name} targetColor={targetColor} candidateColor={candidateColor} /><div className="comparison-summary"><span>Métricas <b>{selectedCandidate.metricSimilarity}%</b></span><span>Contexto <b>{selectedCandidate.contextSimilarity}%</b></span><span>Cobertura <b>{selectedCandidate.coverage}%</b></span></div></div>
+                  <div className="similarity-radar-column"><ComparisonRadar metrics={selectedCandidate.metrics} targetName={search.target.player} candidateName={selectedCandidate.name} targetColor={targetColor} candidateColor={candidateColor} /><MetricGroupLegend /></div>
                   <ComparisonPlayer profile={candidateProfile} name={selectedCandidate.name} team={selectedCandidate.team} position={selectedCandidate.position} age={selectedCandidate.age === null ? "—" : String(selectedCandidate.age)} passport={selectedCandidate.passport} label="JUGADOR COMPARABLE" color={candidateColor} />
                 </div>
                 <div className="similarity-metric-section"><div className="similarity-metric-head"><span style={{ color: targetColor }}>{search.target.player}</span><b>COMPARATIVA MÉTRICA A MÉTRICA</b><span style={{ color: candidateColor }}>{selectedCandidate.name}</span></div><div className="metric-comparison-list">{selectedCandidate.metrics.map((metric) => <MetricComparison key={metric.key} metric={metric} targetName={search.target.player} candidateName={selectedCandidate.name} targetColor={targetColor} candidateColor={candidateColor} />)}</div></div>
@@ -581,10 +602,18 @@ function PositionRoles({ positions }: { positions: PlayerPosition[] }) {
   return <div className="position-role-list">{positions.map((position, index) => <span key={`${position.code}-${index}`}><em>{index === 0 ? "1ª" : `${index + 1}ª`}</em><b>{position.role}</b><small>{position.code}</small></span>)}</div>;
 }
 
+function MetricGroupLegend() {
+  return <div className="similarity-metric-group-legend" aria-label="Leyenda de grupos métricos">
+    {METRIC_GROUPS.map((group) => <span key={group.label}><i style={{ "--metric-group-color": group.color } as CSSProperties} /><b>{group.label}</b></span>)}
+  </div>;
+}
+
 function MetricComparison({ metric, targetName, candidateName, targetColor, candidateColor }: { metric: SimilarityMetricComparison; targetName: string; candidateName: string; targetColor: string; candidateColor: string }) {
+  const targetValue = formatMetricValue(metric.targetValue, metric.key);
+  const candidateValue = formatMetricValue(metric.candidateValue, metric.key);
   return <div className="metric-comparison-row" style={{ "--target-color": targetColor, "--candidate-color": candidateColor } as CSSProperties}>
-    <div className="metric-player-bar left" aria-label={`${targetName}: percentil ${metric.targetPercentile}`}><span>{targetName}</span><b>P{metric.targetPercentile}</b><i><em style={{ width: `${metric.targetPercentile}%` }} /></i></div>
-    <div className="metric-comparison-label"><span>{metric.label}</span><small>Δ {metric.difference} pts</small></div>
-    <div className="metric-player-bar right" aria-label={`${candidateName}: percentil ${metric.candidatePercentile}`}><span>{candidateName}</span><b>P{metric.candidatePercentile}</b><i><em style={{ width: `${metric.candidatePercentile}%` }} /></i></div>
+    <div className="metric-player-bar left" aria-label={`${targetName}: ${metric.label}, ${targetValue}`}><span>{targetName}</span><b>{targetValue}</b><i><em style={{ width: `${metric.targetPercentile}%` }} /></i></div>
+    <div className="metric-comparison-label"><span>{metric.label}</span></div>
+    <div className="metric-player-bar right" aria-label={`${candidateName}: ${metric.label}, ${candidateValue}`}><span>{candidateName}</span><b>{candidateValue}</b><i><em style={{ width: `${metric.candidatePercentile}%` }} /></i></div>
   </div>;
 }

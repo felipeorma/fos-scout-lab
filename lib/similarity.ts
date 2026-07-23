@@ -29,6 +29,8 @@ export type SimilarityMetricComparison = {
   key: string;
   label: string;
   group: number;
+  targetValue: number;
+  candidateValue: number;
   targetPercentile: number;
   candidatePercentile: number;
   difference: number;
@@ -148,13 +150,16 @@ export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filt
     if (normalizedQuery && !normalizeSearch(`${name} ${team}`).includes(normalizedQuery)) return [];
 
     const metrics = target.metrics.flatMap((metric) => {
+      const candidateValue = numeric(row[metric.key]);
       const targetPercentile = targetRanks.get(metric.key);
-      const candidatePercentile = percentileRank(numeric(row[metric.key]), metricPopulations.get(metric.key) ?? []);
+      const candidatePercentile = percentileRank(candidateValue, metricPopulations.get(metric.key) ?? []);
       if (targetPercentile === undefined || candidatePercentile === null) return [];
       return [{
         key: metric.key,
         label: metric.label,
         group: metric.group,
+        targetValue: metric.value,
+        candidateValue,
         targetPercentile,
         candidatePercentile,
         difference: Math.abs(targetPercentile - candidatePercentile),
