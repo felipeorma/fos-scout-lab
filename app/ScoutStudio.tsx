@@ -38,6 +38,7 @@ import {
 } from "@/lib/scouting";
 import type { TransfermarktProfile } from "@/lib/transfermarkt";
 import { formatPlayerPositions } from "@/lib/positions";
+import { removePlayerImageBackground } from "@/lib/playerImageBackground";
 
 type View = "home" | "reports" | "similarity";
 type ReportPage = 1 | 2 | 3;
@@ -398,14 +399,9 @@ export default function ScoutStudio() {
     setBackgroundRemoving(true);
     setBackgroundRemovalStatus("Preparando el modelo de IA… La primera vez puede tardar.");
     try {
-      const imageSource = /^data:|^blob:/i.test(source)
-        ? source
-        : `https://images.weserv.nl/?url=${encodeURIComponent(source.replace(/^https?:\/\//i, ""))}`;
-      const { removeBackground } = await import("@imgly/background-removal");
-      const result = await removeBackground(imageSource, {
-        model: "small",
-        output: { format: "image/png", quality: 1 },
-        progress: (key, current, total) => {
+      const result = await removePlayerImageBackground({
+        playerImage: source,
+        onProgress: (key, current, total) => {
           const percent = total > 0 ? Math.min(100, Math.round(current / total * 100)) : 0;
           setBackgroundRemovalStatus(percent ? `Descargando modelo IA · ${percent}%` : `Preparando ${key}…`);
         },
@@ -590,9 +586,9 @@ export default function ScoutStudio() {
                     })}
                   </div>
                   {assetSourceStatus && <div className={`background-status asset-source-status ${assetSourceStatus.startsWith("✓") ? "success" : ""}`} aria-live="polite">{assetSourceStatus}</div>}
-                  <button className="remove-bg-button" onClick={removePlayerBackground} disabled={backgroundRemoving || !profile.playerImage}><Sparkles size={15} /> {backgroundRemoving ? "Quitando fondo…" : "Quitar fondo con IA"}</button>
+                  <button className="remove-bg-button" onClick={removePlayerBackground} disabled={backgroundRemoving || !profile.playerImage}><Sparkles size={15} /> {backgroundRemoving ? "Quitando fondo…" : "Quitar fondo solo a la foto"}</button>
                   {backgroundRemovalStatus && <div className={`background-status ${backgroundRemovalStatus.startsWith("✓") ? "success" : ""}`} aria-live="polite">{backgroundRemovalStatus}</div>}
-                  <p className="asset-help">Procesamiento local con IMG.LY. La primera vez se descarga el modelo; después queda almacenado en la caché del navegador.</p>
+                  <p className="asset-help"><b>Solo se procesa la foto del jugador.</b> Los escudos de clubes, logos de ligas y logo del destinatario conservan siempre su fondo original.</p>
 
                   <details className="profile-details">
                     <summary>Revisar y editar ficha</summary>

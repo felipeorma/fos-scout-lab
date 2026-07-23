@@ -15,6 +15,7 @@ import { formatCell, type DataRow, type PlayerReport } from "@/lib/scouting";
 import { formatPlayerPositions, type PlayerPosition } from "@/lib/positions";
 import { SIMILARITY_METRIC_GROUPS, similarityMetricGroup } from "@/lib/similarityMetricGroups";
 import { createEmptyTransfermarktProfile, type TransfermarktProfile } from "@/lib/transfermarkt";
+import { removePlayerImageBackground } from "@/lib/playerImageBackground";
 
 type TargetOption = { index: number; player: string; team: string };
 type ProfileSide = "target" | "candidate";
@@ -517,14 +518,9 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, targets, the
     setBackgroundBusy(side);
     setProfileStatus((status) => ({ ...status, [side]: "Preparando el modelo de IA… La primera vez puede tardar." }));
     try {
-      const imageSource = /^data:|^blob:/i.test(source)
-        ? source
-        : `https://images.weserv.nl/?url=${encodeURIComponent(source.replace(/^https?:\/\//i, ""))}`;
-      const { removeBackground } = await import("@imgly/background-removal");
-      const result = await removeBackground(imageSource, {
-        model: "small",
-        output: { format: "image/png", quality: 1 },
-        progress: (key, currentProgress, total) => {
+      const result = await removePlayerImageBackground({
+        playerImage: source,
+        onProgress: (key, currentProgress, total) => {
           const percent = total > 0 ? Math.min(100, Math.round(currentProgress / total * 100)) : 0;
           setProfileStatus((status) => ({ ...status, [side]: percent ? `Descargando modelo IA · ${percent}%` : `Preparando ${key}…` }));
         },
@@ -705,7 +701,8 @@ function ProfileEnrichment({ side, label, player, profile, busy, backgroundBusy,
         <label><Upload size={12} /><span>Ordenador</span><input type="file" accept="image/png,image/webp,image/jpeg" hidden disabled={locked} onChange={(event) => { onImageFile(event.target.files?.[0]); event.target.value = ""; }} /></label>
       </form>
       {status && <p aria-live="polite">{status}</p>}
-      <div className="enrichment-background-tools"><button type="button" onClick={onRemoveBackground} disabled={locked || !profile.playerImage}><Sparkles size={12} /> {backgroundBusy ? "Quitando fondo…" : "Quitar fondo con IA"}</button>{canRestore && <button className="restore" type="button" onClick={onRestoreBackground} disabled={locked}>Restaurar original</button>}</div>
+      <div className="enrichment-background-tools"><button type="button" onClick={onRemoveBackground} disabled={locked || !profile.playerImage}><Sparkles size={12} /> {backgroundBusy ? "Quitando fondo…" : "Quitar fondo solo a la foto"}</button>{canRestore && <button className="restore" type="button" onClick={onRestoreBackground} disabled={locked}>Restaurar original</button>}</div>
+      <small className="enrichment-background-note">El escudo conserva siempre su fondo original.</small>
       <div className="enrichment-downloads"><button type="button" disabled={!profile.playerImage || backgroundBusy} onClick={() => onDownload(profile.playerImage, `${player}-foto`)}>⇩ Foto</button><button type="button" disabled={!profile.clubLogo || backgroundBusy} onClick={() => onDownload(profile.clubLogo, `${profile.club || player}-escudo`)}>⇩ Escudo</button></div>
     </div>
   </article>;
