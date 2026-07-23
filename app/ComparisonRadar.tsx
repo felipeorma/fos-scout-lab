@@ -32,14 +32,16 @@ function shortName(value: string) {
   return parts.length > 2 ? `${parts[0]} ${parts.at(-1)}` : value;
 }
 
-export function ComparisonRadar({ metrics, targetName, candidateName, targetColor, candidateColor }: { metrics: SimilarityMetricComparison[]; targetName: string; candidateName: string; targetColor: string; candidateColor: string }) {
+export function ComparisonRadar({ metrics, targetName, candidateName, targetColor, candidateColor, targetLabelColor, candidateLabelColor, targetLabelTransparency, candidateLabelTransparency }: { metrics: SimilarityMetricComparison[]; targetName: string; candidateName: string; targetColor: string; candidateColor: string; targetLabelColor: string; candidateLabelColor: string; targetLabelTransparency: number; candidateLabelTransparency: number }) {
   if (metrics.length < 3) return null;
   const step = Math.PI * 2 / metrics.length;
   const labelRadius = 257;
   const target = shortName(targetName);
   const candidate = shortName(candidateName);
+  const targetLabelOpacity = `${100 - Math.max(0, Math.min(100, targetLabelTransparency))}%`;
+  const candidateLabelOpacity = `${100 - Math.max(0, Math.min(100, candidateLabelTransparency))}%`;
 
-  return <div className="comparison-radar-wrap" style={{ "--comparison-target": targetColor, "--comparison-candidate": candidateColor } as CSSProperties}>
+  return <div className="comparison-radar-wrap" style={{ "--comparison-target": targetColor, "--comparison-candidate": candidateColor, "--comparison-target-label": targetLabelColor, "--comparison-candidate-label": candidateLabelColor, "--comparison-target-label-opacity": targetLabelOpacity, "--comparison-candidate-label-opacity": candidateLabelOpacity } as CSSProperties}>
     <div className="comparison-radar-legend" aria-hidden="true"><span className="target"><i />{target}</span><span className="candidate"><i />{candidate}</span></div>
     <svg className="comparison-radar" viewBox={`0 0 ${SIZE} ${SIZE}`} role="img" aria-labelledby="comparison-radar-title comparison-radar-description">
       <title id="comparison-radar-title">Radar comparativo de {targetName} y {candidateName}</title>

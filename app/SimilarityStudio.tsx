@@ -134,7 +134,7 @@ function radarPoint(index: number, total: number, radius: number, cx: number, cy
   return { x: cx + Math.cos(angle) * radius, y: cy + Math.sin(angle) * radius, angle };
 }
 
-function drawRadar(ctx: CanvasRenderingContext2D, metrics: SimilarityMetricComparison[], theme: ReportTheme, cx: number, cy: number, radius: number, targetColor: string, candidateColor: string) {
+function drawRadar(ctx: CanvasRenderingContext2D, metrics: SimilarityMetricComparison[], theme: ReportTheme, cx: number, cy: number, radius: number, targetColor: string, candidateColor: string, targetLabelColor: string, candidateLabelColor: string, targetLabelTransparency: number, candidateLabelTransparency: number) {
   if (metrics.length < 3) return;
   [0.25, 0.5, 0.75, 1].forEach((level) => {
     ctx.beginPath();
@@ -195,10 +195,10 @@ function drawRadar(ctx: CanvasRenderingContext2D, metrics: SimilarityMetricCompa
     const badgesWidth = badgeWidth * 2 + badgeGap;
     const badgesX = alignment === "left" ? label.x : alignment === "right" ? label.x - badgesWidth : label.x - badgesWidth / 2;
     const badgesY = label.y + 7;
-    const percentileBadge = (x: number, value: number, color: string, corner: number) => {
+    const percentileBadge = (x: number, value: number, color: string, transparency: number, corner: number) => {
       drawRoundedRect(ctx, x, badgesY, badgeWidth, badgeHeight, corner);
       ctx.save();
-      ctx.globalAlpha = .17;
+      ctx.globalAlpha = Math.max(0, Math.min(100, 100 - transparency)) / 100;
       ctx.fillStyle = color;
       ctx.fill();
       ctx.restore();
@@ -210,12 +210,12 @@ function drawRadar(ctx: CanvasRenderingContext2D, metrics: SimilarityMetricCompa
       ctx.textAlign = "center";
       ctx.fillText(`P${value}`, x + badgeWidth / 2, badgesY + 15);
     };
-    percentileBadge(badgesX, metric.targetPercentile, targetColor, badgeHeight / 2);
-    percentileBadge(badgesX + badgeWidth + badgeGap, metric.candidatePercentile, candidateColor, 4);
+    percentileBadge(badgesX, metric.targetPercentile, targetLabelColor, targetLabelTransparency, badgeHeight / 2);
+    percentileBadge(badgesX + badgeWidth + badgeGap, metric.candidatePercentile, candidateLabelColor, candidateLabelTransparency, 4);
   });
 }
 
-async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer, sourceName: string, theme: ReportTheme, targetProfile: TransfermarktProfile, candidateProfile: TransfermarktProfile, recipientName: string, recipientLogoUrl: string, targetColor: string, candidateColor: string) {
+async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer, sourceName: string, theme: ReportTheme, targetProfile: TransfermarktProfile, candidateProfile: TransfermarktProfile, recipientName: string, recipientLogoUrl: string, targetColor: string, candidateColor: string, targetLabelColor: string, candidateLabelColor: string, targetLabelTransparency: number, candidateLabelTransparency: number) {
   const canvas = document.createElement("canvas");
   canvas.width = 1600;
   canvas.height = 1200;
@@ -291,7 +291,7 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
 
   playerCard(70, { name: target.player, team: target.team, position: target.position, age: target.age, passport: target.passport }, targetProfile, targetImage, targetClub, "JUGADOR OBJETIVO", targetColor);
   playerCard(1180, { name: candidate.name, team: candidate.team, position: candidate.position, age: candidate.age === null ? "—" : String(candidate.age), passport: candidate.passport }, candidateProfile, candidateImage, candidateClub, "JUGADOR COMPARABLE", candidateColor);
-  drawRadar(ctx, candidate.metrics, theme, 800, 426, 210, targetColor, candidateColor);
+  drawRadar(ctx, candidate.metrics, theme, 800, 426, 210, targetColor, candidateColor, targetLabelColor, candidateLabelColor, targetLabelTransparency, candidateLabelTransparency);
 
   ctx.textAlign = "center";
   ctx.fillStyle = theme.accent;
@@ -378,6 +378,10 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, targets, the
   const [profileStatus, setProfileStatus] = useState<Record<ProfileSide, string>>({ target: "", candidate: "" });
   const [targetColorChoice, setTargetColorChoice] = useState("");
   const [candidateColorChoice, setCandidateColorChoice] = useState("#e95b3f");
+  const [targetLabelColorChoice, setTargetLabelColorChoice] = useState("");
+  const [candidateLabelColorChoice, setCandidateLabelColorChoice] = useState("");
+  const [targetLabelTransparency, setTargetLabelTransparency] = useState(82);
+  const [candidateLabelTransparency, setCandidateLabelTransparency] = useState(82);
   const [exportBusy, setExportBusy] = useState(false);
   const [exportStatus, setExportStatus] = useState("");
   const options = useMemo(() => similarityOptions(rows), [rows]);
@@ -400,6 +404,8 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, targets, the
   const candidateProfile = candidateProfileKey === activeCandidateKey ? candidateProfileState : candidateProfileSeed(selectedCandidate);
   const targetColor = targetColorChoice || theme.accent;
   const candidateColor = candidateColorChoice || "#e95b3f";
+  const targetLabelColor = targetLabelColorChoice || targetColor;
+  const candidateLabelColor = candidateLabelColorChoice || candidateColor;
   const paletteColors = useMemo(() => [...new Set([theme.accent, theme.dark, ...PLAYER_PALETTE])], [theme.accent, theme.dark]);
   const reportRecipient = recipientName.trim() || "Club destinatario";
   const recipientLogoReady = /^(https?:\/\/|data:image\/)/i.test(recipientLogoUrl.trim());
@@ -574,7 +580,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, targets, the
 
   async function createImage() {
     if (!search?.target || !selectedCandidate) return "";
-    return comparisonImage(search.target, selectedCandidate, sourceName, theme, targetProfile, candidateProfile, reportRecipient, recipientLogoUrl.trim(), targetColor, candidateColor);
+    return comparisonImage(search.target, selectedCandidate, sourceName, theme, targetProfile, candidateProfile, reportRecipient, recipientLogoUrl.trim(), targetColor, candidateColor, targetLabelColor, candidateLabelColor, targetLabelTransparency, candidateLabelTransparency);
   }
 
   async function downloadComparison() {
@@ -653,9 +659,9 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, targets, the
             </section>
 
             <section className="similarity-color-panel">
-              <div className="similarity-color-heading"><span>PALETA DE COMPARACIÓN</span><b>Asigna un color a cada jugador</b><small>El color también identifica sus etiquetas de percentil; los grupos métricos mantienen la circunferencia exterior.</small></div>
-              <PalettePicker label="Jugador objetivo" player={search.target.player} color={targetColor} colors={paletteColors} onChange={setTargetColorChoice} />
-              <PalettePicker label="Jugador comparable" player={selectedCandidate.name} color={candidateColor} colors={paletteColors} onChange={setCandidateColorChoice} />
+              <div className="similarity-color-heading"><span>PALETA DE COMPARACIÓN</span><b>Personaliza jugadores y labels</b><small>Define el color del jugador, el color del label de percentil y la transparencia de su fondo.</small></div>
+              <PalettePicker label="Jugador objetivo" player={search.target.player} color={targetColor} labelColor={targetLabelColor} labelTransparency={targetLabelTransparency} colors={paletteColors} onChange={setTargetColorChoice} onLabelColorChange={setTargetLabelColorChoice} onLabelTransparencyChange={setTargetLabelTransparency} />
+              <PalettePicker label="Jugador comparable" player={selectedCandidate.name} color={candidateColor} labelColor={candidateLabelColor} labelTransparency={candidateLabelTransparency} colors={paletteColors} onChange={setCandidateColorChoice} onLabelColorChange={setCandidateLabelColorChoice} onLabelTransparencyChange={setCandidateLabelTransparency} />
             </section>
 
             <section className="similarity-report-sheet">
@@ -663,7 +669,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, targets, the
               <div className="similarity-report-body">
                 <div className="similarity-showdown">
                   <ComparisonPlayer profile={targetProfile} name={search.target.player} team={search.target.team} position={search.target.position} age={search.target.age} passport={search.target.passport} label="JUGADOR OBJETIVO" color={targetColor} />
-                  <div className="similarity-radar-column"><ComparisonRadar metrics={selectedCandidate.metrics} targetName={search.target.player} candidateName={selectedCandidate.name} targetColor={targetColor} candidateColor={candidateColor} /><MetricGroupLegend /></div>
+                  <div className="similarity-radar-column"><ComparisonRadar metrics={selectedCandidate.metrics} targetName={search.target.player} candidateName={selectedCandidate.name} targetColor={targetColor} candidateColor={candidateColor} targetLabelColor={targetLabelColor} candidateLabelColor={candidateLabelColor} targetLabelTransparency={targetLabelTransparency} candidateLabelTransparency={candidateLabelTransparency} /><MetricGroupLegend /></div>
                   <ComparisonPlayer profile={candidateProfile} name={selectedCandidate.name} team={selectedCandidate.team} position={selectedCandidate.position} age={selectedCandidate.age === null ? "—" : String(selectedCandidate.age)} passport={selectedCandidate.passport} label="JUGADOR COMPARABLE" color={candidateColor} />
                 </div>
                 <div className="similarity-metric-section"><div className="similarity-metric-head"><span style={{ color: targetColor }}>{search.target.player}</span><b>COMPARATIVA MÉTRICA A MÉTRICA</b><span style={{ color: candidateColor }}>{selectedCandidate.name}</span></div><div className="metric-comparison-list">{selectedCandidate.metrics.map((metric) => <MetricComparison key={metric.key} metric={metric} targetName={search.target.player} candidateName={selectedCandidate.name} targetColor={targetColor} candidateColor={candidateColor} />)}</div></div>
@@ -714,8 +720,18 @@ function ComparisonPlayer({ profile, name, team, position, age, passport, label,
   return <article className="comparison-player-card" style={{ "--player-color": color } as CSSProperties}><header><span>{label}</span>{profile.clubLogo ? <ReportImage src={profile.clubLogo} alt={profile.club || team} className="comparison-club-logo" /> : <span className="comparison-club-fallback">{team.slice(0, 2).toUpperCase()}</span>}</header><div className="comparison-player-portrait">{profile.playerImage ? <ReportImage src={profile.playerImage} alt={name} className="comparison-player-image" /> : <span>{name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("")}</span>}</div><div className="comparison-player-copy"><h3>{name}</h3><b>{profile.club || team}</b><p>{formatPlayerPositions(profile.position || position)}</p><small>{profile.age || age} años · {profile.citizenship || passport}</small>{profile.marketValue && <strong>{profile.marketValue}</strong>}</div></article>;
 }
 
-function PalettePicker({ label, player, color, colors, onChange }: { label: string; player: string; color: string; colors: string[]; onChange: (color: string) => void }) {
-  return <div className="similarity-palette-picker"><div><span>{label}</span><b><i style={{ backgroundColor: color }} />{player}</b></div><div className="similarity-palette-swatches">{colors.map((option) => <button key={option} type="button" className={option.toLocaleLowerCase("en") === color.toLocaleLowerCase("en") ? "selected" : ""} style={{ "--swatch": option } as CSSProperties} aria-label={`Asignar color ${option} a ${player}`} aria-pressed={option.toLocaleLowerCase("en") === color.toLocaleLowerCase("en")} onClick={() => onChange(option)}><span /></button>)}<label><span>Personalizado</span><input type="color" value={color} onChange={(event) => onChange(event.target.value)} aria-label={`Color personalizado para ${player}`} /></label></div></div>;
+function PalettePicker({ label, player, color, labelColor, labelTransparency, colors, onChange, onLabelColorChange, onLabelTransparencyChange }: { label: string; player: string; color: string; labelColor: string; labelTransparency: number; colors: string[]; onChange: (color: string) => void; onLabelColorChange: (color: string) => void; onLabelTransparencyChange: (value: number) => void }) {
+  const labelOpacity = `${100 - labelTransparency}%`;
+  return <div className="similarity-palette-picker">
+    <div><span>{label}</span><b><i style={{ backgroundColor: color }} />{player}</b></div>
+    <div className="similarity-palette-swatches">{colors.map((option) => <button key={option} type="button" className={option.toLocaleLowerCase("en") === color.toLocaleLowerCase("en") ? "selected" : ""} style={{ "--swatch": option } as CSSProperties} aria-label={`Asignar color ${option} a ${player}`} aria-pressed={option.toLocaleLowerCase("en") === color.toLocaleLowerCase("en")} onClick={() => onChange(option)}><span /></button>)}<label><span>Personalizado</span><input type="color" value={color} onChange={(event) => onChange(event.target.value)} aria-label={`Color personalizado para ${player}`} /></label></div>
+    <div className="similarity-percentile-style">
+      <span>LABEL DE PERCENTIL</span>
+      <output style={{ "--label-preview-color": labelColor, "--label-preview-opacity": labelOpacity } as CSSProperties}>P85</output>
+      <label className="label-color-control"><span>Color</span><input type="color" value={labelColor} onChange={(event) => onLabelColorChange(event.target.value)} aria-label={`Color del label de percentil de ${player}`} /></label>
+      <label className="label-transparency-control"><span>Transparencia del fondo <b>{labelTransparency}%</b></span><input type="range" min="0" max="100" step="1" value={labelTransparency} onChange={(event) => onLabelTransparencyChange(Number(event.target.value))} aria-label={`Transparencia del label de percentil de ${player}`} /></label>
+    </div>
+  </div>;
 }
 
 function ReportImage({ src, alt, className }: { src: string; alt: string; className: string }) {
