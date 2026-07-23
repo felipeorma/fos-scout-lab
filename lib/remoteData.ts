@@ -55,19 +55,30 @@ export async function fetchTransfermarktProfile(url: string): Promise<Partial<Tr
   return profile;
 }
 
-const CORS_PROXIES = [
-  (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-  (url: string) => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
+// Transfermarkt bloquea las IPs de la mayoría de proxies CORS públicos; el
+// lector de Jina sí llega a la página real, así que va primero. Los demás
+// quedan como respaldo por si Jina limita el número de peticiones.
+const CORS_PROXIES: Array<{ url: (target: string) => string; headers?: Record<string, string>; timeoutMs: number }> = [
+  { url: (target) => `https://r.jina.ai/${target}`, headers: { "x-return-format": "html" }, timeoutMs: 60_000 },
+  { url: (target) => `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`, timeoutMs: 20_000 },
+  { url: (target) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(target)}`, timeoutMs: 20_000 },
+  { url: (target) => `https://corsproxy.io/?url=${encodeURIComponent(target)}`, timeoutMs: 20_000 },
 ];
 
 async function fetchHtmlThroughCorsProxy(url: string) {
   let lastError: Error | null = null;
-  for (const buildProxyUrl of CORS_PROXIES) {
+  for (const proxy of CORS_PROXIES) {
     try {
-      const response = await fetch(buildProxyUrl(url), { signal: AbortSignal.timeout(20_000) });
+      const response = await fetch(proxy.url(url), {
+        headers: proxy.headers,
+        signal: AbortSignal.timeout(proxy.timeoutMs),
+      });
       if (!response.ok) throw new Error(tf("El proxy respondió {code}.", { code: response.status }));
       const html = await response.text();
       if (html.length < 1_000) throw new Error(t("El proxy devolvió una respuesta vacía."));
+      // Una página de bloqueo también puede llegar con estado 200: se valida
+      // que el HTML contenga el encabezado real del perfil antes de aceptarlo.
+      if (!html.includes("data-header")) throw new Error(t("El proxy devolvió una respuesta vacía."));
       return html;
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
