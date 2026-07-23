@@ -37,6 +37,7 @@ import {
   type SourceDataset,
 } from "@/lib/scouting";
 import type { TransfermarktProfile } from "@/lib/transfermarkt";
+import { formatPlayerPositions } from "@/lib/positions";
 
 type View = "home" | "reports" | "similarity";
 type ReportPage = 1 | 2 | 3;
@@ -594,7 +595,7 @@ export default function ScoutStudio() {
                   <details className="profile-details">
                     <summary>Revisar y editar ficha</summary>
                     <div className="profile-field-grid">
-                      {([['number', 'Dorsal'], ['league', 'Liga'], ['club', 'Club'], ['marketValue', 'Valor mercado'], ['birthDate', 'Nacimiento'], ['birthPlace', 'Lugar'], ['height', 'Altura'], ['foot', 'Pie'], ['contract', 'Contrato'], ['agent', 'Agente'], ['nationalTeam', 'Selección'], ['capsGoals', 'Caps / goles']] as Array<[keyof TransfermarktProfile, string]>).map(([field, label]) => <label key={field}><span>{label}</span><input value={profile[field]} onChange={(event) => updateProfile(field, event.target.value)} /></label>)}
+                      {([['number', 'Dorsal'], ['league', 'Liga'], ['club', 'Club'], ['marketValue', 'Valor mercado'], ['birthDate', 'Nacimiento'], ['birthPlace', 'Lugar'], ['height', 'Altura'], ['position', 'Posiciones'], ['foot', 'Pie'], ['contract', 'Contrato'], ['agent', 'Agente'], ['nationalTeam', 'Selección'], ['capsGoals', 'Caps / goles']] as Array<[keyof TransfermarktProfile, string]>).map(([field, label]) => <label key={field}><span>{label}</span><input value={profile[field]} onChange={(event) => updateProfile(field, event.target.value)} /></label>)}
                     </div>
                   </details>
                 </section>
@@ -618,7 +619,7 @@ export default function ScoutStudio() {
                           <div className="market-lockup"><small>VALOR DE MERCADO</small><strong>{profile.marketValue || "—"}</strong><span>TRANSFERMARKT</span></div>
                         </div>
                         <h2>{report.player}</h2>
-                        <div className="identity-line"><b>{profile.position || report.position}</b><span>{profile.citizenship || report.passport}</span></div>
+                        <div className="identity-line"><b>{formatPlayerPositions(profile.position || report.position)}</b><span>{profile.citizenship || report.passport}</span></div>
                         <div className="dossier-meta-grid">
                           <div><span>Nacimiento</span><b>{profile.birthDate || "—"}{profile.age || report.age !== "—" ? ` · ${profile.age || report.age}a` : ""}</b></div>
                           <div><span>Lugar</span><b>{profile.birthPlace || "—"}</b></div>
@@ -669,7 +670,7 @@ export default function ScoutStudio() {
                     </footer>
                   </article> : <div className="empty-preview">Selecciona un jugador para generar el informe.</div>}
                 </section>
-              </div> : report ? <ReportPageDesigner pageNumber={reportPage} player={report.player} team={profile.club || report.team} position={profile.position || report.position} theme={reportTheme} onThemeChange={setReportTheme} /> : <div className="empty-preview">Selecciona un jugador para diseñar las páginas.</div>}
+              </div> : report ? <ReportPageDesigner pageNumber={reportPage} player={report.player} team={profile.club || report.team} position={formatPlayerPositions(profile.position || report.position)} theme={reportTheme} onThemeChange={setReportTheme} /> : <div className="empty-preview">Selecciona un jugador para diseñar las páginas.</div>}
             </>}
           </div>
         ) : (

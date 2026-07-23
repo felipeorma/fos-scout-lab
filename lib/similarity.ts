@@ -7,6 +7,14 @@ import {
   type DataRow,
   type PlayerReport,
 } from "./scouting";
+import {
+  POSITION_ROLES,
+  formatPlayerPositions,
+  playerPositions,
+  positionRoles,
+  primaryPositionRole,
+  type PlayerPosition,
+} from "./positions";
 
 export type SimilarityFilters = {
   query: string;
@@ -31,6 +39,7 @@ export type SimilarityPlayer = {
   name: string;
   team: string;
   position: string;
+  positions: PlayerPosition[];
   cohort: string;
   age: number | null;
   passport: string;
@@ -89,7 +98,7 @@ export function similarityOptions(rows: DataRow[]): SimilarityOptions {
   const positionColumn = findColumn(headers, POSITION_ALIASES);
   const passportColumn = findColumn(headers, PASSPORT_ALIASES);
   return {
-    positions: [...new Set(rows.map((row) => text(row, positionColumn, "")).filter(Boolean))].sort(collator.compare),
+    positions: POSITION_ROLES.filter((role) => rows.some((row) => positionRoles(text(row, positionColumn, "")).includes(role))),
     passports: [...new Set(rows.map((row) => text(row, passportColumn, "")).filter(Boolean))].sort(collator.compare),
   };
 }
@@ -117,13 +126,17 @@ export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filt
   const normalizedQuery = normalizeSearch(filters.query);
   const targetAge = optionalNumber(ageColumn ? targetRow[ageColumn] : null);
   const targetPosition = text(targetRow, positionColumn, target.position);
+  const targetRoles = positionRoles(targetPosition);
+  const targetPrimaryRole = primaryPositionRole(targetPosition);
   const targetCohort = cohortOf(targetPosition);
 
   const candidates = rows.flatMap((row, index) => {
     if (index === targetIndex) return [];
     const name = text(row, playerColumn, `Jugador ${index + 1}`);
     const team = text(row, teamColumn, "Equipo no disponible");
-    const position = text(row, positionColumn, "—");
+    const rawPosition = text(row, positionColumn, "—");
+    const positions = playerPositions(rawPosition);
+    const roles = positionRoles(rawPosition);
     const passport = text(row, passportColumn, "—");
     const age = optionalNumber(ageColumn ? row[ageColumn] : null);
     const minutes = optionalNumber(core.minutes ? row[core.minutes] : null) ?? 0;
@@ -131,7 +144,7 @@ export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filt
     if (filters.ageMin !== null && (age === null || age < filters.ageMin)) return [];
     if (filters.ageMax !== null && (age === null || age > filters.ageMax)) return [];
     if (filters.passport && passport !== filters.passport) return [];
-    if (filters.position && position !== filters.position) return [];
+    if (filters.position && !roles.includes(filters.position as (typeof POSITION_ROLES)[number])) return [];
     if (normalizedQuery && !normalizeSearch(`${name} ${team}`).includes(normalizedQuery)) return [];
 
     const metrics = target.metrics.flatMap((metric) => {
@@ -160,8 +173,10 @@ export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filt
     const distanceSimilarity = 1 - clamp01(rmsDistance / 2);
     const metricSimilarity = clamp01(cosineSimilarity * 0.42 + distanceSimilarity * 0.58);
 
-    const candidateCohort = cohortOf(position);
-    const positionSimilarity = position === targetPosition ? 1 : candidateCohort === targetCohort ? 0.84 : 0.35;
+    const candidateCohort = cohortOf(rawPosition);
+    const candidatePrimaryRole = primaryPositionRole(rawPosition);
+    const sharesRole = roles.some((role) => targetRoles.includes(role));
+    const positionSimilarity = candidatePrimaryRole && candidatePrimaryRole === targetPrimaryRole ? 1 : sharesRole ? 0.9 : candidateCohort === targetCohort ? 0.84 : 0.35;
     const ageSimilarity = targetAge !== null && age !== null ? 1 - clamp01(Math.abs(targetAge - age) / 12) : 0.5;
     const contextSimilarity = clamp01(positionSimilarity * 0.76 + ageSimilarity * 0.24);
     const similarity = clamp01(metricSimilarity * 0.86 + contextSimilarity * 0.14);
@@ -170,7 +185,8 @@ export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filt
       index,
       name,
       team,
-      position,
+      position: formatPlayerPositions(rawPosition),
+      positions,
       cohort: candidateCohort,
       age,
       passport,

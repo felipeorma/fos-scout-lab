@@ -29,6 +29,12 @@ Abre `http://localhost:3000` y entra a **Reportes**:
   edad, minutos, pasaporte y posición, y ordenar los jugadores más parecidos al
   perfil objetivo.
 
+Las posiciones Wyscout se convierten en roles legibles —por ejemplo, `RWF` en
+`Wingers`— sin perder el código original. Si una celda contiene varias
+posiciones separadas por coma, la primera se considera principal y las demás se
+muestran como segunda, tercera o sucesivas. El filtro por rol revisa todas las
+posiciones del jugador, incluidas las secundarias.
+
 ## Similitud de jugadores
 
 La primera versión crea un vector contextual local con los percentiles de las

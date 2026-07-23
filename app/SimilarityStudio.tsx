@@ -10,6 +10,7 @@ import {
   type SimilarityPlayer,
 } from "@/lib/similarity";
 import type { DataRow, PlayerReport } from "@/lib/scouting";
+import type { PlayerPosition } from "@/lib/positions";
 
 type TargetOption = { index: number; player: string; team: string };
 
@@ -252,14 +253,14 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, targets, onS
           <div className="similarity-age-fields"><label><span>Edad mínima</span><input type="number" min="14" max="50" value={ageMin} onChange={(event) => setAgeMin(event.target.value)} placeholder="Todas" /></label><label><span>Edad máxima</span><input type="number" min="14" max="50" value={ageMax} onChange={(event) => setAgeMax(event.target.value)} placeholder="Todas" /></label></div>
           <label><span>Mínimo de minutos</span><input type="number" min="0" step="100" value={minimumMinutes} onChange={(event) => setMinimumMinutes(event.target.value)} /></label>
           <label><span>Pasaporte</span><select value={passport} onChange={(event) => setPassport(event.target.value)}><option value="">Todos</option>{options.passports.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-          <label><span>Posición</span><select value={position} onChange={(event) => setPosition(event.target.value)}><option value="">Todas</option>{options.positions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+          <label><span>Rol · incluye posiciones secundarias</span><select value={position} onChange={(event) => setPosition(event.target.value)}><option value="">Todos los roles</option>{options.positions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
           <div className="similarity-method-note"><b>Embedding contextual v1</b><p>Compara la forma de los percentiles y agrega contexto de edad y rol. Transformers, vídeo y redes de pases pueden conectarse después como capas multimodales.</p></div>
         </aside>
 
         <main className="similarity-results">
           <section className="similarity-ranking-card">
             <div className="similarity-results-head"><div><span>LISTADO DE JUGADORES</span><h2>Ranking de similitud</h2></div><small>Ordenado de mayor a menor coincidencia</small></div>
-            {candidates.length ? <div className="similarity-table-wrap"><table className="similarity-table"><thead><tr><th>#</th><th>Jugador</th><th>Posición</th><th>Edad</th><th>Minutos</th><th>Pasaporte</th><th>Similitud</th><th /></tr></thead><tbody>{candidates.slice(0, 150).map((candidate, index) => <tr key={candidate.index} className={selectedCandidate?.index === candidate.index ? "selected" : ""}><td>{String(index + 1).padStart(2, "0")}</td><td><b>{candidate.name}</b><small>{candidate.team}</small></td><td>{candidate.position}</td><td>{candidate.age ?? "—"}</td><td>{Math.round(candidate.minutes).toLocaleString("es-CL")}</td><td>{candidate.passport}</td><td><span className="similarity-score-pill">{candidate.similarity}%</span></td><td><button onClick={() => setSelectedCandidateIndex(candidate.index)}>Comparar</button></td></tr>)}</tbody></table></div> : <div className="similarity-no-results"><Search size={24} /><b>No hay jugadores con estos filtros</b><span>Reduce los requisitos de edad, minutos, pasaporte o posición.</span></div>}
+            {candidates.length ? <div className="similarity-table-wrap"><table className="similarity-table"><thead><tr><th>#</th><th>Jugador</th><th>Posiciones</th><th>Edad</th><th>Minutos</th><th>Pasaporte</th><th>Similitud</th><th /></tr></thead><tbody>{candidates.slice(0, 150).map((candidate, index) => <tr key={candidate.index} className={selectedCandidate?.index === candidate.index ? "selected" : ""}><td>{String(index + 1).padStart(2, "0")}</td><td><b>{candidate.name}</b><small>{candidate.team}</small></td><td><PositionRoles positions={candidate.positions} /></td><td>{candidate.age ?? "—"}</td><td>{Math.round(candidate.minutes).toLocaleString("es-CL")}</td><td>{candidate.passport}</td><td><span className="similarity-score-pill">{candidate.similarity}%</span></td><td><button onClick={() => setSelectedCandidateIndex(candidate.index)}>Comparar</button></td></tr>)}</tbody></table></div> : <div className="similarity-no-results"><Search size={24} /><b>No hay jugadores con estos filtros</b><span>Reduce los requisitos de edad, minutos, pasaporte o posición.</span></div>}
           </section>
 
           {selectedCandidate && <section className="similarity-comparison-card">
@@ -273,6 +274,11 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, targets, onS
       </div>
     </>}
   </div>;
+}
+
+function PositionRoles({ positions }: { positions: PlayerPosition[] }) {
+  if (!positions.length) return <span>—</span>;
+  return <div className="position-role-list">{positions.map((position, index) => <span key={`${position.code}-${index}`}><em>{index === 0 ? "1ª" : `${index + 1}ª`}</em><b>{position.role}</b><small>{position.code}</small></span>)}</div>;
 }
 
 function MetricComparison({ metric, targetName, candidateName }: { metric: SimilarityMetricComparison; targetName: string; candidateName: string }) {

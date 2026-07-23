@@ -1,3 +1,5 @@
+import { formatPlayerPositions, mergePlayerPositions, primaryPositionRole, roleCohort } from "./positions";
+
 export type CellValue = string | number | boolean | Date | null | undefined;
 export type DataRow = Record<string, CellValue>;
 
@@ -212,7 +214,7 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
     if (seasons) output.Seasons = seasons;
 
     if (teamColumn) output.Team = latest.row[teamColumn] ?? "";
-    if (positionColumn) output.Position = uniqueText(sorted.map(({ row }) => row[positionColumn]));
+    if (positionColumn) output.Position = mergePlayerPositions([...sorted].reverse().map(({ row }) => row[positionColumn]));
     if (passportColumn) output["Passport country"] = uniqueText(sorted.map(({ row }) => row[passportColumn]));
     if (currentTeamColumn) output["Current Team"] = latest.row[currentTeamColumn] ?? "";
     if (contractColumn) output["Contract expires"] = latest.row[contractColumn] ?? "";
@@ -245,15 +247,7 @@ const POSITION_ALIASES = ["position", "posicion especifica", "posicion"];
 const TEAM_ALIASES = ["team within selected timeframe", "equipo durante el periodo seleccionado", "team", "equipo"];
 
 export function cohortOf(value: CellValue) {
-  const position = String(value ?? "").split(",")[0].trim().toUpperCase();
-  if (position === "GK") return "GK";
-  if (["CB", "LCB", "RCB"].includes(position)) return "CB";
-  if (["LB", "RB", "LWB", "RWB"].includes(position)) return "FB";
-  if (["DMF", "LDMF", "RDMF", "CMF", "LCMF", "RCMF"].includes(position)) return "MID";
-  if (["LW", "RW", "LWF", "RWF", "LAMF", "RAMF"].includes(position)) return "WING";
-  if (["AM", "AMF"].includes(position)) return "AM";
-  if (["CF", "ST"].includes(position)) return "CF";
-  return "OTHER";
+  return roleCohort(primaryPositionRole(value));
 }
 
 type MetricDefinition = { label: string; aliases: string[]; group: number; inverse?: boolean };
@@ -396,7 +390,7 @@ export function buildPlayerReport(rows: DataRow[], selectedIndex: number, minimu
   return {
     player: text(PLAYER_ALIASES) || "Jugador",
     team: text(TEAM_ALIASES) || "Equipo no disponible",
-    position: text(POSITION_ALIASES) || "—",
+    position: formatPlayerPositions(text(POSITION_ALIASES)),
     cohort,
     age: text(["age", "edad"]) || "—",
     foot: text(["foot", "pie"]) || "—",
