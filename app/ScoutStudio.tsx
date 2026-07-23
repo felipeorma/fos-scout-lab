@@ -25,6 +25,7 @@ import {
 } from "./Icons";
 import { PizzaRadar } from "./PizzaRadar";
 import { ReportPageDesigner } from "./ReportPageDesigner";
+import { DEFAULT_REPORT_THEME, reportThemeStyle, type ReportTheme } from "./reportTheme";
 import {
   aggregateDatasets,
   buildPlayerReport,
@@ -189,6 +190,8 @@ export default function ScoutStudio() {
   const [reportSourceCount, setReportSourceCount] = useState(0);
   const [analysisLabel, setAnalysisLabel] = useState("BASE ANALIZADA");
   const [analysisSourceTitle, setAnalysisSourceTitle] = useState("");
+  const [reportTheme, setReportTheme] = useState<ReportTheme>(DEFAULT_REPORT_THEME);
+  const [reportThemeLoaded, setReportThemeLoaded] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState("");
   const [selectedPlayer, setSelectedPlayer] = useState(0);
   const [minimumMinutes, setMinimumMinutes] = useState(500);
@@ -220,6 +223,22 @@ export default function ScoutStudio() {
   );
   const dataReady = reportRows.length > 0;
   const profileReady = Boolean(profile.sourceUrl || profile.playerImage || profile.clubLogo);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      try {
+        const stored = window.localStorage.getItem("fos-scout-report-theme-v1");
+        if (stored) setReportTheme({ ...DEFAULT_REPORT_THEME, ...JSON.parse(stored) });
+      } catch { /* El estilo predeterminado sigue disponible si no hay persistencia local. */ }
+      setReportThemeLoaded(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!reportThemeLoaded) return;
+    try { window.localStorage.setItem("fos-scout-report-theme-v1", JSON.stringify(reportTheme)); } catch { /* El diseño continúa activo durante la sesión. */ }
+  }, [reportTheme, reportThemeLoaded]);
 
   function restoreProfile(nextReport: PlayerReport | null) {
     const base = profileFromReport(nextReport);
@@ -542,7 +561,7 @@ export default function ScoutStudio() {
 
                 <section className="report-preview-wrap">
                   <div className="preview-toolbar"><div><span className="live-dot" /> Página 01 · Ficha de scouting</div><span>Basada en Radar Jordhy Thompson v2</span></div>
-                  {report ? <article className="scout-report jordhy-report">
+                  {report ? <article className="scout-report jordhy-report" style={reportThemeStyle(reportTheme)}>
                     <header className="dossier-header">
                       <div className="dossier-portrait">
                         <span className="portrait-glow" />
@@ -598,7 +617,7 @@ export default function ScoutStudio() {
                     <footer className="dossier-footer"><p>Percentiles por posición · mínimo {minimumMinutes}′ · {report.cohortSize} jugadores en la cohorte · datos por 90 minutos.</p><div><span>ELABORADO POR</span><b>FELIPE ORMAZABAL</b><small>SCOUTING REPORT</small></div></footer>
                   </article> : <div className="empty-preview">Selecciona un jugador para generar el informe.</div>}
                 </section>
-              </div> : report ? <ReportPageDesigner pageNumber={reportPage} player={report.player} team={profile.club || report.team} position={profile.position || report.position} /> : <div className="empty-preview">Selecciona un jugador para diseñar las páginas.</div>}
+              </div> : report ? <ReportPageDesigner pageNumber={reportPage} player={report.player} team={profile.club || report.team} position={profile.position || report.position} theme={reportTheme} onThemeChange={setReportTheme} /> : <div className="empty-preview">Selecciona un jugador para diseñar las páginas.</div>}
             </>}
           </div>
         ) : (

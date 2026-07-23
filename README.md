@@ -29,6 +29,10 @@ Abre `http://localhost:3000` y usa uno de los dos módulos:
 
 Las páginas 2 y 3 del reporte incluyen un editor local con:
 
+- el mismo sistema visual de la Página 01: paleta, tipografías, encabezados,
+  numeración, formato de página y pie editorial;
+- un tema compartido: cualquier cambio de paleta se aplica automáticamente a
+  Ficha, Visuales y Observaciones;
 - plantillas de una, dos o tres columnas;
 - bloques de imagen y texto que se pueden agregar, eliminar y reordenar;
 - comentarios independientes debajo o al lado de cualquier imagen cargada;
