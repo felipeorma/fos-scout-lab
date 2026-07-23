@@ -45,6 +45,8 @@ type ReportPage = 1 | 2 | 3;
 type ReportFileMode = "single" | "combine" | "replace";
 type ProfileAssetField = "playerImage" | "clubLogo" | "leagueLogo";
 
+const TRANSFERMARKT_LOGO = "/transfermarkt-logo.svg";
+
 const PROFILE_ASSETS: Array<{ field: ProfileAssetField; label: string; linkLabel: string }> = [
   { field: "playerImage", label: "Foto del jugador", linkLabel: "Jugador" },
   { field: "clubLogo", label: "Escudo del club", linkLabel: "Escudo" },
@@ -556,7 +558,7 @@ export default function ScoutStudio() {
                   </div>
 
                   <div className="control-divider" />
-                  <div className="panel-title enrichment-title"><div><span className="mini-icon gold"><Sparkles size={17} /></span><div><h2>3. Transfermarkt e imágenes</h2><p>Datos biográficos, logos y retrato</p></div></div><span className={profileReady ? "tiny-state ready-state" : "tiny-state"}>{profileReady ? "CARGADO" : "PENDIENTE"}</span></div>
+                  <div className="panel-title enrichment-title"><div><span className="mini-icon transfermarkt-panel-logo"><ReportImage src={TRANSFERMARKT_LOGO} alt="Transfermarkt" className="transfermarkt-logo-image" /></span><div><h2>3. Transfermarkt e imágenes</h2><p>Datos biográficos, logos y retrato</p></div></div><span className={profileReady ? "tiny-state ready-state" : "tiny-state"}>{profileReady ? "CARGADO" : "PENDIENTE"}</span></div>
                   <label className="field-group transfermarkt-url"><FieldLabel>URL del perfil</FieldLabel><input className="text-input" type="url" placeholder="https://www.transfermarkt.com/.../profil/spieler/..." value={transfermarktUrl} onChange={(event) => setTransfermarktUrl(event.target.value)} /></label>
                   <button className="button primary extract-button" onClick={extractTransfermarktProfile} disabled={transfermarktLoading}><Sparkles size={15} /> {transfermarktLoading ? "Extrayendo perfil…" : "Extraer datos, logos y foto"}</button>
                   {transfermarktError && <div className="inline-error">{transfermarktError}</div>}
@@ -613,7 +615,7 @@ export default function ScoutStudio() {
                             {profile.leagueLogo && <ReportImage src={profile.leagueLogo} alt={profile.league || "Liga"} className="dossier-league-logo" />}
                             <div className="competition-copy"><span>{profile.league || "Competición"}</span><strong>{profile.club || report.team}</strong></div>
                           </div>
-                          <div className="market-lockup"><small>VALOR DE MERCADO</small><strong>{profile.marketValue || "—"}</strong><span>TRANSFERMARKT</span></div>
+                          <div className="market-lockup"><small>VALOR DE MERCADO</small><strong>{profile.marketValue || "—"}</strong><ReportImage src={TRANSFERMARKT_LOGO} alt="Transfermarkt" className="market-transfermarkt-logo" /></div>
                         </div>
                         <h2>{report.player}</h2>
                         <div className="identity-line"><b>{formatPlayerPositions(profile.position || report.position)}</b><span>{profile.citizenship || report.passport}</span></div>

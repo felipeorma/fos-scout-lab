@@ -38,6 +38,7 @@ type SimilarityStudioProps = {
 
 const PLAYER_PALETTE = ["#1f5fd6", "#e95b3f", "#43a8a0", "#9e07ae", "#d7a62c", "#16a34a", "#0f172a", "#f97316"];
 const alphabeticCollator = new Intl.Collator("es", { sensitivity: "base", numeric: true });
+const TRANSFERMARKT_LOGO = "/transfermarkt-logo.svg";
 
 function optionalNumber(value: string) {
   if (!value.trim()) return null;
@@ -96,7 +97,7 @@ function fitText(ctx: CanvasRenderingContext2D, value: string, maxWidth: number)
 }
 
 function canvasImageSource(src: string) {
-  return src.startsWith("data:image/") ? src : `/api/image?url=${encodeURIComponent(src)}`;
+  return src.startsWith("data:image/") || src.startsWith("/") ? src : `/api/image?url=${encodeURIComponent(src)}`;
 }
 
 function loadCanvasImage(src: string) {
@@ -216,12 +217,13 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
   canvas.height = 1200;
   const ctx = canvas.getContext("2d");
   if (!ctx) return "";
-  const [targetImage, targetClub, candidateImage, candidateClub, recipientLogo] = await Promise.all([
+  const [targetImage, targetClub, candidateImage, candidateClub, recipientLogo, transfermarktLogo] = await Promise.all([
     loadCanvasImage(targetProfile.playerImage),
     loadCanvasImage(targetProfile.clubLogo),
     loadCanvasImage(candidateProfile.playerImage),
     loadCanvasImage(candidateProfile.clubLogo),
     loadCanvasImage(recipientLogoUrl),
+    loadCanvasImage(TRANSFERMARKT_LOGO),
   ]);
 
   ctx.fillStyle = theme.paper;
@@ -289,6 +291,7 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
     ctx.fillStyle = theme.accent;
     ctx.font = "800 22px Arial";
     ctx.fillText(profile.marketValue || "VALOR N/D", x + 22, 642);
+    if (transfermarktLogo) drawContain(ctx, transfermarktLogo, x + 212, 618, 116, 28);
   };
 
   playerCard(70, { name: target.player, team: target.team, position: target.position, age: target.age, passport: target.passport }, targetProfile, targetImage, targetClub, "JUGADOR OBJETIVO", targetColor);
@@ -692,6 +695,7 @@ function ProfileEnrichment({ side, label, player, profile, busy, backgroundBusy,
     <div className="enrichment-profile-preview">{profile.playerImage ? <ReportImage src={profile.playerImage} alt={player} className="enrichment-player-image" /> : <span>{player.split(/\s+/).slice(0, 2).map((part) => part[0]).join("")}</span>}{profile.clubLogo && <ReportImage src={profile.clubLogo} alt={profile.club || "Club"} className="enrichment-club-logo" />}</div>
     <div className="enrichment-profile-copy">
       <span>{label}</span><b>{player}</b><small>{profile.club || "Agrega Transfermarkt para cargar club, foto y escudo"}</small>
+      <ReportImage src={TRANSFERMARKT_LOGO} alt="Transfermarkt" className="enrichment-transfermarkt-logo" />
       <form key={`${side}-${player}-${profile.sourceUrl}`} onSubmit={submit}><input name="transfermarktUrl" type="url" required defaultValue={profile.sourceUrl} placeholder="https://www.transfermarkt.com/..." aria-label={`Link de Transfermarkt de ${player}`} /><button type="submit" disabled={locked}><Sparkles size={13} /> {busy ? "Extrayendo…" : "Extraer imágenes"}</button></form>
       <form className="enrichment-image-source" key={`${side}-${player}-${remotePlayerImage || "local"}`} onSubmit={submitImageUrl}>
         <span>FOTO DEL JUGADOR · LINK O ARCHIVO</span>
@@ -708,7 +712,7 @@ function ProfileEnrichment({ side, label, player, profile, busy, backgroundBusy,
 }
 
 function ComparisonPlayer({ profile, name, team, position, age, passport, label, color }: { profile: TransfermarktProfile; name: string; team: string; position: string; age: string; passport: string; label: string; color: string }) {
-  return <article className="comparison-player-card" style={{ "--player-color": color } as CSSProperties}><header><span>{label}</span>{profile.clubLogo ? <ReportImage src={profile.clubLogo} alt={profile.club || team} className="comparison-club-logo" /> : <span className="comparison-club-fallback">{team.slice(0, 2).toUpperCase()}</span>}</header><div className="comparison-player-portrait">{profile.playerImage ? <ReportImage src={profile.playerImage} alt={name} className="comparison-player-image" /> : <span>{name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("")}</span>}</div><div className="comparison-player-copy"><h3>{name}</h3><b>{profile.club || team}</b><p>{formatPlayerPositions(profile.position || position)}</p><small>{profile.age || age} años · {profile.citizenship || passport}</small>{profile.marketValue && <strong>{profile.marketValue}</strong>}</div></article>;
+  return <article className="comparison-player-card" style={{ "--player-color": color } as CSSProperties}><header><span>{label}</span>{profile.clubLogo ? <ReportImage src={profile.clubLogo} alt={profile.club || team} className="comparison-club-logo" /> : <span className="comparison-club-fallback">{team.slice(0, 2).toUpperCase()}</span>}</header><div className="comparison-player-portrait">{profile.playerImage ? <ReportImage src={profile.playerImage} alt={name} className="comparison-player-image" /> : <span>{name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("")}</span>}</div><div className="comparison-player-copy"><h3>{name}</h3><b>{profile.club || team}</b><p>{formatPlayerPositions(profile.position || position)}</p><small>{profile.age || age} años · {profile.citizenship || passport}</small>{profile.marketValue && <strong className="comparison-market-value"><span>{profile.marketValue}</span><ReportImage src={TRANSFERMARKT_LOGO} alt="Transfermarkt" className="comparison-transfermarkt-logo" /></strong>}</div></article>;
 }
 
 function PalettePicker({ label, player, color, labelColor, labelTransparency, colors, onChange, onLabelColorChange, onLabelTransparencyChange }: { label: string; player: string; color: string; labelColor: string; labelTransparency: number; colors: string[]; onChange: (color: string) => void; onLabelColorChange: (color: string) => void; onLabelTransparencyChange: (value: number) => void }) {
