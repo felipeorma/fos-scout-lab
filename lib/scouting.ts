@@ -1,0 +1,426 @@
+export type CellValue = string | number | boolean | Date | null | undefined;
+export type DataRow = Record<string, CellValue>;
+
+export type SeasonDataset = {
+  fileName: string;
+  season: number;
+  headers: string[];
+  rows: DataRow[];
+};
+
+export type AggregationResult = {
+  rows: DataRow[];
+  headers: string[];
+  playerColumn: string;
+  minutesColumn: string;
+  matchesColumn: string;
+  warnings: string[];
+};
+
+export type RadarMetric = {
+  key: string;
+  label: string;
+  value: number;
+  percentile: number;
+  group: number;
+};
+
+export type PlayerReport = {
+  player: string;
+  team: string;
+  position: string;
+  cohort: string;
+  age: string;
+  foot: string;
+  passport: string;
+  marketValue: string;
+  contract: string;
+  matches: number;
+  minutes: number;
+  goals: number;
+  assists: number;
+  cohortSize: number;
+  score: number;
+  metrics: RadarMetric[];
+  reading: string;
+};
+
+const PLAYER_ALIASES = ["player", "jugador", "player name", "nombre jugador"];
+const MINUTES_ALIASES = ["minutes played", "minutes", "mins", "minutos jugados", "minutos"];
+const MATCHES_ALIASES = ["matches played", "matches", "apps", "appearances", "partidos jugados", "partidos"];
+
+export function normalizeHeader(value: unknown) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9%]+/g, " ")
+    .trim();
+}
+
+export function extractSeason(fileName: string) {
+  const match = fileName.match(/(?:19|20)?\d{2}/);
+  if (!match) return 0;
+  const year = Number(match[0]);
+  return year < 100 ? 2000 + year : year;
+}
+
+export function numeric(value: CellValue): number {
+  if (typeof value === "number") return Number.isFinite(value) ? value : Number.NaN;
+  if (value === null || value === undefined || value === "") return Number.NaN;
+  const raw = String(value).trim().replace(/%$/, "").replace(/\s/g, "");
+  const normalized = raw.includes(",") && raw.includes(".")
+    ? raw.replace(/\./g, "").replace(",", ".")
+    : raw.replace(",", ".");
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
+}
+
+export function findColumn(headers: string[], aliases: string[], contains = false) {
+  const normalized = headers.map((header) => [header, normalizeHeader(header)] as const);
+  for (const alias of aliases) {
+    const target = normalizeHeader(alias);
+    const match = normalized.find(([, header]) => contains ? header.includes(target) : header === target);
+    if (match) return match[0];
+  }
+  return "";
+}
+
+export function detectCoreColumns(headers: string[]) {
+  const player = findColumn(headers, PLAYER_ALIASES) || findColumn(headers, ["player", "jugador"], true);
+  const minutes = findColumn(headers, MINUTES_ALIASES);
+  const matches = findColumn(headers, MATCHES_ALIASES);
+  return { player, minutes, matches };
+}
+
+function uniqueText(values: CellValue[]) {
+  const seen = new Set<string>();
+  for (const value of values) {
+    const text = String(value ?? "").trim();
+    if (text && text.toLowerCase() !== "nan") seen.add(text);
+  }
+  return [...seen].sort((a, b) => a.localeCompare(b, "es")).join(", ");
+}
+
+function isPer90(header: string) {
+  return /(^|\s)(per\s*90|per90|90)(\s|$)/i.test(normalizeHeader(header)) || /\/\s*90/i.test(header);
+}
+
+function isPercentage(header: string) {
+  const h = normalizeHeader(header);
+  return header.includes("%") || /\b(pct|percentage|accuracy|precision|success|successful|won)\b/i.test(h);
+}
+
+function findDenominatorHeader(percentHeader: string, headers: string[]) {
+  const p = normalizeHeader(percentHeader);
+  const rules: Array<[RegExp, string[]]> = [
+    [/defensive duels won|duelos defensivos ganados/, ["defensive duels per 90", "duelos defensivos 90"]],
+    [/aerial duels won|duelos aereos ganados/, ["aerial duels per 90", "duelos aereos 90"]],
+    [/offensive duels won|duelos ofensivos ganados/, ["offensive duels per 90", "duelos ofensivos 90"]],
+    [/duels won|duelos ganados/, ["duels per 90", "duelos 90"]],
+    [/shots on target|tiros a la porteria|remates a puerta/, ["shots per 90", "shots", "remates 90", "remates"]],
+    [/goal conversion|conversion de gol/, ["shots per 90", "shots", "remates 90", "remates"]],
+    [/cross/, ["crosses per 90", "crosses attempted", "centros 90"]],
+    [/dribbl|regates/, ["dribbles per 90", "dribbles attempted", "regates 90"]],
+    [/forward pass|pases hacia adelante/, ["forward passes per 90", "pases hacia adelante 90"]],
+    [/back pass|pases hacia atras/, ["back passes per 90", "pases hacia atras 90"]],
+    [/lateral pass|pases laterales/, ["lateral passes per 90", "pases laterales 90"]],
+    [/long pass|pases largos/, ["long passes per 90", "pases largos 90"]],
+    [/progressive pass|pases progresivos/, ["progressive passes per 90", "pases progresivos 90"]],
+    [/final third|ultimo tercio/, ["passes to final third per 90", "pases al ultimo tercio 90"]],
+    [/penalty area|area de penalti/, ["passes to penalty area per 90", "pases al area de penalti 90"]],
+    [/smart pass|pases inteligentes/, ["smart passes per 90", "pases inteligentes 90"]],
+    [/through pass|pases filtrados/, ["through passes per 90", "pases filtrados 90"]],
+    [/pass completion|accurate passes|precision pases/, ["passes per 90", "passes attempted", "pases 90"]],
+  ];
+  const rule = rules.find(([pattern]) => pattern.test(p));
+  return rule ? findColumn(headers, rule[1]) : "";
+}
+
+function denominatorWeight(row: DataRow, denominator: string, minutesColumn: string) {
+  const den = numeric(row[denominator]);
+  if (!Number.isFinite(den)) return Number.NaN;
+  if (isPer90(denominator)) {
+    const mins = numeric(row[minutesColumn]);
+    return Number.isFinite(mins) ? den * mins / 90 : Number.NaN;
+  }
+  return den;
+}
+
+function average(values: number[]) {
+  const valid = values.filter(Number.isFinite);
+  return valid.length ? valid.reduce((sum, value) => sum + value, 0) / valid.length : Number.NaN;
+}
+
+function weightedAverage(entries: Array<{ value: number; weight: number }>) {
+  const valid = entries.filter(({ value, weight }) => Number.isFinite(value) && Number.isFinite(weight) && weight > 0);
+  const weight = valid.reduce((sum, entry) => sum + entry.weight, 0);
+  return weight ? valid.reduce((sum, entry) => sum + entry.value * entry.weight, 0) / weight : Number.NaN;
+}
+
+export function aggregateSeasons(datasets: SeasonDataset[]): AggregationResult {
+  if (datasets.length < 2) throw new Error("Selecciona al menos dos archivos de temporadas.");
+  const allHeaders = [...new Set(datasets.flatMap((dataset) => dataset.headers))];
+  const core = detectCoreColumns(allHeaders);
+  if (!core.player) throw new Error("No se encontró una columna de jugador (Player/Jugador).");
+  if (!core.minutes) throw new Error("No se encontró la columna de minutos jugados.");
+  if (!core.matches) throw new Error("No se encontró la columna de partidos jugados.");
+
+  const combined = datasets.flatMap((dataset) => dataset.rows.map((row) => ({
+    row,
+    season: dataset.season,
+    player: String(row[core.player] ?? "").trim(),
+  }))).filter((entry) => entry.player);
+
+  const grouped = new Map<string, typeof combined>();
+  for (const entry of combined) {
+    const key = entry.player.toLocaleLowerCase("es").replace(/\s+/g, " ");
+    grouped.set(key, [...(grouped.get(key) ?? []), entry]);
+  }
+
+  const excluded = new Set([core.minutes, core.matches]);
+  const ageColumn = findColumn(allHeaders, ["age", "edad"]);
+  if (ageColumn) excluded.add(ageColumn);
+  const numericHeaders = allHeaders.filter((header) => {
+    if (!header || header === core.player || excluded.has(header)) return false;
+    const values = combined.map(({ row }) => numeric(row[header])).filter(Number.isFinite);
+    return values.length > 0 && values.length >= Math.max(1, combined.length * 0.2);
+  });
+  const per90Headers = numericHeaders.filter(isPer90);
+  const percentHeaders = numericHeaders.filter((header) => !per90Headers.includes(header) && isPercentage(header));
+  const totalHeaders = numericHeaders.filter((header) => !per90Headers.includes(header) && !percentHeaders.includes(header));
+
+  const teamColumn = findColumn(allHeaders, ["team within selected timeframe", "equipo durante el periodo seleccionado", "team", "equipo"]);
+  const positionColumn = findColumn(allHeaders, ["position", "posicion", "posicion especifica"]);
+  const passportColumn = findColumn(allHeaders, ["passport country", "pais de pasaporte", "nacionalidad"]);
+  const currentTeamColumn = findColumn(allHeaders, ["current team", "equipo actual"]);
+  const contractColumn = findColumn(allHeaders, ["contract expires", "vencimiento contrato"]);
+
+  const rows = [...grouped.values()].map((entries) => {
+    const sorted = [...entries].sort((a, b) => a.season - b.season);
+    const latest = sorted.at(-1)!;
+    const output: DataRow = {
+      Player: latest.player,
+      Seasons: uniqueText(sorted.map(({ season }) => season || "Sin año")),
+      [core.matches]: sorted.reduce((sum, { row }) => sum + (numeric(row[core.matches]) || 0), 0),
+      [core.minutes]: sorted.reduce((sum, { row }) => sum + (numeric(row[core.minutes]) || 0), 0),
+    };
+
+    if (teamColumn) output.Team = latest.row[teamColumn] ?? "";
+    if (positionColumn) output.Position = uniqueText(sorted.map(({ row }) => row[positionColumn]));
+    if (passportColumn) output["Passport country"] = uniqueText(sorted.map(({ row }) => row[passportColumn]));
+    if (currentTeamColumn) output["Current Team"] = latest.row[currentTeamColumn] ?? "";
+    if (contractColumn) output["Contract expires"] = latest.row[contractColumn] ?? "";
+    if (ageColumn) output.Age = latest.row[ageColumn] ?? "";
+
+    for (const header of totalHeaders) output[header] = average(sorted.map(({ row }) => numeric(row[header])));
+    for (const header of per90Headers) {
+      output[header] = weightedAverage(sorted.map(({ row }) => ({
+        value: numeric(row[header]),
+        weight: numeric(row[core.minutes]),
+      })));
+    }
+    for (const header of percentHeaders) {
+      const denominator = findDenominatorHeader(header, allHeaders);
+      output[header] = weightedAverage(sorted.map(({ row }) => ({
+        value: numeric(row[header]),
+        weight: denominator ? denominatorWeight(row, denominator, core.minutes) : numeric(row[core.minutes]),
+      })));
+    }
+    return output;
+  }).sort((a, b) => numeric(b[core.minutes]) - numeric(a[core.minutes]));
+
+  const leading = ["Player", "Seasons", "Team", "Position", "Passport country", "Current Team", "Contract expires", "Age", core.matches, core.minutes];
+  const headers = [...new Set([...leading.filter((header) => rows.some((row) => row[header] !== undefined)), ...totalHeaders, ...per90Headers, ...percentHeaders])];
+  const missingYears = datasets.filter((dataset) => !dataset.season).map((dataset) => dataset.fileName);
+  const warnings = missingYears.length ? [`No se detectó el año en: ${missingYears.join(", ")}.`] : [];
+  return { rows, headers, playerColumn: core.player, minutesColumn: core.minutes, matchesColumn: core.matches, warnings };
+}
+
+const POSITION_ALIASES = ["position", "posicion especifica", "posicion"];
+const TEAM_ALIASES = ["team within selected timeframe", "equipo durante el periodo seleccionado", "team", "equipo"];
+
+export function cohortOf(value: CellValue) {
+  const position = String(value ?? "").split(",")[0].trim().toUpperCase();
+  if (position === "GK") return "GK";
+  if (["CB", "LCB", "RCB"].includes(position)) return "CB";
+  if (["LB", "RB", "LWB", "RWB"].includes(position)) return "FB";
+  if (["DMF", "LDMF", "RDMF", "CMF", "LCMF", "RCMF"].includes(position)) return "MID";
+  if (["LW", "RW", "LWF", "RWF", "LAMF", "RAMF"].includes(position)) return "WING";
+  if (["AM", "AMF"].includes(position)) return "AM";
+  if (["CF", "ST"].includes(position)) return "CF";
+  return "OTHER";
+}
+
+type MetricDefinition = { label: string; aliases: string[]; group: number; inverse?: boolean };
+
+const METRICS: Record<string, MetricDefinition[]> = {
+  GK: [
+    { label: "Paradas %", aliases: ["save rate %", "paradas %"], group: 0 },
+    { label: "Goles evitados", aliases: ["prevented goals per 90", "goles evitados 90"], group: 0 },
+    { label: "Goles recibidos", aliases: ["conceded goals per 90", "goles recibidos 90"], group: 0, inverse: true },
+    { label: "Salidas", aliases: ["exits per 90", "salidas 90"], group: 1 },
+    { label: "Duelos aéreos", aliases: ["aerial duels per 90", "duelos aereos 90"], group: 1 },
+    { label: "Pases largos", aliases: ["long passes per 90", "pases largos 90"], group: 2 },
+    { label: "Precisión largos", aliases: ["accurate long passes %", "precision pases largos %"], group: 2 },
+  ],
+  CB: [
+    { label: "Acciones defensivas", aliases: ["successful defensive actions per 90", "acciones defensivas realizadas 90"], group: 0 },
+    { label: "Duelos defensivos", aliases: ["defensive duels won %", "duelos defensivos ganados %"], group: 0 },
+    { label: "Duelos aéreos", aliases: ["aerial duels won %", "duelos aereos ganados %"], group: 0 },
+    { label: "Intercepciones", aliases: ["interceptions per 90", "interceptaciones 90"], group: 1 },
+    { label: "Pases", aliases: ["passes per 90", "pases 90"], group: 2 },
+    { label: "Precisión", aliases: ["accurate passes %", "precision pases %"], group: 2 },
+    { label: "Pases progresivos", aliases: ["progressive passes per 90", "pases progresivos 90"], group: 2 },
+    { label: "Precisión progresivos", aliases: ["accurate progressive passes %", "precision pases progresivos %"], group: 2 },
+  ],
+  FB: [
+    { label: "Duelos defensivos", aliases: ["defensive duels won %", "duelos defensivos ganados %"], group: 0 },
+    { label: "Intercepciones", aliases: ["interceptions per 90", "interceptaciones 90"], group: 0 },
+    { label: "Centros", aliases: ["crosses per 90", "centros 90"], group: 1 },
+    { label: "Precisión centros", aliases: ["accurate crosses %", "precision centros %"], group: 1 },
+    { label: "Pases progresivos", aliases: ["progressive passes per 90", "pases progresivos 90"], group: 1 },
+    { label: "Carreras progresivas", aliases: ["progressive runs per 90", "carreras en progresion 90"], group: 2 },
+    { label: "Regates", aliases: ["dribbles per 90", "regates 90"], group: 2 },
+    { label: "Regates exitosos", aliases: ["successful dribbles %", "regates realizados %"], group: 2 },
+  ],
+  MID: [
+    { label: "Acciones defensivas", aliases: ["successful defensive actions per 90", "acciones defensivas realizadas 90"], group: 0 },
+    { label: "Intercepciones", aliases: ["interceptions per 90", "interceptaciones 90"], group: 0 },
+    { label: "Pases", aliases: ["passes per 90", "pases 90"], group: 1 },
+    { label: "Precisión", aliases: ["accurate passes %", "precision pases %"], group: 1 },
+    { label: "Pases progresivos", aliases: ["progressive passes per 90", "pases progresivos 90"], group: 1 },
+    { label: "Pases último tercio", aliases: ["passes to final third per 90", "pases en el ultimo tercio 90"], group: 1 },
+    { label: "xA", aliases: ["xa per 90", "xa 90"], group: 2 },
+    { label: "Pases clave", aliases: ["key passes per 90", "jugadas claves 90"], group: 2 },
+  ],
+  WING: [
+    { label: "Goles", aliases: ["non penalty goals per 90", "goals per 90", "goles excepto los penaltis 90", "goles 90"], group: 0 },
+    { label: "xG", aliases: ["xg per 90", "xg 90"], group: 0 },
+    { label: "Remates", aliases: ["shots per 90", "remates 90"], group: 0 },
+    { label: "Toques en área", aliases: ["touches in box per 90", "toques en el area de penalti 90"], group: 0 },
+    { label: "xA", aliases: ["xa per 90", "xa 90"], group: 1 },
+    { label: "Pases clave", aliases: ["key passes per 90", "jugadas claves 90"], group: 1 },
+    { label: "Regates", aliases: ["dribbles per 90", "regates 90"], group: 2 },
+    { label: "Regates exitosos", aliases: ["successful dribbles %", "regates realizados %"], group: 2 },
+    { label: "Carreras progresivas", aliases: ["progressive runs per 90", "carreras en progresion 90"], group: 2 },
+  ],
+  AM: [
+    { label: "Goles", aliases: ["goals per 90", "goles 90"], group: 0 },
+    { label: "xG", aliases: ["xg per 90", "xg 90"], group: 0 },
+    { label: "Asistencias", aliases: ["assists per 90", "asistencias 90"], group: 1 },
+    { label: "xA", aliases: ["xa per 90", "xa 90"], group: 1 },
+    { label: "Pases clave", aliases: ["key passes per 90", "jugadas claves 90"], group: 1 },
+    { label: "Pases al área", aliases: ["passes to penalty area per 90", "pases al area de penalti 90"], group: 1 },
+    { label: "Regates", aliases: ["dribbles per 90", "regates 90"], group: 2 },
+    { label: "Carreras progresivas", aliases: ["progressive runs per 90", "carreras en progresion 90"], group: 2 },
+  ],
+  CF: [
+    { label: "Goles", aliases: ["non penalty goals per 90", "goals per 90", "goles excepto los penaltis 90", "goles 90"], group: 0 },
+    { label: "xG", aliases: ["xg per 90", "xg 90"], group: 0 },
+    { label: "Remates", aliases: ["shots per 90", "remates 90"], group: 0 },
+    { label: "Tiros a puerta", aliases: ["shots on target %", "tiros a la porteria %"], group: 0 },
+    { label: "Toques en área", aliases: ["touches in box per 90", "toques en el area de penalti 90"], group: 1 },
+    { label: "Duelos aéreos", aliases: ["aerial duels won %", "duelos aereos ganados %"], group: 1 },
+    { label: "Pases recibidos", aliases: ["received passes per 90", "pases recibidos 90"], group: 2 },
+    { label: "Asistencias", aliases: ["assists per 90", "asistencias 90"], group: 2 },
+  ],
+};
+
+METRICS.OTHER = METRICS.WING;
+
+function percentile(value: number, values: number[], inverse = false) {
+  const valid = values.filter(Number.isFinite).sort((a, b) => a - b);
+  if (!valid.length || !Number.isFinite(value)) return 0;
+  const below = valid.filter((candidate) => candidate < value).length;
+  const equal = valid.filter((candidate) => candidate === value).length;
+  const rank = Math.round(((below + equal * 0.5) / valid.length) * 100);
+  return inverse ? 100 - rank : rank;
+}
+
+function field(row: DataRow, headers: string[], aliases: string[]) {
+  const header = findColumn(headers, aliases);
+  return header ? row[header] : "";
+}
+
+function roleReading(cohort: string, metrics: RadarMetric[]) {
+  const groupScores = [0, 1, 2].map((group) => average(metrics.filter((metric) => metric.group === group).map((metric) => metric.percentile)) || 0);
+  const dominant = groupScores.indexOf(Math.max(...groupScores));
+  const roles: Record<string, string[]> = {
+    GK: ["portero de reflejos y protección del arco", "portero con dominio del área", "portero iniciador"],
+    CB: ["central de duelos y protección del área", "central agresivo para anticipar", "central constructor desde la base"],
+    FB: ["lateral fiable en el duelo", "lateral de amplitud y progresión", "carrilero con capacidad de desequilibrio"],
+    MID: ["mediocentro de recuperación", "pivote organizador", "interior creativo entre líneas"],
+    WING: ["extremo con llegada al área", "extremo creador", "extremo de uno contra uno y conducción"],
+    AM: ["mediapunta con llegada", "creador entre líneas", "interior que rompe por conducción"],
+    CF: ["delantero finalizador", "referencia para fijar centrales", "delantero asociativo"],
+    OTHER: ["atacante vertical", "jugador creativo", "jugador de desequilibrio"],
+  };
+  const top = [...metrics].sort((a, b) => b.percentile - a.percentile).slice(0, 3);
+  const weak = [...metrics].sort((a, b) => a.percentile - b.percentile)[0];
+  const strengths = top.filter((metric) => metric.percentile >= 60).map((metric) => metric.label.toLowerCase());
+  let text = `El perfil encaja como ${roles[cohort]?.[dominant] ?? roles.OTHER[dominant]}.`;
+  if (strengths.length) text += ` Sus señales más fuertes aparecen en ${strengths.join(", ")}.`;
+  if (weak && weak.percentile < 35) text += ` Conviene revisar en vídeo su rendimiento en ${weak.label.toLowerCase()}, hoy por debajo de la cohorte.`;
+  return text;
+}
+
+export function buildPlayerReport(rows: DataRow[], selectedIndex: number, minimumMinutes: number, forcedCohort = "AUTO"): PlayerReport | null {
+  const row = rows[selectedIndex];
+  if (!row) return null;
+  const headers = [...new Set(rows.flatMap((item) => Object.keys(item)))];
+  const core = detectCoreColumns(headers);
+  const positionColumn = findColumn(headers, POSITION_ALIASES);
+  const sourceCohort = cohortOf(positionColumn ? row[positionColumn] : "");
+  const cohort = forcedCohort === "AUTO" ? sourceCohort : forcedCohort;
+  const definitions = METRICS[cohort] ?? METRICS.OTHER;
+  const peers = rows.filter((candidate) => {
+    const sameCohort = forcedCohort !== "AUTO" || cohortOf(positionColumn ? candidate[positionColumn] : "") === cohort;
+    return sameCohort && numeric(candidate[core.minutes]) >= minimumMinutes;
+  });
+  const metrics = definitions.flatMap((definition) => {
+    const key = findColumn(headers, definition.aliases);
+    if (!key) return [];
+    const value = numeric(row[key]);
+    if (!Number.isFinite(value)) return [];
+    const peerValues = peers.map((candidate) => numeric(candidate[key]));
+    return [{ key, label: definition.label, value, percentile: percentile(value, peerValues, definition.inverse), group: definition.group }];
+  });
+  const score = metrics.length ? Math.round(average(metrics.map((metric) => metric.percentile))) : 0;
+  const text = (aliases: string[]) => String(field(row, headers, aliases) ?? "").trim();
+  const value = (aliases: string[]) => numeric(field(row, headers, aliases));
+  return {
+    player: text(PLAYER_ALIASES) || "Jugador",
+    team: text(TEAM_ALIASES) || "Equipo no disponible",
+    position: text(POSITION_ALIASES) || "—",
+    cohort,
+    age: text(["age", "edad"]) || "—",
+    foot: text(["foot", "pie"]) || "—",
+    passport: text(["passport country", "birth country", "pais de pasaporte", "pais de nacimiento"]) || "—",
+    marketValue: text(["market value", "valor de mercado"]) || "—",
+    contract: text(["contract expires", "vencimiento contrato"]) || "—",
+    matches: value(MATCHES_ALIASES) || 0,
+    minutes: value(MINUTES_ALIASES) || 0,
+    goals: value(["goals", "goles"]) || 0,
+    assists: value(["assists", "asistencias"]) || 0,
+    cohortSize: peers.length,
+    score,
+    metrics,
+    reading: roleReading(cohort, metrics),
+  };
+}
+
+export function formatCell(value: CellValue, digits = 2) {
+  if (typeof value === "number") {
+    return new Intl.NumberFormat("es-CL", { maximumFractionDigits: digits }).format(value);
+  }
+  return String(value ?? "—");
+}
+
+export const DEMO_ROWS: DataRow[] = [
+  { Player: "Mateo Silva", Team: "Pacific FC II", Position: "RWF", Age: 21, "Passport country": "Chile", Foot: "Left", "Contract expires": "2027-12-31", "Market value": 450000, "Matches played": 22, "Minutes played": 1714, Goals: 8, Assists: 6, "Goals per 90": 0.42, "xG per 90": 0.37, "Shots per 90": 2.9, "Touches in box per 90": 5.8, "xA per 90": 0.28, "Key passes per 90": 1.7, "Dribbles per 90": 6.3, "Successful dribbles, %": 61.2, "Progressive runs per 90": 4.8 },
+  { Player: "Lucas Rojas", Team: "North City", Position: "LWF", Age: 22, "Passport country": "Colombia", Foot: "Right", "Matches played": 24, "Minutes played": 1840, Goals: 6, Assists: 4, "Goals per 90": 0.29, "xG per 90": 0.31, "Shots per 90": 2.5, "Touches in box per 90": 4.9, "xA per 90": 0.19, "Key passes per 90": 1.3, "Dribbles per 90": 5.2, "Successful dribbles, %": 54.1, "Progressive runs per 90": 3.7 },
+  { Player: "Emilio Torres", Team: "Capital United", Position: "RWF", Age: 20, "Passport country": "México", Foot: "Right", "Matches played": 19, "Minutes played": 1335, Goals: 4, Assists: 7, "Goals per 90": 0.21, "xG per 90": 0.24, "Shots per 90": 2.1, "Touches in box per 90": 4.4, "xA per 90": 0.34, "Key passes per 90": 2.1, "Dribbles per 90": 7.1, "Successful dribbles, %": 58.7, "Progressive runs per 90": 5.1 },
+  { Player: "Noah Williams", Team: "Atlantic Academy", Position: "LW", Age: 23, "Passport country": "Canada", Foot: "Right", "Matches played": 25, "Minutes played": 2010, Goals: 10, Assists: 5, "Goals per 90": 0.48, "xG per 90": 0.41, "Shots per 90": 3.2, "Touches in box per 90": 6.4, "xA per 90": 0.22, "Key passes per 90": 1.5, "Dribbles per 90": 4.8, "Successful dribbles, %": 51.6, "Progressive runs per 90": 3.9 },
+  { Player: "Benjamín Arce", Team: "Valley SC", Position: "LAMF", Age: 21, "Passport country": "Argentina", Foot: "Right", "Matches played": 18, "Minutes played": 1192, Goals: 3, Assists: 3, "Goals per 90": 0.18, "xG per 90": 0.2, "Shots per 90": 1.8, "Touches in box per 90": 3.8, "xA per 90": 0.17, "Key passes per 90": 1.1, "Dribbles per 90": 5.8, "Successful dribbles, %": 49.5, "Progressive runs per 90": 4.2 },
+];
