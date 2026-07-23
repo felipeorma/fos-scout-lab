@@ -94,6 +94,15 @@ function ReportImage({ src, alt, className }: { src: string; alt: string; classN
   return <img src={src} alt={alt} className={className} />;
 }
 
+function blobToDataUrl(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(new Error("No se pudo convertir la imagen procesada."));
+    reader.readAsDataURL(blob);
+  });
+}
+
 function LandingPage({ onReports, onMerge }: { onReports: () => void; onMerge: () => void }) {
   return <div className="landing-page">
     <section className="landing-hero">
@@ -161,6 +170,8 @@ export default function ScoutStudio() {
   const [transfermarktUrl, setTransfermarktUrl] = useState("");
   const [transfermarktLoading, setTransfermarktLoading] = useState(false);
   const [transfermarktError, setTransfermarktError] = useState("");
+  const [backgroundRemoving, setBackgroundRemoving] = useState(false);
+  const [backgroundRemovalStatus, setBackgroundRemovalStatus] = useState("");
   const [seasonFiles, setSeasonFiles] = useState<SourceDataset[]>([]);
   const [mergeResult, setMergeResult] = useState<AggregationResult | null>(null);
   const [mergeError, setMergeError] = useState("");
@@ -218,6 +229,7 @@ export default function ScoutStudio() {
       const restored = restoreProfile(buildPlayerReport(result.rows, 0, minimumMinutes, cohort));
       setProfile(restored.profile);
       setTransfermarktUrl(restored.url);
+      setBackgroundRemovalStatus("");
     } catch (error) {
       setReportError(error instanceof Error ? error.message : "No se pudieron leer los archivos.");
     } finally {
@@ -262,6 +274,7 @@ export default function ScoutStudio() {
         const populated = Object.fromEntries(Object.entries(result).filter(([, value]) => value !== "" && value !== undefined));
         return { ...current, ...populated, sourceUrl: transfermarktUrl.trim() };
       });
+      setBackgroundRemovalStatus("");
     } catch (error) {
       setTransfermarktError(error instanceof Error ? error.message : "No se pudo leer el perfil.");
     } finally {
@@ -279,13 +292,48 @@ export default function ScoutStudio() {
     setProfile(restored.profile);
     setTransfermarktUrl(restored.url);
     setTransfermarktError("");
+    setBackgroundRemovalStatus("");
   }
 
   function loadProfileAsset(field: "playerImage" | "clubLogo" | "leagueLogo", file?: File) {
     if (!file || !file.type.startsWith("image/")) return;
     const reader = new FileReader();
-    reader.onload = () => updateProfile(field, String(reader.result ?? ""));
+    reader.onload = () => {
+      updateProfile(field, String(reader.result ?? ""));
+      if (field === "playerImage") setBackgroundRemovalStatus("Imagen cargada. Puedes quitar el fondo con IA.");
+    };
     reader.readAsDataURL(file);
+  }
+
+  async function removePlayerBackground() {
+    const source = profile.playerImage.trim();
+    if (!source) {
+      setBackgroundRemovalStatus("Primero carga o extrae una foto del jugador.");
+      return;
+    }
+    setBackgroundRemoving(true);
+    setBackgroundRemovalStatus("Preparando el modelo de IA… La primera vez puede tardar.");
+    try {
+      const imageSource = /^data:|^blob:/i.test(source)
+        ? source
+        : `https://images.weserv.nl/?url=${encodeURIComponent(source.replace(/^https?:\/\//i, ""))}`;
+      const { removeBackground } = await import("@imgly/background-removal");
+      const result = await removeBackground(imageSource, {
+        model: "small",
+        output: { format: "image/png", quality: 1 },
+        progress: (key, current, total) => {
+          const percent = total > 0 ? Math.min(100, Math.round(current / total * 100)) : 0;
+          setBackgroundRemovalStatus(percent ? `Descargando modelo IA · ${percent}%` : `Preparando ${key}…`);
+        },
+      });
+      const dataUrl = await blobToDataUrl(result);
+      updateProfile("playerImage", dataUrl);
+      setBackgroundRemovalStatus("✓ Fondo eliminado. La imagen PNG quedó guardada en esta sesión.");
+    } catch {
+      setBackgroundRemovalStatus("No se pudo eliminar el fondo. Reintenta o utiliza otra imagen.");
+    } finally {
+      setBackgroundRemoving(false);
+    }
   }
 
   function runMerge() {
@@ -304,6 +352,7 @@ export default function ScoutStudio() {
       setProfile(restored.profile);
       setTransfermarktUrl(restored.url);
       setTransfermarktError("");
+      setBackgroundRemovalStatus("");
       setView("reports");
     } catch (error) {
       setMergeResult(null);
@@ -322,6 +371,7 @@ export default function ScoutStudio() {
     setProfile(profileFromReport(null));
     setTransfermarktUrl("");
     setTransfermarktError("");
+    setBackgroundRemovalStatus("");
   }
 
   const navItems = [
@@ -408,7 +458,7 @@ export default function ScoutStudio() {
                     <span className="upload-icon"><Upload size={18} /></span><span><b>{reportLoading ? "Leyendo bases…" : "Reemplazar archivos"}</b><small>{reportSourceCount} base{reportSourceCount === 1 ? "" : "s"} · {reportRows.length} jugadores</small></span>
                   </button>
                   {reportError && <div className="inline-error">{reportError}</div>}
-                  <label className="field-group player-field"><FieldLabel>Jugador</FieldLabel><span className="select-wrap"><Search size={16} /><select value={selectedPlayer} onChange={(event) => selectPlayer(Number(event.target.value))}>{players.map((player) => <option key={`${player.player}-${player.index}`} value={player.index}>{player.player}{player.team ? ` · ${player.team}` : ""}</option>)}</select><ChevronDown size={16} /></span></label>
+                  <label className="field-group player-field"><FieldLabel>Jugador</FieldLabel><span className="select-wrap"><Search size={16} /><select value={selectedPlayer} disabled={backgroundRemoving} onChange={(event) => selectPlayer(Number(event.target.value))}>{players.map((player) => <option key={`${player.player}-${player.index}`} value={player.index}>{player.player}{player.team ? ` · ${player.team}` : ""}</option>)}</select><ChevronDown size={16} /></span></label>
                   <div className="two-fields">
                     <label className="field-group"><FieldLabel>Cohorte</FieldLabel><span className="select-wrap simple"><select value={cohort} onChange={(event) => setCohort(event.target.value)}><option value="AUTO">Automática</option><option value="GK">Porteros</option><option value="CB">Centrales</option><option value="FB">Laterales</option><option value="MID">Mediocampistas</option><option value="WING">Extremos</option><option value="AM">Mediapuntas</option><option value="CF">Delanteros</option></select><ChevronDown size={16} /></span></label>
                     <label className="field-group"><FieldLabel>Mín. minutos</FieldLabel><input className="text-input" type="number" min="0" step="100" value={minimumMinutes} onChange={(event) => setMinimumMinutes(Number(event.target.value))} /></label>
@@ -427,7 +477,9 @@ export default function ScoutStudio() {
                       <input type="file" accept="image/png,image/webp,image/jpeg" hidden onChange={(event) => loadProfileAsset(field, event.target.files?.[0])} />
                     </label>)}
                   </div>
-                  <p className="asset-help">La foto del jugador debe ser PNG o WEBP sin fondo. La extracción usa automáticamente el retrato transparente disponible.</p>
+                  <button className="remove-bg-button" onClick={removePlayerBackground} disabled={backgroundRemoving || !profile.playerImage}><Sparkles size={15} /> {backgroundRemoving ? "Quitando fondo…" : "Quitar fondo con IA"}</button>
+                  {backgroundRemovalStatus && <div className={`background-status ${backgroundRemovalStatus.startsWith("✓") ? "success" : ""}`} aria-live="polite">{backgroundRemovalStatus}</div>}
+                  <p className="asset-help">Procesamiento local con IMG.LY. La primera vez se descarga el modelo; después queda almacenado en la caché del navegador.</p>
 
                   <details className="profile-details">
                     <summary>Revisar y editar ficha</summary>

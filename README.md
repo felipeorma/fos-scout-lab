@@ -47,6 +47,8 @@ Los Excel se procesan completamente en el navegador. No se suben a un servidor.
    La aplicación extrae dorsal, datos biográficos, valor de mercado, club, liga,
    escudo, logo de competición y retrato transparente. Los tres recursos visuales
    también se pueden reemplazar por archivos PNG, WEBP o JPG locales.
+   La foto del jugador puede procesarse con `@imgly/background-removal@1.4.5`
+   para eliminar el fondo mediante IA directamente en el navegador.
 3. **Diseñar reporte:** revisar la ficha imprimible inspirada en
    `Radar Jordhy Thompson v2`, y editar las páginas de visuales y observaciones.
 
