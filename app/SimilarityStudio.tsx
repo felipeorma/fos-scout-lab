@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useState, type CSSProperties, type FormEvent } from "react";
+import { useMemo, useState, type CSSProperties, type FormEvent } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { ArrowDownToLine, BarChart3, ImageIcon, RotateCcw, Search, Sparkles, Upload } from "./Icons";
 import { ComparisonRadar } from "./ComparisonRadar";
@@ -150,34 +150,43 @@ function drawStarPath(ctx: CanvasRenderingContext2D, cx: number, cy: number, out
 
 function drawCanvasSimilarityStar(ctx: CanvasRenderingContext2D, similarity: number, cx: number, cy: number, radius: number, theme: ReportTheme) {
   const percentage = Math.min(Math.max(Math.round(similarity), 0), 100);
+  const progress = percentage / 100;
   const glowIntensity = percentage > 60 ? (percentage - 60) / 40 : 0;
-  const innerRadius = radius * .46;
-  let starFill: string | CanvasGradient = percentage >= 100 ? "#facc15" : "#253146";
-
-  if (percentage > 0 && percentage < 100) {
-    const boundary = percentage / 100;
-    const fillGradient = ctx.createLinearGradient(cx, cy + radius, cx, cy - radius);
-    fillGradient.addColorStop(0, "#facc15");
-    fillGradient.addColorStop(boundary, "#facc15");
-    fillGradient.addColorStop(Math.min(boundary + .001, 1), "#253146");
-    fillGradient.addColorStop(1, "#253146");
-    starFill = fillGradient;
-  }
+  const starRadius = radius * .64;
+  const innerRadius = starRadius * .46;
 
   ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius - 2, 0, Math.PI * 2);
+  ctx.strokeStyle = "rgba(255,255,255,.16)";
+  ctx.lineWidth = 4;
+  ctx.stroke();
+
+  if (progress > 0) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius - 2, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress);
+    ctx.strokeStyle = "#facc15";
+    ctx.lineWidth = 4;
+    ctx.lineCap = "round";
+    ctx.shadowColor = `rgba(250,204,21,${.2 + glowIntensity * .75})`;
+    ctx.shadowBlur = 4 + glowIntensity * 18;
+    ctx.stroke();
+  }
+
   ctx.shadowColor = `rgba(250,204,21,${.18 + glowIntensity * .72})`;
-  ctx.shadowBlur = 5 + glowIntensity * 24;
-  drawStarPath(ctx, cx, cy, radius, innerRadius);
-  ctx.fillStyle = starFill;
+  ctx.shadowBlur = 4 + glowIntensity * 20;
+  ctx.globalAlpha = .32 + progress * .68;
+  drawStarPath(ctx, cx, cy, starRadius, innerRadius);
+  ctx.fillStyle = "#facc15";
   ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = percentage >= 95 ? "#ffffff" : "#facc15";
+  ctx.lineWidth = percentage >= 95 ? 2.5 : 1.5;
+  ctx.lineJoin = "round";
+  ctx.stroke();
   ctx.restore();
 
   ctx.save();
-  drawStarPath(ctx, cx, cy, radius, innerRadius);
-  ctx.strokeStyle = percentage >= 95 ? "#ffffff" : "#facc15";
-  ctx.lineWidth = percentage >= 95 ? 3 : 2;
-  ctx.lineJoin = "round";
-  ctx.stroke();
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.font = "800 18px Arial";
@@ -790,12 +799,12 @@ function SimilarityStarScore({ similarity }: { similarity: number }) {
   const glowIntensity = percentage > 60 ? (percentage - 60) / 40 : 0;
   const isNearHundred = percentage >= 95;
   const reduceMotion = useReducedMotion();
-  const gradientId = `similarity-star-${useId().replace(/:/g, "")}`;
+  const progress = percentage / 100;
 
   return <div className="similarity-star-score" role="img" aria-label={`${percentage}% de similitud`}>
     <div className="similarity-star-visual">
       <motion.svg
-        viewBox="0 0 24 24"
+        viewBox="-2 -2 28 28"
         aria-hidden="true"
         initial={false}
         animate={{
@@ -807,21 +816,27 @@ function SimilarityStarScore({ similarity }: { similarity: number }) {
           scale: { duration: 1.25, repeat: !reduceMotion && isNearHundred ? Infinity : 0, ease: "easeInOut" },
         }}
       >
-        <defs>
-          <linearGradient id={gradientId} x1="0" y1="24" x2="0" y2="0" gradientUnits="userSpaceOnUse">
-            <stop offset="0" stopColor="#facc15" />
-            <motion.stop initial={false} animate={{ offset: percentage / 100 }} transition={{ duration: .55, ease: "easeOut" }} stopColor="#facc15" />
-            <motion.stop initial={false} animate={{ offset: percentage / 100 }} transition={{ duration: .55, ease: "easeOut" }} stopColor="#253146" />
-            <stop offset="1" stopColor="#253146" />
-          </linearGradient>
-        </defs>
+        <circle cx="12" cy="12" r="11.4" fill="none" stroke="rgba(255,255,255,.16)" strokeWidth="1.25" />
+        <motion.circle
+          cx="12"
+          cy="12"
+          r="11.4"
+          fill="none"
+          stroke="#facc15"
+          strokeWidth="1.4"
+          strokeLinecap="round"
+          transform="rotate(-90 12 12)"
+          initial={false}
+          animate={{ pathLength: progress }}
+          transition={{ duration: .55, ease: "easeOut" }}
+        />
         <motion.path
           d={STAR_PATH}
-          fill={`url(#${gradientId})`}
+          fill="#facc15"
           strokeLinecap="round"
           strokeLinejoin="round"
           initial={false}
-          animate={{ stroke: isNearHundred ? "#ffffff" : "#facc15", strokeWidth: isNearHundred ? 1.25 : .85 }}
+          animate={{ opacity: .32 + progress * .68, stroke: isNearHundred ? "#ffffff" : "#facc15", strokeWidth: isNearHundred ? 1.05 : .7 }}
           transition={{ duration: .3 }}
         />
       </motion.svg>
