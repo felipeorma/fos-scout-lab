@@ -161,6 +161,8 @@ export default function ScoutStudio() {
   const [reportRows, setReportRows] = useState<DataRow[]>([]);
   const [reportFileName, setReportFileName] = useState("Sin datos cargados");
   const [reportSourceCount, setReportSourceCount] = useState(0);
+  const [analysisLabel, setAnalysisLabel] = useState("BASE ANALIZADA");
+  const [analysisSourceTitle, setAnalysisSourceTitle] = useState("");
   const [selectedPlayer, setSelectedPlayer] = useState(0);
   const [minimumMinutes, setMinimumMinutes] = useState(500);
   const [cohort, setCohort] = useState("AUTO");
@@ -222,9 +224,12 @@ export default function ScoutStudio() {
       if (list.length > 3) throw new Error("Selecciona entre uno y tres archivos de datos.");
       const datasets = await Promise.all(list.map(readWorkbook));
       const result = aggregateDatasets(datasets);
+      const sourceTitle = datasets.map((dataset) => dataset.fileName.replace(/\.(xlsx|xls)$/i, "")).join(" + ");
       setReportRows(result.rows);
-      setReportFileName(datasets.map((dataset) => dataset.fileName.replace(/\.(xlsx|xls)$/i, "")).join(" + "));
+      setReportFileName(sourceTitle);
       setReportSourceCount(datasets.length);
+      setAnalysisLabel(datasets.length > 1 ? "BASES ANALIZADAS" : "BASE ANALIZADA");
+      setAnalysisSourceTitle(sourceTitle);
       setSelectedPlayer(0);
       const restored = restoreProfile(buildPlayerReport(result.rows, 0, minimumMinutes, cohort));
       setProfile(restored.profile);
@@ -345,6 +350,8 @@ export default function ScoutStudio() {
       setReportRows(result.rows);
       setReportFileName(sourceLabel || "Base consolidada");
       setReportSourceCount(seasonFiles.length);
+      setAnalysisLabel(seasonFiles.length > 1 ? "BASES ANALIZADAS" : "BASE ANALIZADA");
+      setAnalysisSourceTitle(sourceLabel || "Base consolidada");
       setSelectedPlayer(0);
       setReportPage(1);
       setReportError("");
@@ -364,6 +371,8 @@ export default function ScoutStudio() {
     setReportRows([]);
     setReportFileName("Sin datos cargados");
     setReportSourceCount(0);
+    setAnalysisLabel("BASE ANALIZADA");
+    setAnalysisSourceTitle("");
     setSelectedPlayer(0);
     setMinimumMinutes(500);
     setCohort("AUTO");
@@ -464,6 +473,7 @@ export default function ScoutStudio() {
                     <label className="field-group"><FieldLabel>Mín. minutos</FieldLabel><input className="text-input" type="number" min="0" step="100" value={minimumMinutes} onChange={(event) => setMinimumMinutes(Number(event.target.value))} /></label>
                   </div>
                   <div className="data-summary"><div><span>Bases</span><b>{reportSourceCount}</b></div><div><span>Jugadores</span><b>{numberFormat(reportRows.length)}</b></div><div><span>Cohorte</span><b>{report?.cohortSize ?? 0}</b></div></div>
+                  <div className="report-copy-editor"><span className="field-label">Texto de la base en el informe</span><label><small>Etiqueta</small><input value={analysisLabel} placeholder="BASE ANALIZADA" onChange={(event) => setAnalysisLabel(event.target.value)} /></label><label><small>Nombre de liga o temporada</small><input value={analysisSourceTitle} placeholder="Ej. MLS Next Pro 2026" onChange={(event) => setAnalysisSourceTitle(event.target.value)} /></label></div>
 
                   <div className="control-divider" />
                   <div className="panel-title enrichment-title"><div><span className="mini-icon gold"><Sparkles size={17} /></span><div><h2>2. Perfil Transfermarkt</h2><p>Datos biográficos y recursos</p></div></div><span className={profileReady ? "tiny-state ready-state" : "tiny-state"}>{profileReady ? "CARGADO" : "PENDIENTE"}</span></div>
@@ -520,7 +530,7 @@ export default function ScoutStudio() {
                     </header>
 
                     <section className="dossier-season-strip">
-                      <div className="season-source"><span>BASE{reportSourceCount > 1 ? "S" : ""} ANALIZADA{reportSourceCount > 1 ? "S" : ""}</span><b>{reportFileName}</b><small>Cohorte {report.cohort} · mín. {minimumMinutes}′</small></div>
+                      <div className="season-source"><span>{analysisLabel || (reportSourceCount > 1 ? "BASES ANALIZADAS" : "BASE ANALIZADA")}</span><b>{analysisSourceTitle || reportFileName}</b><small>Cohorte {report.cohort} · mín. {minimumMinutes}′</small></div>
                       <div className="dossier-stat"><strong>{numberFormat(report.matches)}</strong><span>Partidos</span></div>
                       <div className="dossier-stat"><strong>{numberFormat(report.minutes)}</strong><span>Minutos</span></div>
                       <div className="dossier-stat goals"><strong>{numberFormat(report.goals)}</strong><span>Goles</span></div>

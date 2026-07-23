@@ -51,6 +51,8 @@ Los Excel se procesan completamente en el navegador. No se suben a un servidor.
    para eliminar el fondo mediante IA directamente en el navegador.
 3. **Diseñar reporte:** revisar la ficha imprimible inspirada en
    `Radar Jordhy Thompson v2`, y editar las páginas de visuales y observaciones.
+   La etiqueta “Base analizada” y el nombre de la liga o temporada también son
+   editables desde el panel de datos.
 
 Los datos extraídos y las personalizaciones del perfil se guardan localmente por
 jugador en el navegador. Transfermarkt solo se consulta cuando el usuario pega

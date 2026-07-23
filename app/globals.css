@@ -421,6 +421,9 @@ body::before { position: fixed; inset: 0; z-index: -1; pointer-events: none; bac
 .data-summary, .result-kpis { border-color: rgba(255,255,255,.075); background: rgba(255,255,255,.018); }
 .data-summary div + div, .result-kpis div + div { border-color: rgba(255,255,255,.07); }
 .data-summary span, .result-kpis span { color: #657184; }.data-summary b, .result-kpis b { color: #eaf0fa; }
+.report-copy-editor { margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,.07); }
+.report-copy-editor label { display: block; margin-top: 8px; }.report-copy-editor label small { display: block; margin-bottom: 4px; color: #606d82; font-size: 7.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.report-copy-editor input { width: 100%; height: 34px; padding: 0 8px; border: 1px solid rgba(255,255,255,.09); border-radius: 7px; outline: 0; color: #cbd4e3; background: rgba(255,255,255,.035); font-size: 9.5px; }.report-copy-editor input:focus { border-color: rgba(91,132,255,.55); box-shadow: 0 0 0 3px rgba(79,124,255,.08); }
 .inline-error { border-color: rgba(255,124,92,.25); color: #ffab95; background: rgba(255,104,74,.08); }
 
 .report-page-tabs { border-color: rgba(255,255,255,.08); background: rgba(18,23,34,.78); box-shadow: var(--shadow), inset 0 1px rgba(255,255,255,.025); backdrop-filter: blur(14px); }
