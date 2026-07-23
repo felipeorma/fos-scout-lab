@@ -57,6 +57,32 @@ function numberFormat(value: number) {
   return new Intl.NumberFormat("es-CL", { maximumFractionDigits: 0 }).format(value);
 }
 
+const alphabeticCollator = new Intl.Collator("es", { sensitivity: "base", numeric: true });
+
+type PlayerOption = {
+  index: number;
+  player: string;
+  team: string;
+};
+
+function playerOptionsFor(rows: DataRow[]): PlayerOption[] {
+  const headers = [...new Set(rows.flatMap((row) => Object.keys(row)))];
+  const core = detectCoreColumns(headers);
+  const teamColumn = headers.find((header) => /team within|equipo durante/i.test(header))
+    ?? headers.find((header) => /^(team|equipo)$/i.test(header))
+    ?? "";
+
+  return rows.map((row, index) => ({
+    index,
+    player: String(row[core.player] ?? `Jugador ${index + 1}`).trim(),
+    team: String(row[teamColumn] ?? "").trim() || "Equipo no disponible",
+  })).sort((a, b) => alphabeticCollator.compare(a.team, b.team) || alphabeticCollator.compare(a.player, b.player));
+}
+
+function firstPlayerSelection(rows: DataRow[]) {
+  return playerOptionsFor(rows)[0] ?? { index: 0, team: "" };
+}
+
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return <span className="field-label">{children}</span>;
 }
@@ -163,6 +189,7 @@ export default function ScoutStudio() {
   const [reportSourceCount, setReportSourceCount] = useState(0);
   const [analysisLabel, setAnalysisLabel] = useState("BASE ANALIZADA");
   const [analysisSourceTitle, setAnalysisSourceTitle] = useState("");
+  const [selectedTeam, setSelectedTeam] = useState("");
   const [selectedPlayer, setSelectedPlayer] = useState(0);
   const [minimumMinutes, setMinimumMinutes] = useState(500);
   const [cohort, setCohort] = useState("AUTO");
@@ -181,13 +208,12 @@ export default function ScoutStudio() {
   const reportInputRef = useRef<HTMLInputElement>(null);
   const seasonsInputRef = useRef<HTMLInputElement>(null);
 
-  const reportHeaders = useMemo(() => [...new Set(reportRows.flatMap((row) => Object.keys(row)))], [reportRows]);
-  const reportCore = useMemo(() => detectCoreColumns(reportHeaders), [reportHeaders]);
-  const players = useMemo(() => reportRows.map((row, index) => ({
-    index,
-    player: String(row[reportCore.player] ?? `Jugador ${index + 1}`),
-    team: String(row[reportHeaders.find((header) => /team within|equipo durante/i.test(header)) ?? reportHeaders.find((header) => /^(team|equipo)$/i.test(header)) ?? ""] ?? ""),
-  })), [reportRows, reportCore.player, reportHeaders]);
+  const players = useMemo(() => playerOptionsFor(reportRows), [reportRows]);
+  const teams = useMemo(() => [...new Set(players.map((player) => player.team))].sort(alphabeticCollator.compare), [players]);
+  const teamPlayers = useMemo(
+    () => players.filter((player) => player.team === selectedTeam).sort((a, b) => alphabeticCollator.compare(a.player, b.player)),
+    [players, selectedTeam],
+  );
   const report = useMemo(
     () => buildPlayerReport(reportRows, selectedPlayer, minimumMinutes, cohort),
     [reportRows, selectedPlayer, minimumMinutes, cohort],
@@ -230,8 +256,10 @@ export default function ScoutStudio() {
       setReportSourceCount(datasets.length);
       setAnalysisLabel(datasets.length > 1 ? "BASES ANALIZADAS" : "BASE ANALIZADA");
       setAnalysisSourceTitle(sourceTitle);
-      setSelectedPlayer(0);
-      const restored = restoreProfile(buildPlayerReport(result.rows, 0, minimumMinutes, cohort));
+      const initialSelection = firstPlayerSelection(result.rows);
+      setSelectedTeam(initialSelection.team);
+      setSelectedPlayer(initialSelection.index);
+      const restored = restoreProfile(buildPlayerReport(result.rows, initialSelection.index, minimumMinutes, cohort));
       setProfile(restored.profile);
       setTransfermarktUrl(restored.url);
       setBackgroundRemovalStatus("");
@@ -300,6 +328,12 @@ export default function ScoutStudio() {
     setBackgroundRemovalStatus("");
   }
 
+  function selectTeam(team: string) {
+    setSelectedTeam(team);
+    const firstPlayer = players.find((player) => player.team === team);
+    if (firstPlayer) selectPlayer(firstPlayer.index);
+  }
+
   function loadProfileAsset(field: "playerImage" | "clubLogo" | "leagueLogo", file?: File) {
     if (!file || !file.type.startsWith("image/")) return;
     const reader = new FileReader();
@@ -352,10 +386,12 @@ export default function ScoutStudio() {
       setReportSourceCount(seasonFiles.length);
       setAnalysisLabel(seasonFiles.length > 1 ? "BASES ANALIZADAS" : "BASE ANALIZADA");
       setAnalysisSourceTitle(sourceLabel || "Base consolidada");
-      setSelectedPlayer(0);
+      const initialSelection = firstPlayerSelection(result.rows);
+      setSelectedTeam(initialSelection.team);
+      setSelectedPlayer(initialSelection.index);
       setReportPage(1);
       setReportError("");
-      const restored = restoreProfile(buildPlayerReport(result.rows, 0, minimumMinutes, cohort));
+      const restored = restoreProfile(buildPlayerReport(result.rows, initialSelection.index, minimumMinutes, cohort));
       setProfile(restored.profile);
       setTransfermarktUrl(restored.url);
       setTransfermarktError("");
@@ -373,6 +409,7 @@ export default function ScoutStudio() {
     setReportSourceCount(0);
     setAnalysisLabel("BASE ANALIZADA");
     setAnalysisSourceTitle("");
+    setSelectedTeam("");
     setSelectedPlayer(0);
     setMinimumMinutes(500);
     setCohort("AUTO");
@@ -467,7 +504,11 @@ export default function ScoutStudio() {
                     <span className="upload-icon"><Upload size={18} /></span><span><b>{reportLoading ? "Leyendo bases…" : "Reemplazar archivos"}</b><small>{reportSourceCount} base{reportSourceCount === 1 ? "" : "s"} · {reportRows.length} jugadores</small></span>
                   </button>
                   {reportError && <div className="inline-error">{reportError}</div>}
-                  <label className="field-group player-field"><FieldLabel>Jugador</FieldLabel><span className="select-wrap"><Search size={16} /><select value={selectedPlayer} disabled={backgroundRemoving} onChange={(event) => selectPlayer(Number(event.target.value))}>{players.map((player) => <option key={`${player.player}-${player.index}`} value={player.index}>{player.player}{player.team ? ` · ${player.team}` : ""}</option>)}</select><ChevronDown size={16} /></span></label>
+                  <div className="player-selector-flow">
+                    <label className="field-group selection-step"><span className="selection-step-title"><i>1</i><FieldLabel>Equipo</FieldLabel></span><span className="select-wrap"><Files size={16} /><select value={selectedTeam} disabled={backgroundRemoving} onChange={(event) => selectTeam(event.target.value)}>{teams.map((team) => <option key={team} value={team}>{team}</option>)}</select><ChevronDown size={16} /></span></label>
+                    <span className="selection-flow-line" aria-hidden="true" />
+                    <label className="field-group selection-step"><span className="selection-step-title"><i>2</i><FieldLabel>Jugador</FieldLabel></span><span className="select-wrap"><Search size={16} /><select value={selectedPlayer} disabled={backgroundRemoving || !teamPlayers.length} onChange={(event) => selectPlayer(Number(event.target.value))}>{teamPlayers.map((player) => <option key={`${player.player}-${player.index}`} value={player.index}>{player.player}</option>)}</select><ChevronDown size={16} /></span></label>
+                  </div>
                   <div className="two-fields">
                     <label className="field-group"><FieldLabel>Cohorte</FieldLabel><span className="select-wrap simple"><select value={cohort} onChange={(event) => setCohort(event.target.value)}><option value="AUTO">Automática</option><option value="GK">Porteros</option><option value="CB">Centrales</option><option value="FB">Laterales</option><option value="MID">Mediocampistas</option><option value="WING">Extremos</option><option value="AM">Mediapuntas</option><option value="CF">Delanteros</option></select><ChevronDown size={16} /></span></label>
                     <label className="field-group"><FieldLabel>Mín. minutos</FieldLabel><input className="text-input" type="number" min="0" step="100" value={minimumMinutes} onChange={(event) => setMinimumMinutes(Number(event.target.value))} /></label>
@@ -576,7 +617,7 @@ export default function ScoutStudio() {
                 </button>
                 {seasonFiles.length > 0 && <div className="file-stack">{seasonFiles.map((file) => <div className="file-row" key={file.fileName}><span className="excel-icon"><FileSpreadsheet size={18} /></span><div><b>{file.fileName}</b><small>{file.rows.length} jugadores · {file.headers.length} columnas</small></div><span className={file.season ? "year-chip" : "year-chip neutral"}>{file.season || "Liga/base"}</span><button onClick={() => { setSeasonFiles((current) => current.filter((item) => item.fileName !== file.fileName)); setMergeResult(null); }} aria-label={`Quitar ${file.fileName}`}><X size={16} /></button></div>)}</div>}
                 {mergeError && <div className="inline-error merge-error">{mergeError}</div>}
-                <div className="merge-actions"><button className="button ghost" onClick={() => { setSeasonFiles([]); setMergeResult(null); setMergeError(""); }} disabled={!seasonFiles.length}>Limpiar</button><button className="button primary wide" onClick={runMerge} disabled={seasonFiles.length < 1}><Merge size={17} /> {seasonFiles.length > 1 ? `Combinar ${seasonFiles.length} bases y crear informe` : "Usar base para crear informe"}</button></div>
+                <div className="merge-actions"><button className="button ghost" onClick={() => { setSeasonFiles([]); setMergeResult(null); setMergeError(""); }} disabled={!seasonFiles.length}>Limpiar</button><button className="button primary wide" onClick={runMerge} disabled={seasonFiles.length < 1}><Merge size={17} /> {seasonFiles.length > 1 ? `Combinar ${seasonFiles.length} bases y usar en el informe` : "Usar base automáticamente en el informe"}</button></div>
               </section>
 
               <aside className="rules-card card">

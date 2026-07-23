@@ -43,7 +43,8 @@ Los Excel se procesan completamente en el navegador. No se suben a un servidor.
 ## Flujo del reporte
 
 1. **Cargar datos:** uno, dos o tres Excel de ligas o temporadas.
-2. **Completar perfil:** seleccionar al jugador y pegar su URL de Transfermarkt.
+2. **Completar perfil:** seleccionar primero el equipo y después el jugador.
+   Ambos listados se muestran en orden alfabético. Luego se puede pegar la URL de Transfermarkt.
    La aplicación extrae dorsal, datos biográficos, valor de mercado, club, liga,
    escudo, logo de competición y retrato transparente. Los tres recursos visuales
    también se pueden reemplazar por archivos PNG, WEBP o JPG locales.
@@ -68,4 +69,5 @@ una URL y presiona el botón de extracción.
 - equipo y edad: valor del año más reciente o del último archivo cargado.
 
 El resultado consolidado no genera una descarga intermedia: se convierte
-automáticamente en la fuente de datos activa del módulo **Reportes**.
+automáticamente en la fuente de datos activa del módulo **Reportes**, abre el
+creador y deja disponibles los selectores alfabéticos de equipo y jugador.

@@ -531,7 +531,13 @@ body::before { position: fixed; inset: 0; z-index: -1; pointer-events: none; bac
 
 .report-workspace { grid-template-columns: 350px minmax(0, 1fr); }
 .enrichment-controls { max-height: calc(100vh - 36px); overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(120,142,184,.28) transparent; }
-.player-field { margin-top: 17px; }
+.player-selector-flow { position: relative; margin-top: 17px; padding: 13px; border: 1px solid rgba(118,142,182,.17); border-radius: 12px; background: rgba(255,255,255,.02); }
+.player-selector-flow .field-group { margin-bottom: 0; }
+.selection-step-title { margin-bottom: 7px; display: flex; align-items: center; gap: 7px; }
+.selection-step-title i { width: 19px; height: 19px; display: grid; place-items: center; flex: none; border: 1px solid rgba(91,132,255,.35); border-radius: 6px; color: #9db2ff; background: rgba(79,124,255,.11); font-size: 9px; font-style: normal; font-weight: 800; }
+.selection-step-title .field-label { margin: 0; color: #9da9bb; }
+.selection-flow-line { width: 1px; height: 14px; margin: 4px 0 4px 9px; display: block; background: linear-gradient(rgba(91,132,255,.45), rgba(91,132,255,.08)); }
+.selection-step .select-wrap select:disabled { color: #667083; cursor: not-allowed; }
 .enrichment-title { align-items: flex-start; }
 .ready-state { color: #74d7c7; background: rgba(69,198,186,.1); }
 .transfermarkt-url { margin-top: 15px; }
