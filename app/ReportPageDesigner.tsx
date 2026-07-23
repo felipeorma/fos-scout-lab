@@ -57,6 +57,11 @@ type ResizeSession = {
   columns: number;
 };
 
+const MIN_BLOCK_HEIGHT = 140;
+const MAX_BLOCK_HEIGHT = 900;
+const SIMILARITY_BLOCK_ID = "p2-similarity-comparison";
+const SIMILARITY_BLOCK_HEIGHT = 790;
+
 const SHARED_TEXT_COLORS = new Set([
   ...REPORT_THEMES.map((theme) => theme.ink.toLowerCase()),
   "#17323a",
@@ -128,6 +133,31 @@ function updateBlock(config: PageConfig, id: string, patch: Partial<PageBlock>) 
   return { ...config, blocks: config.blocks.map((block) => block.id === id ? { ...block, ...patch } : block) };
 }
 
+function isEmptyDefaultVisualLayout(config: PageConfig) {
+  const defaultBlocks = defaultPages()[2].blocks;
+  const blocksWithoutComparison = config.blocks.filter((block) => block.id !== SIMILARITY_BLOCK_ID);
+  return blocksWithoutComparison.length === 0 || (
+    blocksWithoutComparison.length === defaultBlocks.length
+    && blocksWithoutComparison.every((block, index) => (
+      block.id === defaultBlocks[index].id
+      && block.type === "image"
+      && !block.image
+    ))
+  );
+}
+
+function normalizeSimilarityBlock(config: PageConfig) {
+  return {
+    ...config,
+    blocks: config.blocks.map((block) => block.id === SIMILARITY_BLOCK_ID ? {
+      ...block,
+      span: config.columns,
+      height: SIMILARITY_BLOCK_HEIGHT,
+      fit: "contain" as const,
+    } : block),
+  };
+}
+
 export function ReportPageDesigner({ pageNumber, player, team, position, theme, onThemeChange }: { pageNumber: 2 | 3; player: string; team: string; position: string; theme: ReportTheme; onThemeChange: (theme: ReportTheme) => void }) {
   const [pages, setPages] = useState<DesignerState>(defaultPages);
   const [selectedId, setSelectedId] = useState(defaultPages()[pageNumber].blocks[0].id);
@@ -143,17 +173,33 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
       try {
         const stored = window.localStorage.getItem("fos-scout-page-designer-v1");
         let nextPages = stored ? { ...defaultPages(), ...JSON.parse(stored) } as DesignerState : defaultPages();
+        nextPages = { ...nextPages, 2: normalizeSimilarityBlock(nextPages[2]) };
         const pendingComparison = window.localStorage.getItem("fos-scout-similarity-comparison-v1");
         if (pendingComparison) {
           const payload = JSON.parse(pendingComparison) as { image?: unknown; title?: unknown };
           if (typeof payload.image === "string" && payload.image.startsWith("data:image/")) {
-            const id = "p2-similarity-comparison";
-            const existing = nextPages[2].blocks.find((block) => block.id === id);
-            const comparison = existing
-              ? { ...existing, image: payload.image, title: typeof payload.title === "string" ? payload.title : existing.title }
-              : { ...imageBlock(id, typeof payload.title === "string" ? payload.title : "Comparación de similitud", nextPages[2].columns, 470), image: payload.image };
-            nextPages = { ...nextPages, 2: { ...nextPages[2], blocks: existing ? nextPages[2].blocks.map((block) => block.id === id ? comparison : block) : [...nextPages[2].blocks, comparison] } };
-            if (pageNumber === 2) setSelectedId(id);
+            const page = nextPages[2];
+            const title = typeof payload.title === "string" ? payload.title : "Comparación de similitud";
+            const existing = page.blocks.find((block) => block.id === SIMILARITY_BLOCK_ID);
+            const comparison = {
+              ...(existing ?? imageBlock(SIMILARITY_BLOCK_ID, title, page.columns, SIMILARITY_BLOCK_HEIGHT)),
+              image: payload.image,
+              title,
+              span: page.columns,
+              height: SIMILARITY_BLOCK_HEIGHT,
+              fit: "contain" as const,
+            };
+            const replaceEmptyTemplate = isEmptyDefaultVisualLayout(page);
+            const remainingBlocks = page.blocks.filter((block) => block.id !== SIMILARITY_BLOCK_ID);
+            nextPages = {
+              ...nextPages,
+              2: {
+                ...page,
+                title: replaceEmptyTemplate ? "Comparación de similitud" : page.title,
+                blocks: replaceEmptyTemplate ? [comparison] : [comparison, ...remainingBlocks],
+              },
+            };
+            if (pageNumber === 2) setSelectedId(SIMILARITY_BLOCK_ID);
           }
           window.localStorage.removeItem("fos-scout-similarity-comparison-v1");
         }
@@ -183,7 +229,7 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
       const spanDelta = Math.round((event.clientX - resizeSession.startX) / resizeSession.columnStep);
       const span = clampSpan(resizeSession.startSpan + spanDelta, resizeSession.columns);
       const rawHeight = resizeSession.startHeight + event.clientY - resizeSession.startY;
-      const height = Math.max(140, Math.min(620, Math.round(rawHeight / 10) * 10));
+      const height = Math.max(MIN_BLOCK_HEIGHT, Math.min(MAX_BLOCK_HEIGHT, Math.round(rawHeight / 10) * 10));
       setPages((current) => ({
         ...current,
         [pageNumber]: updateBlock(current[pageNumber], resizeSession.id, { span, height }),
@@ -330,7 +376,7 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
       event.preventDefault();
       event.stopPropagation();
       const direction = event.key === "ArrowUp" ? -1 : 1;
-      setConfig((current) => updateBlock(current, block.id, { height: Math.max(140, Math.min(620, block.height + direction * step)) }));
+      setConfig((current) => updateBlock(current, block.id, { height: Math.max(MIN_BLOCK_HEIGHT, Math.min(MAX_BLOCK_HEIGHT, block.height + direction * step)) }));
     }
     if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
       event.preventDefault();
@@ -376,7 +422,7 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
           <div className="designer-section-title"><span>Bloque seleccionado</span><div className="order-buttons"><button onClick={() => moveSelected(-1)} title="Mover antes"><MoveUp size={14} /></button><button onClick={() => moveSelected(1)} title="Mover después"><MoveDown size={14} /></button><button className="delete-block" onClick={removeSelected} title="Eliminar bloque"><Trash size={14} /></button></div></div>
           <label className="field-group"><span className="field-label">Etiqueta</span><input className="text-input" value={selected.title} onChange={(event) => patchSelected({ title: event.target.value })} /></label>
           <div className="span-buttons"><span className="field-label">Ancho</span><div>{Array.from({ length: config.columns }, (_, index) => index + 1).map((span) => <button key={span} className={clampSpan(selected.span, config.columns) === span ? "active" : ""} onClick={() => patchSelected({ span })}>{span === config.columns ? "Completo" : `${span}/${config.columns}`}</button>)}</div></div>
-          <label className="range-row block-height"><span>Alto del espacio <b>{selected.height}px</b></span><input type="range" min="140" max="620" step="10" value={selected.height} onChange={(event) => patchSelected({ height: Number(event.target.value) })} /></label>
+          <label className="range-row block-height"><span>Alto del espacio <b>{selected.height}px</b></span><input type="range" min={MIN_BLOCK_HEIGHT} max={MAX_BLOCK_HEIGHT} step="10" value={selected.height} onChange={(event) => patchSelected({ height: Number(event.target.value) })} /></label>
           <p className="resize-alignment-note"><b>↘</b><span>Arrastra la esquina del bloque. El ancho encaja en columnas y el alto en una retícula de 10 px.</span></p>
 
           {selected.type === "image" ? <div className="image-options">
@@ -405,7 +451,7 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
             {config.blocks.map((block) => {
               const span = clampSpan(block.span, config.columns);
               const textStyle = { color: usesSharedTextColor(block.color, theme.ink) ? theme.ink : block.color, fontFamily: fontFamily(block.font), fontSize: block.fontSize, fontWeight: block.bold ? 700 : 400, fontStyle: block.italic ? "italic" : "normal", textAlign: block.align } as CSSProperties;
-              return <div key={block.id} draggable={!resizeSession} className={`visual-block visual-${block.type} ${selected?.id === block.id ? "selected" : ""} ${draggedId === block.id ? "dragging" : ""} ${resizeSession?.id === block.id ? "resizing" : ""}`} style={{ gridColumn: `span ${span}`, height: block.height }} onClick={() => setSelectedId(block.id)} onDragStart={() => { setDraggedId(block.id); setSelectedId(block.id); }} onDragEnd={() => setDraggedId("")} onDragOver={(event) => event.preventDefault()} onDrop={(event) => onDropBlock(event, block.id)} role="button" tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter") setSelectedId(block.id); }}>
+              return <div key={block.id} draggable={!resizeSession} className={`visual-block visual-${block.type} ${block.id === SIMILARITY_BLOCK_ID ? "similarity-comparison-block" : ""} ${selected?.id === block.id ? "selected" : ""} ${draggedId === block.id ? "dragging" : ""} ${resizeSession?.id === block.id ? "resizing" : ""}`} style={{ gridColumn: `span ${span}`, height: block.height }} onClick={() => setSelectedId(block.id)} onDragStart={() => { setDraggedId(block.id); setSelectedId(block.id); }} onDragEnd={() => setDraggedId("")} onDragOver={(event) => event.preventDefault()} onDrop={(event) => onDropBlock(event, block.id)} role="button" tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter") setSelectedId(block.id); }}>
                 <div className="block-chrome"><span><Grip size={13} /> {block.title || (block.type === "image" ? "Imagen" : "Texto")}</span><small>{span}/{config.columns}</small></div>
                 {block.type === "image" ? <label className={`visual-image-slot ${block.image ? "has-image" : ""}`} onClick={(event) => event.stopPropagation()}>
                   {block.image ? <LocalPreviewImage src={block.image} alt={block.title} fit={block.fit} /> : <span><span className="image-placeholder-icon"><ImageIcon size={27} /></span><b>Agregar imagen</b><small>PNG, JPG o WEBP</small><em><Upload size={13} /> Elegir archivo</em></span>}

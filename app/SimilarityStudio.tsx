@@ -595,7 +595,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, targets, the
       const image = await createImage();
       if (!image || !selectedCandidate || !search?.target) return;
       window.localStorage.setItem("fos-scout-similarity-comparison-v1", JSON.stringify({ image, title: `Similitud · ${search.target.player} vs. ${selectedCandidate.name}`, createdAt: Date.now() }));
-      setExportStatus("✓ Comparación preparada para la Página 2.");
+      setExportStatus("✓ Comparación agregada a la Página 2 con formato completo y alineado.");
       onOpenReports();
     } catch {
       setExportStatus("No se pudo guardar la comparación. Descárgala como PNG y súbela manualmente.");
