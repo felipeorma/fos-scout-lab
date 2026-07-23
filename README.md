@@ -22,6 +22,18 @@ Abre `http://localhost:3000` y usa uno de los dos módulos:
 - **Reportes:** carga entre uno y tres archivos, selecciona un jugador y revisa su radar.
 - **Combinar bases:** procesa archivos que pueden representar ligas o temporadas y descarga el consolidado.
 
+## Editor visual de páginas
+
+Las páginas 2 y 3 del reporte incluyen un editor local con:
+
+- plantillas de una, dos o tres columnas;
+- bloques de imagen y texto que se pueden agregar, eliminar y reordenar;
+- arrastre de bloques y controles alternativos para moverlos;
+- ancho, alto y separación ajustables;
+- temas de color y colores personalizados;
+- tipografías, tamaño, color, negrita, cursiva y alineación para los textos;
+- guardado automático del diseño en el navegador e impresión de la página activa.
+
 Los Excel se procesan completamente en el navegador. No se suben a un servidor.
 
 ## Reglas para combinar bases

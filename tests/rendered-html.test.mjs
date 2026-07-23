@@ -23,6 +23,9 @@ test("renderiza FOS Scout Lab con sus dos flujos", async () => {
   assert.match(html, /Convierte datos en una lectura de scouting/);
   assert.match(html, /Combinar bases/);
   assert.match(html, /1 a 3 archivos/);
+  assert.match(html, /Las páginas 2 y 3 son totalmente editables/);
+  assert.match(html, /Mapas e imágenes/);
+  assert.match(html, /Texto y contexto/);
   assert.match(html, /Los archivos se procesan localmente/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|react-loading-skeleton/i);
 });

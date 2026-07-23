@@ -24,6 +24,7 @@ import {
   X,
 } from "./Icons";
 import { PizzaRadar } from "./PizzaRadar";
+import { ReportPageDesigner } from "./ReportPageDesigner";
 import {
   aggregateDatasets,
   buildPlayerReport,
@@ -37,6 +38,7 @@ import {
 } from "@/lib/scouting";
 
 type View = "reports" | "seasons";
+type ReportPage = 1 | 2 | 3;
 
 function readWorkbook(file: File): Promise<SourceDataset> {
   return file.arrayBuffer().then((buffer) => {
@@ -65,6 +67,7 @@ function ScoreBadge({ score }: { score: number }) {
 
 export default function ScoutStudio() {
   const [view, setView] = useState<View>("reports");
+  const [reportPage, setReportPage] = useState<ReportPage>(1);
   const [mobileNav, setMobileNav] = useState(false);
   const [reportRows, setReportRows] = useState<DataRow[]>(DEMO_ROWS);
   const [reportFileName, setReportFileName] = useState("Vista de ejemplo");
@@ -206,7 +209,7 @@ export default function ScoutStudio() {
               <div><span className="kicker">Centro de análisis</span><h1>Convierte datos en una lectura de scouting.</h1><p>Carga una base Wyscout, elige un jugador y genera un perfil comparable listo para revisión.</p></div>
               <div className="heading-actions">
                 <button className="button secondary" onClick={resetReport}><RotateCcw size={16} /> Restablecer</button>
-                <button className="button primary" onClick={() => window.print()} disabled={!report}><Printer size={16} /> Imprimir reporte</button>
+                <button className="button primary" onClick={() => window.print()} disabled={!report}><Printer size={16} /> {reportPage === 1 ? "Imprimir reporte" : `Imprimir página ${reportPage}`}</button>
               </div>
             </section>
 
@@ -218,7 +221,14 @@ export default function ScoutStudio() {
               <div className="workflow-step"><span>03</span><div><b>Revisar y exportar</b><small>Informe imprimible</small></div></div>
             </section>
 
-            <div className="report-workspace">
+            <nav className="report-page-tabs" aria-label="Páginas del reporte">
+              <button className={reportPage === 1 ? "active" : ""} onClick={() => setReportPage(1)}><span>01</span><div><b>Análisis</b><small>Radar y percentiles</small></div></button>
+              <button className={reportPage === 2 ? "active" : ""} onClick={() => setReportPage(2)}><span>02</span><div><b>Visuales</b><small>Mapas e imágenes</small></div></button>
+              <button className={reportPage === 3 ? "active" : ""} onClick={() => setReportPage(3)}><span>03</span><div><b>Observaciones</b><small>Texto y contexto</small></div></button>
+              <em>Las páginas 2 y 3 son totalmente editables</em>
+            </nav>
+
+            {reportPage === 1 ? <div className="report-workspace">
               <section className="control-panel">
                 <div className="panel-title"><div><span className="mini-icon"><FileSpreadsheet size={17} /></span><div><h2>Fuente de datos</h2><p>Primera hoja del Excel</p></div></div><span className="tiny-state">LOCAL</span></div>
                 <input ref={reportInputRef} type="file" accept=".xlsx,.xls" multiple hidden onChange={(event) => event.target.files && onReportFiles(event.target.files)} />
@@ -276,7 +286,7 @@ export default function ScoutStudio() {
                   </article>
                 ) : <div className="empty-preview">Selecciona un jugador para generar el informe.</div>}
               </section>
-            </div>
+            </div> : report ? <ReportPageDesigner pageNumber={reportPage} player={report.player} team={report.team} position={report.position} /> : <div className="empty-preview">Selecciona un jugador para diseñar las páginas.</div>}
           </div>
         ) : (
           <div className="page-content seasons-page">
