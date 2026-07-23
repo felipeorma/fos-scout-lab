@@ -368,6 +368,72 @@ function field(row: DataRow, headers: string[], aliases: string[]) {
   return header ? row[header] : "";
 }
 
+// Lectura táctica estilo dirección de scouting: cada cohorte tiene perfiles
+// (nueve referencia, falso nueve, central con toque, rústico…) y se elige el
+// que mejor respaldan los percentiles. `lows` marca métricas que deben ser
+// bajas para que el perfil gane fuerza (p. ej. poco juego aéreo en un nueve
+// de espacio).
+type TacticalRule = { labels: string[]; lows?: string[]; text: string };
+
+const TACTICAL_PROFILES: Record<string, TacticalRule[]> = {
+  GK: [
+    { labels: ["Paradas %", "Goles evitados"], text: "Portero de línea (shot-stopper): sostiene puntos con paradas de reflejos." },
+    { labels: ["Salidas", "Duelos aéreos"], text: "Domina el área: descuelga centros y balón parado con autoridad." },
+    { labels: ["Pases largos", "Precisión largos"], text: "Portero iniciador: aguanta salida corta o rompe la presión con pase largo dirigido." },
+  ],
+  CB: [
+    { labels: ["Pases progresivos", "Precisión progresivos", "Precisión"], text: "Central con toque (ball-playing): rompe la primera línea con pase interior y sostiene la salida corta bajo presión." },
+    { labels: ["Duelos defensivos", "Duelos aéreos"], lows: ["Pases progresivos"], text: "Central rústico de duelos: manda en lo físico y lo aéreo; ideal para defender el área, los centros y el balón parado." },
+    { labels: ["Intercepciones", "Acciones defensivas"], text: "Defiende hacia adelante: anticipa y encaja en línea alta defendiendo el espacio." },
+  ],
+  FB: [
+    { labels: ["Centros", "Precisión centros"], text: "Lateral de amplitud: dobla por fuera y castiga con el centro al espacio." },
+    { labels: ["Carreras progresivas", "Regates"], text: "Carrilero de conducción: gana metros con balón y encaja en línea de cinco." },
+    { labels: ["Duelos defensivos", "Intercepciones"], text: "Lateral sobrio: primero defiende; fiable al duelo en bloque medio-bajo." },
+  ],
+  MID: [
+    { labels: ["Acciones defensivas", "Intercepciones"], text: "Pivote pantalla: protege la zaga y gana recuperaciones en la contrapresión." },
+    { labels: ["Pases progresivos", "Pases", "Precisión"], text: "Organizador con toque: sale limpio bajo presión y rompe líneas desde la base." },
+    { labels: ["xA", "Pases clave"], text: "Interior de último pase: pisa el tercio final para asistir la llegada." },
+  ],
+  WING: [
+    { labels: ["Regates", "Carreras progresivas"], text: "Extremo de transición: encara en campo abierto y gana metros en conducción." },
+    { labels: ["xG", "Toques en área"], text: "Perfil interior con gol: ataca la espalda del lateral y el segundo palo con desmarques de ruptura (runs in behind)." },
+    { labels: ["xA", "Pases clave"], text: "Extremo creador: recibe por dentro y rompe con el último pase." },
+  ],
+  AM: [
+    { labels: ["Goles", "xG"], text: "Mediapunta llegador: ataca el área en segunda línea como segundo delantero." },
+    { labels: ["xA", "Pases clave", "Pases al área"], text: "Diez creador: pide el balón entre líneas y decide en el último tercio." },
+    { labels: ["Regates", "Carreras progresivas"], text: "Rompe por conducción: recibe de espaldas, gira y progresa entre líneas." },
+  ],
+  CF: [
+    { labels: ["Duelos aéreos", "Pases recibidos"], text: "Nueve referencia: fija centrales, juega de espaldas y baja a descargar para la segunda jugada." },
+    { labels: ["Pases recibidos", "Asistencias"], lows: ["Duelos aéreos"], text: "Puede operar de falso nueve: cae entre líneas a asociarse y libera el área para las llegadas." },
+    { labels: ["xG", "Toques en área"], lows: ["Pases recibidos"], text: "Atacante de espacio: vive del desmarque de ruptura a la espalda de la línea (runs in behind)." },
+  ],
+};
+
+TACTICAL_PROFILES.OTHER = TACTICAL_PROFILES.WING;
+
+function tacticalNote(cohort: string, metrics: RadarMetric[]) {
+  const percentileOf = (label: string) => metrics.find((metric) => metric.label === label)?.percentile;
+  const rules = TACTICAL_PROFILES[cohort] ?? TACTICAL_PROFILES.OTHER;
+  let best: TacticalRule | null = null;
+  let bestScore = 0;
+  for (const rule of rules) {
+    const values = rule.labels.map(percentileOf).filter((value): value is number => value !== undefined);
+    if (!values.length) continue;
+    let score = average(values);
+    const lows = (rule.lows ?? []).map(percentileOf).filter((value): value is number => value !== undefined);
+    if (lows.length) score += (55 - average(lows)) * 0.3;
+    if (score > bestScore) {
+      bestScore = score;
+      best = rule;
+    }
+  }
+  return best && bestScore >= 58 ? t(best.text) : "";
+}
+
 function roleReading(cohort: string, metrics: RadarMetric[]) {
   const groupScores = [0, 1, 2].map((group) => average(metrics.filter((metric) => metric.group === group).map((metric) => metric.percentile)) || 0);
   const dominant = groupScores.indexOf(Math.max(...groupScores));
@@ -385,6 +451,8 @@ function roleReading(cohort: string, metrics: RadarMetric[]) {
   const weak = [...metrics].sort((a, b) => a.percentile - b.percentile)[0];
   const strengths = top.filter((metric) => metric.percentile >= 60).map((metric) => t(metric.label).toLowerCase());
   let text = tf("El perfil encaja como {role}.", { role: t(roles[cohort]?.[dominant] ?? roles.OTHER[dominant]) });
+  const tactic = tacticalNote(cohort, metrics);
+  if (tactic) text += ` ${tactic}`;
   if (strengths.length) text += tf(" Sus señales más fuertes aparecen en {list}.", { list: strengths.join(", ") });
   if (weak && weak.percentile < 35) text += tf(" Conviene revisar en vídeo su rendimiento en {metric}, hoy por debajo de la cohorte.", { metric: t(weak.label).toLowerCase() });
   return text;

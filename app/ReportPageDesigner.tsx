@@ -175,6 +175,21 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
         const stored = window.localStorage.getItem("fos-scout-page-designer-v1");
         let nextPages = stored ? { ...defaultPages(), ...JSON.parse(stored) } as DesignerState : defaultPages();
         nextPages = { ...nextPages, 2: normalizeSimilarityBlock(nextPages[2]) };
+        // El título "Comparación de similitud" solo aplica mientras exista esa
+        // comparación importada; sin ella la página vuelve al diseño normal
+        // para seguir agregando imágenes y textos.
+        const page2 = nextPages[2];
+        const hasComparisonBlock = page2.blocks.some((block) => block.id === SIMILARITY_BLOCK_ID);
+        if (!hasComparisonBlock && /comparación de similitud|similarity comparison/i.test(page2.title)) {
+          nextPages = {
+            ...nextPages,
+            2: {
+              ...page2,
+              title: defaultPages()[2].title,
+              blocks: page2.blocks.length ? page2.blocks : defaultPages()[2].blocks,
+            },
+          };
+        }
         const pendingComparison = window.localStorage.getItem("fos-scout-similarity-comparison-v1");
         if (pendingComparison) {
           const payload = JSON.parse(pendingComparison) as { image?: unknown; title?: unknown };
@@ -293,7 +308,13 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
     if (!selected) return;
     const index = config.blocks.findIndex((block) => block.id === selected.id);
     const nextBlocks = config.blocks.filter((block) => block.id !== selected.id);
-    setConfig((current) => ({ ...current, blocks: nextBlocks }));
+    const removedComparison = selected.id === SIMILARITY_BLOCK_ID;
+    setConfig((current) => ({
+      ...current,
+      blocks: nextBlocks.length || !removedComparison ? nextBlocks : defaultPages()[2].blocks,
+      // Al quitar la comparación importada, el título vuelve al de la página normal.
+      title: removedComparison && /comparación de similitud|similarity comparison/i.test(current.title) ? defaultPages()[2].title : current.title,
+    }));
     setSelectedId(nextBlocks[Math.max(0, index - 1)]?.id ?? "");
   }
 
