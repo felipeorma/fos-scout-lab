@@ -632,10 +632,10 @@ body::before { position: fixed; inset: 0; z-index: -1; pointer-events: none; bac
 .competition-copy span, .competition-copy strong { max-width: 100%; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .competition-copy span { color: var(--report-ink); font-family: var(--font-barlow-condensed),sans-serif; font-size: 18px; font-weight: 650; letter-spacing: .035em; line-height: 1.05; text-transform: uppercase; }
 .competition-copy strong { margin-top: 5px; color: var(--report-muted); font-size: 9px; font-weight: 700; letter-spacing: .1em; line-height: 1.1; text-transform: uppercase; }
-.market-lockup { min-width: 126px; text-align: right; }
-.market-lockup small { display: block; color: var(--report-muted); font-size: 8px; font-weight: 700; letter-spacing: .13em; }
-.market-lockup strong { display: block; margin-top: 2px; color: var(--report-accent); font-family: var(--font-oswald),var(--font-barlow-condensed),sans-serif; font-size: 34px; line-height: 1; }
-.market-transfermarkt-logo { width: 90px; height: 36px; margin: 6px 0 0 auto; display: block; border: 1px solid rgba(18,36,49,.1); border-radius: 3px; background: #fff; object-fit: contain; }
+.market-lockup { --market-lockup-width: 126px; width: var(--market-lockup-width); min-width: var(--market-lockup-width); display: grid; grid-template-columns: minmax(0,1fr); justify-items: stretch; text-align: right; }
+.market-lockup small { width: 100%; display: block; color: var(--report-muted); font-size: 8px; font-weight: 700; letter-spacing: .13em; }
+.market-lockup strong { width: 100%; display: block; margin-top: 2px; color: var(--report-accent); font-family: var(--font-oswald),var(--font-barlow-condensed),sans-serif; font-size: 34px; line-height: 1; }
+.market-transfermarkt-logo { width: 100%; height: auto; aspect-ratio: 745.3 / 299.6; margin: 6px 0 0; display: block; box-sizing: border-box; border: 1px solid rgba(18,36,49,.1); border-radius: 3px; background: #fff; object-fit: contain; }
 .dossier-info > h2 { margin: 8px 0 7px; color: var(--report-ink); font-family: var(--font-oswald),var(--font-barlow-condensed),sans-serif; font-size: clamp(38px,4.2vw,52px); font-weight: 700; letter-spacing: .005em; line-height: .92; text-transform: uppercase; }
 .identity-line { display: flex; align-items: center; gap: 10px; }
 .identity-line b { padding: 4px 11px; border-radius: 5px; color: #fff; background: var(--report-accent); font-family: var(--font-barlow-condensed),sans-serif; font-size: 11px; letter-spacing: .035em; text-transform: uppercase; }
@@ -869,7 +869,7 @@ body::before { position: fixed; inset: 0; z-index: -1; pointer-events: none; bac
   .competition-copy span { font-size: 14px; }
   .competition-copy strong { margin-top: 4px; font-size: 8px; }
   .dossier-league-logo { width: 42px; height: 42px; }
-  .market-lockup { min-width: 92px; }.market-lockup strong { font-size: 25px; }
+  .market-lockup { --market-lockup-width: 100px; }.market-lockup strong { font-size: 25px; }
   .dossier-info > h2 { margin-top: 16px; font-size: 39px; }
   .dossier-meta-grid { grid-template-columns: repeat(2,1fr); }
   .dossier-season-strip { padding: 16px 18px; grid-template-columns: repeat(2,1fr); gap: 14px; }
