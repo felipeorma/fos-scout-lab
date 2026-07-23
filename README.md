@@ -22,7 +22,7 @@ This starter does not use `wrangler.jsonc`.
 
 Abre `http://localhost:3000` y entra a **Reportes**:
 
-- **Reportes:** comienza eligiendo una base o combinando dos o tres archivos;
+- **Reportes:** comienza eligiendo una base o combinando dos o más archivos;
   la combinación recibe un nombre temporal y después continúa directamente con
   jugador, Transfermarkt, imágenes y diseño.
 - **Similitud:** usa la base activa para filtrar el listado completo por nombre,
@@ -82,7 +82,7 @@ Los Excel se procesan completamente en el navegador. No se suben a un servidor.
 
 ## Flujo del reporte
 
-1. **Elegir la fuente:** usar un Excel individual o combinar dos o tres Excel de
+1. **Elegir la fuente:** usar un Excel individual o combinar dos o más Excel de
    ligas o temporadas. La combinación se activa automáticamente en el informe.
 2. **Seleccionar jugador:** elegir primero el equipo y después el jugador.
    Ambos listados se muestran en orden alfabético.
@@ -105,6 +105,9 @@ una URL y presiona el botón de extracción.
 
 ## Reglas para combinar bases
 
+- no existe un límite fijo de archivos; la combinación requiere al menos dos;
+- cada jugador se identifica con la clave normalizada `nombre + edad + club`
+  para consolidar duplicados sin mezclar homónimos;
 - partidos y minutos: suma;
 - métricas totales: promedio entre los archivos cargados;
 - métricas por 90: promedio ponderado por minutos;

@@ -279,8 +279,7 @@ export default function ScoutStudio() {
     setReportError("");
     try {
       if (mode === "single" && list.length !== 1) throw new Error("Para usar una base, selecciona solamente un archivo Excel.");
-      if (mode === "combine" && (list.length < 2 || list.length > 3)) throw new Error("Para combinar bases, selecciona dos o tres archivos Excel.");
-      if (mode === "replace" && list.length > 3) throw new Error("Selecciona entre uno y tres archivos de datos.");
+      if (mode === "combine" && list.length < 2) throw new Error("Para combinar bases, selecciona dos o más archivos Excel.");
       const datasets = await Promise.all(list.map(readWorkbook));
       const result = aggregateDatasets(datasets);
       const sourceTitle = datasets.map((dataset) => dataset.fileName.replace(/\.(xlsx|xls)$/i, "")).join(" + ");
@@ -479,7 +478,7 @@ export default function ScoutStudio() {
         {view === "home" ? <LandingPage onReports={() => setView("reports")} onMerge={() => setView("reports")} /> : view === "reports" ? (
           <div className="page-content reports-page">
             <section className="page-heading">
-              <div><span className="kicker">Scout intelligence workspace</span><h1>Convierte datos en <span>decisiones de scouting.</span></h1><p>Explora rendimiento, compara perfiles y construye reportes visuales listos para presentar.</p><div className="heading-chips"><span>Percentiles posicionales</span><span>1–3 bases</span><span>Editor visual</span></div></div>
+              <div><span className="kicker">Scout intelligence workspace</span><h1>Convierte datos en <span>decisiones de scouting.</span></h1><p>Explora rendimiento, compara perfiles y construye reportes visuales listos para presentar.</p><div className="heading-chips"><span>Percentiles posicionales</span><span>1 o más bases</span><span>Editor visual</span></div></div>
               <div className="heading-actions">
                 <button className="button secondary" onClick={resetReport}><RotateCcw size={16} /> Restablecer</button>
                 <button className="button primary" onClick={() => window.print()} disabled={!report || !dataReady}><Printer size={16} /> {reportPage === 1 ? "Imprimir reporte" : `Imprimir página ${reportPage}`}</button>
@@ -491,7 +490,7 @@ export default function ScoutStudio() {
             <input ref={reportInputRef} type="file" accept=".xlsx,.xls" multiple hidden onChange={(event) => { if (event.target.files) void onReportFiles(event.target.files, "replace"); event.target.value = ""; }} />
 
             <section className="workflow-strip" aria-label="Flujo del reporte">
-              <div className={`workflow-step ${dataReady ? "complete" : "active"}`}><span>{dataReady ? <Check size={15} /> : "01"}</span><div><b>01 · Base de datos</b><small>{dataReady ? reportFileName : "Una base o combinar 2–3"}</small></div></div>
+              <div className={`workflow-step ${dataReady ? "complete" : "active"}`}><span>{dataReady ? <Check size={15} /> : "01"}</span><div><b>01 · Base de datos</b><small>{dataReady ? reportFileName : "Una base o combinar 2+"}</small></div></div>
               <div className="workflow-line" />
               <div className={`workflow-step ${report ? "complete" : dataReady ? "active" : ""}`}><span>{report ? <Check size={15} /> : "02"}</span><div><b>02 · Elegir jugador</b><small>Equipo y jugador en orden alfabético</small></div></div>
               <div className="workflow-line" />
@@ -505,9 +504,9 @@ export default function ScoutStudio() {
                 <span className="dataset-step">PASO 01 · FUENTE DEL INFORME</span>
                 <span className="dataset-icon"><FileSpreadsheet size={30} /></span>
                 <h2>¿Qué base de datos utilizará el informe?</h2>
-                <p>Elige una base individual o combina automáticamente dos o tres archivos antes de seleccionar al jugador.</p>
+                <p>Elige una base individual o combina automáticamente dos o más archivos antes de seleccionar al jugador.</p>
                 <label className="temporary-source-name">
-                  <span><b>Nombre temporal de la combinación</b><small>Se usará para identificar los 2–3 archivos dentro del reporte.</small></span>
+                  <span><b>Nombre temporal de la combinación</b><small>Se usará para identificar todos los archivos dentro del reporte.</small></span>
                   <input value={combinedBaseName} maxLength={80} onChange={(event) => setCombinedBaseName(event.target.value)} placeholder="Ej. MLS Next Pro · 2025–2026" aria-label="Nombre temporal de la combinación" />
                 </label>
                 <div className="database-choice-grid">
@@ -515,10 +514,10 @@ export default function ScoutStudio() {
                     <span className="database-choice-tag">1 ARCHIVO</span><span className="database-choice-icon"><FileSpreadsheet size={25} /></span><b>Usar una base</b><small>Una liga o una temporada en un archivo Excel.</small><em>{reportLoading ? "Leyendo datos…" : "Seleccionar Excel"}<Upload size={14} /></em>
                   </button>
                   <button className="database-choice featured" onClick={() => combinedReportInputRef.current?.click()} disabled={reportLoading}>
-                    <span className="database-choice-tag">2–3 ARCHIVOS</span><span className="database-choice-icon"><Merge size={25} /></span><b>Combinar bases</b><small>Une ligas o temporadas y usa el resultado directamente.</small><em>{reportLoading ? "Combinando datos…" : "Elegir archivos"}<Files size={14} /></em>
+                    <span className="database-choice-tag">2+ ARCHIVOS</span><span className="database-choice-icon"><Merge size={25} /></span><b>Combinar bases</b><small>Une todas las ligas o temporadas seleccionadas y usa el resultado directamente.</small><em>{reportLoading ? "Combinando datos…" : "Elegir archivos"}<Files size={14} /></em>
                   </button>
                 </div>
-                <small>.XLSX o .XLS · primera hoja · procesamiento local</small>
+                <small>.XLSX o .XLS · primera hoja · clave: nombre + edad + club · procesamiento local</small>
                 {reportError && <div className="inline-error">{reportError}</div>}
               </section>
             ) : <>

@@ -1,4 +1,4 @@
-import { formatPlayerPositions, mergePlayerPositions, primaryPositionRole, roleCohort } from "./positions";
+import { formatPlayerPositions, mergePlayerPositions, primaryPositionRole, roleCohort } from "./positions.ts";
 
 export type CellValue = string | number | boolean | Date | null | undefined;
 export type DataRow = Record<string, CellValue>;
@@ -50,6 +50,9 @@ export type PlayerReport = {
 const PLAYER_ALIASES = ["player", "jugador", "player name", "nombre jugador"];
 const MINUTES_ALIASES = ["minutes played", "minutes", "mins", "minutos jugados", "minutos"];
 const MATCHES_ALIASES = ["matches played", "matches", "apps", "appearances", "partidos jugados", "partidos"];
+const AGE_ALIASES = ["age", "edad"];
+const POSITION_ALIASES = ["position", "posicion especifica", "posicion"];
+const TEAM_ALIASES = ["team within selected timeframe", "equipo durante el periodo seleccionado", "team", "equipo"];
 
 export function normalizeHeader(value: unknown) {
   return String(value ?? "")
@@ -76,6 +79,21 @@ export function numeric(value: CellValue): number {
     : raw.replace(",", ".");
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : Number.NaN;
+}
+
+function normalizeIdentityText(value: CellValue) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("es")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function normalizeIdentityAge(value: CellValue) {
+  const age = numeric(value);
+  return Number.isFinite(age) ? String(age) : normalizeIdentityText(value);
 }
 
 export function findColumn(headers: string[], aliases: string[], contains = false) {
@@ -162,12 +180,13 @@ function weightedAverage(entries: Array<{ value: number; weight: number }>) {
 
 export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult {
   if (datasets.length < 1) throw new Error("Selecciona al menos un archivo de datos.");
-  if (datasets.length > 3) throw new Error("Puedes procesar un máximo de tres archivos a la vez.");
   const allHeaders = [...new Set(datasets.flatMap((dataset) => dataset.headers))];
   const core = detectCoreColumns(allHeaders);
   if (!core.player) throw new Error("No se encontró una columna de jugador (Player/Jugador).");
   if (!core.minutes) throw new Error("No se encontró la columna de minutos jugados.");
   if (!core.matches) throw new Error("No se encontró la columna de partidos jugados.");
+  const ageColumn = findColumn(allHeaders, AGE_ALIASES);
+  const teamColumn = findColumn(allHeaders, TEAM_ALIASES);
 
   const combined = datasets.flatMap((dataset, sourceIndex) => dataset.rows.map((row) => ({
     row,
@@ -175,16 +194,21 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
     sourceIndex,
     source: dataset.fileName.replace(/\.(xlsx|xls)$/i, ""),
     player: String(row[core.player] ?? "").trim(),
+    ageIdentity: normalizeIdentityAge(ageColumn ? row[ageColumn] : ""),
+    clubIdentity: normalizeIdentityText(teamColumn ? row[teamColumn] : ""),
   }))).filter((entry) => entry.player);
 
   const grouped = new Map<string, typeof combined>();
   for (const entry of combined) {
-    const key = entry.player.toLocaleLowerCase("es").replace(/\s+/g, " ");
+    const key = [
+      normalizeIdentityText(entry.player),
+      entry.ageIdentity,
+      entry.clubIdentity,
+    ].join("::");
     grouped.set(key, [...(grouped.get(key) ?? []), entry]);
   }
 
   const excluded = new Set([core.minutes, core.matches]);
-  const ageColumn = findColumn(allHeaders, ["age", "edad"]);
   if (ageColumn) excluded.add(ageColumn);
   const numericHeaders = allHeaders.filter((header) => {
     if (!header || header === core.player || excluded.has(header)) return false;
@@ -195,7 +219,6 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
   const percentHeaders = numericHeaders.filter((header) => !per90Headers.includes(header) && isPercentage(header));
   const totalHeaders = numericHeaders.filter((header) => !per90Headers.includes(header) && !percentHeaders.includes(header));
 
-  const teamColumn = findColumn(allHeaders, ["team within selected timeframe", "equipo durante el periodo seleccionado", "team", "equipo"]);
   const positionColumn = findColumn(allHeaders, ["position", "posicion", "posicion especifica"]);
   const passportColumn = findColumn(allHeaders, ["passport country", "pais de pasaporte", "nacionalidad"]);
   const currentTeamColumn = findColumn(allHeaders, ["current team", "equipo actual"]);
@@ -239,12 +262,12 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
 
   const leading = ["Player", "Data sources", "Seasons", "Team", "Position", "Passport country", "Current Team", "Contract expires", "Age", core.matches, core.minutes];
   const headers = [...new Set([...leading.filter((header) => rows.some((row) => row[header] !== undefined)), ...totalHeaders, ...per90Headers, ...percentHeaders])];
-  const warnings: string[] = [];
+  const warnings = [
+    ...(!ageColumn ? ["No se encontró una columna de edad; la clave de identidad usó nombre y club."] : []),
+    ...(!teamColumn ? ["No se encontró una columna de club; la clave de identidad usó nombre y edad."] : []),
+  ];
   return { rows, headers, playerColumn: core.player, minutesColumn: core.minutes, matchesColumn: core.matches, warnings };
 }
-
-const POSITION_ALIASES = ["position", "posicion especifica", "posicion"];
-const TEAM_ALIASES = ["team within selected timeframe", "equipo durante el periodo seleccionado", "team", "equipo"];
 
 export function cohortOf(value: CellValue) {
   return roleCohort(primaryPositionRole(value));

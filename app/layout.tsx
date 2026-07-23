@@ -32,7 +32,7 @@ const oswald = Oswald({
 
 export const metadata: Metadata = {
   title: "FOS Scout Lab | Reportes de scouting",
-  description: "Genera reportes de jugadores y combina hasta tres bases de ligas o temporadas.",
+  description: "Genera reportes de jugadores y combina múltiples bases de ligas o temporadas.",
 };
 
 export default function RootLayout({
