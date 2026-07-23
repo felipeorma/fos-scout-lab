@@ -46,6 +46,31 @@ export function PizzaRadar({ metrics, score }: { metrics: RadarMetric[]; score: 
         ctx.stroke();
       });
 
+      const groupRingRadius = outer + size * 0.019;
+      const groupRingWidth = Math.max(6, size * 0.012);
+      const groupGap = Math.min(0.045, step * 0.12);
+      ctx.save();
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.arc(cx, cy, groupRingRadius, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(18, 36, 49, .14)";
+      ctx.lineWidth = groupRingWidth + Math.max(3, size * 0.005);
+      ctx.stroke();
+
+      let groupStart = 0;
+      for (let index = 1; index <= metrics.length; index += 1) {
+        if (index < metrics.length && metrics[index].group === metrics[groupStart].group) continue;
+        const startAngle = -Math.PI / 2 + groupStart * step + groupGap;
+        const endAngle = -Math.PI / 2 + index * step - groupGap;
+        ctx.beginPath();
+        ctx.arc(cx, cy, groupRingRadius, startAngle, endAngle);
+        ctx.strokeStyle = COLORS[metrics[groupStart].group] ?? COLORS[0];
+        ctx.lineWidth = groupRingWidth;
+        ctx.stroke();
+        groupStart = index;
+      }
+      ctx.restore();
+
       metrics.forEach((metric, index) => {
         const start = -Math.PI / 2 + index * step + gap;
         const end = -Math.PI / 2 + (index + 1) * step - gap;
