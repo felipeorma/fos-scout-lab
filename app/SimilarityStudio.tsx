@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState, type CSSProperties, type FormEvent } from "react";
 import { ArrowDownToLine, BarChart3, ImageIcon, RotateCcw, Search, Sparkles } from "./Icons";
 import { ComparisonRadar } from "./ComparisonRadar";
 import { reportThemeStyle, type ReportTheme } from "./reportTheme";
@@ -35,6 +35,7 @@ type SimilarityStudioProps = {
 };
 
 const GROUP_COLORS = ["#e95b3f", "#d7a62c", "#43a8a0"];
+const PLAYER_PALETTE = ["#1f5fd6", "#e95b3f", "#43a8a0", "#9e07ae", "#d7a62c", "#16a34a", "#0f172a", "#f97316"];
 const alphabeticCollator = new Intl.Collator("es", { sensitivity: "base", numeric: true });
 
 function optionalNumber(value: string) {
@@ -115,7 +116,7 @@ function radarPoint(index: number, total: number, radius: number, cx: number, cy
   return { x: cx + Math.cos(angle) * radius, y: cy + Math.sin(angle) * radius, angle };
 }
 
-function drawRadar(ctx: CanvasRenderingContext2D, metrics: SimilarityMetricComparison[], theme: ReportTheme, cx: number, cy: number, radius: number) {
+function drawRadar(ctx: CanvasRenderingContext2D, metrics: SimilarityMetricComparison[], theme: ReportTheme, cx: number, cy: number, radius: number, targetColor: string, candidateColor: string) {
   if (metrics.length < 3) return;
   [0.25, 0.5, 0.75, 1].forEach((level) => {
     ctx.beginPath();
@@ -137,6 +138,17 @@ function drawRadar(ctx: CanvasRenderingContext2D, metrics: SimilarityMetricCompa
     ctx.lineWidth = 1;
     ctx.stroke();
   });
+  metrics.forEach((metric, index) => {
+    const step = Math.PI * 2 / metrics.length;
+    const start = -Math.PI / 2 + index * step - step * .42;
+    const end = -Math.PI / 2 + index * step + step * .42;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius + 14, start, end);
+    ctx.strokeStyle = GROUP_COLORS[metric.group] ?? GROUP_COLORS[0];
+    ctx.lineWidth = 8;
+    ctx.lineCap = "round";
+    ctx.stroke();
+  });
   const area = (field: "targetPercentile" | "candidatePercentile", stroke: string, fill: string) => {
     ctx.beginPath();
     metrics.forEach((metric, index) => {
@@ -150,8 +162,8 @@ function drawRadar(ctx: CanvasRenderingContext2D, metrics: SimilarityMetricCompa
     ctx.lineWidth = 5;
     ctx.stroke();
   };
-  area("targetPercentile", theme.accent, `${theme.accent}33`);
-  area("candidatePercentile", theme.dark, `${theme.dark}24`);
+  area("targetPercentile", targetColor, `${targetColor}33`);
+  area("candidatePercentile", candidateColor, `${candidateColor}2b`);
   metrics.forEach((metric, index) => {
     const label = radarPoint(index, metrics.length, radius + 42, cx, cy);
     ctx.fillStyle = theme.ink;
@@ -164,7 +176,7 @@ function drawRadar(ctx: CanvasRenderingContext2D, metrics: SimilarityMetricCompa
   });
 }
 
-async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer, sourceName: string, theme: ReportTheme, targetProfile: TransfermarktProfile, candidateProfile: TransfermarktProfile, recipientName: string, recipientLogoUrl: string) {
+async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer, sourceName: string, theme: ReportTheme, targetProfile: TransfermarktProfile, candidateProfile: TransfermarktProfile, recipientName: string, recipientLogoUrl: string, targetColor: string, candidateColor: string) {
   const canvas = document.createElement("canvas");
   canvas.width = 1600;
   canvas.height = 1200;
@@ -194,15 +206,17 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
   ctx.fillText(fitText(ctx, sourceName.toUpperCase(), 520), 1522, 82);
   ctx.textAlign = "left";
 
-  const playerCard = (x: number, report: { name: string; team: string; position: string; age: string; passport: string }, profile: TransfermarktProfile, image: HTMLImageElement | null, club: HTMLImageElement | null, label: string) => {
+  const playerCard = (x: number, report: { name: string; team: string; position: string; age: string; passport: string }, profile: TransfermarktProfile, image: HTMLImageElement | null, club: HTMLImageElement | null, label: string, color: string) => {
     drawRoundedRect(ctx, x, 192, 350, 470, 18);
     ctx.fillStyle = theme.surface;
     ctx.fill();
     ctx.strokeStyle = theme.line;
     ctx.lineWidth = 2;
     ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.fillRect(x, 192, 350, 6);
     ctx.fillStyle = theme.dark;
-    ctx.fillRect(x, 192, 350, 48);
+    ctx.fillRect(x, 198, 350, 42);
     ctx.fillStyle = "#ffffff";
     ctx.font = "700 14px Arial";
     ctx.fillText(label, x + 22, 222);
@@ -236,9 +250,9 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
     ctx.fillText(profile.marketValue || "VALOR N/D", x + 22, 642);
   };
 
-  playerCard(70, { name: target.player, team: target.team, position: target.position, age: target.age, passport: target.passport }, targetProfile, targetImage, targetClub, "JUGADOR OBJETIVO");
-  playerCard(1180, { name: candidate.name, team: candidate.team, position: candidate.position, age: candidate.age === null ? "—" : String(candidate.age), passport: candidate.passport }, candidateProfile, candidateImage, candidateClub, "JUGADOR COMPARABLE");
-  drawRadar(ctx, candidate.metrics, theme, 800, 426, 210);
+  playerCard(70, { name: target.player, team: target.team, position: target.position, age: target.age, passport: target.passport }, targetProfile, targetImage, targetClub, "JUGADOR OBJETIVO", targetColor);
+  playerCard(1180, { name: candidate.name, team: candidate.team, position: candidate.position, age: candidate.age === null ? "—" : String(candidate.age), passport: candidate.passport }, candidateProfile, candidateImage, candidateClub, "JUGADOR COMPARABLE", candidateColor);
+  drawRadar(ctx, candidate.metrics, theme, 800, 426, 210, targetColor, candidateColor);
 
   ctx.textAlign = "center";
   ctx.fillStyle = theme.accent;
@@ -251,14 +265,13 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
 
   candidate.metrics.slice(0, 7).forEach((metric, index) => {
     const y = 793 + index * 39;
-    const color = GROUP_COLORS[metric.group] ?? GROUP_COLORS[0];
     ctx.fillStyle = theme.ink;
     ctx.font = "700 13px Arial";
     ctx.fillText(fitText(ctx, metric.label.toUpperCase(), 240), 360, y + 5);
     ctx.fillStyle = theme.line;
     drawRoundedRect(ctx, 620, y - 8, 300, 14, 7);
     ctx.fill();
-    ctx.fillStyle = color;
+    ctx.fillStyle = targetColor;
     drawRoundedRect(ctx, 620, y - 8, 300 * metric.targetPercentile / 100, 14, 7);
     ctx.fill();
     ctx.fillStyle = theme.ink;
@@ -267,7 +280,7 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
     ctx.fillStyle = theme.line;
     drawRoundedRect(ctx, 1010, y - 8, 300, 14, 7);
     ctx.fill();
-    ctx.fillStyle = color;
+    ctx.fillStyle = candidateColor;
     drawRoundedRect(ctx, 1010, y - 8, 300 * metric.candidatePercentile / 100, 14, 7);
     ctx.fill();
     ctx.fillStyle = theme.ink;
@@ -310,6 +323,8 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, targets, the
   const [candidateProfileKey, setCandidateProfileKey] = useState("");
   const [profileBusy, setProfileBusy] = useState<ProfileSide | null>(null);
   const [profileStatus, setProfileStatus] = useState<Record<ProfileSide, string>>({ target: "", candidate: "" });
+  const [targetColorChoice, setTargetColorChoice] = useState("");
+  const [candidateColorChoice, setCandidateColorChoice] = useState("#e95b3f");
   const [exportBusy, setExportBusy] = useState(false);
   const [exportStatus, setExportStatus] = useState("");
   const options = useMemo(() => similarityOptions(rows), [rows]);
@@ -330,6 +345,9 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, targets, the
   const selectedCandidate = candidates.find((candidate) => candidate.index === selectedCandidateIndex) ?? candidates[0] ?? null;
   const activeCandidateKey = selectedCandidate ? profileStorageKey(selectedCandidate.name) : "";
   const candidateProfile = candidateProfileKey === activeCandidateKey ? candidateProfileState : candidateProfileSeed(selectedCandidate);
+  const targetColor = targetColorChoice || theme.accent;
+  const candidateColor = candidateColorChoice || "#e95b3f";
+  const paletteColors = useMemo(() => [...new Set([theme.accent, theme.dark, ...PLAYER_PALETTE])], [theme.accent, theme.dark]);
   const reportRecipient = recipientName.trim() || "Club destinatario";
   const recipientLogoReady = /^(https?:\/\/|data:image\/)/i.test(recipientLogoUrl.trim());
 
@@ -405,7 +423,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, targets, the
 
   async function createImage() {
     if (!search?.target || !selectedCandidate) return "";
-    return comparisonImage(search.target, selectedCandidate, sourceName, theme, targetProfile, candidateProfile, reportRecipient, recipientLogoUrl.trim());
+    return comparisonImage(search.target, selectedCandidate, sourceName, theme, targetProfile, candidateProfile, reportRecipient, recipientLogoUrl.trim(), targetColor, candidateColor);
   }
 
   async function downloadComparison() {
@@ -483,15 +501,21 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, targets, the
               <ProfileEnrichment side="candidate" label="Jugador comparable" player={selectedCandidate.name} profile={candidateProfile} busy={profileBusy === "candidate"} status={profileStatus.candidate} onExtract={(url) => extractProfile("candidate", url)} onDownload={downloadAsset} />
             </section>
 
+            <section className="similarity-color-panel">
+              <div className="similarity-color-heading"><span>PALETA DE COMPARACIÓN</span><b>Asigna un color a cada jugador</b><small>Los grupos métricos mantienen sus colores en la circunferencia exterior.</small></div>
+              <PalettePicker label="Jugador objetivo" player={search.target.player} color={targetColor} colors={paletteColors} onChange={setTargetColorChoice} />
+              <PalettePicker label="Jugador comparable" player={selectedCandidate.name} color={candidateColor} colors={paletteColors} onChange={setCandidateColorChoice} />
+            </section>
+
             <section className="similarity-report-sheet">
               <header className="similarity-report-header"><div><span>FOS SCOUT LAB</span><b>COMPARACIÓN DE JUGADORES</b><small>Percentiles posicionales · {sourceName}</small></div><strong>{selectedCandidate.similarity}<small>%</small><span>similitud</span></strong></header>
               <div className="similarity-report-body">
                 <div className="similarity-showdown">
-                  <ComparisonPlayer profile={targetProfile} name={search.target.player} team={search.target.team} position={search.target.position} age={search.target.age} passport={search.target.passport} label="JUGADOR OBJETIVO" />
-                  <div className="similarity-radar-column"><ComparisonRadar metrics={selectedCandidate.metrics} targetName={search.target.player} candidateName={selectedCandidate.name} /><div className="comparison-summary"><span>Métricas <b>{selectedCandidate.metricSimilarity}%</b></span><span>Contexto <b>{selectedCandidate.contextSimilarity}%</b></span><span>Cobertura <b>{selectedCandidate.coverage}%</b></span></div></div>
-                  <ComparisonPlayer profile={candidateProfile} name={selectedCandidate.name} team={selectedCandidate.team} position={selectedCandidate.position} age={selectedCandidate.age === null ? "—" : String(selectedCandidate.age)} passport={selectedCandidate.passport} label="JUGADOR COMPARABLE" />
+                  <ComparisonPlayer profile={targetProfile} name={search.target.player} team={search.target.team} position={search.target.position} age={search.target.age} passport={search.target.passport} label="JUGADOR OBJETIVO" color={targetColor} />
+                  <div className="similarity-radar-column"><ComparisonRadar metrics={selectedCandidate.metrics} targetName={search.target.player} candidateName={selectedCandidate.name} targetColor={targetColor} candidateColor={candidateColor} /><div className="comparison-summary"><span>Métricas <b>{selectedCandidate.metricSimilarity}%</b></span><span>Contexto <b>{selectedCandidate.contextSimilarity}%</b></span><span>Cobertura <b>{selectedCandidate.coverage}%</b></span></div></div>
+                  <ComparisonPlayer profile={candidateProfile} name={selectedCandidate.name} team={selectedCandidate.team} position={selectedCandidate.position} age={selectedCandidate.age === null ? "—" : String(selectedCandidate.age)} passport={selectedCandidate.passport} label="JUGADOR COMPARABLE" color={candidateColor} />
                 </div>
-                <div className="similarity-metric-section"><div className="similarity-metric-head"><span>{search.target.player}</span><b>COMPARATIVA MÉTRICA A MÉTRICA</b><span>{selectedCandidate.name}</span></div><div className="metric-comparison-list">{selectedCandidate.metrics.map((metric) => <MetricComparison key={metric.key} metric={metric} targetName={search.target.player} candidateName={selectedCandidate.name} />)}</div></div>
+                <div className="similarity-metric-section"><div className="similarity-metric-head"><span style={{ color: targetColor }}>{search.target.player}</span><b>COMPARATIVA MÉTRICA A MÉTRICA</b><span style={{ color: candidateColor }}>{selectedCandidate.name}</span></div><div className="metric-comparison-list">{selectedCandidate.metrics.map((metric) => <MetricComparison key={metric.key} metric={metric} targetName={search.target.player} candidateName={selectedCandidate.name} targetColor={targetColor} candidateColor={candidateColor} />)}</div></div>
               </div>
               <footer className="dossier-footer similarity-report-footer"><p>Percentiles P0–P100 · métricas comunes {selectedCandidate.coverage}% · comparación sobre la base activa.</p><div className="report-signatures"><div className="report-author"><span>ELABORADO POR</span><b>FELIPE ORMAZABAL</b><small>SCOUTING REPORT</small></div><div className="report-recipient">{recipientLogoReady ? <ReportImage src={recipientLogoUrl.trim()} alt={reportRecipient} className="dossier-footer-club-logo" /> : <span className="dossier-footer-club-fallback">{reportRecipient.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span>}<div><span>REPORTE GENERADO PARA</span><b>{reportRecipient}</b></div></div></div></footer>
             </section>
@@ -517,8 +541,12 @@ function ProfileEnrichment({ side, label, player, profile, busy, status, onExtra
   </article>;
 }
 
-function ComparisonPlayer({ profile, name, team, position, age, passport, label }: { profile: TransfermarktProfile; name: string; team: string; position: string; age: string; passport: string; label: string }) {
-  return <article className="comparison-player-card"><header><span>{label}</span>{profile.clubLogo ? <ReportImage src={profile.clubLogo} alt={profile.club || team} className="comparison-club-logo" /> : <span className="comparison-club-fallback">{team.slice(0, 2).toUpperCase()}</span>}</header><div className="comparison-player-portrait">{profile.playerImage ? <ReportImage src={profile.playerImage} alt={name} className="comparison-player-image" /> : <span>{name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("")}</span>}</div><div className="comparison-player-copy"><h3>{name}</h3><b>{profile.club || team}</b><p>{formatPlayerPositions(profile.position || position)}</p><small>{profile.age || age} años · {profile.citizenship || passport}</small>{profile.marketValue && <strong>{profile.marketValue}</strong>}</div></article>;
+function ComparisonPlayer({ profile, name, team, position, age, passport, label, color }: { profile: TransfermarktProfile; name: string; team: string; position: string; age: string; passport: string; label: string; color: string }) {
+  return <article className="comparison-player-card" style={{ "--player-color": color } as CSSProperties}><header><span>{label}</span>{profile.clubLogo ? <ReportImage src={profile.clubLogo} alt={profile.club || team} className="comparison-club-logo" /> : <span className="comparison-club-fallback">{team.slice(0, 2).toUpperCase()}</span>}</header><div className="comparison-player-portrait">{profile.playerImage ? <ReportImage src={profile.playerImage} alt={name} className="comparison-player-image" /> : <span>{name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("")}</span>}</div><div className="comparison-player-copy"><h3>{name}</h3><b>{profile.club || team}</b><p>{formatPlayerPositions(profile.position || position)}</p><small>{profile.age || age} años · {profile.citizenship || passport}</small>{profile.marketValue && <strong>{profile.marketValue}</strong>}</div></article>;
+}
+
+function PalettePicker({ label, player, color, colors, onChange }: { label: string; player: string; color: string; colors: string[]; onChange: (color: string) => void }) {
+  return <div className="similarity-palette-picker"><div><span>{label}</span><b><i style={{ backgroundColor: color }} />{player}</b></div><div className="similarity-palette-swatches">{colors.map((option) => <button key={option} type="button" className={option.toLocaleLowerCase("en") === color.toLocaleLowerCase("en") ? "selected" : ""} style={{ "--swatch": option } as CSSProperties} aria-label={`Asignar color ${option} a ${player}`} aria-pressed={option.toLocaleLowerCase("en") === color.toLocaleLowerCase("en")} onClick={() => onChange(option)}><span /></button>)}<label><span>Personalizado</span><input type="color" value={color} onChange={(event) => onChange(event.target.value)} aria-label={`Color personalizado para ${player}`} /></label></div></div>;
 }
 
 function ReportImage({ src, alt, className }: { src: string; alt: string; className: string }) {
@@ -532,9 +560,8 @@ function PositionRoles({ positions }: { positions: PlayerPosition[] }) {
   return <div className="position-role-list">{positions.map((position, index) => <span key={`${position.code}-${index}`}><em>{index === 0 ? "1ª" : `${index + 1}ª`}</em><b>{position.role}</b><small>{position.code}</small></span>)}</div>;
 }
 
-function MetricComparison({ metric, targetName, candidateName }: { metric: SimilarityMetricComparison; targetName: string; candidateName: string }) {
-  const color = GROUP_COLORS[metric.group] ?? GROUP_COLORS[0];
-  return <div className="metric-comparison-row" style={{ "--metric-color": color } as React.CSSProperties}>
+function MetricComparison({ metric, targetName, candidateName, targetColor, candidateColor }: { metric: SimilarityMetricComparison; targetName: string; candidateName: string; targetColor: string; candidateColor: string }) {
+  return <div className="metric-comparison-row" style={{ "--target-color": targetColor, "--candidate-color": candidateColor } as CSSProperties}>
     <div className="metric-player-bar left" aria-label={`${targetName}: percentil ${metric.targetPercentile}`}><span>{targetName}</span><b>P{metric.targetPercentile}</b><i><em style={{ width: `${metric.targetPercentile}%` }} /></i></div>
     <div className="metric-comparison-label"><span>{metric.label}</span><small>Δ {metric.difference} pts</small></div>
     <div className="metric-player-bar right" aria-label={`${candidateName}: percentil ${metric.candidatePercentile}`}><span>{candidateName}</span><b>P{metric.candidatePercentile}</b><i><em style={{ width: `${metric.candidatePercentile}%` }} /></i></div>

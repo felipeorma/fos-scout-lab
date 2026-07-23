@@ -57,6 +57,10 @@ por separado.
 El jugador objetivo se selecciona en dos pasos: primero el club y después el
 jugador. Ambos selectores están ordenados alfabéticamente.
 
+Antes de exportar la comparación se puede asignar un color independiente a cada
+jugador mediante colores predefinidos o un selector personalizado. Los colores
+se aplican al radar, las fichas, las barras de percentiles y el PNG final.
+
 ## Editor visual de páginas
 
 Las páginas 2 y 3 del reporte incluyen un editor local con:

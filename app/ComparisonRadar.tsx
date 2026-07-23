@@ -1,6 +1,7 @@
 "use client";
 
 import type { SimilarityMetricComparison } from "@/lib/similarity";
+import type { CSSProperties } from "react";
 
 const GROUP_COLORS = ["#e95b3f", "#d7a62c", "#43a8a0"];
 const SIZE = 640;
@@ -31,14 +32,14 @@ function shortName(value: string) {
   return parts.length > 2 ? `${parts[0]} ${parts.at(-1)}` : value;
 }
 
-export function ComparisonRadar({ metrics, targetName, candidateName }: { metrics: SimilarityMetricComparison[]; targetName: string; candidateName: string }) {
+export function ComparisonRadar({ metrics, targetName, candidateName, targetColor, candidateColor }: { metrics: SimilarityMetricComparison[]; targetName: string; candidateName: string; targetColor: string; candidateColor: string }) {
   if (metrics.length < 3) return null;
   const step = Math.PI * 2 / metrics.length;
   const labelRadius = 257;
   const target = shortName(targetName);
   const candidate = shortName(candidateName);
 
-  return <div className="comparison-radar-wrap">
+  return <div className="comparison-radar-wrap" style={{ "--comparison-target": targetColor, "--comparison-candidate": candidateColor } as CSSProperties}>
     <div className="comparison-radar-legend" aria-hidden="true"><span className="target"><i />{target}</span><span className="candidate"><i />{candidate}</span></div>
     <svg className="comparison-radar" viewBox={`0 0 ${SIZE} ${SIZE}`} role="img" aria-labelledby="comparison-radar-title comparison-radar-description">
       <title id="comparison-radar-title">Radar comparativo de {targetName} y {candidateName}</title>
