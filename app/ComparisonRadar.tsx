@@ -66,9 +66,6 @@ export function ComparisonRadar({ metrics, targetName, candidateName, targetColo
           <text className="comparison-radar-values" x={labelX} y={label.y + 11} textAnchor={anchor}>P{metric.targetPercentile} / P{metric.candidatePercentile}</text>
         </g>;
       })}
-      <circle className="comparison-radar-center" cx={CENTER} cy={CENTER} r="39" />
-      <text className="comparison-radar-center-value" x={CENTER} y={CENTER - 2} textAnchor="middle">P100</text>
-      <text className="comparison-radar-center-label" x={CENTER} y={CENTER + 15} textAnchor="middle">ESCALA</text>
     </svg>
   </div>;
 }
