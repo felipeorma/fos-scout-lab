@@ -29,6 +29,8 @@ test("renderiza la plataforma FOS Scout Lab y sus accesos principales", async ()
   assert.match(html, /REPORT BUILDER/);
   const mainNav = html.match(/<nav[^>]*Navegación principal[\s\S]*?<\/nav>/i)?.[0] ?? "";
   assert.match(mainNav, /Radar y percentiles/);
+  assert.match(mainNav, /Similitud/);
+  assert.match(mainNav, /Jugadores comparables/);
   assert.doesNotMatch(mainNav, /Combinar bases|2 a 3 archivos/i);
   assert.match(html, /Los archivos se procesan localmente/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|react-loading-skeleton/i);

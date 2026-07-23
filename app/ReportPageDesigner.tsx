@@ -142,12 +142,27 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
     const timer = window.setTimeout(() => {
       try {
         const stored = window.localStorage.getItem("fos-scout-page-designer-v1");
-        if (stored) setPages({ ...defaultPages(), ...JSON.parse(stored) });
+        let nextPages = stored ? { ...defaultPages(), ...JSON.parse(stored) } as DesignerState : defaultPages();
+        const pendingComparison = window.localStorage.getItem("fos-scout-similarity-comparison-v1");
+        if (pendingComparison) {
+          const payload = JSON.parse(pendingComparison) as { image?: unknown; title?: unknown };
+          if (typeof payload.image === "string" && payload.image.startsWith("data:image/")) {
+            const id = "p2-similarity-comparison";
+            const existing = nextPages[2].blocks.find((block) => block.id === id);
+            const comparison = existing
+              ? { ...existing, image: payload.image, title: typeof payload.title === "string" ? payload.title : existing.title }
+              : { ...imageBlock(id, typeof payload.title === "string" ? payload.title : "Comparación de similitud", nextPages[2].columns, 470), image: payload.image };
+            nextPages = { ...nextPages, 2: { ...nextPages[2], blocks: existing ? nextPages[2].blocks.map((block) => block.id === id ? comparison : block) : [...nextPages[2].blocks, comparison] } };
+            if (pageNumber === 2) setSelectedId(id);
+          }
+          window.localStorage.removeItem("fos-scout-similarity-comparison-v1");
+        }
+        setPages(nextPages);
       } catch { /* La configuración local es opcional. */ }
       setLoaded(true);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [pageNumber]);
 
   useEffect(() => {
     if (!loaded) return;

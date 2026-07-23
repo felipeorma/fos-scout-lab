@@ -24,6 +24,7 @@ import {
 } from "./Icons";
 import { PizzaRadar } from "./PizzaRadar";
 import { ReportPageDesigner } from "./ReportPageDesigner";
+import { SimilarityStudio } from "./SimilarityStudio";
 import { DEFAULT_REPORT_THEME, reportThemeStyle, type ReportTheme } from "./reportTheme";
 import {
   aggregateDatasets,
@@ -37,7 +38,7 @@ import {
 } from "@/lib/scouting";
 import type { TransfermarktProfile } from "@/lib/transfermarkt";
 
-type View = "home" | "reports";
+type View = "home" | "reports" | "similarity";
 type ReportPage = 1 | 2 | 3;
 type ReportFileMode = "single" | "combine" | "replace";
 type ProfileAssetField = "playerImage" | "clubLogo" | "leagueLogo";
@@ -440,6 +441,7 @@ export default function ScoutStudio() {
   const navItems = [
     { id: "home" as const, label: "Inicio", hint: "Scouting platform", icon: LayoutDashboard },
     { id: "reports" as const, label: "Reportes", hint: "Radar y percentiles", icon: BarChart3 },
+    { id: "similarity" as const, label: "Similitud", hint: "Jugadores comparables", icon: Search },
   ];
 
   return (
@@ -471,11 +473,11 @@ export default function ScoutStudio() {
       <main className="main-area">
         <header className="topbar">
           <button className="menu-button" onClick={() => setMobileNav(true)} aria-label="Abrir menú"><Menu size={20} /></button>
-          <div className="breadcrumb"><LayoutDashboard size={15} /><span>Scout Lab</span><span>/</span><strong>{view === "home" ? "Inicio" : "Reportes"}</strong></div>
+          <div className="breadcrumb"><LayoutDashboard size={15} /><span>Scout Lab</span><span>/</span><strong>{view === "home" ? "Inicio" : view === "reports" ? "Reportes" : "Similitud"}</strong></div>
           <div className="top-actions"><span className="privacy-pill"><LockKeyhole size={14} /> Solo tú</span><button className="icon-button" aria-label="Ayuda" title="Los datos nunca salen del navegador"><CircleHelp size={18} /></button></div>
         </header>
 
-        {view === "home" ? <LandingPage onReports={() => setView("reports")} onMerge={() => setView("reports")} /> : (
+        {view === "home" ? <LandingPage onReports={() => setView("reports")} onMerge={() => setView("reports")} /> : view === "reports" ? (
           <div className="page-content reports-page">
             <section className="page-heading">
               <div><span className="kicker">Scout intelligence workspace</span><h1>Convierte datos en <span>decisiones de scouting.</span></h1><p>Explora rendimiento, compara perfiles y construye reportes visuales listos para presentar.</p><div className="heading-chips"><span>Percentiles posicionales</span><span>1–3 bases</span><span>Editor visual</span></div></div>
@@ -670,6 +672,8 @@ export default function ScoutStudio() {
               </div> : report ? <ReportPageDesigner pageNumber={reportPage} player={report.player} team={profile.club || report.team} position={profile.position || report.position} theme={reportTheme} onThemeChange={setReportTheme} /> : <div className="empty-preview">Selecciona un jugador para diseñar las páginas.</div>}
             </>}
           </div>
+        ) : (
+          <SimilarityStudio rows={reportRows} selectedIndex={selectedPlayer} sourceName={reportFileName} targets={players} onSelectTarget={selectPlayer} onOpenReports={() => { setReportPage(2); setView("reports"); }} />
         )}
       </main>
     </div>

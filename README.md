@@ -25,6 +25,21 @@ Abre `http://localhost:3000` y entra a **Reportes**:
 - **Reportes:** comienza eligiendo una base o combinando dos o tres archivos;
   la combinación recibe un nombre temporal y después continúa directamente con
   jugador, Transfermarkt, imágenes y diseño.
+- **Similitud:** usa la base activa para filtrar el listado completo por nombre,
+  edad, minutos, pasaporte y posición, y ordenar los jugadores más parecidos al
+  perfil objetivo.
+
+## Similitud de jugadores
+
+La primera versión crea un vector contextual local con los percentiles de las
+métricas disponibles, calcula semejanza coseno y distancia normalizada, y añade
+contexto de edad y posición. El resultado muestra la cobertura de datos y separa
+la coincidencia estadística de la contextual para que el ranking sea explicable.
+
+La comparación seleccionada se puede descargar como PNG o insertar directamente
+como un bloque editable en la Página 2 del reporte. Esta arquitectura permite
+incorporar después embeddings de vídeo, redes de pases, Transformers o Graph
+Neural Networks cuando existan modelos y fuentes multimodales reales.
 
 ## Editor visual de páginas
 
