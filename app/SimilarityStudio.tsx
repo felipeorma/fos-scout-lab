@@ -13,6 +13,7 @@ import {
 } from "@/lib/similarity";
 import { formatCell, type DataRow, type PlayerReport } from "@/lib/scouting";
 import { formatPlayerPositions, type PlayerPosition } from "@/lib/positions";
+import { SIMILARITY_METRIC_GROUPS, similarityMetricGroup } from "@/lib/similarityMetricGroups";
 import { createEmptyTransfermarktProfile, type TransfermarktProfile } from "@/lib/transfermarkt";
 
 type TargetOption = { index: number; player: string; team: string };
@@ -34,12 +35,6 @@ type SimilarityStudioProps = {
   onOpenReports: () => void;
 };
 
-const GROUP_COLORS = ["#e95b3f", "#d7a62c", "#43a8a0"];
-const METRIC_GROUPS = [
-  { label: "Finalización / defensa", color: GROUP_COLORS[0] },
-  { label: "Creación / progresión", color: GROUP_COLORS[1] },
-  { label: "Desequilibrio / pase", color: GROUP_COLORS[2] },
-];
 const PLAYER_PALETTE = ["#1f5fd6", "#e95b3f", "#43a8a0", "#9e07ae", "#d7a62c", "#16a34a", "#0f172a", "#f97316"];
 const alphabeticCollator = new Intl.Collator("es", { sensitivity: "base", numeric: true });
 
@@ -162,7 +157,7 @@ function drawRadar(ctx: CanvasRenderingContext2D, metrics: SimilarityMetricCompa
     const end = -Math.PI / 2 + index * step + step * .42;
     ctx.beginPath();
     ctx.arc(cx, cy, radius + 14, start, end);
-    ctx.strokeStyle = GROUP_COLORS[metric.group] ?? GROUP_COLORS[0];
+    ctx.strokeStyle = similarityMetricGroup(metric).color;
     ctx.lineWidth = 8;
     ctx.lineCap = "round";
     ctx.stroke();
@@ -183,7 +178,7 @@ function drawRadar(ctx: CanvasRenderingContext2D, metrics: SimilarityMetricCompa
   area("targetPercentile", targetColor, `${targetColor}33`);
   area("candidatePercentile", candidateColor, `${candidateColor}2b`);
   metrics.forEach((metric, index) => {
-    const label = radarPoint(index, metrics.length, radius + 42, cx, cy);
+    const label = radarPoint(index, metrics.length, radius + 58, cx, cy);
     const alignment = Math.cos(label.angle) > .2 ? "left" : Math.cos(label.angle) < -.2 ? "right" : "center";
     ctx.fillStyle = theme.ink;
     ctx.font = "700 14px Arial";
@@ -242,7 +237,14 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
   ctx.fillStyle = "rgba(255,255,255,.68)";
   ctx.fillText("COMPARACIÓN DE JUGADORES · PERCENTILES POSICIONALES", 78, 99);
   ctx.textAlign = "right";
-  ctx.fillText(fitText(ctx, sourceName.toUpperCase(), 520), 1522, 82);
+  ctx.fillStyle = theme.accent;
+  ctx.font = "800 43px Arial";
+  ctx.fillText(`${candidate.similarity}%`, 1522, 67);
+  ctx.fillStyle = "rgba(255,255,255,.68)";
+  ctx.font = "700 12px Arial";
+  ctx.fillText("SIMILITUD GLOBAL", 1522, 91);
+  ctx.font = "600 11px Arial";
+  ctx.fillText(fitText(ctx, sourceName.toUpperCase(), 520), 1522, 116);
   ctx.textAlign = "left";
 
   const playerCard = (x: number, report: { name: string; team: string; position: string; age: string; passport: string }, profile: TransfermarktProfile, image: HTMLImageElement | null, club: HTMLImageElement | null, label: string, color: string) => {
@@ -293,16 +295,9 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
   playerCard(1180, { name: candidate.name, team: candidate.team, position: candidate.position, age: candidate.age === null ? "—" : String(candidate.age), passport: candidate.passport }, candidateProfile, candidateImage, candidateClub, "JUGADOR COMPARABLE", candidateColor);
   drawRadar(ctx, candidate.metrics, theme, 800, 426, 210, targetColor, candidateColor, targetLabelColor, candidateLabelColor, targetLabelTransparency, candidateLabelTransparency);
 
-  ctx.textAlign = "center";
-  ctx.fillStyle = theme.accent;
-  ctx.font = "800 54px Arial";
-  ctx.fillText(`${candidate.similarity}%`, 800, 708);
-  ctx.fillStyle = theme.muted;
-  ctx.font = "700 13px Arial";
-  ctx.fillText("SIMILITUD GLOBAL", 800, 731);
-  const legendItemWidth = 205;
-  const legendStartX = 800 - METRIC_GROUPS.length * legendItemWidth / 2;
-  METRIC_GROUPS.forEach((group, index) => {
+  const legendItemWidth = 175;
+  const legendStartX = 800 - SIMILARITY_METRIC_GROUPS.length * legendItemWidth / 2;
+  SIMILARITY_METRIC_GROUPS.forEach((group, index) => {
     const x = legendStartX + index * legendItemWidth;
     ctx.fillStyle = group.color;
     drawRoundedRect(ctx, x, 751, 12, 12, 3);
@@ -747,7 +742,7 @@ function PositionRoles({ positions }: { positions: PlayerPosition[] }) {
 
 function MetricGroupLegend() {
   return <div className="similarity-metric-group-legend" aria-label="Leyenda de grupos métricos">
-    {METRIC_GROUPS.map((group) => <span key={group.label}><i style={{ "--metric-group-color": group.color } as CSSProperties} /><b>{group.label}</b></span>)}
+    {SIMILARITY_METRIC_GROUPS.map((group) => <span key={group.id}><i style={{ "--metric-group-color": group.color } as CSSProperties} /><b>{group.label}</b></span>)}
   </div>;
 }
 

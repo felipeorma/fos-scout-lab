@@ -9,6 +9,7 @@ import {
   primaryPositionRole,
   roleCohort,
 } from "../lib/positions.ts";
+import { similarityMetricGroup } from "../lib/similarityMetricGroups.ts";
 
 test("normaliza y conserva posiciones principal, secundaria y terciaria", () => {
   assert.deepEqual(positionRoles("RWF, AMF, CF"), ["Wingers", "Attack Midfielder", "Forward"]);
@@ -28,4 +29,9 @@ test("acepta abreviaturas y nombres completos del mapa Wyscout", () => {
 
 test("al combinar temporadas conserva primero las posiciones de la base más reciente", () => {
   assert.equal(mergePlayerPositions(["RWF, AMF", "CF, RWF"]), "RWF, AMF, CF");
+});
+
+test("separa finalización y defensa en grupos visuales distintos", () => {
+  assert.equal(similarityMetricGroup({ key: "Goals per 90", label: "Goles", group: 0 }).id, "finishing");
+  assert.equal(similarityMetricGroup({ key: "Defensive duels won, %", label: "Duelos defensivos", group: 0 }).id, "defending");
 });
