@@ -13,6 +13,7 @@ import {
   playerPositions,
   positionRoles,
   primaryPositionRole,
+  roleCohort,
   type PlayerPosition,
 } from "./positions.ts";
 import { t, tf } from "./i18n.ts";
@@ -132,7 +133,12 @@ function metricWeight(key: string, weights: SimilarityMetricWeights) {
 }
 
 export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filters: SimilarityFilters, metricWeights: SimilarityMetricWeights = {}): SimilaritySearchResult | null {
-  const target = buildPlayerReport(rows, targetIndex, 0, "AUTO");
+  // Si el usuario filtra por un rol, la comparación usa el set de métricas de
+  // ese rol (p. ej. filtrar por Delanteros compara con métricas de CF aunque
+  // el jugador objetivo sea extremo). Sin filtro, se usa su cohorte natural.
+  const filteredRole = POSITION_ROLES.find((role) => role === filters.position) ?? null;
+  const forcedCohort = filteredRole ? roleCohort(filteredRole) : "AUTO";
+  const target = buildPlayerReport(rows, targetIndex, 0, forcedCohort);
   const targetRow = rows[targetIndex];
   if (!target || !targetRow || !target.metrics.length) return null;
 
