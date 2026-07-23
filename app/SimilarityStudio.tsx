@@ -38,7 +38,7 @@ type SimilarityStudioProps = {
 
 const PLAYER_PALETTE = ["#1f5fd6", "#e95b3f", "#43a8a0", "#9e07ae", "#d7a62c", "#16a34a", "#0f172a", "#f97316"];
 const alphabeticCollator = new Intl.Collator("es", { sensitivity: "base", numeric: true });
-const TRANSFERMARKT_LOGO = "/transfermarkt-logo.svg";
+const TRANSFERMARKT_LOGO = "/tm_logo.svg";
 
 function optionalNumber(value: string) {
   if (!value.trim()) return null;
@@ -131,7 +131,7 @@ function radarPoint(index: number, total: number, radius: number, cx: number, cy
   return { x: cx + Math.cos(angle) * radius, y: cy + Math.sin(angle) * radius, angle };
 }
 
-function drawRadar(ctx: CanvasRenderingContext2D, metrics: SimilarityMetricComparison[], theme: ReportTheme, cx: number, cy: number, radius: number, targetColor: string, candidateColor: string, targetLabelColor: string, candidateLabelColor: string, targetLabelTransparency: number, candidateLabelTransparency: number) {
+function drawRadar(ctx: CanvasRenderingContext2D, metrics: SimilarityMetricComparison[], cohort: string, theme: ReportTheme, cx: number, cy: number, radius: number, targetColor: string, candidateColor: string, targetLabelColor: string, candidateLabelColor: string, targetLabelTransparency: number, candidateLabelTransparency: number) {
   if (metrics.length < 3) return;
   [0.25, 0.5, 0.75, 1].forEach((level) => {
     ctx.beginPath();
@@ -159,7 +159,7 @@ function drawRadar(ctx: CanvasRenderingContext2D, metrics: SimilarityMetricCompa
     const end = -Math.PI / 2 + index * step + step * .42;
     ctx.beginPath();
     ctx.arc(cx, cy, radius + 14, start, end);
-    ctx.strokeStyle = similarityMetricGroup(metric).color;
+    ctx.strokeStyle = similarityMetricGroup(metric, cohort).color;
     ctx.lineWidth = 8;
     ctx.lineCap = "round";
     ctx.stroke();
@@ -296,7 +296,7 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
 
   playerCard(70, { name: target.player, team: target.team, position: target.position, age: target.age, passport: target.passport }, targetProfile, targetImage, targetClub, "JUGADOR OBJETIVO", targetColor);
   playerCard(1180, { name: candidate.name, team: candidate.team, position: candidate.position, age: candidate.age === null ? "—" : String(candidate.age), passport: candidate.passport }, candidateProfile, candidateImage, candidateClub, "JUGADOR COMPARABLE", candidateColor);
-  drawRadar(ctx, candidate.metrics, theme, 800, 426, 210, targetColor, candidateColor, targetLabelColor, candidateLabelColor, targetLabelTransparency, candidateLabelTransparency);
+  drawRadar(ctx, candidate.metrics, target.cohort, theme, 800, 426, 210, targetColor, candidateColor, targetLabelColor, candidateLabelColor, targetLabelTransparency, candidateLabelTransparency);
 
   const legendItemWidth = 175;
   const legendStartX = 800 - SIMILARITY_METRIC_GROUPS.length * legendItemWidth / 2;
@@ -662,7 +662,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, targets, the
               <div className="similarity-report-body">
                 <div className="similarity-showdown">
                   <ComparisonPlayer profile={targetProfile} name={search.target.player} team={search.target.team} position={search.target.position} age={search.target.age} passport={search.target.passport} label="JUGADOR OBJETIVO" color={targetColor} />
-                  <div className="similarity-radar-column"><ComparisonRadar metrics={selectedCandidate.metrics} targetName={search.target.player} candidateName={selectedCandidate.name} targetColor={targetColor} candidateColor={candidateColor} targetLabelColor={targetLabelColor} candidateLabelColor={candidateLabelColor} targetLabelTransparency={targetLabelTransparency} candidateLabelTransparency={candidateLabelTransparency} /><MetricGroupLegend /></div>
+                  <div className="similarity-radar-column"><ComparisonRadar metrics={selectedCandidate.metrics} metricCohort={search.target.cohort} targetName={search.target.player} candidateName={selectedCandidate.name} targetColor={targetColor} candidateColor={candidateColor} targetLabelColor={targetLabelColor} candidateLabelColor={candidateLabelColor} targetLabelTransparency={targetLabelTransparency} candidateLabelTransparency={candidateLabelTransparency} /><MetricGroupLegend /></div>
                   <ComparisonPlayer profile={candidateProfile} name={selectedCandidate.name} team={selectedCandidate.team} position={selectedCandidate.position} age={selectedCandidate.age === null ? "—" : String(selectedCandidate.age)} passport={selectedCandidate.passport} label="JUGADOR COMPARABLE" color={candidateColor} />
                 </div>
                 <div className="similarity-metric-section"><div className="similarity-metric-head"><span style={{ color: targetColor }}>{search.target.player}</span><b>COMPARATIVA MÉTRICA A MÉTRICA</b><span style={{ color: candidateColor }}>{selectedCandidate.name}</span></div><div className="metric-comparison-list">{selectedCandidate.metrics.map((metric) => <MetricComparison key={metric.key} metric={metric} targetName={search.target.player} candidateName={selectedCandidate.name} targetColor={targetColor} candidateColor={candidateColor} />)}</div></div>

@@ -34,4 +34,8 @@ test("al combinar temporadas conserva primero las posiciones de la base más rec
 test("separa finalización y defensa en grupos visuales distintos", () => {
   assert.equal(similarityMetricGroup({ key: "Goals per 90", label: "Goles", group: 0 }).id, "finishing");
   assert.equal(similarityMetricGroup({ key: "Defensive duels won, %", label: "Duelos defensivos", group: 0 }).id, "defending");
+  assert.equal(similarityMetricGroup({ key: "Aerial duels won, %", label: "Duelos aéreos", group: 1 }, "CF").id, "finishing");
+  assert.equal(similarityMetricGroup({ key: "Aerial duels won, %", label: "Duelos aéreos", group: 0 }, "WING").id, "finishing");
+  assert.equal(similarityMetricGroup({ key: "Aerial duels won, %", label: "Duelos aéreos", group: 1 }, "GK").id, "defending");
+  assert.equal(similarityMetricGroup({ key: "Aerial duels won, %", label: "Duelos aéreos", group: 0 }, "CB").id, "defending");
 });

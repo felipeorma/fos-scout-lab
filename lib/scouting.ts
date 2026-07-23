@@ -320,6 +320,7 @@ const METRICS: Record<string, MetricDefinition[]> = {
     { label: "xG", aliases: ["xg per 90", "xg 90"], group: 0 },
     { label: "Remates", aliases: ["shots per 90", "remates 90"], group: 0 },
     { label: "Toques en área", aliases: ["touches in box per 90", "toques en el area de penalti 90"], group: 0 },
+    { label: "Duelos aéreos", aliases: ["aerial duels won %", "duelos aereos ganados %"], group: 0 },
     { label: "xA", aliases: ["xa per 90", "xa 90"], group: 1 },
     { label: "Pases clave", aliases: ["key passes per 90", "jugadas claves 90"], group: 1 },
     { label: "Regates", aliases: ["dribbles per 90", "regates 90"], group: 2 },

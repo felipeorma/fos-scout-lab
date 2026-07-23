@@ -34,7 +34,7 @@ function shortName(value: string) {
   return parts.length > 2 ? `${parts[0]} ${parts.at(-1)}` : value;
 }
 
-export function ComparisonRadar({ metrics, targetName, candidateName, targetColor, candidateColor, targetLabelColor, candidateLabelColor, targetLabelTransparency, candidateLabelTransparency }: { metrics: SimilarityMetricComparison[]; targetName: string; candidateName: string; targetColor: string; candidateColor: string; targetLabelColor: string; candidateLabelColor: string; targetLabelTransparency: number; candidateLabelTransparency: number }) {
+export function ComparisonRadar({ metrics, metricCohort, targetName, candidateName, targetColor, candidateColor, targetLabelColor, candidateLabelColor, targetLabelTransparency, candidateLabelTransparency }: { metrics: SimilarityMetricComparison[]; metricCohort: string; targetName: string; candidateName: string; targetColor: string; candidateColor: string; targetLabelColor: string; candidateLabelColor: string; targetLabelTransparency: number; candidateLabelTransparency: number }) {
   if (metrics.length < 3) return null;
   const step = Math.PI * 2 / metrics.length;
   const labelRadius = 292;
@@ -53,7 +53,7 @@ export function ComparisonRadar({ metrics, targetName, candidateName, targetColo
       {metrics.map((metric, index) => {
         const start = -Math.PI / 2 + index * step - step * .43;
         const end = -Math.PI / 2 + index * step + step * .43;
-        return <path key={`ring-${metric.key}`} d={arcPath(start, end, RADIUS + 18)} fill="none" stroke={similarityMetricGroup(metric).color} className="comparison-radar-group" />;
+        return <path key={`ring-${metric.key}`} d={arcPath(start, end, RADIUS + 18)} fill="none" stroke={similarityMetricGroup(metric, metricCohort).color} className="comparison-radar-group" />;
       })}
       <polygon className="comparison-radar-area target" points={polygon(metrics, "targetPercentile")} />
       <polygon className="comparison-radar-area candidate" points={polygon(metrics, "candidatePercentile")} />

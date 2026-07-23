@@ -2,8 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { RadarMetric } from "@/lib/scouting";
-
-const COLORS = ["#e95b3f", "#d7a62c", "#43a8a0"];
+import { similarityMetricGroup } from "@/lib/similarityMetricGroups";
 
 function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
   const corner = Math.min(radius, width / 2, height / 2);
@@ -16,7 +15,7 @@ function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, width:
   ctx.closePath();
 }
 
-export function PizzaRadar({ metrics, score }: { metrics: RadarMetric[]; score: number }) {
+export function PizzaRadar({ metrics, score, cohort }: { metrics: RadarMetric[]; score: number; cohort: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -37,6 +36,7 @@ export function PizzaRadar({ metrics, score }: { metrics: RadarMetric[]; score: 
       const inner = size * 0.085;
       const gap = 0.025;
       const step = Math.PI * 2 / metrics.length;
+      const metricGroups = metrics.map((metric) => similarityMetricGroup(metric, cohort));
 
       ctx.strokeStyle = "rgba(26, 43, 56, .1)";
       ctx.lineWidth = 1;
@@ -59,12 +59,12 @@ export function PizzaRadar({ metrics, score }: { metrics: RadarMetric[]; score: 
 
       let groupStart = 0;
       for (let index = 1; index <= metrics.length; index += 1) {
-        if (index < metrics.length && metrics[index].group === metrics[groupStart].group) continue;
+        if (index < metrics.length && metricGroups[index].id === metricGroups[groupStart].id) continue;
         const startAngle = -Math.PI / 2 + groupStart * step + groupGap;
         const endAngle = -Math.PI / 2 + index * step - groupGap;
         ctx.beginPath();
         ctx.arc(cx, cy, groupRingRadius, startAngle, endAngle);
-        ctx.strokeStyle = COLORS[metrics[groupStart].group] ?? COLORS[0];
+        ctx.strokeStyle = metricGroups[groupStart].color;
         ctx.lineWidth = groupRingWidth;
         ctx.stroke();
         groupStart = index;
@@ -81,7 +81,7 @@ export function PizzaRadar({ metrics, score }: { metrics: RadarMetric[]; score: 
         ctx.lineTo(cx + Math.cos(end) * inner, cy + Math.sin(end) * inner);
         ctx.arc(cx, cy, inner, end, start, true);
         ctx.closePath();
-        ctx.fillStyle = COLORS[metric.group] ?? COLORS[0];
+        ctx.fillStyle = metricGroups[index].color;
         ctx.globalAlpha = 0.94;
         ctx.fill();
         ctx.globalAlpha = 1;
@@ -137,7 +137,7 @@ export function PizzaRadar({ metrics, score }: { metrics: RadarMetric[]; score: 
     const observer = new ResizeObserver(draw);
     observer.observe(canvas);
     return () => observer.disconnect();
-  }, [metrics, score]);
+  }, [cohort, metrics, score]);
 
   return (
     <canvas

@@ -39,13 +39,14 @@ import {
 import type { TransfermarktProfile } from "@/lib/transfermarkt";
 import { formatPlayerPositions } from "@/lib/positions";
 import { removePlayerImageBackground } from "@/lib/playerImageBackground";
+import { SIMILARITY_METRIC_GROUPS, similarityMetricGroup } from "@/lib/similarityMetricGroups";
 
 type View = "home" | "reports" | "similarity";
 type ReportPage = 1 | 2 | 3;
 type ReportFileMode = "single" | "combine" | "replace";
 type ProfileAssetField = "playerImage" | "clubLogo" | "leagueLogo";
 
-const TRANSFERMARKT_LOGO = "/transfermarkt-logo.svg";
+const TRANSFERMARKT_LOGO = "/tm_logo.svg";
 
 const PROFILE_ASSETS: Array<{ field: ProfileAssetField; label: string; linkLabel: string }> = [
   { field: "playerImage", label: "Foto del jugador", linkLabel: "Jugador" },
@@ -642,19 +643,23 @@ export default function ScoutStudio() {
                     </section>
 
                     <section className="dossier-radar-row">
-                      <div className="dossier-radar">{report.metrics.length ? <PizzaRadar metrics={report.metrics} score={report.score} /> : <div className="empty-radar"><BarChart3 size={34} /><b>No encontramos métricas para esta cohorte</b></div>}</div>
+                      <div className="dossier-radar">{report.metrics.length ? <PizzaRadar metrics={report.metrics} score={report.score} cohort={report.cohort} /> : <div className="empty-radar"><BarChart3 size={34} /><b>No encontramos métricas para esta cohorte</b></div>}</div>
                       <aside className="dossier-reading">
                         <div className="average-percentile"><strong>{report.score}</strong><small>percentil<br />medio</small></div>
-                        <div className="dossier-legend"><span><i className="legend-red" />Finalización / defensa</span><span><i className="legend-gold" />Creación / progresión</span><span><i className="legend-teal" />Desequilibrio / pase</span></div>
+                        <div className="dossier-legend">{SIMILARITY_METRIC_GROUPS.map((group) => <span key={group.id}><i style={{ background: group.color }} />{group.label}</span>)}</div>
                         <div className="quick-reading"><b>LECTURA RÁPIDA</b><p>{report.reading}</p></div>
                       </aside>
                     </section>
 
                     <section className="metric-breakdown">
-                      {[0, 1, 2].map((group) => <div className={`metric-group group-${group}`} key={group}>
-                        <h3>{group === 0 ? "Finalización · Defensa" : group === 1 ? "Creación · Progresión" : "Desequilibrio · Pase"}</h3>
-                        {report.metrics.filter((metric) => metric.group === group).slice(0, 4).map((metric) => <div className="metric-row" key={metric.key}><div><span>{metric.label}</span><b>{formatCell(metric.value)} <small>· P{metric.percentile}</small></b></div><i><em style={{ width: `${metric.percentile}%` }} /></i></div>)}
-                      </div>)}
+                      {SIMILARITY_METRIC_GROUPS.map((group) => {
+                        const groupMetrics = report.metrics.filter((metric) => similarityMetricGroup(metric, report.cohort).id === group.id);
+                        if (!groupMetrics.length) return null;
+                        return <div className="metric-group" style={{ "--metric-group-color": group.color } as React.CSSProperties} key={group.id}>
+                          <h3>{group.label}</h3>
+                          {groupMetrics.slice(0, 4).map((metric) => <div className="metric-row" key={metric.key}><div><span>{metric.label}</span><b>{formatCell(metric.value)} <small>· P{metric.percentile}</small></b></div><i><em style={{ width: `${metric.percentile}%` }} /></i></div>)}
+                        </div>;
+                      })}
                     </section>
                     <footer className="dossier-footer">
                       <p>Percentiles por posición · mínimo {minimumMinutes}′ · {report.cohortSize} jugadores en la cohorte · datos por 90 minutos.</p>
