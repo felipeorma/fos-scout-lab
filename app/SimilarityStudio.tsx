@@ -113,6 +113,15 @@ function loadCanvasImage(src: string) {
   });
 }
 
+function blobToDataUrl(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(new Error("No se pudo convertir la imagen procesada."));
+    reader.readAsDataURL(blob);
+  });
+}
+
 function drawContain(ctx: CanvasRenderingContext2D, image: HTMLImageElement, x: number, y: number, width: number, height: number) {
   const scale = Math.min(width / image.naturalWidth, height / image.naturalHeight);
   const drawWidth = image.naturalWidth * scale;
@@ -364,6 +373,8 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, targets, the
   const [candidateProfileState, setCandidateProfileState] = useState<TransfermarktProfile>(() => createEmptyTransfermarktProfile());
   const [candidateProfileKey, setCandidateProfileKey] = useState("");
   const [profileBusy, setProfileBusy] = useState<ProfileSide | null>(null);
+  const [backgroundBusy, setBackgroundBusy] = useState<ProfileSide | null>(null);
+  const [backgroundOriginals, setBackgroundOriginals] = useState<Record<string, string>>({});
   const [profileStatus, setProfileStatus] = useState<Record<ProfileSide, string>>({ target: "", candidate: "" });
   const [targetColorChoice, setTargetColorChoice] = useState("");
   const [candidateColorChoice, setCandidateColorChoice] = useState("#e95b3f");
@@ -420,6 +431,15 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, targets, the
     setPosition("");
   }
 
+  function saveProfile(side: ProfileSide, playerName: string, next: TransfermarktProfile) {
+    if (side === "target") onTargetProfileChange(next);
+    else {
+      setCandidateProfileState(next);
+      setCandidateProfileKey(profileStorageKey(playerName));
+    }
+    try { window.localStorage.setItem(profileStorageKey(playerName), JSON.stringify(next)); } catch { /* La comparación continúa aunque no haya persistencia. */ }
+  }
+
   async function extractProfile(side: ProfileSide, url: string) {
     const current = side === "target" ? targetProfile : candidateProfile;
     const playerName = side === "target" ? search?.target.player ?? "" : selectedCandidate?.name ?? "";
@@ -432,18 +452,70 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, targets, the
       if (!response.ok) throw new Error(result.error || "No se pudo leer el perfil.");
       const populated = Object.fromEntries(Object.entries(result).filter(([, value]) => value !== "" && value !== undefined));
       const next = { ...current, ...populated, sourceUrl: url } as TransfermarktProfile;
-      if (side === "target") onTargetProfileChange(next);
-      else {
-        setCandidateProfileState(next);
-        setCandidateProfileKey(profileStorageKey(playerName));
-      }
-      try { window.localStorage.setItem(profileStorageKey(playerName), JSON.stringify(next)); } catch { /* La comparación continúa aunque no haya persistencia. */ }
+      saveProfile(side, playerName, next);
+      setBackgroundOriginals((originals) => {
+        const key = profileStorageKey(playerName);
+        if (!(key in originals)) return originals;
+        const nextOriginals = { ...originals };
+        delete nextOriginals[key];
+        return nextOriginals;
+      });
       setProfileStatus((status) => ({ ...status, [side]: "✓ Foto, escudo y datos cargados." }));
     } catch (error) {
       setProfileStatus((status) => ({ ...status, [side]: error instanceof Error ? error.message : "No se pudo extraer el perfil." }));
     } finally {
       setProfileBusy(null);
     }
+  }
+
+  async function removePlayerBackground(side: ProfileSide) {
+    const current = side === "target" ? targetProfile : candidateProfile;
+    const playerName = side === "target" ? search?.target.player ?? "" : selectedCandidate?.name ?? "";
+    const source = current.playerImage.trim();
+    if (!playerName || !source) {
+      setProfileStatus((status) => ({ ...status, [side]: "Primero extrae o carga una foto del jugador." }));
+      return;
+    }
+    setBackgroundBusy(side);
+    setProfileStatus((status) => ({ ...status, [side]: "Preparando el modelo de IA… La primera vez puede tardar." }));
+    try {
+      const imageSource = /^data:|^blob:/i.test(source)
+        ? source
+        : `https://images.weserv.nl/?url=${encodeURIComponent(source.replace(/^https?:\/\//i, ""))}`;
+      const { removeBackground } = await import("@imgly/background-removal");
+      const result = await removeBackground(imageSource, {
+        model: "small",
+        output: { format: "image/png", quality: 1 },
+        progress: (key, currentProgress, total) => {
+          const percent = total > 0 ? Math.min(100, Math.round(currentProgress / total * 100)) : 0;
+          setProfileStatus((status) => ({ ...status, [side]: percent ? `Descargando modelo IA · ${percent}%` : `Preparando ${key}…` }));
+        },
+      });
+      const dataUrl = await blobToDataUrl(result);
+      const storageKey = profileStorageKey(playerName);
+      setBackgroundOriginals((originals) => originals[storageKey] ? originals : { ...originals, [storageKey]: source });
+      saveProfile(side, playerName, { ...current, playerImage: dataUrl });
+      setProfileStatus((status) => ({ ...status, [side]: "✓ Fondo eliminado. La foto transparente ya está aplicada al reporte." }));
+    } catch {
+      setProfileStatus((status) => ({ ...status, [side]: "No se pudo eliminar el fondo. Reintenta o utiliza otra imagen." }));
+    } finally {
+      setBackgroundBusy(null);
+    }
+  }
+
+  function restorePlayerBackground(side: ProfileSide) {
+    const current = side === "target" ? targetProfile : candidateProfile;
+    const playerName = side === "target" ? search?.target.player ?? "" : selectedCandidate?.name ?? "";
+    const storageKey = profileStorageKey(playerName);
+    const original = backgroundOriginals[storageKey];
+    if (!playerName || !original) return;
+    saveProfile(side, playerName, { ...current, playerImage: original });
+    setBackgroundOriginals((originals) => {
+      const nextOriginals = { ...originals };
+      delete nextOriginals[storageKey];
+      return nextOriginals;
+    });
+    setProfileStatus((status) => ({ ...status, [side]: "✓ Imagen original restaurada." }));
   }
 
   async function downloadAsset(src: string, name: string) {
@@ -539,8 +611,8 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, targets, the
 
           {selectedCandidate && <>
             <section className="similarity-enrichment-grid">
-              <ProfileEnrichment side="target" label="Jugador objetivo" player={search.target.player} profile={targetProfile} busy={profileBusy === "target"} status={profileStatus.target} onExtract={(url) => extractProfile("target", url)} onDownload={downloadAsset} />
-              <ProfileEnrichment side="candidate" label="Jugador comparable" player={selectedCandidate.name} profile={candidateProfile} busy={profileBusy === "candidate"} status={profileStatus.candidate} onExtract={(url) => extractProfile("candidate", url)} onDownload={downloadAsset} />
+              <ProfileEnrichment side="target" label="Jugador objetivo" player={search.target.player} profile={targetProfile} busy={profileBusy === "target"} backgroundBusy={backgroundBusy === "target"} locked={profileBusy !== null || backgroundBusy !== null} canRestore={Boolean(backgroundOriginals[profileStorageKey(search.target.player)])} status={profileStatus.target} onExtract={(url) => extractProfile("target", url)} onRemoveBackground={() => removePlayerBackground("target")} onRestoreBackground={() => restorePlayerBackground("target")} onDownload={downloadAsset} />
+              <ProfileEnrichment side="candidate" label="Jugador comparable" player={selectedCandidate.name} profile={candidateProfile} busy={profileBusy === "candidate"} backgroundBusy={backgroundBusy === "candidate"} locked={profileBusy !== null || backgroundBusy !== null} canRestore={Boolean(backgroundOriginals[profileStorageKey(selectedCandidate.name)])} status={profileStatus.candidate} onExtract={(url) => extractProfile("candidate", url)} onRemoveBackground={() => removePlayerBackground("candidate")} onRestoreBackground={() => restorePlayerBackground("candidate")} onDownload={downloadAsset} />
             </section>
 
             <section className="similarity-color-panel">
@@ -571,7 +643,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, targets, the
   </div>;
 }
 
-function ProfileEnrichment({ side, label, player, profile, busy, status, onExtract, onDownload }: { side: ProfileSide; label: string; player: string; profile: TransfermarktProfile; busy: boolean; status: string; onExtract: (url: string) => void; onDownload: (src: string, name: string) => void }) {
+function ProfileEnrichment({ side, label, player, profile, busy, backgroundBusy, locked, canRestore, status, onExtract, onRemoveBackground, onRestoreBackground, onDownload }: { side: ProfileSide; label: string; player: string; profile: TransfermarktProfile; busy: boolean; backgroundBusy: boolean; locked: boolean; canRestore: boolean; status: string; onExtract: (url: string) => void; onRemoveBackground: () => void; onRestoreBackground: () => void; onDownload: (src: string, name: string) => void }) {
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const url = String(new FormData(event.currentTarget).get("transfermarktUrl") ?? "").trim();
@@ -579,7 +651,7 @@ function ProfileEnrichment({ side, label, player, profile, busy, status, onExtra
   }
   return <article className="similarity-enrichment-card">
     <div className="enrichment-profile-preview">{profile.playerImage ? <ReportImage src={profile.playerImage} alt={player} className="enrichment-player-image" /> : <span>{player.split(/\s+/).slice(0, 2).map((part) => part[0]).join("")}</span>}{profile.clubLogo && <ReportImage src={profile.clubLogo} alt={profile.club || "Club"} className="enrichment-club-logo" />}</div>
-    <div className="enrichment-profile-copy"><span>{label}</span><b>{player}</b><small>{profile.club || "Agrega Transfermarkt para cargar club, foto y escudo"}</small><form key={`${side}-${player}-${profile.sourceUrl}`} onSubmit={submit}><input name="transfermarktUrl" type="url" required defaultValue={profile.sourceUrl} placeholder="https://www.transfermarkt.com/..." aria-label={`Link de Transfermarkt de ${player}`} /><button type="submit" disabled={busy}><Sparkles size={13} /> {busy ? "Extrayendo…" : "Extraer imágenes"}</button></form>{status && <p aria-live="polite">{status}</p>}<div className="enrichment-downloads"><button type="button" disabled={!profile.playerImage} onClick={() => onDownload(profile.playerImage, `${player}-foto`)}>⇩ Foto</button><button type="button" disabled={!profile.clubLogo} onClick={() => onDownload(profile.clubLogo, `${profile.club || player}-escudo`)}>⇩ Escudo</button></div></div>
+    <div className="enrichment-profile-copy"><span>{label}</span><b>{player}</b><small>{profile.club || "Agrega Transfermarkt para cargar club, foto y escudo"}</small><form key={`${side}-${player}-${profile.sourceUrl}`} onSubmit={submit}><input name="transfermarktUrl" type="url" required defaultValue={profile.sourceUrl} placeholder="https://www.transfermarkt.com/..." aria-label={`Link de Transfermarkt de ${player}`} /><button type="submit" disabled={locked}><Sparkles size={13} /> {busy ? "Extrayendo…" : "Extraer imágenes"}</button></form>{status && <p aria-live="polite">{status}</p>}<div className="enrichment-background-tools"><button type="button" onClick={onRemoveBackground} disabled={locked || !profile.playerImage}><Sparkles size={12} /> {backgroundBusy ? "Quitando fondo…" : "Quitar fondo con IA"}</button>{canRestore && <button className="restore" type="button" onClick={onRestoreBackground} disabled={locked}>Restaurar original</button>}</div><div className="enrichment-downloads"><button type="button" disabled={!profile.playerImage || backgroundBusy} onClick={() => onDownload(profile.playerImage, `${player}-foto`)}>⇩ Foto</button><button type="button" disabled={!profile.clubLogo || backgroundBusy} onClick={() => onDownload(profile.clubLogo, `${profile.club || player}-escudo`)}>⇩ Escudo</button></div></div>
   </article>;
 }
 
