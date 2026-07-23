@@ -129,6 +129,10 @@ function drawContain(ctx: CanvasRenderingContext2D, image: HTMLImageElement, x: 
   ctx.drawImage(image, x + (width - drawWidth) / 2, y + (height - drawHeight) / 2, drawWidth, drawHeight);
 }
 
+function canvasColorWithAlpha(color: string, alpha: string) {
+  return /^#[0-9a-f]{6}$/i.test(color) ? `${color}${alpha}` : color;
+}
+
 function radarPoint(index: number, total: number, radius: number, cx: number, cy: number) {
   const angle = -Math.PI / 2 + index * Math.PI * 2 / total;
   return { x: cx + Math.cos(angle) * radius, y: cy + Math.sin(angle) * radius, angle };
@@ -266,6 +270,12 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
     ctx.fillStyle = "#ffffff";
     ctx.font = "700 14px Arial";
     ctx.fillText(label, x + 22, 222);
+    const portraitGradient = ctx.createLinearGradient(x, 240, x + 350, 488);
+    portraitGradient.addColorStop(0, theme.dark);
+    portraitGradient.addColorStop(.55, canvasColorWithAlpha(color, "30"));
+    portraitGradient.addColorStop(1, theme.dark);
+    ctx.fillStyle = portraitGradient;
+    ctx.fillRect(x, 240, 350, 248);
     if (image) drawContain(ctx, image, x + 55, 252, 240, 230);
     else {
       ctx.fillStyle = theme.line;
@@ -689,8 +699,8 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, targets, the
 
           {selectedCandidate && <>
             <section className="similarity-enrichment-grid">
-              <ProfileEnrichment side="target" label="Jugador objetivo" player={search.target.player} profile={targetProfile} busy={profileBusy === "target"} backgroundBusy={backgroundBusy === "target"} locked={profileBusy !== null || backgroundBusy !== null} canRestore={Boolean(backgroundOriginals[profileStorageKey(search.target.player)])} status={profileStatus.target} onExtract={(url) => extractProfile("target", url)} onImageUrl={(url) => applyPlayerImageUrl("target", url)} onImageFile={(file) => loadPlayerImage("target", file)} onRemoveBackground={() => removePlayerBackground("target")} onRestoreBackground={() => restorePlayerBackground("target")} onDownload={downloadAsset} />
-              <ProfileEnrichment side="candidate" label="Jugador comparable" player={selectedCandidate.name} profile={candidateProfile} busy={profileBusy === "candidate"} backgroundBusy={backgroundBusy === "candidate"} locked={profileBusy !== null || backgroundBusy !== null} canRestore={Boolean(backgroundOriginals[profileStorageKey(selectedCandidate.name)])} status={profileStatus.candidate} onExtract={(url) => extractProfile("candidate", url)} onImageUrl={(url) => applyPlayerImageUrl("candidate", url)} onImageFile={(file) => loadPlayerImage("candidate", file)} onRemoveBackground={() => removePlayerBackground("candidate")} onRestoreBackground={() => restorePlayerBackground("candidate")} onDownload={downloadAsset} />
+              <ProfileEnrichment side="target" label="Jugador objetivo" player={search.target.player} color={targetColor} profile={targetProfile} busy={profileBusy === "target"} backgroundBusy={backgroundBusy === "target"} locked={profileBusy !== null || backgroundBusy !== null} canRestore={Boolean(backgroundOriginals[profileStorageKey(search.target.player)])} status={profileStatus.target} onExtract={(url) => extractProfile("target", url)} onImageUrl={(url) => applyPlayerImageUrl("target", url)} onImageFile={(file) => loadPlayerImage("target", file)} onRemoveBackground={() => removePlayerBackground("target")} onRestoreBackground={() => restorePlayerBackground("target")} onDownload={downloadAsset} />
+              <ProfileEnrichment side="candidate" label="Jugador comparable" player={selectedCandidate.name} color={candidateColor} profile={candidateProfile} busy={profileBusy === "candidate"} backgroundBusy={backgroundBusy === "candidate"} locked={profileBusy !== null || backgroundBusy !== null} canRestore={Boolean(backgroundOriginals[profileStorageKey(selectedCandidate.name)])} status={profileStatus.candidate} onExtract={(url) => extractProfile("candidate", url)} onImageUrl={(url) => applyPlayerImageUrl("candidate", url)} onImageFile={(file) => loadPlayerImage("candidate", file)} onRemoveBackground={() => removePlayerBackground("candidate")} onRestoreBackground={() => restorePlayerBackground("candidate")} onDownload={downloadAsset} />
             </section>
 
             <section className="similarity-color-panel">
@@ -721,7 +731,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, targets, the
   </div>;
 }
 
-function ProfileEnrichment({ side, label, player, profile, busy, backgroundBusy, locked, canRestore, status, onExtract, onImageUrl, onImageFile, onRemoveBackground, onRestoreBackground, onDownload }: { side: ProfileSide; label: string; player: string; profile: TransfermarktProfile; busy: boolean; backgroundBusy: boolean; locked: boolean; canRestore: boolean; status: string; onExtract: (url: string) => void; onImageUrl: (url: string) => void; onImageFile: (file?: File) => void; onRemoveBackground: () => void; onRestoreBackground: () => void; onDownload: (src: string, name: string) => void }) {
+function ProfileEnrichment({ side, label, player, color, profile, busy, backgroundBusy, locked, canRestore, status, onExtract, onImageUrl, onImageFile, onRemoveBackground, onRestoreBackground, onDownload }: { side: ProfileSide; label: string; player: string; color: string; profile: TransfermarktProfile; busy: boolean; backgroundBusy: boolean; locked: boolean; canRestore: boolean; status: string; onExtract: (url: string) => void; onImageUrl: (url: string) => void; onImageFile: (file?: File) => void; onRemoveBackground: () => void; onRestoreBackground: () => void; onDownload: (src: string, name: string) => void }) {
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const url = String(new FormData(event.currentTarget).get("transfermarktUrl") ?? "").trim();
@@ -733,7 +743,7 @@ function ProfileEnrichment({ side, label, player, profile, busy, backgroundBusy,
     if (url) onImageUrl(url);
   }
   const remotePlayerImage = /^https?:\/\//i.test(profile.playerImage) ? profile.playerImage : "";
-  return <article className="similarity-enrichment-card">
+  return <article className="similarity-enrichment-card" style={{ "--player-color": color } as CSSProperties}>
     <div className="enrichment-profile-preview">{profile.playerImage ? <ReportImage src={profile.playerImage} alt={player} className="enrichment-player-image" /> : <span>{player.split(/\s+/).slice(0, 2).map((part) => part[0]).join("")}</span>}{profile.clubLogo && <ReportImage src={profile.clubLogo} alt={profile.club || "Club"} className="enrichment-club-logo" />}</div>
     <div className="enrichment-profile-copy">
       <span>{label}</span><b>{player}</b><small>{profile.club || "Agrega Transfermarkt para cargar club, foto y escudo"}</small>
