@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import {
-  ArrowDownToLine,
   BarChart3,
   Check,
   ChevronDown,
@@ -241,21 +240,24 @@ export default function ScoutStudio() {
   function runMerge() {
     setMergeError("");
     try {
-      setMergeResult(aggregateDatasets(seasonFiles));
+      const result = aggregateDatasets(seasonFiles);
+      const sourceLabel = seasonFiles.map((file) => file.fileName.replace(/\.(xlsx|xls)$/i, "")).join(" + ");
+      setMergeResult(result);
+      setReportRows(result.rows);
+      setReportFileName(sourceLabel || "Base consolidada");
+      setReportSourceCount(seasonFiles.length);
+      setSelectedPlayer(0);
+      setReportPage(1);
+      setReportError("");
+      const restored = restoreProfile(buildPlayerReport(result.rows, 0, minimumMinutes, cohort));
+      setProfile(restored.profile);
+      setTransfermarktUrl(restored.url);
+      setTransfermarktError("");
+      setView("reports");
     } catch (error) {
       setMergeResult(null);
       setMergeError(error instanceof Error ? error.message : "No se pudieron combinar las bases.");
     }
-  }
-
-  function downloadMerge() {
-    if (!mergeResult) return;
-    const worksheet = XLSX.utils.json_to_sheet(mergeResult.rows, { header: mergeResult.headers });
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Temporadas consolidadas");
-    const years = seasonFiles.map((file) => file.season).filter(Boolean).sort();
-    const label = years.length ? `${years[0]}-${years.at(-1)}` : `${seasonFiles.length}-bases`;
-    XLSX.writeFile(workbook, `scouting-consolidado-${label}.xlsx`);
   }
 
   function resetReport() {
@@ -460,7 +462,7 @@ export default function ScoutStudio() {
                 </button>
                 {seasonFiles.length > 0 && <div className="file-stack">{seasonFiles.map((file) => <div className="file-row" key={file.fileName}><span className="excel-icon"><FileSpreadsheet size={18} /></span><div><b>{file.fileName}</b><small>{file.rows.length} jugadores · {file.headers.length} columnas</small></div><span className={file.season ? "year-chip" : "year-chip neutral"}>{file.season || "Liga/base"}</span><button onClick={() => { setSeasonFiles((current) => current.filter((item) => item.fileName !== file.fileName)); setMergeResult(null); }} aria-label={`Quitar ${file.fileName}`}><X size={16} /></button></div>)}</div>}
                 {mergeError && <div className="inline-error merge-error">{mergeError}</div>}
-                <div className="merge-actions"><button className="button ghost" onClick={() => { setSeasonFiles([]); setMergeResult(null); setMergeError(""); }} disabled={!seasonFiles.length}>Limpiar</button><button className="button primary wide" onClick={runMerge} disabled={seasonFiles.length < 1}><Merge size={17} /> {seasonFiles.length > 1 ? `Combinar ${seasonFiles.length} bases` : "Procesar base"}</button></div>
+                <div className="merge-actions"><button className="button ghost" onClick={() => { setSeasonFiles([]); setMergeResult(null); setMergeError(""); }} disabled={!seasonFiles.length}>Limpiar</button><button className="button primary wide" onClick={runMerge} disabled={seasonFiles.length < 1}><Merge size={17} /> {seasonFiles.length > 1 ? `Combinar ${seasonFiles.length} bases y crear informe` : "Usar base para crear informe"}</button></div>
               </section>
 
               <aside className="rules-card card">
@@ -470,8 +472,8 @@ export default function ScoutStudio() {
             </div>
 
             <section className={`result-card card ${mergeResult ? "has-result" : ""}`}>
-              <div className="card-header"><div><span className="mini-icon blue"><BarChart3 size={18} /></span><div><h2>Resultado consolidado</h2><p>{mergeResult ? `${mergeResult.rows.length} jugadores listos para descargar.` : "Aquí verás una muestra antes de descargar."}</p></div></div>{mergeResult && <button className="button primary" onClick={downloadMerge}><ArrowDownToLine size={17} /> Descargar Excel</button>}</div>
-              {mergeResult ? <><div className="result-kpis"><div><span>Jugadores únicos</span><b>{numberFormat(mergeResult.rows.length)}</b></div><div><span>Bases procesadas</span><b>{seasonFiles.length}</b></div><div><span>Columnas finales</span><b>{mergeResult.headers.length}</b></div><div><span>Estado</span><b className="ready"><Check size={15} /> Listo</b></div></div>{mergeResult.warnings.map((warning) => <div className="inline-error" key={warning}>{warning}</div>)}<div className="table-scroll"><table><thead><tr>{["Player", "Data sources", "Seasons", "Team", "Position", mergeResult.matchesColumn, mergeResult.minutesColumn].filter((header) => mergeResult.headers.includes(header)).map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{mergeResult.rows.slice(0, 8).map((row, index) => <tr key={`${row.Player}-${index}`}>{["Player", "Data sources", "Seasons", "Team", "Position", mergeResult.matchesColumn, mergeResult.minutesColumn].filter((header) => mergeResult.headers.includes(header)).map((header) => <td key={header}>{formatCell(row[header], header === mergeResult.minutesColumn || header === mergeResult.matchesColumn ? 0 : 2)}</td>)}</tr>)}</tbody></table></div><div className="table-footer"><span>Mostrando {Math.min(8, mergeResult.rows.length)} de {mergeResult.rows.length} jugadores</span><span>El archivo descargado incluye las {mergeResult.headers.length} columnas.</span></div></> : <div className="result-empty"><span className="empty-merge-icon"><Merge size={30} /></span><b>Aún no hay un resultado</b><p>Carga entre una y tres bases y ejecuta el procesamiento.</p><div><span>1</span><i /><span>2</span><i /><span><Check size={13} /></span></div></div>}
+              <div className="card-header"><div><span className="mini-icon blue"><BarChart3 size={18} /></span><div><h2>Datos para el informe</h2><p>{mergeResult ? `${mergeResult.rows.length} jugadores ya incorporados al creador de reportes.` : "La base procesada se utilizará directamente para crear el informe."}</p></div></div>{mergeResult && <button className="button primary" onClick={() => { setReportPage(1); setView("reports"); }}><BarChart3 size={17} /> Abrir informe</button>}</div>
+              {mergeResult ? <><div className="result-kpis"><div><span>Jugadores únicos</span><b>{numberFormat(mergeResult.rows.length)}</b></div><div><span>Bases procesadas</span><b>{seasonFiles.length}</b></div><div><span>Columnas disponibles</span><b>{mergeResult.headers.length}</b></div><div><span>Estado</span><b className="ready"><Check size={15} /> En reportes</b></div></div>{mergeResult.warnings.map((warning) => <div className="inline-error" key={warning}>{warning}</div>)}<div className="table-scroll"><table><thead><tr>{["Player", "Data sources", "Seasons", "Team", "Position", mergeResult.matchesColumn, mergeResult.minutesColumn].filter((header) => mergeResult.headers.includes(header)).map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{mergeResult.rows.slice(0, 8).map((row, index) => <tr key={`${row.Player}-${index}`}>{["Player", "Data sources", "Seasons", "Team", "Position", mergeResult.matchesColumn, mergeResult.minutesColumn].filter((header) => mergeResult.headers.includes(header)).map((header) => <td key={header}>{formatCell(row[header], header === mergeResult.minutesColumn || header === mergeResult.matchesColumn ? 0 : 2)}</td>)}</tr>)}</tbody></table></div><div className="table-footer"><span>Mostrando {Math.min(8, mergeResult.rows.length)} de {mergeResult.rows.length} jugadores</span><span>Las {mergeResult.headers.length} columnas están disponibles en el creador del informe.</span></div></> : <div className="result-empty"><span className="empty-merge-icon"><Merge size={30} /></span><b>Aún no hay datos procesados</b><p>Carga entre una y tres bases para comenzar el informe.</p><div><span>1</span><i /><span>2</span><i /><span><Check size={13} /></span></div></div>}
             </section>
           </div>
         )}

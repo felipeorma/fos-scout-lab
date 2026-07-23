@@ -20,7 +20,7 @@ This starter does not use `wrangler.jsonc`.
 Abre `http://localhost:3000` y usa uno de los dos módulos:
 
 - **Reportes:** carga entre uno y tres archivos, completa la ficha del jugador y revisa su radar.
-- **Combinar bases:** procesa archivos que pueden representar ligas o temporadas y descarga el consolidado.
+- **Combinar bases:** procesa archivos que pueden representar ligas o temporadas y envía el resultado directamente al creador de informes.
 
 ## Editor visual de páginas
 
@@ -59,3 +59,6 @@ una URL y presiona el botón de extracción.
 - porcentajes: ponderados por intentos cuando se puede inferir el denominador,
   o por minutos como respaldo;
 - equipo y edad: valor del año más reciente o del último archivo cargado.
+
+El resultado consolidado no genera una descarga intermedia: se convierte
+automáticamente en la fuente de datos activa del módulo **Reportes**.
