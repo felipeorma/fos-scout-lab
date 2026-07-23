@@ -152,21 +152,24 @@ function drawCanvasSimilarityStar(ctx: CanvasRenderingContext2D, similarity: num
   const percentage = Math.min(Math.max(Math.round(similarity), 0), 100);
   const glowIntensity = percentage > 60 ? (percentage - 60) / 40 : 0;
   const innerRadius = radius * .46;
+  let starFill: string | CanvasGradient = percentage >= 100 ? "#facc15" : "#253146";
+
+  if (percentage > 0 && percentage < 100) {
+    const boundary = percentage / 100;
+    const fillGradient = ctx.createLinearGradient(cx, cy + radius, cx, cy - radius);
+    fillGradient.addColorStop(0, "#facc15");
+    fillGradient.addColorStop(boundary, "#facc15");
+    fillGradient.addColorStop(Math.min(boundary + .001, 1), "#253146");
+    fillGradient.addColorStop(1, "#253146");
+    starFill = fillGradient;
+  }
 
   ctx.save();
   ctx.shadowColor = `rgba(250,204,21,${.18 + glowIntensity * .72})`;
   ctx.shadowBlur = 5 + glowIntensity * 24;
   drawStarPath(ctx, cx, cy, radius, innerRadius);
-  ctx.fillStyle = "#253146";
+  ctx.fillStyle = starFill;
   ctx.fill();
-  ctx.restore();
-
-  ctx.save();
-  drawStarPath(ctx, cx, cy, radius, innerRadius);
-  ctx.clip();
-  const fillHeight = radius * 2 * percentage / 100;
-  ctx.fillStyle = "#facc15";
-  ctx.fillRect(cx - radius, cy + radius - fillHeight, radius * 2, fillHeight);
   ctx.restore();
 
   ctx.save();
@@ -787,8 +790,7 @@ function SimilarityStarScore({ similarity }: { similarity: number }) {
   const glowIntensity = percentage > 60 ? (percentage - 60) / 40 : 0;
   const isNearHundred = percentage >= 95;
   const reduceMotion = useReducedMotion();
-  const clipId = `similarity-star-${useId().replace(/:/g, "")}`;
-  const fillHeight = 24 * percentage / 100;
+  const gradientId = `similarity-star-${useId().replace(/:/g, "")}`;
 
   return <div className="similarity-star-score" role="img" aria-label={`${percentage}% de similitud`}>
     <div className="similarity-star-visual">
@@ -805,20 +807,17 @@ function SimilarityStarScore({ similarity }: { similarity: number }) {
           scale: { duration: 1.25, repeat: !reduceMotion && isNearHundred ? Infinity : 0, ease: "easeInOut" },
         }}
       >
-        <defs><clipPath id={clipId}><path d={STAR_PATH} /></clipPath></defs>
-        <path d={STAR_PATH} fill="#253146" />
-        <motion.rect
-          x="0"
-          width="24"
-          fill="#facc15"
-          clipPath={`url(#${clipId})`}
-          initial={false}
-          animate={{ y: 24 - fillHeight, height: fillHeight }}
-          transition={{ duration: .55, ease: "easeOut" }}
-        />
+        <defs>
+          <linearGradient id={gradientId} x1="0" y1="24" x2="0" y2="0" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stopColor="#facc15" />
+            <motion.stop initial={false} animate={{ offset: percentage / 100 }} transition={{ duration: .55, ease: "easeOut" }} stopColor="#facc15" />
+            <motion.stop initial={false} animate={{ offset: percentage / 100 }} transition={{ duration: .55, ease: "easeOut" }} stopColor="#253146" />
+            <stop offset="1" stopColor="#253146" />
+          </linearGradient>
+        </defs>
         <motion.path
           d={STAR_PATH}
-          fill="none"
+          fill={`url(#${gradientId})`}
           strokeLinecap="round"
           strokeLinejoin="round"
           initial={false}
