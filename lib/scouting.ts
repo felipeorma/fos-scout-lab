@@ -343,8 +343,10 @@ const METRICS: Record<string, MetricDefinition[]> = {
     { label: "xG", aliases: ["xg per 90", "xg 90"], group: 0 },
     { label: "Remates", aliases: ["shots per 90", "remates 90"], group: 0 },
     { label: "Tiros a puerta", aliases: ["shots on target %", "tiros a la porteria %"], group: 0 },
-    { label: "Toques en área", aliases: ["touches in box per 90", "toques en el area de penalti 90"], group: 1 },
+    // Los duelos aéreos cuentan como señal de finalización en atacantes:
+    // van pegados al bloque ofensivo para que el anillo del radar sea continuo.
     { label: "Duelos aéreos", aliases: ["aerial duels won %", "duelos aereos ganados %"], group: 1 },
+    { label: "Toques en área", aliases: ["touches in box per 90", "toques en el area de penalti 90"], group: 1 },
     { label: "Pases recibidos", aliases: ["received passes per 90", "pases recibidos 90"], group: 2 },
     { label: "Asistencias", aliases: ["assists per 90", "asistencias 90"], group: 2 },
   ],
