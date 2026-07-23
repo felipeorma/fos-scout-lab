@@ -35,6 +35,7 @@ type SimilarityStudioProps = {
 };
 
 const GROUP_COLORS = ["#e95b3f", "#d7a62c", "#43a8a0"];
+const alphabeticCollator = new Intl.Collator("es", { sensitivity: "base", numeric: true });
 
 function optionalNumber(value: string) {
   if (!value.trim()) return null;
@@ -312,6 +313,10 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, targets, the
   const [exportBusy, setExportBusy] = useState(false);
   const [exportStatus, setExportStatus] = useState("");
   const options = useMemo(() => similarityOptions(rows), [rows]);
+  const targetTeams = useMemo(() => [...new Set(targets.map((target) => target.team))].sort(alphabeticCollator.compare), [targets]);
+  const selectedTarget = targets.find((target) => target.index === selectedIndex);
+  const selectedTargetTeam = selectedTarget?.team ?? targetTeams[0] ?? "";
+  const targetPlayers = useMemo(() => targets.filter((target) => target.team === selectedTargetTeam).sort((a, b) => alphabeticCollator.compare(a.player, b.player)), [selectedTargetTeam, targets]);
   const filters = useMemo<SimilarityFilters>(() => ({
     query,
     ageMin: optionalNumber(ageMin),
@@ -333,6 +338,17 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, targets, the
     setCandidateProfileState(loadStoredProfile(candidate));
     setCandidateProfileKey(profileStorageKey(candidate.name));
     setProfileStatus((current) => ({ ...current, candidate: "" }));
+  }
+
+  function chooseTarget(index: number) {
+    setSelectedCandidateIndex(null);
+    setCandidateProfileKey("");
+    onSelectTarget(index);
+  }
+
+  function chooseTargetTeam(team: string) {
+    const firstPlayer = targets.filter((target) => target.team === team).sort((a, b) => alphabeticCollator.compare(a.player, b.player))[0];
+    if (firstPlayer) chooseTarget(firstPlayer.index);
   }
 
   function resetFilters() {
@@ -431,7 +447,10 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, targets, the
     {!rows.length || !search ? <section className="dataset-onboarding similarity-empty"><span className="dataset-step">SECCIÓN DE SIMILITUD</span><span className="dataset-icon"><Search size={30} /></span><h2>Primero carga una base de datos</h2><p>La comparación usa la base activa, ya sea una liga, temporada o combinación.</p><button className="button primary" onClick={onOpenReports}>Ir a cargar datos</button></section> : <>
       <section className="similarity-target-bar">
         <div className="similarity-target-copy"><span>JUGADOR OBJETIVO</span><b>{search.target.player}</b><small>{search.target.team} · {search.target.position} · {search.target.age} años</small></div>
-        <label><span>Cambiar jugador</span><select value={selectedIndex} onChange={(event) => { setSelectedCandidateIndex(null); setCandidateProfileKey(""); onSelectTarget(Number(event.target.value)); }}>{targets.map((target) => <option key={`${target.index}-${target.player}`} value={target.index}>{target.player} · {target.team}</option>)}</select></label>
+        <div className="similarity-target-selectors">
+          <label><span>1 · Club</span><select value={selectedTargetTeam} onChange={(event) => chooseTargetTeam(event.target.value)}>{targetTeams.map((team) => <option key={team} value={team}>{team}</option>)}</select></label>
+          <label><span>2 · Jugador</span><select value={selectedIndex} onChange={(event) => chooseTarget(Number(event.target.value))}>{targetPlayers.map((target) => <option key={`${target.index}-${target.player}`} value={target.index}>{target.player}</option>)}</select></label>
+        </div>
         <div className="similarity-model-badge"><Sparkles size={16} /><span><b>BASELINE ESTADÍSTICO</b><small>Percentiles + contexto de edad y rol</small></span></div>
       </section>
 

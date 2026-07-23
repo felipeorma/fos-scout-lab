@@ -54,6 +54,9 @@ acepta su propio enlace de Transfermarkt para extraer foto, escudo, club, valor
 de mercado y datos biográficos; la foto y el escudo también se pueden descargar
 por separado.
 
+El jugador objetivo se selecciona en dos pasos: primero el club y después el
+jugador. Ambos selectores están ordenados alfabéticamente.
+
 ## Editor visual de páginas
 
 Las páginas 2 y 3 del reporte incluyen un editor local con:
