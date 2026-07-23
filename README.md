@@ -26,7 +26,7 @@ Abre `http://localhost:3000` y entra a **Reportes**:
   la combinación recibe un nombre temporal y después continúa directamente con
   jugador, Transfermarkt, imágenes y diseño.
 - **Similitud:** usa la base activa para filtrar el listado completo por nombre,
-  edad, minutos, pasaporte y posición, y ordenar los jugadores más parecidos al
+  edad, minutos, un pasaporte principal o secundario y posición, y ordenar los jugadores más parecidos al
   perfil objetivo.
 
 Las posiciones Wyscout se convierten en roles legibles —por ejemplo, `RWF` en

@@ -6,7 +6,7 @@ import {
   numeric,
   type DataRow,
   type PlayerReport,
-} from "./scouting";
+} from "./scouting.ts";
 import {
   POSITION_ROLES,
   formatPlayerPositions,
@@ -14,7 +14,7 @@ import {
   positionRoles,
   primaryPositionRole,
   type PlayerPosition,
-} from "./positions";
+} from "./positions.ts";
 
 export type SimilarityFilters = {
   query: string;
@@ -95,13 +95,30 @@ function normalizeSearch(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("es").trim();
 }
 
+export function playerPassports(value: unknown) {
+  const unique = new Map<string, string>();
+  String(value ?? "")
+    .split(/\s*(?:,|;|\/|\||\n)\s*/)
+    .map((passport) => passport.trim())
+    .filter(Boolean)
+    .forEach((passport) => {
+      const key = normalizeSearch(passport);
+      if (key && !unique.has(key)) unique.set(key, passport);
+    });
+  return [...unique.values()];
+}
+
 export function similarityOptions(rows: DataRow[]): SimilarityOptions {
   const headers = [...new Set(rows.flatMap((row) => Object.keys(row)))];
   const positionColumn = findColumn(headers, POSITION_ALIASES);
   const passportColumn = findColumn(headers, PASSPORT_ALIASES);
   return {
     positions: POSITION_ROLES.filter((role) => rows.some((row) => positionRoles(text(row, positionColumn, "")).includes(role))),
-    passports: [...new Set(rows.map((row) => text(row, passportColumn, "")).filter(Boolean))].sort(collator.compare),
+    passports: [...new Map(
+      rows
+        .flatMap((row) => playerPassports(text(row, passportColumn, "")))
+        .map((passport) => [normalizeSearch(passport), passport] as const),
+    ).values()].sort(collator.compare),
   };
 }
 
@@ -145,7 +162,7 @@ export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filt
     if (minutes < filters.minimumMinutes) return [];
     if (filters.ageMin !== null && (age === null || age < filters.ageMin)) return [];
     if (filters.ageMax !== null && (age === null || age > filters.ageMax)) return [];
-    if (filters.passport && passport !== filters.passport) return [];
+    if (filters.passport && !playerPassports(passport).some((item) => normalizeSearch(item) === normalizeSearch(filters.passport))) return [];
     if (filters.position && !roles.includes(filters.position as (typeof POSITION_ROLES)[number])) return [];
     if (normalizedQuery && !normalizeSearch(`${name} ${team}`).includes(normalizedQuery)) return [];
 
