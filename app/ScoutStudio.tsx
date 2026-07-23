@@ -197,6 +197,8 @@ export default function ScoutStudio() {
   const [combinedBaseName, setCombinedBaseName] = useState("Combinación temporal 01");
   const [analysisLabel, setAnalysisLabel] = useState("BASE ANALIZADA");
   const [analysisSourceTitle, setAnalysisSourceTitle] = useState("");
+  const [reportRecipientName, setReportRecipientName] = useState("");
+  const [reportRecipientLogoUrl, setReportRecipientLogoUrl] = useState("");
   const [reportTheme, setReportTheme] = useState<ReportTheme>(DEFAULT_REPORT_THEME);
   const [reportThemeLoaded, setReportThemeLoaded] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState("");
@@ -228,6 +230,8 @@ export default function ScoutStudio() {
   );
   const dataReady = reportRows.length > 0;
   const profileReady = Boolean(profile.sourceUrl || profile.playerImage || profile.clubLogo || profile.leagueLogo);
+  const recipientName = reportRecipientName.trim() || "Club destinatario";
+  const recipientLogoReady = /^https?:\/\/\S+$/i.test(reportRecipientLogoUrl.trim());
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -419,6 +423,8 @@ export default function ScoutStudio() {
     setCombinedBaseName("Combinación temporal 01");
     setAnalysisLabel("BASE ANALIZADA");
     setAnalysisSourceTitle("");
+    setReportRecipientName("");
+    setReportRecipientLogoUrl("");
     setSelectedTeam("");
     setSelectedPlayer(0);
     setMinimumMinutes(500);
@@ -542,6 +548,12 @@ export default function ScoutStudio() {
                   </div>
                   <div className="data-summary"><div><span>Bases</span><b>{reportSourceCount}</b></div><div><span>Jugadores</span><b>{numberFormat(reportRows.length)}</b></div><div><span>Cohorte</span><b>{report?.cohortSize ?? 0}</b></div></div>
                   <div className="report-copy-editor"><span className="field-label">Texto de la base en el informe</span><label><small>Etiqueta</small><input value={analysisLabel} placeholder="BASE ANALIZADA" onChange={(event) => setAnalysisLabel(event.target.value)} /></label><label><small>{reportSourceCount > 1 ? "Nombre temporal de la combinación" : "Nombre de liga o temporada"}</small><input value={analysisSourceTitle} placeholder={reportSourceCount > 1 ? "Ej. MLS Next Pro · 2025–2026" : "Ej. MLS Next Pro 2026"} onChange={(event) => updateAnalysisSourceName(event.target.value)} /></label></div>
+                  <div className="report-recipient-editor">
+                    <div className="recipient-editor-head"><span className="field-label">Reporte generado para</span><small>Independiente del club del jugador</small></div>
+                    <label><small>Nombre del club destinatario</small><input value={reportRecipientName} maxLength={80} placeholder="Ej. Club Deportivo…" onChange={(event) => setReportRecipientName(event.target.value)} /></label>
+                    <label><small>Link del logo destinatario</small><input type="url" inputMode="url" value={reportRecipientLogoUrl} placeholder="https://sitio.com/logo.png" aria-invalid={Boolean(reportRecipientLogoUrl) && !recipientLogoReady} onChange={(event) => setReportRecipientLogoUrl(event.target.value)} /></label>
+                    <p className={reportRecipientLogoUrl && !recipientLogoReady ? "recipient-link-status invalid" : "recipient-link-status"}>{recipientLogoReady ? "✓ Logo destinatario aplicado al pie del reporte." : "Pega un link directo http:// o https://. No se utilizará el escudo del jugador."}</p>
+                  </div>
 
                   <div className="control-divider" />
                   <div className="panel-title enrichment-title"><div><span className="mini-icon gold"><Sparkles size={17} /></span><div><h2>3. Transfermarkt e imágenes</h2><p>Datos biográficos, logos y retrato</p></div></div><span className={profileReady ? "tiny-state ready-state" : "tiny-state"}>{profileReady ? "CARGADO" : "PENDIENTE"}</span></div>
@@ -648,8 +660,8 @@ export default function ScoutStudio() {
                       <div className="report-signatures">
                         <div className="report-author"><span>ELABORADO POR</span><b>FELIPE ORMAZABAL</b><small>SCOUTING REPORT</small></div>
                         <div className="report-recipient">
-                          {profile.clubLogo ? <ReportImage src={profile.clubLogo} alt={profile.club || report.team} className="dossier-footer-club-logo" /> : <span className="dossier-footer-club-fallback">{(profile.club || report.team).split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span>}
-                          <div><span>REPORTE GENERADO PARA</span><b>{profile.club || report.team}</b></div>
+                          {recipientLogoReady ? <ReportImage src={reportRecipientLogoUrl.trim()} alt={recipientName} className="dossier-footer-club-logo" /> : <span className="dossier-footer-club-fallback">{recipientName.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span>}
+                          <div><span>REPORTE GENERADO PARA</span><b>{recipientName}</b></div>
                         </div>
                       </div>
                     </footer>
