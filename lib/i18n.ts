@@ -98,6 +98,13 @@ const EN: Record<string, string> = {
   "Restablecer": "Reset",
   "Imprimir reporte": "Print report",
   "Imprimir página {n}": "Print page {n}",
+  "Imprimir / PDF": "Print / PDF",
+  "¿Qué páginas quieres incluir en el PDF?": "Which pages do you want to include in the PDF?",
+  "Cada página seleccionada sale en su propia hoja tamaño carta.": "Each selected page prints on its own letter-size sheet.",
+  "Cancelar": "Cancel",
+  "Generar PDF / Imprimir": "Generate PDF / Print",
+  "Selecciona al menos una página.": "Select at least one page.",
+  "Abrir el editor de páginas visuales": "Open the visual page editor",
 
   // ---- Workflow ----
   "Flujo del reporte": "Report workflow",

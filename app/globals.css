@@ -892,15 +892,17 @@ body::before { position: fixed; inset: 0; z-index: -1; pointer-events: none; bac
   .main-area { margin: 0 !important; }
   .page-content, .report-workspace, .designer-workspace { margin: 0 !important; padding: 0 !important; display: block !important; }
   .report-preview-wrap { border: 0 !important; background: #fff !important; box-shadow: none !important; }
-  .scout-report { width: 100% !important; max-width: none !important; margin: 0 !important; box-shadow: none !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .scout-report { width: 100% !important; max-width: none !important; height: 262mm !important; margin: 0 !important; box-shadow: none !important; overflow: hidden; break-after: page; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   .designer-stage { border: 0 !important; background: #fff !important; box-shadow: none !important; }
-  .visual-report-page { width: 100% !important; max-width: none !important; min-height: 270mm !important; margin: 0 !important; box-shadow: none !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .visual-report-page { width: 100% !important; max-width: none !important; height: 262mm !important; min-height: 0 !important; margin: 0 !important; box-shadow: none !important; overflow: hidden; break-after: page; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   .visual-block { break-inside: avoid; cursor: default !important; }
   .visual-block.selected { border-color: color-mix(in srgb, var(--designer-text) 14%, transparent) !important; box-shadow: 0 7px 18px color-mix(in srgb, var(--designer-text) 5%, transparent) !important; }
   .similarity-comparison-block { height: 530px !important; }
   .block-resize-handle { display: none !important; }
   .block-chrome .ui-icon, .block-chrome small { display: none !important; }
-  @page { size: A4 portrait; margin: 8mm; }
+  .print-dialog-overlay { display: none !important; }
+  .designer-workspace { break-inside: avoid; }
+  @page { size: letter portrait; margin: 8mm; }
 }
 
 /* ---- Selector de idioma (ES/EN) ---- */
@@ -942,3 +944,40 @@ body::before { position: fixed; inset: 0; z-index: -1; pointer-events: none; bac
 @media (max-width: 980px) {
   .sidebar-toggle { display: none; }
 }
+
+/* ---- Diálogo de impresión / PDF ---- */
+.print-dialog-overlay {
+  position: fixed; inset: 0; z-index: 90;
+  display: grid; place-items: center;
+  background: rgba(5, 10, 18, .62);
+  backdrop-filter: blur(4px);
+}
+.print-dialog {
+  width: min(420px, calc(100vw - 32px));
+  padding: 22px 22px 18px;
+  border: 1px solid rgba(148, 163, 184, .22);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(23, 30, 44, .99), rgba(13, 18, 28, .99));
+  color: #e7ecf5;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .5);
+}
+.print-dialog h3 { margin: 0 0 6px; font-size: 16px; }
+.print-dialog > p { margin: 0 0 14px; color: rgba(231, 236, 245, .62); font-size: 12px; }
+.print-dialog label {
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  display: flex; align-items: center; gap: 11px;
+  border: 1px solid rgba(148, 163, 184, .2);
+  border-radius: 11px;
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease;
+}
+.print-dialog label:hover { border-color: rgba(148, 163, 184, .45); }
+.print-dialog label.selected { border-color: rgba(94, 141, 255, .6); background: rgba(94, 141, 255, .1); }
+.print-dialog label input { accent-color: #5e8dff; width: 15px; height: 15px; }
+.print-dialog label b { display: block; font-size: 13px; }
+.print-dialog label small { display: block; margin-top: 1px; color: rgba(231, 236, 245, .55); font-size: 11px; }
+.print-dialog-actions { margin-top: 14px; display: flex; justify-content: flex-end; gap: 9px; }
+.print-dialog-note { display: block; margin-top: 9px; color: #f2b8b5; font-size: 11px; }
+.workflow-step-link { border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.workflow-step-link:disabled { cursor: default; opacity: .55; }

@@ -152,29 +152,43 @@ function drawStarPath(ctx: CanvasRenderingContext2D, cx: number, cy: number, out
   ctx.closePath();
 }
 
+const STAR_DIM = [56, 66, 88];
+const STAR_GOLD = [250, 204, 21];
+const STAR_INCANDESCENT = [255, 240, 158];
+
 function similarityStarColor(percentage: number) {
-  // La estrella pasa de apagada (azul grisáceo) a dorado encendido según el
-  // porcentaje: la iluminación ES el indicador, sin anillos ni contornos.
-  const from = [56, 66, 88];
-  const to = [250, 204, 21];
-  const mix = (index: number) => Math.round(from[index] + (to[index] - from[index]) * percentage / 100);
-  return `rgb(${mix(0)}, ${mix(1)}, ${mix(2)})`;
+  // La estrella pasa de apagada (azul grisáceo) a dorado y, cerca del 100%,
+  // a un dorado incandescente: la iluminación ES el indicador, sin anillos.
+  const blend = (from: number[], to: number[], amount: number) =>
+    `rgb(${from.map((channel, index) => Math.round(channel + (to[index] - channel) * amount)).join(", ")})`;
+  if (percentage <= 70) return blend(STAR_DIM, STAR_GOLD, percentage / 70);
+  return blend(STAR_GOLD, STAR_INCANDESCENT, (percentage - 70) / 30);
+}
+
+function similarityStarGlow(percentage: number) {
+  // Curva exponencial: el brillo despega en los porcentajes altos.
+  return Math.pow(percentage / 100, 1.8);
 }
 
 function drawCanvasSimilarityStar(ctx: CanvasRenderingContext2D, similarity: number, cx: number, cy: number, radius: number, theme: ReportTheme) {
   const percentage = Math.min(Math.max(Math.round(similarity), 0), 100);
-  const glow = percentage / 100;
+  const glow = similarityStarGlow(percentage);
   const innerRadius = radius * .46;
 
   ctx.save();
-  ctx.shadowColor = `rgba(250,204,21,${glow * .9})`;
-  ctx.shadowBlur = 3 + glow * 26;
+  ctx.shadowColor = `rgba(250,204,21,${Math.min(1, glow * 1.1)})`;
+  ctx.shadowBlur = 3 + glow * 34;
   drawStarPath(ctx, cx, cy, radius, innerRadius);
   ctx.fillStyle = similarityStarColor(percentage);
   ctx.fill();
-  if (glow > .55) {
-    // Segunda pasada para intensificar el brillo en similitudes altas.
-    ctx.shadowBlur = 10 + glow * 34;
+  if (glow > .3) {
+    // Pasadas extra: cerca del 100% la estrella queda incandescente.
+    ctx.shadowBlur = 12 + glow * 44;
+    ctx.fill();
+  }
+  if (glow > .7) {
+    ctx.shadowColor = `rgba(255,240,158,${glow})`;
+    ctx.shadowBlur = 20 + glow * 55;
     ctx.fill();
   }
   ctx.restore();
@@ -791,7 +805,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
 
 function SimilarityStarScore({ similarity }: { similarity: number }) {
   const percentage = Math.min(Math.max(Math.round(similarity), 0), 100);
-  const glow = percentage / 100;
+  const glow = similarityStarGlow(percentage);
   const isNearHundred = percentage >= 95;
   const reduceMotion = useReducedMotion();
 
@@ -802,7 +816,7 @@ function SimilarityStarScore({ similarity }: { similarity: number }) {
         aria-hidden="true"
         initial={false}
         animate={{
-          filter: `drop-shadow(0 0 ${2 + glow * 16}px rgba(250,204,21,${glow * .9})) drop-shadow(0 0 ${1 + glow * 5}px rgba(250,204,21,${glow * .65}))`,
+          filter: `drop-shadow(0 0 ${2 + glow * 22}px rgba(250,204,21,${Math.min(1, glow * 1.1)})) drop-shadow(0 0 ${1 + glow * 8}px rgba(255,240,158,${glow * .85}))`,
           scale: !reduceMotion && isNearHundred ? [1, 1.07, 1] : 1,
         }}
         transition={{

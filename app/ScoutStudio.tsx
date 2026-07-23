@@ -202,6 +202,9 @@ export default function ScoutStudio() {
   const [langLoaded, setLangLoaded] = useState(false);
   const [view, setView] = useState<View>("home");
   const [reportPage, setReportPage] = useState<ReportPage>(1);
+  const [printDialogOpen, setPrintDialogOpen] = useState(false);
+  const [printPages, setPrintPages] = useState<ReportPage[]>([1, 2, 3]);
+  const [printRun, setPrintRun] = useState<ReportPage[] | null>(null);
   const [mobileNav, setMobileNav] = useState(false);
   const [sidebarHidden, setSidebarHidden] = useState(false);
   const [reportRows, setReportRows] = useState<DataRow[]>([]);
@@ -289,6 +292,26 @@ export default function ScoutStudio() {
       window.localStorage.setItem("fos-scout-report-recipient-v1", JSON.stringify({ name: reportRecipientName, logoUrl: reportRecipientLogoUrl }));
     } catch { /* Sin persistencia el estudio sigue funcionando. */ }
   }, [langLoaded, reportRecipientName, reportRecipientLogoUrl]);
+
+  useEffect(() => {
+    if (!printRun) return;
+    // Las páginas seleccionadas ya están montadas: se imprime y se restaura la vista.
+    const timer = window.setTimeout(() => {
+      window.print();
+      setPrintRun(null);
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [printRun]);
+
+  function startPrint() {
+    if (!printPages.length) return;
+    setPrintDialogOpen(false);
+    setPrintRun([...printPages].sort((a, b) => a - b));
+  }
+
+  function togglePrintPage(page: ReportPage) {
+    setPrintPages((current) => current.includes(page) ? current.filter((item) => item !== page) : [...current, page]);
+  }
 
   useEffect(() => {
     if (!reportThemeLoaded) return;
@@ -526,7 +549,7 @@ export default function ScoutStudio() {
               <div><span className="kicker">Scout intelligence workspace</span><h1>{t("Convierte datos en")} <span>{t("decisiones de scouting.")}</span></h1><p>{t("Explora rendimiento, compara perfiles y construye reportes visuales listos para presentar.")}</p><div className="heading-chips"><span>{t("Percentiles posicionales")}</span><span>{t("1 o más bases")}</span><span>{t("Editor visual")}</span></div></div>
               <div className="heading-actions">
                 <button className="button secondary" onClick={resetReport}><RotateCcw size={16} /> {t("Restablecer")}</button>
-                <button className="button primary" onClick={() => window.print()} disabled={!report || !dataReady}><Printer size={16} /> {reportPage === 1 ? t("Imprimir reporte") : tf("Imprimir página {n}", { n: reportPage })}</button>
+                <button className="button primary" onClick={() => setPrintDialogOpen(true)} disabled={!report || !dataReady}><Printer size={16} /> {t("Imprimir / PDF")}</button>
               </div>
             </section>
 
@@ -541,7 +564,7 @@ export default function ScoutStudio() {
               <div className="workflow-line" />
               <div className={`workflow-step ${profileReady ? "complete" : report ? "active" : ""}`}><span>{profileReady ? <Check size={15} /> : "03"}</span><div><b>{t("03 · Perfil e imágenes")}</b><small>{t("Transfermarkt, logos y foto PNG")}</small></div></div>
               <div className="workflow-line" />
-              <div className={`workflow-step ${profileReady ? "active" : ""}`}><span>04</span><div><b>{t("04 · Diseñar informe")}</b><small>{t("Ficha, visuales y observaciones")}</small></div></div>
+              <button type="button" className={`workflow-step workflow-step-link ${reportPage !== 1 ? "complete" : profileReady ? "active" : ""}`} disabled={!report} onClick={() => setReportPage(2)} title={t("Abrir el editor de páginas visuales")}><span>{reportPage !== 1 ? <Check size={15} /> : "04"}</span><div><b>{t("04 · Diseñar informe")}</b><small>{t("Ficha, visuales y observaciones")}</small></div></button>
             </section>
 
             {!dataReady ? (
@@ -573,7 +596,7 @@ export default function ScoutStudio() {
                 <em>{t("ETAPA 04 · Las páginas 2 y 3 son totalmente editables")}</em>
               </nav>
 
-              {reportPage === 1 ? <div className="report-workspace">
+              {(printRun ? printRun.includes(1) : reportPage === 1) ? <div className="report-workspace">
                 <section className="control-panel enrichment-controls">
                   <div className="panel-title"><div><span className="mini-icon"><FileSpreadsheet size={17} /></span><div><h2>{t("1. Base de datos activa")}</h2><p>{t(reportFileName)}</p></div></div><span className="tiny-state">{t("LISTO")}</span></div>
                   <button className="upload-box compact" onClick={() => reportInputRef.current?.click()} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); onReportFiles(event.dataTransfer.files); }}>
@@ -715,7 +738,32 @@ export default function ScoutStudio() {
                     </footer>
                   </article> : <div className="empty-preview">{t("Selecciona un jugador para generar el informe.")}</div>}
                 </section>
-              </div> : report ? <ReportPageDesigner pageNumber={reportPage} player={report.player} team={profile.club || report.team} position={formatPlayerPositions(profile.position || report.position)} theme={reportTheme} onThemeChange={setReportTheme} /> : <div className="empty-preview">{t("Selecciona un jugador para diseñar las páginas.")}</div>}
+              </div> : null}
+              {report ? ([2, 3] as const).filter((page) => printRun ? printRun.includes(page) : reportPage === page).map((page) => (
+                <ReportPageDesigner key={page} pageNumber={page} player={report.player} team={profile.club || report.team} position={formatPlayerPositions(profile.position || report.position)} theme={reportTheme} onThemeChange={setReportTheme} />
+              )) : !printRun && reportPage !== 1 ? <div className="empty-preview">{t("Selecciona un jugador para diseñar las páginas.")}</div> : null}
+
+              {printDialogOpen && <div className="print-dialog-overlay" role="dialog" aria-modal="true" aria-label={t("¿Qué páginas quieres incluir en el PDF?")} onClick={() => setPrintDialogOpen(false)}>
+                <div className="print-dialog" onClick={(event) => event.stopPropagation()}>
+                  <h3>{t("¿Qué páginas quieres incluir en el PDF?")}</h3>
+                  <p>{t("Cada página seleccionada sale en su propia hoja tamaño carta.")}</p>
+                  {([
+                    [1, t("Ficha y radar"), t("Estilo Jordhy Thompson")],
+                    [2, t("Visuales"), t("Mapas e imágenes")],
+                    [3, t("Observaciones"), t("Texto y contexto")],
+                  ] as Array<[ReportPage, string, string]>).map(([page, title, hint]) => (
+                    <label key={page} className={printPages.includes(page) ? "selected" : ""}>
+                      <input type="checkbox" checked={printPages.includes(page)} onChange={() => togglePrintPage(page)} />
+                      <span><b>0{page} · {title}</b><small>{hint}</small></span>
+                    </label>
+                  ))}
+                  <div className="print-dialog-actions">
+                    <button className="button secondary" onClick={() => setPrintDialogOpen(false)}>{t("Cancelar")}</button>
+                    <button className="button primary" onClick={startPrint} disabled={!printPages.length}><Printer size={15} /> {t("Generar PDF / Imprimir")}</button>
+                  </div>
+                  {!printPages.length && <small className="print-dialog-note">{t("Selecciona al menos una página.")}</small>}
+                </div>
+              </div>}
             </>}
           </div>
         ) : (
