@@ -3,6 +3,9 @@
 Aplicación web personal para crear reportes de scouting a partir de archivos
 Excel y consolidar entre una y tres bases con ponderaciones estadísticas.
 
+La plataforma abre con una landing retrofuturista de scouting intelligence,
+con accesos directos al creador de reportes y al consolidador de datos.
+
 ## Prerequisites
 
 - Node.js `>=22.13.0`

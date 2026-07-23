@@ -38,7 +38,7 @@ import {
 } from "@/lib/scouting";
 import type { TransfermarktProfile } from "@/lib/transfermarkt";
 
-type View = "reports" | "seasons";
+type View = "home" | "reports" | "seasons";
 type ReportPage = 1 | 2 | 3;
 
 function readWorkbook(file: File): Promise<SourceDataset> {
@@ -94,8 +94,59 @@ function ReportImage({ src, alt, className }: { src: string; alt: string; classN
   return <img src={src} alt={alt} className={className} />;
 }
 
+function LandingPage({ onReports, onMerge }: { onReports: () => void; onMerge: () => void }) {
+  return <div className="landing-page">
+    <section className="landing-hero">
+      <div className="landing-copy">
+        <div className="system-badge"><span /> SYSTEM ONLINE <i>SCOUT.OS / 04</i></div>
+        <span className="landing-kicker">SCOUTING INTELLIGENCE PLATFORM</span>
+        <h1>LEE EL JUEGO.<br /><em>ANTES QUE LOS DEMÁS.</em></h1>
+        <p>Fusiona datos, descubre perfiles y transforma cada señal en un reporte de scouting listo para decidir.</p>
+        <div className="landing-actions">
+          <button className="neon-button primary-neon" onClick={onReports}><BarChart3 size={17} /> Crear reporte <span>↗</span></button>
+          <button className="neon-button secondary-neon" onClick={onMerge}><Merge size={17} /> Combinar datos</button>
+        </div>
+        <div className="landing-stats">
+          <div><strong>01—03</strong><span>BASES SIMULTÁNEAS</span></div>
+          <div><strong>100%</strong><span>PROCESAMIENTO LOCAL</span></div>
+          <div><strong>03</strong><span>PÁGINAS EDITABLES</span></div>
+        </div>
+      </div>
+
+      <div className="landing-visual" role="img" aria-label="Radar holográfico tridimensional de análisis de jugadores">
+        <span className="visual-tag tag-top">LIVE ANALYSIS</span>
+        <span className="visual-tag tag-side">POSITION / WING</span>
+        <div className="holo-scene" aria-hidden="true">
+          <div className="holo-floor"><i /><i /><i /><i /></div>
+          <div className="orbit orbit-one"><i /><i /><i /></div>
+          <div className="orbit orbit-two"><i /><i /></div>
+          <div className="orbit orbit-three"><i /></div>
+          <div className="holo-core"><span /><b>87</b><small>FIT INDEX</small></div>
+          <div className="scan-line" />
+          <div className="data-node node-a"><i /><span>PROGRESSION<br /><b>92</b></span></div>
+          <div className="data-node node-b"><i /><span>1V1 IMPACT<br /><b>84</b></span></div>
+          <div className="data-node node-c"><i /><span>CREATION<br /><b>78</b></span></div>
+        </div>
+        <div className="floating-card card-player"><span>PROFILE_021</span><b>ELITE SIGNAL</b><i>+12.8%</i></div>
+        <div className="floating-card card-data"><span>DATA POINTS</span><b>24.8K</b><i>SYNCED</i></div>
+      </div>
+    </section>
+
+    <div className="signal-marquee" aria-hidden="true"><div><span>DATA FUSION</span><i>◆</i><span>POSITIONAL PERCENTILES</span><i>◆</i><span>TRANSFERMARKT ENRICHMENT</span><i>◆</i><span>VISUAL REPORT BUILDER</span><i>◆</i><span>DATA FUSION</span></div></div>
+
+    <section className="landing-capabilities">
+      <div className="capability-heading"><span>CORE MODULES / 03</span><h2>DE LA SEÑAL A LA DECISIÓN.</h2><p>Un flujo conectado, diseñado para trabajar rápido sin sacrificar profundidad.</p></div>
+      <div className="capability-grid">
+        <button onClick={onMerge} className="capability-card"><span className="capability-index">01</span><span className="capability-icon"><Files size={22} /></span><h3>DATA FUSION</h3><p>Combina ligas o temporadas con ponderaciones inteligentes y úsalo directamente en el informe.</p><b>COMBINAR BASES ↗</b></button>
+        <button onClick={onReports} className="capability-card featured"><span className="capability-index">02</span><span className="capability-icon"><Sparkles size={22} /></span><h3>PROFILE INTEL</h3><p>Percentiles posicionales, Transfermarkt, logos y retrato transparente en una sola ficha.</p><b>EXPLORAR PERFILES ↗</b></button>
+        <button onClick={onReports} className="capability-card"><span className="capability-index">03</span><span className="capability-icon"><LayoutDashboard size={22} /></span><h3>REPORT BUILDER</h3><p>Construye páginas visuales con imágenes, comentarios, grids y estilos completamente editables.</p><b>CREAR REPORTE ↗</b></button>
+      </div>
+    </section>
+  </div>;
+}
+
 export default function ScoutStudio() {
-  const [view, setView] = useState<View>("reports");
+  const [view, setView] = useState<View>("home");
   const [reportPage, setReportPage] = useState<ReportPage>(1);
   const [mobileNav, setMobileNav] = useState(false);
   const [reportRows, setReportRows] = useState<DataRow[]>([]);
@@ -274,6 +325,7 @@ export default function ScoutStudio() {
   }
 
   const navItems = [
+    { id: "home" as const, label: "Inicio", hint: "Scouting platform", icon: LayoutDashboard },
     { id: "reports" as const, label: "Reportes", hint: "Radar y percentiles", icon: BarChart3 },
     { id: "seasons" as const, label: "Combinar bases", hint: "1 a 3 archivos", icon: Merge },
   ];
@@ -307,11 +359,11 @@ export default function ScoutStudio() {
       <main className="main-area">
         <header className="topbar">
           <button className="menu-button" onClick={() => setMobileNav(true)} aria-label="Abrir menú"><Menu size={20} /></button>
-          <div className="breadcrumb"><LayoutDashboard size={15} /><span>Scout Lab</span><span>/</span><strong>{view === "reports" ? "Reportes" : "Combinar bases"}</strong></div>
+          <div className="breadcrumb"><LayoutDashboard size={15} /><span>Scout Lab</span><span>/</span><strong>{view === "home" ? "Inicio" : view === "reports" ? "Reportes" : "Combinar bases"}</strong></div>
           <div className="top-actions"><span className="privacy-pill"><LockKeyhole size={14} /> Solo tú</span><button className="icon-button" aria-label="Ayuda" title="Los datos nunca salen del navegador"><CircleHelp size={18} /></button></div>
         </header>
 
-        {view === "reports" ? (
+        {view === "home" ? <LandingPage onReports={() => setView("reports")} onMerge={() => setView("seasons")} /> : view === "reports" ? (
           <div className="page-content reports-page">
             <section className="page-heading">
               <div><span className="kicker">Scout intelligence workspace</span><h1>Convierte datos en <span>decisiones de scouting.</span></h1><p>Explora rendimiento, compara perfiles y construye reportes visuales listos para presentar.</p><div className="heading-chips"><span>Percentiles posicionales</span><span>1–3 bases</span><span>Editor visual</span></div></div>

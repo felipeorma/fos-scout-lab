@@ -13,21 +13,22 @@ async function request(path = "/", init) {
   );
 }
 
-test("renderiza FOS Scout Lab con sus dos flujos", async () => {
+test("renderiza la plataforma FOS Scout Lab y sus accesos principales", async () => {
   const response = await request();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
   assert.match(html, /<title>FOS Scout Lab \| Reportes de scouting<\/title>/i);
-  assert.match(html, /Convierte datos en/);
-  assert.match(html, /decisiones de scouting/);
+  assert.match(html, /LEE EL JUEGO/);
+  assert.match(html, /ANTES QUE LOS DEMÁS/);
+  assert.match(html, /Crear reporte/);
+  assert.match(html, /Combinar datos/);
+  assert.match(html, /DATA FUSION/);
+  assert.match(html, /PROFILE INTEL/);
+  assert.match(html, /REPORT BUILDER/);
   assert.match(html, /Combinar bases/);
   assert.match(html, /1 a 3 archivos/);
-  assert.match(html, /01 · Cargar datos/);
-  assert.match(html, /02 · Completar perfil/);
-  assert.match(html, /Transfermarkt, logos y foto PNG/);
-  assert.match(html, /Comienza cargando los datos/);
   assert.match(html, /Los archivos se procesan localmente/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|react-loading-skeleton/i);
 });
