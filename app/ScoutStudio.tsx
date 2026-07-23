@@ -644,7 +644,10 @@ export default function ScoutStudio() {
                       </div>
                       <div className="dossier-info">
                         <div className="dossier-topline">
-                          <div className="competition-lockup">{profile.leagueLogo && <ReportImage src={profile.leagueLogo} alt={profile.league || "Liga"} className="dossier-league-logo" />}<span>{profile.league || "Competición"} · {profile.club || report.team}</span></div>
+                          <div className="competition-lockup">
+                            {profile.leagueLogo && <ReportImage src={profile.leagueLogo} alt={profile.league || "Liga"} className="dossier-league-logo" />}
+                            <div className="competition-copy"><span>{profile.league || "Competición"}</span><strong>{profile.club || report.team}</strong></div>
+                          </div>
                           <div className="market-lockup"><small>VALOR DE MERCADO</small><strong>{profile.marketValue || "—"}</strong><span>TRANSFERMARKT</span></div>
                         </div>
                         <h2>{report.player}</h2>
