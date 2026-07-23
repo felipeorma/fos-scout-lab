@@ -110,3 +110,18 @@ export function roleCohort(role: PositionRole | null) {
   if (role === "Forward") return "CF";
   return "OTHER";
 }
+
+const COHORT_POSITION_LABELS: Record<string, PositionRole> = {
+  GK: "Goalkeeper",
+  CB: "Defender",
+  FB: "Fullback",
+  MID: "Defensive Midfielder",
+  WING: "Wingers",
+  AM: "Attack Midfielder",
+  CF: "Forward",
+};
+
+export function selectedCohortPosition(cohort: string, detectedPosition: string) {
+  if (cohort === "AUTO") return detectedPosition;
+  return COHORT_POSITION_LABELS[cohort] ?? detectedPosition;
+}

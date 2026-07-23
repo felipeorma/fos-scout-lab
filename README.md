@@ -92,8 +92,13 @@ Los Excel se procesan completamente en el navegador. No se suben a un servidor.
    también se pueden reemplazar pegando un link directo o cargando archivos PNG,
    WEBP o JPG desde el ordenador. La vista previa y el informe se actualizan al
    aplicar cada fuente.
-   La foto del jugador puede procesarse con `@imgly/background-removal@1.4.5`
-   para eliminar el fondo mediante IA directamente en el navegador.
+   La foto del jugador puede procesarse con IA para eliminar el fondo. Si el
+   servidor local de rembg está corriendo (`npm run bg:server`), se usa el
+   modelo BiRefNet portrait, de máxima calidad; si no, la app cae
+   automáticamente al modelo `medium` de `@imgly/background-removal` en el
+   navegador, con refinado de máscara para no recortar de más al jugador.
+   Instalación del servidor (una sola vez):
+   `python3.11 -m venv ~/.rembg-venv && ~/.rembg-venv/bin/pip install "rembg[cpu,cli]"`.
 4. **Diseñar reporte:** revisar la ficha imprimible inspirada en
    `Radar Jordhy Thompson v2`, y editar las páginas de visuales y observaciones.
    La etiqueta “Base analizada” y el nombre de la liga o temporada también son

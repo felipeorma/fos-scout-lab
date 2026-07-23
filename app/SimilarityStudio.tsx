@@ -16,6 +16,7 @@ import { formatPlayerPositions, type PlayerPosition } from "@/lib/positions";
 import { SIMILARITY_METRIC_GROUPS, similarityMetricGroup } from "@/lib/similarityMetricGroups";
 import { createEmptyTransfermarktProfile, type TransfermarktProfile } from "@/lib/transfermarkt";
 import { removePlayerImageBackground } from "@/lib/playerImageBackground";
+import { fetchTransfermarktProfile, proxiedImageUrl } from "@/lib/remoteData";
 
 type TargetOption = { index: number; player: string; team: string };
 type ProfileSide = "target" | "candidate";
@@ -97,13 +98,14 @@ function fitText(ctx: CanvasRenderingContext2D, value: string, maxWidth: number)
 }
 
 function canvasImageSource(src: string) {
-  return src.startsWith("data:image/") || src.startsWith("/") ? src : `/api/image?url=${encodeURIComponent(src)}`;
+  return src.startsWith("data:image/") || src.startsWith("/") ? src : proxiedImageUrl(src);
 }
 
 function loadCanvasImage(src: string) {
   return new Promise<HTMLImageElement | null>((resolve) => {
     if (!src) return resolve(null);
     const image = new Image();
+    image.crossOrigin = "anonymous";
     image.onload = () => resolve(image);
     image.onerror = () => resolve(null);
     image.src = canvasImageSource(src);
@@ -461,9 +463,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, targets, the
     setProfileBusy(side);
     setProfileStatus((status) => ({ ...status, [side]: "Leyendo datos e imágenes…" }));
     try {
-      const response = await fetch("/api/transfermarkt", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ url }) });
-      const result = await response.json() as Partial<TransfermarktProfile> & { error?: string };
-      if (!response.ok) throw new Error(result.error || "No se pudo leer el perfil.");
+      const result = await fetchTransfermarktProfile(url);
       const populated = Object.fromEntries(Object.entries(result).filter(([, value]) => value !== "" && value !== undefined));
       const next = { ...current, ...populated, sourceUrl: url } as TransfermarktProfile;
       saveProfile(side, playerName, next);

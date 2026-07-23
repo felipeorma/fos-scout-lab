@@ -8,6 +8,7 @@ import {
   positionRoles,
   primaryPositionRole,
   roleCohort,
+  selectedCohortPosition,
 } from "../lib/positions.ts";
 import { similarityMetricGroup } from "../lib/similarityMetricGroups.ts";
 
@@ -29,6 +30,12 @@ test("acepta abreviaturas y nombres completos del mapa Wyscout", () => {
 
 test("al combinar temporadas conserva primero las posiciones de la base más reciente", () => {
   assert.equal(mergePlayerPositions(["RWF, AMF", "CF, RWF"]), "RWF, AMF, CF");
+});
+
+test("la posición de la ficha sigue la cohorte seleccionada manualmente", () => {
+  assert.equal(selectedCohortPosition("CF", "Defensive Midfielder (DMF)"), "Forward");
+  assert.equal(selectedCohortPosition("WING", "Forward (CF)"), "Wingers");
+  assert.equal(selectedCohortPosition("AUTO", "Defender (CB)"), "Defender (CB)");
 });
 
 test("separa finalización y defensa en grupos visuales distintos", () => {

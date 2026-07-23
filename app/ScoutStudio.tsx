@@ -37,8 +37,9 @@ import {
   type SourceDataset,
 } from "@/lib/scouting";
 import type { TransfermarktProfile } from "@/lib/transfermarkt";
-import { formatPlayerPositions } from "@/lib/positions";
+import { formatPlayerPositions, selectedCohortPosition } from "@/lib/positions";
 import { removePlayerImageBackground } from "@/lib/playerImageBackground";
+import { fetchTransfermarktProfile } from "@/lib/remoteData";
 import { SIMILARITY_METRIC_GROUPS, similarityMetricGroup } from "@/lib/similarityMetricGroups";
 
 type View = "home" | "reports" | "similarity";
@@ -316,13 +317,7 @@ export default function ScoutStudio() {
     setTransfermarktLoading(true);
     setTransfermarktError("");
     try {
-      const response = await fetch("/api/transfermarkt", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ url: transfermarktUrl.trim() }),
-      });
-      const result = await response.json() as Partial<TransfermarktProfile> & { error?: string };
-      if (!response.ok) throw new Error(result.error || "No se pudo leer el perfil.");
+      const result = await fetchTransfermarktProfile(transfermarktUrl.trim());
       setProfile((current) => {
         const populated = Object.fromEntries(Object.entries(result).filter(([, value]) => value !== "" && value !== undefined));
         return { ...current, ...populated, sourceUrl: transfermarktUrl.trim() };
@@ -619,7 +614,7 @@ export default function ScoutStudio() {
                           <div className="market-lockup"><small>VALOR DE MERCADO</small><strong>{profile.marketValue || "—"}</strong><ReportImage src={TRANSFERMARKT_LOGO} alt="Transfermarkt" className="market-transfermarkt-logo" /></div>
                         </div>
                         <h2>{report.player}</h2>
-                        <div className="identity-line"><b>{formatPlayerPositions(profile.position || report.position)}</b><span>{profile.citizenship || report.passport}</span></div>
+                        <div className="identity-line"><b>{selectedCohortPosition(cohort, formatPlayerPositions(profile.position || report.position))}</b><span>{profile.citizenship || report.passport}</span></div>
                         <div className="dossier-meta-grid">
                           <div><span>Nacimiento</span><b>{profile.birthDate || "—"}{profile.age || report.age !== "—" ? ` · ${profile.age || report.age}a` : ""}</b></div>
                           <div><span>Lugar</span><b>{profile.birthPlace || "—"}</b></div>
