@@ -167,6 +167,28 @@ export function ReportPageDesigner({ pageNumber, player, team, position }: { pag
     setSelectedId(id);
   }
 
+  function addImageComment(placement: "below" | "side") {
+    if (!selected || selected.type !== "image") return;
+    const id = `p${pageNumber}-comment-${Date.now()}`;
+    setConfig((current) => {
+      const columns = placement === "side" ? Math.max(2, current.columns) : current.columns;
+      const imageSpan = placement === "side" ? Math.max(1, columns - 1) : columns;
+      const commentSpan = placement === "side" ? 1 : columns;
+      const sourceIndex = current.blocks.findIndex((block) => block.id === selected.id);
+      const blocks = current.blocks.map((block) => block.id === selected.id ? { ...block, span: imageSpan } : block);
+      const comment = textBlock(
+        id,
+        `Comentario · ${selected.title || "Imagen"}`,
+        "Escribe aquí la observación o el contexto de esta imagen…",
+        commentSpan,
+        placement === "side" ? selected.height : 150,
+      );
+      blocks.splice(sourceIndex + 1, 0, comment);
+      return { ...current, columns, blocks };
+    });
+    setSelectedId(id);
+  }
+
   function removeSelected() {
     if (!selected) return;
     const index = config.blocks.findIndex((block) => block.id === selected.id);
@@ -264,7 +286,10 @@ export function ReportPageDesigner({ pageNumber, player, team, position }: { pag
           <div className="span-buttons"><span className="field-label">Ancho</span><div>{Array.from({ length: config.columns }, (_, index) => index + 1).map((span) => <button key={span} className={clampSpan(selected.span, config.columns) === span ? "active" : ""} onClick={() => patchSelected({ span })}>{span === config.columns ? "Completo" : `${span}/${config.columns}`}</button>)}</div></div>
           <label className="range-row block-height"><span>Alto del espacio <b>{selected.height}px</b></span><input type="range" min="140" max="620" step="10" value={selected.height} onChange={(event) => patchSelected({ height: Number(event.target.value) })} /></label>
 
-          {selected.type === "image" ? <div className="image-options"><span className="field-label">Ajuste de imagen</span><div className="segmented"><button className={selected.fit === "contain" ? "active" : ""} onClick={() => patchSelected({ fit: "contain" })}>Completa</button><button className={selected.fit === "cover" ? "active" : ""} onClick={() => patchSelected({ fit: "cover" })}>Recorta</button></div></div> : <>
+          {selected.type === "image" ? <div className="image-options">
+            <span className="field-label">Ajuste de imagen</span><div className="segmented"><button className={selected.fit === "contain" ? "active" : ""} onClick={() => patchSelected({ fit: "contain" })}>Completa</button><button className={selected.fit === "cover" ? "active" : ""} onClick={() => patchSelected({ fit: "cover" })}>Recorta</button></div>
+            <div className="image-comment-tools"><span className="field-label">Agregar comentario a esta imagen</span><div><button onClick={() => addImageComment("below")}><TextIcon size={15} /><span><b>Debajo</b><small>Imagen arriba, texto abajo</small></span></button><button onClick={() => addImageComment("side")}><Columns size={15} /><span><b>Al lado</b><small>Imagen y texto en columnas</small></span></button></div><p>Se crea un bloque de texto independiente que puedes editar, mover y redimensionar.</p></div>
+          </div> : <>
             <label className="field-group"><span className="field-label">Contenido</span><textarea className="designer-textarea" value={selected.content} onChange={(event) => patchSelected({ content: event.target.value })} /></label>
             <div className="text-toolbar"><button className={selected.bold ? "active" : ""} onClick={() => patchSelected({ bold: !selected.bold })}><b>B</b></button><button className={selected.italic ? "active" : ""} onClick={() => patchSelected({ italic: !selected.italic })}><i>I</i></button><select value={selected.font} onChange={(event) => patchSelected({ font: event.target.value })}>{FONT_OPTIONS.map((font) => <option key={font.value} value={font.value}>{font.label}</option>)}</select><input type="color" value={selected.color} onChange={(event) => patchSelected({ color: event.target.value })} title="Color de texto" /></div>
             <label className="range-row"><span>Tamaño de letra <b>{selected.fontSize}px</b></span><input type="range" min="11" max="42" value={selected.fontSize} onChange={(event) => patchSelected({ fontSize: Number(event.target.value) })} /></label>

@@ -28,6 +28,7 @@ Las páginas 2 y 3 del reporte incluyen un editor local con:
 
 - plantillas de una, dos o tres columnas;
 - bloques de imagen y texto que se pueden agregar, eliminar y reordenar;
+- comentarios independientes debajo o al lado de cualquier imagen cargada;
 - arrastre de bloques y controles alternativos para moverlos;
 - ancho, alto y separación ajustables;
 - temas de color y colores personalizados;
