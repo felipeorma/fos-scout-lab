@@ -338,6 +338,8 @@ export default function ScoutStudio() {
   }
 
   function selectPlayer(index: number) {
+    const option = players.find((player) => player.index === index);
+    if (option) setSelectedTeam(option.team);
     setSelectedPlayer(index);
     const restored = restoreProfile(buildPlayerReport(reportRows, index, minimumMinutes, cohort));
     setProfile(restored.profile);
@@ -674,7 +676,21 @@ export default function ScoutStudio() {
             </>}
           </div>
         ) : (
-          <SimilarityStudio rows={reportRows} selectedIndex={selectedPlayer} sourceName={reportFileName} targets={players} onSelectTarget={selectPlayer} onOpenReports={() => { setReportPage(2); setView("reports"); }} />
+          <SimilarityStudio
+            rows={reportRows}
+            selectedIndex={selectedPlayer}
+            sourceName={reportFileName}
+            targets={players}
+            theme={reportTheme}
+            targetProfile={profile}
+            recipientName={reportRecipientName}
+            recipientLogoUrl={reportRecipientLogoUrl}
+            onSelectTarget={selectPlayer}
+            onTargetProfileChange={(nextProfile) => { setProfile(nextProfile); setTransfermarktUrl(nextProfile.sourceUrl); }}
+            onRecipientNameChange={setReportRecipientName}
+            onRecipientLogoChange={setReportRecipientLogoUrl}
+            onOpenReports={() => { setReportPage(2); setView("reports"); }}
+          />
         )}
       </main>
     </div>

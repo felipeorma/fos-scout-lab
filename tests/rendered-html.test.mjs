@@ -45,3 +45,9 @@ test("rechaza URLs ajenas a Transfermarkt", async () => {
   assert.equal(response.status, 400);
   assert.match(await response.text(), /URL válida de un perfil de Transfermarkt/);
 });
+
+test("el proxy de imágenes rechaza direcciones locales", async () => {
+  const response = await request("/api/image?url=http%3A%2F%2Flocalhost%2Flogo.png", { headers: { accept: "application/json" } });
+  assert.equal(response.status, 400);
+  assert.match(await response.text(), /URL HTTP o HTTPS pública/);
+});

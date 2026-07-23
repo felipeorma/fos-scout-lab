@@ -47,6 +47,13 @@ como un bloque editable en la Página 2 del reporte. Esta arquitectura permite
 incorporar después embeddings de vídeo, redes de pases, Transformers o Graph
 Neural Networks cuando existan modelos y fuentes multimodales reales.
 
+La lámina de similitud comparte automáticamente la paleta activa del reporte e
+incluye un radar superpuesto P0–P100, comparación métrica a métrica, firma de
+Felipe y el nombre/logo del club destinatario. Cada uno de los dos jugadores
+acepta su propio enlace de Transfermarkt para extraer foto, escudo, club, valor
+de mercado y datos biográficos; la foto y el escudo también se pueden descargar
+por separado.
+
 ## Editor visual de páginas
 
 Las páginas 2 y 3 del reporte incluyen un editor local con:

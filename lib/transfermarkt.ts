@@ -48,6 +48,10 @@ const EMPTY_PROFILE: TransfermarktProfile = {
   lastUpdate: "",
 };
 
+export function createEmptyTransfermarktProfile(seed: Partial<TransfermarktProfile> = {}): TransfermarktProfile {
+  return { ...EMPTY_PROFILE, ...seed };
+}
+
 function decode(value: string) {
   return value
     .replace(/&nbsp;|&#160;/gi, " ")
