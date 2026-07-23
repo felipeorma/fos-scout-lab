@@ -42,6 +42,13 @@ import type { TransfermarktProfile } from "@/lib/transfermarkt";
 type View = "home" | "reports" | "seasons";
 type ReportPage = 1 | 2 | 3;
 type ReportFileMode = "single" | "combine" | "replace";
+type ProfileAssetField = "playerImage" | "clubLogo" | "leagueLogo";
+
+const PROFILE_ASSETS: Array<{ field: ProfileAssetField; label: string; linkLabel: string }> = [
+  { field: "playerImage", label: "Foto del jugador", linkLabel: "Jugador" },
+  { field: "clubLogo", label: "Escudo del club", linkLabel: "Escudo" },
+  { field: "leagueLogo", label: "Logo de la liga", linkLabel: "Liga" },
+];
 
 function readWorkbook(file: File): Promise<SourceDataset> {
   return file.arrayBuffer().then((buffer) => {
@@ -205,6 +212,7 @@ export default function ScoutStudio() {
   const [transfermarktError, setTransfermarktError] = useState("");
   const [backgroundRemoving, setBackgroundRemoving] = useState(false);
   const [backgroundRemovalStatus, setBackgroundRemovalStatus] = useState("");
+  const [assetSourceStatus, setAssetSourceStatus] = useState("");
   const [seasonFiles, setSeasonFiles] = useState<SourceDataset[]>([]);
   const [mergeResult, setMergeResult] = useState<AggregationResult | null>(null);
   const [mergeError, setMergeError] = useState("");
@@ -225,7 +233,7 @@ export default function ScoutStudio() {
     [reportRows, selectedPlayer, minimumMinutes, cohort],
   );
   const dataReady = reportRows.length > 0;
-  const profileReady = Boolean(profile.sourceUrl || profile.playerImage || profile.clubLogo);
+  const profileReady = Boolean(profile.sourceUrl || profile.playerImage || profile.clubLogo || profile.leagueLogo);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -294,6 +302,7 @@ export default function ScoutStudio() {
       setProfile(restored.profile);
       setTransfermarktUrl(restored.url);
       setBackgroundRemovalStatus("");
+      setAssetSourceStatus("");
     } catch (error) {
       setReportError(error instanceof Error ? error.message : "No se pudieron leer los archivos.");
     } finally {
@@ -339,6 +348,7 @@ export default function ScoutStudio() {
         return { ...current, ...populated, sourceUrl: transfermarktUrl.trim() };
       });
       setBackgroundRemovalStatus("");
+      if (result.playerImage || result.clubLogo || result.leagueLogo) setAssetSourceStatus("✓ Imágenes actualizadas desde Transfermarkt.");
     } catch (error) {
       setTransfermarktError(error instanceof Error ? error.message : "No se pudo leer el perfil.");
     } finally {
@@ -357,6 +367,7 @@ export default function ScoutStudio() {
     setTransfermarktUrl(restored.url);
     setTransfermarktError("");
     setBackgroundRemovalStatus("");
+    setAssetSourceStatus("");
   }
 
   function selectTeam(team: string) {
@@ -365,14 +376,30 @@ export default function ScoutStudio() {
     if (firstPlayer) selectPlayer(firstPlayer.index);
   }
 
-  function loadProfileAsset(field: "playerImage" | "clubLogo" | "leagueLogo", file?: File) {
+  function loadProfileAsset(field: ProfileAssetField, file?: File) {
     if (!file || !file.type.startsWith("image/")) return;
     const reader = new FileReader();
     reader.onload = () => {
       updateProfile(field, String(reader.result ?? ""));
+      const label = PROFILE_ASSETS.find((asset) => asset.field === field)?.label ?? "Imagen";
+      setAssetSourceStatus(`✓ ${label} cargada desde el ordenador.`);
       if (field === "playerImage") setBackgroundRemovalStatus("Imagen cargada. Puedes quitar el fondo con IA.");
     };
     reader.readAsDataURL(file);
+  }
+
+  function applyProfileAssetUrl(field: ProfileAssetField, value: string) {
+    const url = value.trim();
+    try {
+      const parsed = new URL(url);
+      if (!/^https?:$/.test(parsed.protocol)) throw new Error();
+      updateProfile(field, parsed.href);
+      const label = PROFILE_ASSETS.find((asset) => asset.field === field)?.label ?? "Imagen";
+      setAssetSourceStatus(`✓ Link aplicado a ${label.toLowerCase()}.`);
+      if (field === "playerImage") setBackgroundRemovalStatus("Imagen enlazada. Puedes quitar el fondo con IA.");
+    } catch {
+      setAssetSourceStatus("Ingresa un link de imagen válido que comience con http:// o https://.");
+    }
   }
 
   async function removePlayerBackground() {
@@ -428,6 +455,7 @@ export default function ScoutStudio() {
       setTransfermarktUrl(restored.url);
       setTransfermarktError("");
       setBackgroundRemovalStatus("");
+      setAssetSourceStatus("");
       setView("reports");
     } catch (error) {
       setMergeResult(null);
@@ -450,6 +478,7 @@ export default function ScoutStudio() {
     setTransfermarktUrl("");
     setTransfermarktError("");
     setBackgroundRemovalStatus("");
+    setAssetSourceStatus("");
   }
 
   const navItems = [
@@ -567,12 +596,30 @@ export default function ScoutStudio() {
                   <button className="button primary extract-button" onClick={extractTransfermarktProfile} disabled={transfermarktLoading}><Sparkles size={15} /> {transfermarktLoading ? "Extrayendo perfil…" : "Extraer datos, logos y foto"}</button>
                   {transfermarktError && <div className="inline-error">{transfermarktError}</div>}
                   <div className="asset-grid">
-                    {([['playerImage', 'Jugador PNG', profile.playerImage], ['clubLogo', 'Escudo', profile.clubLogo], ['leagueLogo', 'Liga', profile.leagueLogo]] as const).map(([field, label, src]) => <label className={`asset-upload ${src ? "has-asset" : ""}`} key={field}>
-                      {src ? <ReportImage src={src} alt={label} className="asset-preview" /> : <ImageIcon size={21} />}
-                      <span>{label}</span><small>{src ? "Cambiar" : "Subir"}</small>
-                      <input type="file" accept="image/png,image/webp,image/jpeg" hidden onChange={(event) => loadProfileAsset(field, event.target.files?.[0])} />
-                    </label>)}
+                    {PROFILE_ASSETS.map(({ field, linkLabel }) => {
+                      const src = profile[field];
+                      return <div className={`asset-upload ${src ? "has-asset" : ""}`} key={field}>
+                        {src ? <ReportImage src={src} alt={linkLabel} className="asset-preview" /> : <ImageIcon size={21} />}
+                        <span>{linkLabel}</span><small>{src ? "Vista previa" : "Sin imagen"}</small>
+                      </div>;
+                    })}
                   </div>
+                  <div className="asset-source-editor">
+                    <div className="asset-source-heading"><b>Reemplazar imágenes</b><small>Pega un link directo o carga un archivo desde tu ordenador.</small></div>
+                    {PROFILE_ASSETS.map(({ field, label, linkLabel }) => {
+                      const src = profile[field];
+                      const remoteSource = /^https?:\/\//i.test(src) ? src : "";
+                      return <form className="asset-source-row" key={field} onSubmit={(event) => { event.preventDefault(); const data = new FormData(event.currentTarget); applyProfileAssetUrl(field, String(data.get("assetUrl") ?? "")); }}>
+                        <span className="asset-source-name">{linkLabel}</span>
+                        <div className="asset-source-actions">
+                          <input key={`${report?.player ?? "jugador"}-${field}-${remoteSource || "local"}`} name="assetUrl" type="url" inputMode="url" defaultValue={remoteSource} placeholder="https://imagen..." aria-label={`Link para ${label.toLowerCase()}`} required />
+                          <button type="submit">Usar link</button>
+                          <label><Upload size={13} /><span>Ordenador</span><input type="file" accept="image/png,image/webp,image/jpeg" hidden onChange={(event) => { loadProfileAsset(field, event.target.files?.[0]); event.target.value = ""; }} /></label>
+                        </div>
+                      </form>;
+                    })}
+                  </div>
+                  {assetSourceStatus && <div className={`background-status asset-source-status ${assetSourceStatus.startsWith("✓") ? "success" : ""}`} aria-live="polite">{assetSourceStatus}</div>}
                   <button className="remove-bg-button" onClick={removePlayerBackground} disabled={backgroundRemoving || !profile.playerImage}><Sparkles size={15} /> {backgroundRemoving ? "Quitando fondo…" : "Quitar fondo con IA"}</button>
                   {backgroundRemovalStatus && <div className={`background-status ${backgroundRemovalStatus.startsWith("✓") ? "success" : ""}`} aria-live="polite">{backgroundRemovalStatus}</div>}
                   <p className="asset-help">Procesamiento local con IMG.LY. La primera vez se descarga el modelo; después queda almacenado en la caché del navegador.</p>

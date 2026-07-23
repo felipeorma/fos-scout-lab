@@ -55,7 +55,9 @@ Los Excel se procesan completamente en el navegador. No se suben a un servidor.
 3. **Completar perfil:** pegar la URL de Transfermarkt.
    La aplicación extrae dorsal, datos biográficos, valor de mercado, club, liga,
    escudo, logo de competición y retrato transparente. Los tres recursos visuales
-   también se pueden reemplazar por archivos PNG, WEBP o JPG locales.
+   también se pueden reemplazar pegando un link directo o cargando archivos PNG,
+   WEBP o JPG desde el ordenador. La vista previa y el informe se actualizan al
+   aplicar cada fuente.
    La foto del jugador puede procesarse con `@imgly/background-removal@1.4.5`
    para eliminar el fondo mediante IA directamente en el navegador.
 4. **Diseñar reporte:** revisar la ficha imprimible inspirada en

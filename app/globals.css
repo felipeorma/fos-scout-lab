@@ -569,6 +569,20 @@ body::before { position: fixed; inset: 0; z-index: -1; pointer-events: none; bac
 .asset-preview { width: 100%; height: 48px; display: block; object-fit: contain; }
 .asset-upload span { max-width: 100%; overflow: hidden; color: #aab5c7; font-size: 8px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 .asset-upload small { color: #5f6b7f; font-size: 7.5px; }
+.asset-grid .asset-upload { cursor: default; }
+.asset-source-editor { margin-top: 11px; padding: 11px; border: 1px solid rgba(118,142,182,.17); border-radius: 10px; background: rgba(255,255,255,.018); }
+.asset-source-heading b { display: block; color: #bcc7d8; font-size: 9px; }
+.asset-source-heading small { display: block; margin-top: 3px; color: #657185; font-size: 7.5px; line-height: 1.4; }
+.asset-source-row { margin-top: 10px; }
+.asset-source-row + .asset-source-row { padding-top: 9px; border-top: 1px solid rgba(255,255,255,.055); }
+.asset-source-name { margin-bottom: 5px; display: block; color: #8492aa; font-size: 7.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.asset-source-actions { display: grid; grid-template-columns: minmax(0,1fr) 58px 74px; gap: 5px; }
+.asset-source-actions > input { min-width: 0; height: 32px; padding: 0 8px; border: 1px solid rgba(255,255,255,.09); border-radius: 6px; outline: 0; color: #cbd5e5; background: rgba(255,255,255,.035); font-size: 8px; }
+.asset-source-actions > input:focus { border-color: rgba(91,132,255,.55); box-shadow: 0 0 0 2px rgba(79,124,255,.08); }
+.asset-source-actions > button, .asset-source-actions > label { min-width: 0; height: 32px; padding: 0 6px; display: flex; align-items: center; justify-content: center; gap: 4px; border: 1px solid rgba(102,140,255,.22); border-radius: 6px; color: #9cafef; background: rgba(79,124,255,.07); font-size: 7.5px; font-weight: 700; cursor: pointer; }
+.asset-source-actions > label { border-color: rgba(101,246,255,.16); color: #8fdde7; background: rgba(74,210,226,.055); }
+.asset-source-actions > button:hover, .asset-source-actions > label:hover { border-color: rgba(112,148,255,.42); color: #d6e0ff; }
+.asset-source-status { margin-top: 8px; }
 .remove-bg-button { width: 100%; min-height: 37px; margin-top: 9px; display: flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid rgba(101,246,255,.2); border-radius: 8px; color: #9ceef5; background: linear-gradient(110deg,rgba(74,210,226,.09),rgba(113,81,224,.07)); font-size: 9px; font-weight: 700; cursor: pointer; }
 .remove-bg-button:hover:not(:disabled) { border-color: rgba(101,246,255,.4); color: #d5fbff; background: linear-gradient(110deg,rgba(74,210,226,.14),rgba(113,81,224,.11)); }
 .remove-bg-button:disabled { opacity: .42; cursor: not-allowed; }
