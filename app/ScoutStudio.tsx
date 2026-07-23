@@ -644,7 +644,6 @@ export default function ScoutStudio() {
                     <section className="dossier-radar-row">
                       <div className="dossier-radar">{report.metrics.length ? <PizzaRadar metrics={report.metrics} score={report.score} /> : <div className="empty-radar"><BarChart3 size={34} /><b>No encontramos métricas para esta cohorte</b></div>}</div>
                       <aside className="dossier-reading">
-                        <span>PERFIL POR PERCENTILES</span><h3>vs. {report.cohortSize} jugadores comparables</h3>
                         <div className="average-percentile"><strong>{report.score}</strong><small>percentil<br />medio</small></div>
                         <div className="dossier-legend"><span><i className="legend-red" />Finalización / defensa</span><span><i className="legend-gold" />Creación / progresión</span><span><i className="legend-teal" />Desequilibrio / pase</span></div>
                         <div className="quick-reading"><b>LECTURA RÁPIDA</b><p>{report.reading}</p></div>
