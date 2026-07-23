@@ -13,6 +13,10 @@ export const SIMILARITY_METRIC_GROUPS: SimilarityMetricGroup[] = [
 
 const AERIAL_METRIC = /aerial|aereo|cabece|header/;
 const DEFENSIVE_METRIC = /defens|intercep|duelo|parada|save|gol evitado|prevented|gol recibido|conceded|entrada|tackle|recupera|bloqueo|clearance/;
+// Los pases de circulación pertenecen al bloque "Desequilibrio / pase"; los de
+// último pase o progresión (clave, progresivos) siguen en "Creación / progresión".
+const PASS_METRIC = /pases|passes/;
+const CREATIVE_PASS_METRIC = /clave|key|progres/;
 const ATTACKING_AERIAL_COHORTS = new Set(["WING", "AM", "CF", "OTHER"]);
 
 export function similarityMetricGroup(metric: { key: string; label: string; group: number; colorGroup?: string }, cohort = "") {
@@ -29,6 +33,7 @@ export function similarityMetricGroup(metric: { key: string; label: string; grou
       : SIMILARITY_METRIC_GROUPS[1];
   }
   if (DEFENSIVE_METRIC.test(semanticName)) return SIMILARITY_METRIC_GROUPS[1];
+  if (PASS_METRIC.test(semanticName) && !CREATIVE_PASS_METRIC.test(semanticName)) return SIMILARITY_METRIC_GROUPS[3];
   if (metric.group === 1) return SIMILARITY_METRIC_GROUPS[2];
   if (metric.group === 2) return SIMILARITY_METRIC_GROUPS[3];
   return SIMILARITY_METRIC_GROUPS[0];

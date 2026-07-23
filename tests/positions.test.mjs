@@ -46,3 +46,13 @@ test("separa finalización y defensa en grupos visuales distintos", () => {
   assert.equal(similarityMetricGroup({ key: "Aerial duels won, %", label: "Duelos aéreos", group: 1 }, "GK").id, "defending");
   assert.equal(similarityMetricGroup({ key: "Aerial duels won, %", label: "Duelos aéreos", group: 0 }, "CB").id, "defending");
 });
+
+test("las métricas base de pase van al grupo pase en cualquier cohorte", () => {
+  assert.equal(similarityMetricGroup({ key: "Accurate passes, %", label: "Pases precisos, %", group: 1 }, "DMF").id, "imbalance");
+  assert.equal(similarityMetricGroup({ key: "Passes per 90", label: "Pases /90", group: 1 }, "MID").id, "imbalance");
+  assert.equal(similarityMetricGroup({ key: "Received passes per 90", label: "Pases recibidos /90", group: 2 }, "CF").id, "imbalance");
+  assert.equal(similarityMetricGroup({ key: "Accurate long passes, %", label: "Pases largos precisos, %", group: 1 }, "FB").id, "imbalance");
+  assert.equal(similarityMetricGroup({ key: "Key passes per 90", label: "Pases clave /90", group: 1 }, "AM").id, "creation");
+  assert.equal(similarityMetricGroup({ key: "Progressive passes per 90", label: "Pases progresivos /90", group: 1 }, "DMF").id, "creation");
+  assert.equal(similarityMetricGroup({ key: "Pases precisos, %", label: "Pases precisos, %", group: 1, colorGroup: "imbalance" }, "AM").id, "imbalance");
+});

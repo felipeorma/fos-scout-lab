@@ -283,6 +283,9 @@ type MetricDefinition = { label: string; aliases: string[]; group: number; color
 // Sets de métricas por rol según la especificación del cuaderno de análisis.
 // `colorGroup` fija el color del anillo del radar; para Wingers, Forwards y
 // Attack Midfielders los duelos aéreos cuentan como señal ofensiva.
+// Las métricas base de pase (volumen, precisión, recepción) van siempre en
+// "imbalance" (Desequilibrio / pase) sea cual sea la cohorte; el pase clave y
+// el progresivo cuentan como "creation" (Creación / progresión).
 const METRICS: Record<string, MetricDefinition[]> = {
   GK: [
     { label: "Pases precisos, %", aliases: ["accurate passes %", "precision pases %", "pases precisos %"], group: 2, colorGroup: "imbalance" },
@@ -315,17 +318,17 @@ const METRICS: Record<string, MetricDefinition[]> = {
     { label: "Asistencias /90", aliases: ["assists per 90", "asistencias 90"], group: 2, colorGroup: "finishing" },
     { label: "Centros /90", aliases: ["crosses per 90", "centros 90"], group: 1, colorGroup: "creation" },
     { label: "Centros precisos, %", aliases: ["accurate crosses %", "precision centros %", "centros precisos %"], group: 1, colorGroup: "creation" },
-    { label: "Pases precisos, %", aliases: ["accurate passes %", "precision pases %", "pases precisos %"], group: 1, colorGroup: "creation" },
-    { label: "Pases largos precisos, %", aliases: ["accurate long passes %", "precision pases largos %", "pases largos precisos %"], group: 1, colorGroup: "creation" },
+    { label: "Pases precisos, %", aliases: ["accurate passes %", "precision pases %", "pases precisos %"], group: 1, colorGroup: "imbalance" },
+    { label: "Pases largos precisos, %", aliases: ["accurate long passes %", "precision pases largos %", "pases largos precisos %"], group: 1, colorGroup: "imbalance" },
     { label: "Duelos defensivos /90", aliases: ["defensive duels per 90", "duelos defensivos 90"], group: 0, colorGroup: "defending" },
     { label: "Duelos defensivos ganados, %", aliases: ["defensive duels won %", "duelos defensivos ganados %"], group: 0, colorGroup: "defending" },
     { label: "Intercepciones /90", aliases: ["interceptions per 90", "interceptaciones 90", "intercepciones 90"], group: 0, colorGroup: "defending" },
   ],
   DMF: [
-    { label: "Pases precisos, %", aliases: ["accurate passes %", "precision pases %", "pases precisos %"], group: 1, colorGroup: "creation" },
-    { label: "Pases /90", aliases: ["passes per 90", "pases 90"], group: 1, colorGroup: "creation" },
-    { label: "Pases recibidos /90", aliases: ["received passes per 90", "pases recibidos 90"], group: 1, colorGroup: "creation" },
-    { label: "Pases largos precisos, %", aliases: ["accurate long passes %", "precision pases largos %", "pases largos precisos %"], group: 1, colorGroup: "creation" },
+    { label: "Pases precisos, %", aliases: ["accurate passes %", "precision pases %", "pases precisos %"], group: 1, colorGroup: "imbalance" },
+    { label: "Pases /90", aliases: ["passes per 90", "pases 90"], group: 1, colorGroup: "imbalance" },
+    { label: "Pases recibidos /90", aliases: ["received passes per 90", "pases recibidos 90"], group: 1, colorGroup: "imbalance" },
+    { label: "Pases largos precisos, %", aliases: ["accurate long passes %", "precision pases largos %", "pases largos precisos %"], group: 1, colorGroup: "imbalance" },
     { label: "Pases progresivos /90", aliases: ["progressive passes per 90", "pases progresivos 90"], group: 1, colorGroup: "creation" },
     { label: "Pases progresivos precisos, %", aliases: ["accurate progressive passes %", "precision pases progresivos %", "pases progresivos precisos %"], group: 1, colorGroup: "creation" },
     { label: "Pases clave /90", aliases: ["key passes per 90", "jugadas claves 90", "pases clave 90"], group: 2, colorGroup: "creation" },
@@ -345,9 +348,9 @@ const METRICS: Record<string, MetricDefinition[]> = {
     { label: "Carreras progresivas /90", aliases: ["progressive runs per 90", "carreras en progresion 90"], group: 0, colorGroup: "finishing" },
     { label: "Asistencias /90", aliases: ["assists per 90", "asistencias 90"], group: 1, colorGroup: "creation" },
     { label: "xA /90", aliases: ["xa per 90", "xa 90"], group: 1, colorGroup: "creation" },
-    { label: "Pases precisos, %", aliases: ["accurate passes %", "precision pases %", "pases precisos %"], group: 1, colorGroup: "creation" },
-    { label: "Pases /90", aliases: ["passes per 90", "pases 90"], group: 1, colorGroup: "creation" },
-    { label: "Pases recibidos /90", aliases: ["received passes per 90", "pases recibidos 90"], group: 1, colorGroup: "creation" },
+    { label: "Pases precisos, %", aliases: ["accurate passes %", "precision pases %", "pases precisos %"], group: 1, colorGroup: "imbalance" },
+    { label: "Pases /90", aliases: ["passes per 90", "pases 90"], group: 1, colorGroup: "imbalance" },
+    { label: "Pases recibidos /90", aliases: ["received passes per 90", "pases recibidos 90"], group: 1, colorGroup: "imbalance" },
     { label: "Pases progresivos /90", aliases: ["progressive passes per 90", "pases progresivos 90"], group: 1, colorGroup: "creation" },
     { label: "Pases progresivos precisos, %", aliases: ["accurate progressive passes %", "precision pases progresivos %", "pases progresivos precisos %"], group: 1, colorGroup: "creation" },
     { label: "Duelos defensivos /90", aliases: ["defensive duels per 90", "duelos defensivos 90"], group: 2, colorGroup: "defending" },
@@ -365,11 +368,11 @@ const METRICS: Record<string, MetricDefinition[]> = {
     { label: "Toques en el área /90", aliases: ["touches in box per 90", "toques en el area de penalti 90"], group: 0, colorGroup: "finishing" },
     { label: "Carreras progresivas /90", aliases: ["progressive runs per 90", "carreras en progresion 90"], group: 2, colorGroup: "finishing" },
     { label: "Asistencias /90", aliases: ["assists per 90", "asistencias 90"], group: 1, colorGroup: "creation" },
-    { label: "Pases recibidos /90", aliases: ["received passes per 90", "pases recibidos 90"], group: 1, colorGroup: "creation" },
-    { label: "Pases precisos, %", aliases: ["accurate passes %", "precision pases %", "pases precisos %"], group: 1, colorGroup: "creation" },
+    { label: "Pases recibidos /90", aliases: ["received passes per 90", "pases recibidos 90"], group: 1, colorGroup: "imbalance" },
+    { label: "Pases precisos, %", aliases: ["accurate passes %", "precision pases %", "pases precisos %"], group: 1, colorGroup: "imbalance" },
     { label: "Pases clave /90", aliases: ["key passes per 90", "jugadas claves 90", "pases clave 90"], group: 1, colorGroup: "creation" },
     { label: "Pases progresivos precisos, %", aliases: ["accurate progressive passes %", "precision pases progresivos %", "pases progresivos precisos %"], group: 1, colorGroup: "creation" },
-    { label: "Pases largos precisos, %", aliases: ["accurate long passes %", "precision pases largos %", "pases largos precisos %"], group: 1, colorGroup: "creation" },
+    { label: "Pases largos precisos, %", aliases: ["accurate long passes %", "precision pases largos %", "pases largos precisos %"], group: 1, colorGroup: "imbalance" },
   ],
   WING: [
     { label: "Goles /90", aliases: ["goals per 90", "goles 90"], group: 0, colorGroup: "finishing" },
@@ -399,8 +402,8 @@ const METRICS: Record<string, MetricDefinition[]> = {
     { label: "Carreras progresivas /90", aliases: ["progressive runs per 90", "carreras en progresion 90"], group: 2, colorGroup: "finishing" },
     { label: "xA /90", aliases: ["xa per 90", "xa 90"], group: 2, colorGroup: "creation" },
     { label: "Asistencias /90", aliases: ["assists per 90", "asistencias 90"], group: 2, colorGroup: "creation" },
-    { label: "Pases recibidos /90", aliases: ["received passes per 90", "pases recibidos 90"], group: 2, colorGroup: "creation" },
-    { label: "Pases precisos, %", aliases: ["accurate passes %", "precision pases %", "pases precisos %"], group: 2, colorGroup: "creation" },
+    { label: "Pases recibidos /90", aliases: ["received passes per 90", "pases recibidos 90"], group: 2, colorGroup: "imbalance" },
+    { label: "Pases precisos, %", aliases: ["accurate passes %", "precision pases %", "pases precisos %"], group: 2, colorGroup: "imbalance" },
   ],
 };
 
