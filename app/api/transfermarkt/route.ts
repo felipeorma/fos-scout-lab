@@ -8,8 +8,10 @@ export async function POST(request: Request) {
       return Response.json({ error: "Usa una URL válida de un perfil de Transfermarkt." }, { status: 400 });
     }
 
+    // Se respeta el dominio recibido (por ejemplo transfermarkt.es o .com) para
+    // que el perfil llegue en el idioma del reporte; solo se fuerza el "www.".
     const target = new URL(url);
-    target.hostname = "www.transfermarkt.com";
+    if (!/^www\./i.test(target.hostname)) target.hostname = `www.${target.hostname}`;
     const response = await fetch(target, {
       headers: {
         "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/124 Safari/537.36",

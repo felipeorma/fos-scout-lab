@@ -19,7 +19,7 @@ test("renderiza la plataforma FOS Scout Lab y sus accesos principales", async ()
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /<title>FOS Scout Lab \| Reportes de scouting<\/title>/i);
+  assert.match(html, /<title>FOS Scout Lab \| Reportes de scouting · Scouting Reports<\/title>/i);
   assert.match(html, /LEE EL JUEGO/);
   assert.match(html, /ANTES QUE LOS DEMÁS/);
   assert.match(html, /Crear reporte/);

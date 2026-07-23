@@ -3,7 +3,7 @@ import {
   parseTransfermarktProfile,
   type TransfermarktProfile,
 } from "./transfermarkt";
-import { t, tf } from "./i18n";
+import { activeLang, t, tf } from "./i18n";
 
 /**
  * En GitHub Pages no hay servidor: las rutas /api/* no existen. Este flag se
@@ -27,22 +27,26 @@ export function proxiedImageUrl(src: string) {
 }
 
 export async function fetchTransfermarktProfile(url: string): Promise<Partial<TransfermarktProfile>> {
+  if (!isTransfermarktUrl(url.trim())) {
+    throw new Error(t("Usa una URL válida de un perfil de Transfermarkt."));
+  }
+  // Se acepta el link de cualquier dominio (transfermarkt.es, .us, .com, .de…)
+  // y se consulta la versión que coincide con el idioma activo del reporte,
+  // para que posición, pie y nacionalidad lleguen en ese idioma.
+  const target = new URL(url.trim());
+  target.hostname = activeLang() === "es" ? "www.transfermarkt.es" : "www.transfermarkt.com";
+
   if (!IS_STATIC_DEPLOYMENT) {
     const response = await fetch("/api/transfermarkt", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ url }),
+      body: JSON.stringify({ url: target.href }),
     });
     const result = await response.json() as Partial<TransfermarktProfile> & { error?: string };
     if (!response.ok) throw new Error(result.error || t("No se pudo leer el perfil."));
     return result;
   }
 
-  if (!isTransfermarktUrl(url)) {
-    throw new Error(t("Usa una URL válida de un perfil de Transfermarkt."));
-  }
-  const target = new URL(url);
-  target.hostname = "www.transfermarkt.com";
   const html = await fetchHtmlThroughCorsProxy(target.href);
   const profile = parseTransfermarktProfile(html, target.href);
   if (!profile.name) {

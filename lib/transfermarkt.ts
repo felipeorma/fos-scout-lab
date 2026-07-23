@@ -79,14 +79,18 @@ function capture(html: string, pattern: RegExp) {
   return pattern.exec(html)?.[1] ?? "";
 }
 
-function dataHeaderValue(html: string, label: string) {
-  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return text(capture(html, new RegExp(`<li[^>]*class="[^"]*data-header__label[^"]*"[^>]*>\\s*${escaped}\\s*([\\s\\S]*?)<\\/li>`, "i")));
+// Las páginas de Transfermarkt llegan en inglés (.com/.us) o español (.es);
+// cada etiqueta acepta sus variantes en ambos idiomas.
+function labelPattern(labels: string[]) {
+  return labels.map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
 }
 
-function infoTableValue(html: string, label: string) {
-  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return text(capture(html, new RegExp(`<span[^>]*info-table__content--regular[^>]*>\\s*${escaped}\\s*<\\/span>\\s*<span[^>]*info-table__content--bold[^>]*>([\\s\\S]*?)<\\/span>`, "i")));
+function dataHeaderValue(html: string, labels: string[]) {
+  return text(capture(html, new RegExp(`<li[^>]*class="[^"]*data-header__label[^"]*"[^>]*>\\s*(?:${labelPattern(labels)})\\s*([\\s\\S]*?)<\\/li>`, "i")));
+}
+
+function infoTableValue(html: string, labels: string[]) {
+  return text(capture(html, new RegExp(`<span[^>]*info-table__content--regular[^>]*>\\s*(?:${labelPattern(labels)})\\s*<\\/span>\\s*<span[^>]*info-table__content--bold[^>]*>([\\s\\S]*?)<\\/span>`, "i")));
 }
 
 export function isTransfermarktUrl(value: string) {
@@ -108,15 +112,15 @@ export function parseTransfermarktProfile(html: string, sourceUrl: string): Tran
   const clubId = capture(clubBox, /\/verein\/(\d+)/i);
   const leagueLink = capture(clubBox, /<a[^>]*data-header__league-link[^>]*>([\s\S]*?)<\/a>/i);
   const leagueImage = absoluteImage(capture(leagueLink, /<img[^>]*src="([^"]+)"/i));
-  const birth = dataHeaderValue(header, "Date of birth/Age:");
+  const birth = dataHeaderValue(header, ["Date of birth/Age:", "F. Nacim./Edad:"]);
   const birthParts = birth.match(/^(.*?)\s*\((\d+)\)$/);
-  const nationalBlock = capture(header, /(?:Current|Former) International:[\s\S]*?<span[^>]*data-header__content[^>]*>([\s\S]*?)<\/span>/i);
-  const capsBlock = capture(header, /Caps\/Goals:([\s\S]*?)<\/li>/i);
+  const nationalBlock = capture(header, /(?:(?:Current|Former) International|Internacional actual|Antiguo internacional):[\s\S]*?<span[^>]*data-header__content[^>]*>([\s\S]*?)<\/span>/i);
+  const capsBlock = capture(header, /(?:Caps\/Goals|Partidos\/Goles|Partidos\/goles):?([\s\S]*?)<\/li>/i);
   const marketBlock = capture(header, /data-header__market-value-wrapper[^>]*>([\s\S]*?)<\/a>/i);
   const marketValue = text(marketBlock.replace(/<p[\s\S]*$/i, "")).replace(/\s+/g, "");
-  const lastUpdate = text(capture(marketBlock, /data-header__last-update[^>]*>([\s\S]*?)<\/p>/i)).replace(/^Last update:\s*/i, "");
-  const joined = text(capture(clubBox, /Joined:\s*<span[^>]*data-header__content[^>]*>([\s\S]*?)<\/span>/i));
-  const contract = text(capture(clubBox, /Contract expires:\s*<span[^>]*data-header__content[^>]*>([\s\S]*?)<\/span>/i));
+  const lastUpdate = text(capture(marketBlock, /data-header__last-update[^>]*>([\s\S]*?)<\/p>/i)).replace(/^(?:Last update|.?ltima revisi.n):\s*/i, "");
+  const joined = text(capture(clubBox, /(?:Joined|Fichado):?\s*<span[^>]*data-header__content[^>]*>([\s\S]*?)<\/span>/i));
+  const contract = text(capture(clubBox, /(?:Contract expires|Contrato hasta):?\s*<span[^>]*data-header__content[^>]*>([\s\S]*?)<\/span>/i));
 
   return {
     ...EMPTY_PROFILE,
@@ -131,15 +135,15 @@ export function parseTransfermarktProfile(html: string, sourceUrl: string): Tran
     marketValue,
     birthDate: birthParts?.[1]?.trim() ?? birth,
     age: birthParts?.[2] ?? "",
-    birthPlace: dataHeaderValue(header, "Place of birth:"),
-    citizenship: dataHeaderValue(header, "Citizenship:"),
-    height: dataHeaderValue(header, "Height:"),
-    position: dataHeaderValue(header, "Position:"),
-    foot: infoTableValue(html, "Foot:"),
-    agent: dataHeaderValue(header, "Agent:") || infoTableValue(html, "Player agent:"),
+    birthPlace: dataHeaderValue(header, ["Place of birth:", "Lugar de nac.:"]),
+    citizenship: dataHeaderValue(header, ["Citizenship:", "Nacionalidad:"]),
+    height: dataHeaderValue(header, ["Height:", "Altura:"]),
+    position: dataHeaderValue(header, ["Position:", "Posición:"]),
+    foot: infoTableValue(html, ["Foot:", "Pie:"]),
+    agent: dataHeaderValue(header, ["Agent:", "Agente:"]) || infoTableValue(html, ["Player agent:", "Agente:"]),
     nationalTeam: text(nationalBlock),
     capsGoals: text(capsBlock).replace(/\s*\/\s*/, " / "),
-    contract: contract || infoTableValue(html, "Contract expires:"),
+    contract: contract || infoTableValue(html, ["Contract expires:", "Contrato hasta:"]),
     joined,
     lastUpdate,
   };
