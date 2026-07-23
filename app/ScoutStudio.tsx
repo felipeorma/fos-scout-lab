@@ -41,6 +41,7 @@ import type { TransfermarktProfile } from "@/lib/transfermarkt";
 
 type View = "home" | "reports" | "seasons";
 type ReportPage = 1 | 2 | 3;
+type ReportFileMode = "single" | "combine" | "replace";
 
 function readWorkbook(file: File): Promise<SourceDataset> {
   return file.arrayBuffer().then((buffer) => {
@@ -208,6 +209,8 @@ export default function ScoutStudio() {
   const [mergeResult, setMergeResult] = useState<AggregationResult | null>(null);
   const [mergeError, setMergeError] = useState("");
   const [mergeLoading, setMergeLoading] = useState(false);
+  const singleReportInputRef = useRef<HTMLInputElement>(null);
+  const combinedReportInputRef = useRef<HTMLInputElement>(null);
   const reportInputRef = useRef<HTMLInputElement>(null);
   const seasonsInputRef = useRef<HTMLInputElement>(null);
 
@@ -259,14 +262,16 @@ export default function ScoutStudio() {
     } catch { /* Los recursos grandes pueden superar la cuota local; la sesión sigue funcionando. */ }
   }, [profile, profileReady, report?.player]);
 
-  async function onReportFiles(files?: FileList | File[]) {
+  async function onReportFiles(files?: FileList | File[], mode: ReportFileMode = "replace") {
     if (!files) return;
     const list = [...files].filter((file) => /\.(xlsx|xls)$/i.test(file.name));
     if (!list.length) return;
     setReportLoading(true);
     setReportError("");
     try {
-      if (list.length > 3) throw new Error("Selecciona entre uno y tres archivos de datos.");
+      if (mode === "single" && list.length !== 1) throw new Error("Para usar una base, selecciona solamente un archivo Excel.");
+      if (mode === "combine" && (list.length < 2 || list.length > 3)) throw new Error("Para combinar bases, selecciona dos o tres archivos Excel.");
+      if (mode === "replace" && list.length > 3) throw new Error("Selecciona entre uno y tres archivos de datos.");
       const datasets = await Promise.all(list.map(readWorkbook));
       const result = aggregateDatasets(datasets);
       const sourceTitle = datasets.map((dataset) => dataset.fileName.replace(/\.(xlsx|xls)$/i, "")).join(" + ");
@@ -275,6 +280,13 @@ export default function ScoutStudio() {
       setReportSourceCount(datasets.length);
       setAnalysisLabel(datasets.length > 1 ? "BASES ANALIZADAS" : "BASE ANALIZADA");
       setAnalysisSourceTitle(sourceTitle);
+      if (datasets.length > 1) {
+        setSeasonFiles(datasets);
+        setMergeResult(result);
+      } else {
+        setSeasonFiles([]);
+        setMergeResult(null);
+      }
       const initialSelection = firstPlayerSelection(result.rows);
       setSelectedTeam(initialSelection.team);
       setSelectedPlayer(initialSelection.index);
@@ -397,6 +409,7 @@ export default function ScoutStudio() {
   function runMerge() {
     setMergeError("");
     try {
+      if (seasonFiles.length < 2) throw new Error("Agrega al menos dos bases para combinarlas.");
       const result = aggregateDatasets(seasonFiles);
       const sourceLabel = seasonFiles.map((file) => file.fileName.replace(/\.(xlsx|xls)$/i, "")).join(" + ");
       setMergeResult(result);
@@ -442,7 +455,7 @@ export default function ScoutStudio() {
   const navItems = [
     { id: "home" as const, label: "Inicio", hint: "Scouting platform", icon: LayoutDashboard },
     { id: "reports" as const, label: "Reportes", hint: "Radar y percentiles", icon: BarChart3 },
-    { id: "seasons" as const, label: "Combinar bases", hint: "1 a 3 archivos", icon: Merge },
+    { id: "seasons" as const, label: "Combinar bases", hint: "2 a 3 archivos", icon: Merge },
   ];
 
   return (
@@ -488,23 +501,34 @@ export default function ScoutStudio() {
               </div>
             </section>
 
-            <input ref={reportInputRef} type="file" accept=".xlsx,.xls" multiple hidden onChange={(event) => event.target.files && onReportFiles(event.target.files)} />
+            <input ref={singleReportInputRef} type="file" accept=".xlsx,.xls" hidden onChange={(event) => { if (event.target.files) void onReportFiles(event.target.files, "single"); event.target.value = ""; }} />
+            <input ref={combinedReportInputRef} type="file" accept=".xlsx,.xls" multiple hidden onChange={(event) => { if (event.target.files) void onReportFiles(event.target.files, "combine"); event.target.value = ""; }} />
+            <input ref={reportInputRef} type="file" accept=".xlsx,.xls" multiple hidden onChange={(event) => { if (event.target.files) void onReportFiles(event.target.files, "replace"); event.target.value = ""; }} />
 
             <section className="workflow-strip" aria-label="Flujo del reporte">
-              <div className={`workflow-step ${dataReady ? "complete" : "active"}`}><span>{dataReady ? <Check size={15} /> : "01"}</span><div><b>01 · Cargar datos</b><small>{dataReady ? reportFileName : "Excel de liga o temporada"}</small></div></div>
+              <div className={`workflow-step ${dataReady ? "complete" : "active"}`}><span>{dataReady ? <Check size={15} /> : "01"}</span><div><b>01 · Base de datos</b><small>{dataReady ? reportFileName : "Una base o combinar 2–3"}</small></div></div>
               <div className="workflow-line" />
-              <div className={`workflow-step ${profileReady ? "complete" : dataReady ? "active" : ""}`}><span>{profileReady ? <Check size={15} /> : "02"}</span><div><b>02 · Completar perfil</b><small>Transfermarkt, logos y foto PNG</small></div></div>
+              <div className={`workflow-step ${report ? "complete" : dataReady ? "active" : ""}`}><span>{report ? <Check size={15} /> : "02"}</span><div><b>02 · Elegir jugador</b><small>Equipo y jugador en orden alfabético</small></div></div>
               <div className="workflow-line" />
-              <div className={`workflow-step ${dataReady && profileReady ? "active" : ""}`}><span>03</span><div><b>03 · Diseñar reporte</b><small>Radar, visuales y observaciones</small></div></div>
+              <div className={`workflow-step ${profileReady ? "complete" : report ? "active" : ""}`}><span>{profileReady ? <Check size={15} /> : "03"}</span><div><b>03 · Perfil e imágenes</b><small>Transfermarkt, logos y foto PNG</small></div></div>
+              <div className="workflow-line" />
+              <div className={`workflow-step ${profileReady ? "active" : ""}`}><span>04</span><div><b>04 · Diseñar informe</b><small>Ficha, visuales y observaciones</small></div></div>
             </section>
 
             {!dataReady ? (
-              <section className="dataset-onboarding">
-                <span className="dataset-step">PASO 01</span>
+              <section className="dataset-onboarding database-gate">
+                <span className="dataset-step">PASO 01 · FUENTE DEL INFORME</span>
                 <span className="dataset-icon"><FileSpreadsheet size={30} /></span>
-                <h2>Comienza cargando los datos</h2>
-                <p>Selecciona entre uno y tres Excel. Cada archivo puede representar una liga o una temporada.</p>
-                <button className="button primary dataset-button" onClick={() => reportInputRef.current?.click()}><Upload size={17} /> {reportLoading ? "Leyendo archivos…" : "Cargar datos de scouting"}</button>
+                <h2>¿Qué base de datos utilizará el informe?</h2>
+                <p>Elige una base individual o combina automáticamente dos o tres archivos antes de seleccionar al jugador.</p>
+                <div className="database-choice-grid">
+                  <button className="database-choice" onClick={() => singleReportInputRef.current?.click()} disabled={reportLoading}>
+                    <span className="database-choice-tag">1 ARCHIVO</span><span className="database-choice-icon"><FileSpreadsheet size={25} /></span><b>Usar una base</b><small>Una liga o una temporada en un archivo Excel.</small><em>{reportLoading ? "Leyendo datos…" : "Seleccionar Excel"}<Upload size={14} /></em>
+                  </button>
+                  <button className="database-choice featured" onClick={() => combinedReportInputRef.current?.click()} disabled={reportLoading}>
+                    <span className="database-choice-tag">2–3 ARCHIVOS</span><span className="database-choice-icon"><Merge size={25} /></span><b>Combinar bases</b><small>Une ligas o temporadas y usa el resultado directamente.</small><em>{reportLoading ? "Combinando datos…" : "Elegir archivos"}<Files size={14} /></em>
+                  </button>
+                </div>
                 <small>.XLSX o .XLS · primera hoja · procesamiento local</small>
                 {reportError && <div className="inline-error">{reportError}</div>}
               </section>
@@ -513,20 +537,22 @@ export default function ScoutStudio() {
                 <button className={reportPage === 1 ? "active" : ""} onClick={() => setReportPage(1)}><span>01</span><div><b>Ficha y radar</b><small>Estilo Jordhy Thompson</small></div></button>
                 <button className={reportPage === 2 ? "active" : ""} onClick={() => setReportPage(2)}><span>02</span><div><b>Visuales</b><small>Mapas e imágenes</small></div></button>
                 <button className={reportPage === 3 ? "active" : ""} onClick={() => setReportPage(3)}><span>03</span><div><b>Observaciones</b><small>Texto y contexto</small></div></button>
-                <em>Las páginas 2 y 3 son totalmente editables</em>
+                <em>ETAPA 04 · Las páginas 2 y 3 son totalmente editables</em>
               </nav>
 
               {reportPage === 1 ? <div className="report-workspace">
                 <section className="control-panel enrichment-controls">
-                  <div className="panel-title"><div><span className="mini-icon"><FileSpreadsheet size={17} /></span><div><h2>1. Datos y jugador</h2><p>{reportFileName}</p></div></div><span className="tiny-state">LISTO</span></div>
+                  <div className="panel-title"><div><span className="mini-icon"><FileSpreadsheet size={17} /></span><div><h2>1. Base de datos activa</h2><p>{reportFileName}</p></div></div><span className="tiny-state">LISTO</span></div>
                   <button className="upload-box compact" onClick={() => reportInputRef.current?.click()} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); onReportFiles(event.dataTransfer.files); }}>
                     <span className="upload-icon"><Upload size={18} /></span><span><b>{reportLoading ? "Leyendo bases…" : "Reemplazar archivos"}</b><small>{reportSourceCount} base{reportSourceCount === 1 ? "" : "s"} · {reportRows.length} jugadores</small></span>
                   </button>
                   {reportError && <div className="inline-error">{reportError}</div>}
+                  <div className="control-divider" />
+                  <div className="panel-title player-section-title"><div><span className="mini-icon"><Search size={17} /></span><div><h2>2. Equipo y jugador</h2><p>Selecciona en orden</p></div></div><span className="tiny-state">PASO 02</span></div>
                   <div className="player-selector-flow">
-                    <label className="field-group selection-step"><span className="selection-step-title"><i>1</i><FieldLabel>Equipo</FieldLabel></span><span className="select-wrap"><Files size={16} /><select value={selectedTeam} disabled={backgroundRemoving} onChange={(event) => selectTeam(event.target.value)}>{teams.map((team) => <option key={team} value={team}>{team}</option>)}</select><ChevronDown size={16} /></span></label>
+                    <label className="field-group selection-step"><span className="selection-step-title"><i>A</i><FieldLabel>Equipo</FieldLabel></span><span className="select-wrap"><Files size={16} /><select value={selectedTeam} disabled={backgroundRemoving} onChange={(event) => selectTeam(event.target.value)}>{teams.map((team) => <option key={team} value={team}>{team}</option>)}</select><ChevronDown size={16} /></span></label>
                     <span className="selection-flow-line" aria-hidden="true" />
-                    <label className="field-group selection-step"><span className="selection-step-title"><i>2</i><FieldLabel>Jugador</FieldLabel></span><span className="select-wrap"><Search size={16} /><select value={selectedPlayer} disabled={backgroundRemoving || !teamPlayers.length} onChange={(event) => selectPlayer(Number(event.target.value))}>{teamPlayers.map((player) => <option key={`${player.player}-${player.index}`} value={player.index}>{player.player}</option>)}</select><ChevronDown size={16} /></span></label>
+                    <label className="field-group selection-step"><span className="selection-step-title"><i>B</i><FieldLabel>Jugador</FieldLabel></span><span className="select-wrap"><Search size={16} /><select value={selectedPlayer} disabled={backgroundRemoving || !teamPlayers.length} onChange={(event) => selectPlayer(Number(event.target.value))}>{teamPlayers.map((player) => <option key={`${player.player}-${player.index}`} value={player.index}>{player.player}</option>)}</select><ChevronDown size={16} /></span></label>
                   </div>
                   <div className="two-fields">
                     <label className="field-group"><FieldLabel>Cohorte</FieldLabel><span className="select-wrap simple"><select value={cohort} onChange={(event) => setCohort(event.target.value)}><option value="AUTO">Automática</option><option value="GK">Porteros</option><option value="CB">Centrales</option><option value="FB">Laterales</option><option value="MID">Mediocampistas</option><option value="WING">Extremos</option><option value="AM">Mediapuntas</option><option value="CF">Delanteros</option></select><ChevronDown size={16} /></span></label>
@@ -536,7 +562,7 @@ export default function ScoutStudio() {
                   <div className="report-copy-editor"><span className="field-label">Texto de la base en el informe</span><label><small>Etiqueta</small><input value={analysisLabel} placeholder="BASE ANALIZADA" onChange={(event) => setAnalysisLabel(event.target.value)} /></label><label><small>Nombre de liga o temporada</small><input value={analysisSourceTitle} placeholder="Ej. MLS Next Pro 2026" onChange={(event) => setAnalysisSourceTitle(event.target.value)} /></label></div>
 
                   <div className="control-divider" />
-                  <div className="panel-title enrichment-title"><div><span className="mini-icon gold"><Sparkles size={17} /></span><div><h2>2. Perfil Transfermarkt</h2><p>Datos biográficos y recursos</p></div></div><span className={profileReady ? "tiny-state ready-state" : "tiny-state"}>{profileReady ? "CARGADO" : "PENDIENTE"}</span></div>
+                  <div className="panel-title enrichment-title"><div><span className="mini-icon gold"><Sparkles size={17} /></span><div><h2>3. Transfermarkt e imágenes</h2><p>Datos biográficos, logos y retrato</p></div></div><span className={profileReady ? "tiny-state ready-state" : "tiny-state"}>{profileReady ? "CARGADO" : "PENDIENTE"}</span></div>
                   <label className="field-group transfermarkt-url"><FieldLabel>URL del perfil</FieldLabel><input className="text-input" type="url" placeholder="https://www.transfermarkt.com/.../profil/spieler/..." value={transfermarktUrl} onChange={(event) => setTransfermarktUrl(event.target.value)} /></label>
                   <button className="button primary extract-button" onClick={extractTransfermarktProfile} disabled={transfermarktLoading}><Sparkles size={15} /> {transfermarktLoading ? "Extrayendo perfil…" : "Extraer datos, logos y foto"}</button>
                   {transfermarktError && <div className="inline-error">{transfermarktError}</div>}
@@ -623,20 +649,20 @@ export default function ScoutStudio() {
         ) : (
           <div className="page-content seasons-page">
             <section className="page-heading">
-              <div><span className="kicker">Data fusion workspace</span><h1>Una sola lectura para <span>ligas y temporadas.</span></h1><p>Procesa hasta tres fuentes, normaliza sus métricas y crea una base maestra lista para análisis.</p><div className="heading-chips"><span>Datos privados</span><span>Ponderación inteligente</span><span>Excel limpio</span></div></div>
+              <div><span className="kicker">Data fusion workspace</span><h1>Una sola lectura para <span>ligas y temporadas.</span></h1><p>Combina dos o tres fuentes, normaliza sus métricas y crea una base maestra lista para el informe.</p><div className="heading-chips"><span>Datos privados</span><span>Ponderación inteligente</span><span>Uso automático</span></div></div>
               <div className="rule-pills"><span>Σ Minutos y partidos</span><span>Ø Totales</span><span>⚖ /90 y porcentajes</span></div>
             </section>
 
             <div className="merge-grid">
               <section className="merge-builder card">
-                <div className="card-header"><div><span className="mini-icon green"><Files size={18} /></span><div><h2>Bases de datos</h2><p>Cada archivo puede representar una liga o una temporada.</p></div></div><span className="step-chip">1–3 ARCHIVOS</span></div>
+                <div className="card-header"><div><span className="mini-icon green"><Files size={18} /></span><div><h2>Bases de datos</h2><p>Cada archivo puede representar una liga o una temporada.</p></div></div><span className="step-chip">2–3 ARCHIVOS</span></div>
                 <input ref={seasonsInputRef} type="file" accept=".xlsx,.xls" multiple hidden onChange={(event) => event.target.files && onSeasonFiles(event.target.files)} />
                 <button className="upload-box large" onClick={() => seasonsInputRef.current?.click()} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); onSeasonFiles(event.dataTransfer.files); }}>
-                  <span className="upload-icon large-icon"><FolderOpen size={25} /></span><span><b>{mergeLoading ? "Leyendo bases…" : "Arrastra aquí tus archivos Excel"}</b><small>Selecciona 1, 2 o 3 archivos .xlsx</small></span><span className="browse-link">Explorar</span>
+                  <span className="upload-icon large-icon"><FolderOpen size={25} /></span><span><b>{mergeLoading ? "Leyendo bases…" : "Arrastra aquí tus archivos Excel"}</b><small>Selecciona 2 o 3 archivos .xlsx</small></span><span className="browse-link">Explorar</span>
                 </button>
                 {seasonFiles.length > 0 && <div className="file-stack">{seasonFiles.map((file) => <div className="file-row" key={file.fileName}><span className="excel-icon"><FileSpreadsheet size={18} /></span><div><b>{file.fileName}</b><small>{file.rows.length} jugadores · {file.headers.length} columnas</small></div><span className={file.season ? "year-chip" : "year-chip neutral"}>{file.season || "Liga/base"}</span><button onClick={() => { setSeasonFiles((current) => current.filter((item) => item.fileName !== file.fileName)); setMergeResult(null); }} aria-label={`Quitar ${file.fileName}`}><X size={16} /></button></div>)}</div>}
                 {mergeError && <div className="inline-error merge-error">{mergeError}</div>}
-                <div className="merge-actions"><button className="button ghost" onClick={() => { setSeasonFiles([]); setMergeResult(null); setMergeError(""); }} disabled={!seasonFiles.length}>Limpiar</button><button className="button primary wide" onClick={runMerge} disabled={seasonFiles.length < 1}><Merge size={17} /> {seasonFiles.length > 1 ? `Combinar ${seasonFiles.length} bases y usar en el informe` : "Usar base automáticamente en el informe"}</button></div>
+                <div className="merge-actions"><button className="button ghost" onClick={() => { setSeasonFiles([]); setMergeResult(null); setMergeError(""); }} disabled={!seasonFiles.length}>Limpiar</button><button className="button primary wide" onClick={runMerge} disabled={seasonFiles.length < 2}><Merge size={17} /> {seasonFiles.length > 1 ? `Combinar ${seasonFiles.length} bases y usar en el informe` : "Agrega otra base para continuar"}</button></div>
               </section>
 
               <aside className="rules-card card">
@@ -647,7 +673,7 @@ export default function ScoutStudio() {
 
             <section className={`result-card card ${mergeResult ? "has-result" : ""}`}>
               <div className="card-header"><div><span className="mini-icon blue"><BarChart3 size={18} /></span><div><h2>Datos para el informe</h2><p>{mergeResult ? `${mergeResult.rows.length} jugadores ya incorporados al creador de reportes.` : "La base procesada se utilizará directamente para crear el informe."}</p></div></div>{mergeResult && <button className="button primary" onClick={() => { setReportPage(1); setView("reports"); }}><BarChart3 size={17} /> Abrir informe</button>}</div>
-              {mergeResult ? <><div className="result-kpis"><div><span>Jugadores únicos</span><b>{numberFormat(mergeResult.rows.length)}</b></div><div><span>Bases procesadas</span><b>{seasonFiles.length}</b></div><div><span>Columnas disponibles</span><b>{mergeResult.headers.length}</b></div><div><span>Estado</span><b className="ready"><Check size={15} /> En reportes</b></div></div>{mergeResult.warnings.map((warning) => <div className="inline-error" key={warning}>{warning}</div>)}<div className="table-scroll"><table><thead><tr>{["Player", "Data sources", "Seasons", "Team", "Position", mergeResult.matchesColumn, mergeResult.minutesColumn].filter((header) => mergeResult.headers.includes(header)).map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{mergeResult.rows.slice(0, 8).map((row, index) => <tr key={`${row.Player}-${index}`}>{["Player", "Data sources", "Seasons", "Team", "Position", mergeResult.matchesColumn, mergeResult.minutesColumn].filter((header) => mergeResult.headers.includes(header)).map((header) => <td key={header}>{formatCell(row[header], header === mergeResult.minutesColumn || header === mergeResult.matchesColumn ? 0 : 2)}</td>)}</tr>)}</tbody></table></div><div className="table-footer"><span>Mostrando {Math.min(8, mergeResult.rows.length)} de {mergeResult.rows.length} jugadores</span><span>Las {mergeResult.headers.length} columnas están disponibles en el creador del informe.</span></div></> : <div className="result-empty"><span className="empty-merge-icon"><Merge size={30} /></span><b>Aún no hay datos procesados</b><p>Carga entre una y tres bases para comenzar el informe.</p><div><span>1</span><i /><span>2</span><i /><span><Check size={13} /></span></div></div>}
+              {mergeResult ? <><div className="result-kpis"><div><span>Jugadores únicos</span><b>{numberFormat(mergeResult.rows.length)}</b></div><div><span>Bases procesadas</span><b>{seasonFiles.length}</b></div><div><span>Columnas disponibles</span><b>{mergeResult.headers.length}</b></div><div><span>Estado</span><b className="ready"><Check size={15} /> En reportes</b></div></div>{mergeResult.warnings.map((warning) => <div className="inline-error" key={warning}>{warning}</div>)}<div className="table-scroll"><table><thead><tr>{["Player", "Data sources", "Seasons", "Team", "Position", mergeResult.matchesColumn, mergeResult.minutesColumn].filter((header) => mergeResult.headers.includes(header)).map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{mergeResult.rows.slice(0, 8).map((row, index) => <tr key={`${row.Player}-${index}`}>{["Player", "Data sources", "Seasons", "Team", "Position", mergeResult.matchesColumn, mergeResult.minutesColumn].filter((header) => mergeResult.headers.includes(header)).map((header) => <td key={header}>{formatCell(row[header], header === mergeResult.minutesColumn || header === mergeResult.matchesColumn ? 0 : 2)}</td>)}</tr>)}</tbody></table></div><div className="table-footer"><span>Mostrando {Math.min(8, mergeResult.rows.length)} de {mergeResult.rows.length} jugadores</span><span>Las {mergeResult.headers.length} columnas están disponibles en el creador del informe.</span></div></> : <div className="result-empty"><span className="empty-merge-icon"><Merge size={30} /></span><b>Aún no hay datos procesados</b><p>Carga dos o tres bases para combinarlas y continuar automáticamente al informe.</p><div><span>1</span><i /><span>2</span><i /><span><Check size={13} /></span></div></div>}
             </section>
           </div>
         )}

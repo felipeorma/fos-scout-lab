@@ -22,8 +22,10 @@ This starter does not use `wrangler.jsonc`.
 
 Abre `http://localhost:3000` y usa uno de los dos módulos:
 
-- **Reportes:** carga entre uno y tres archivos, completa la ficha del jugador y revisa su radar.
-- **Combinar bases:** procesa archivos que pueden representar ligas o temporadas y envía el resultado directamente al creador de informes.
+- **Reportes:** comienza eligiendo una base o combinando dos o tres archivos;
+  después continúa con jugador, Transfermarkt, imágenes y diseño.
+- **Combinar bases:** procesa dos o tres archivos que pueden representar ligas o
+  temporadas y envía el resultado directamente al creador de informes.
 
 ## Editor visual de páginas
 
@@ -46,15 +48,17 @@ Los Excel se procesan completamente en el navegador. No se suben a un servidor.
 
 ## Flujo del reporte
 
-1. **Cargar datos:** uno, dos o tres Excel de ligas o temporadas.
-2. **Completar perfil:** seleccionar primero el equipo y después el jugador.
-   Ambos listados se muestran en orden alfabético. Luego se puede pegar la URL de Transfermarkt.
+1. **Elegir la fuente:** usar un Excel individual o combinar dos o tres Excel de
+   ligas o temporadas. La combinación se activa automáticamente en el informe.
+2. **Seleccionar jugador:** elegir primero el equipo y después el jugador.
+   Ambos listados se muestran en orden alfabético.
+3. **Completar perfil:** pegar la URL de Transfermarkt.
    La aplicación extrae dorsal, datos biográficos, valor de mercado, club, liga,
    escudo, logo de competición y retrato transparente. Los tres recursos visuales
    también se pueden reemplazar por archivos PNG, WEBP o JPG locales.
    La foto del jugador puede procesarse con `@imgly/background-removal@1.4.5`
    para eliminar el fondo mediante IA directamente en el navegador.
-3. **Diseñar reporte:** revisar la ficha imprimible inspirada en
+4. **Diseñar reporte:** revisar la ficha imprimible inspirada en
    `Radar Jordhy Thompson v2`, y editar las páginas de visuales y observaciones.
    La etiqueta “Base analizada” y el nombre de la liga o temporada también son
    editables desde el panel de datos.
