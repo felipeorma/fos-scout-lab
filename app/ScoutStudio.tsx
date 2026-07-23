@@ -643,7 +643,16 @@ export default function ScoutStudio() {
                         {report.metrics.filter((metric) => metric.group === group).slice(0, 4).map((metric) => <div className="metric-row" key={metric.key}><div><span>{metric.label}</span><b>{formatCell(metric.value)} <small>· P{metric.percentile}</small></b></div><i><em style={{ width: `${metric.percentile}%` }} /></i></div>)}
                       </div>)}
                     </section>
-                    <footer className="dossier-footer"><p>Percentiles por posición · mínimo {minimumMinutes}′ · {report.cohortSize} jugadores en la cohorte · datos por 90 minutos.</p><div><span>ELABORADO POR</span><b>FELIPE ORMAZABAL</b><small>SCOUTING REPORT</small></div></footer>
+                    <footer className="dossier-footer">
+                      <p>Percentiles por posición · mínimo {minimumMinutes}′ · {report.cohortSize} jugadores en la cohorte · datos por 90 minutos.</p>
+                      <div className="report-signatures">
+                        <div className="report-author"><span>ELABORADO POR</span><b>FELIPE ORMAZABAL</b><small>SCOUTING REPORT</small></div>
+                        <div className="report-recipient">
+                          {profile.clubLogo ? <ReportImage src={profile.clubLogo} alt={profile.club || report.team} className="dossier-footer-club-logo" /> : <span className="dossier-footer-club-fallback">{(profile.club || report.team).split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span>}
+                          <div><span>REPORTE GENERADO PARA</span><b>{profile.club || report.team}</b></div>
+                        </div>
+                      </div>
+                    </footer>
                   </article> : <div className="empty-preview">Selecciona un jugador para generar el informe.</div>}
                 </section>
               </div> : report ? <ReportPageDesigner pageNumber={reportPage} player={report.player} team={profile.club || report.team} position={profile.position || report.position} theme={reportTheme} onThemeChange={setReportTheme} /> : <div className="empty-preview">Selecciona un jugador para diseñar las páginas.</div>}
