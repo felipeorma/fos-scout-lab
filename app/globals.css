@@ -196,6 +196,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .file-row > button:hover { color: #a84c38; background: #fff1ed; }
 .year-chip { padding: 4px 6px; border-radius: 4px; color: #247260; background: #eaf4f1; font-size: 9px; font-weight: 700; }
 .year-chip.warning { color: #a5681d; background: #fff2d9; }
+.year-chip.neutral { color: #667a80; background: #edf2f2; }
 .merge-error { margin-bottom: 10px; }
 .merge-actions { margin-top: 18px; display: flex; justify-content: flex-end; gap: 8px; }
 .rules-card { background: linear-gradient(145deg,#fff 0%,#fafcfb 100%); }

@@ -1,7 +1,7 @@
 export type CellValue = string | number | boolean | Date | null | undefined;
 export type DataRow = Record<string, CellValue>;
 
-export type SeasonDataset = {
+export type SourceDataset = {
   fileName: string;
   season: number;
   headers: string[];
@@ -158,17 +158,20 @@ function weightedAverage(entries: Array<{ value: number; weight: number }>) {
   return weight ? valid.reduce((sum, entry) => sum + entry.value * entry.weight, 0) / weight : Number.NaN;
 }
 
-export function aggregateSeasons(datasets: SeasonDataset[]): AggregationResult {
-  if (datasets.length < 2) throw new Error("Selecciona al menos dos archivos de temporadas.");
+export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult {
+  if (datasets.length < 1) throw new Error("Selecciona al menos un archivo de datos.");
+  if (datasets.length > 3) throw new Error("Puedes procesar un máximo de tres archivos a la vez.");
   const allHeaders = [...new Set(datasets.flatMap((dataset) => dataset.headers))];
   const core = detectCoreColumns(allHeaders);
   if (!core.player) throw new Error("No se encontró una columna de jugador (Player/Jugador).");
   if (!core.minutes) throw new Error("No se encontró la columna de minutos jugados.");
   if (!core.matches) throw new Error("No se encontró la columna de partidos jugados.");
 
-  const combined = datasets.flatMap((dataset) => dataset.rows.map((row) => ({
+  const combined = datasets.flatMap((dataset, sourceIndex) => dataset.rows.map((row) => ({
     row,
     season: dataset.season,
+    sourceIndex,
+    source: dataset.fileName.replace(/\.(xlsx|xls)$/i, ""),
     player: String(row[core.player] ?? "").trim(),
   }))).filter((entry) => entry.player);
 
@@ -197,14 +200,16 @@ export function aggregateSeasons(datasets: SeasonDataset[]): AggregationResult {
   const contractColumn = findColumn(allHeaders, ["contract expires", "vencimiento contrato"]);
 
   const rows = [...grouped.values()].map((entries) => {
-    const sorted = [...entries].sort((a, b) => a.season - b.season);
+    const sorted = [...entries].sort((a, b) => (a.season - b.season) || (a.sourceIndex - b.sourceIndex));
     const latest = sorted.at(-1)!;
+    const seasons = uniqueText(sorted.map(({ season }) => season || ""));
     const output: DataRow = {
       Player: latest.player,
-      Seasons: uniqueText(sorted.map(({ season }) => season || "Sin año")),
+      "Data sources": uniqueText(sorted.map(({ source }) => source)),
       [core.matches]: sorted.reduce((sum, { row }) => sum + (numeric(row[core.matches]) || 0), 0),
       [core.minutes]: sorted.reduce((sum, { row }) => sum + (numeric(row[core.minutes]) || 0), 0),
     };
+    if (seasons) output.Seasons = seasons;
 
     if (teamColumn) output.Team = latest.row[teamColumn] ?? "";
     if (positionColumn) output.Position = uniqueText(sorted.map(({ row }) => row[positionColumn]));
@@ -230,10 +235,9 @@ export function aggregateSeasons(datasets: SeasonDataset[]): AggregationResult {
     return output;
   }).sort((a, b) => numeric(b[core.minutes]) - numeric(a[core.minutes]));
 
-  const leading = ["Player", "Seasons", "Team", "Position", "Passport country", "Current Team", "Contract expires", "Age", core.matches, core.minutes];
+  const leading = ["Player", "Data sources", "Seasons", "Team", "Position", "Passport country", "Current Team", "Contract expires", "Age", core.matches, core.minutes];
   const headers = [...new Set([...leading.filter((header) => rows.some((row) => row[header] !== undefined)), ...totalHeaders, ...per90Headers, ...percentHeaders])];
-  const missingYears = datasets.filter((dataset) => !dataset.season).map((dataset) => dataset.fileName);
-  const warnings = missingYears.length ? [`No se detectó el año en: ${missingYears.join(", ")}.`] : [];
+  const warnings: string[] = [];
   return { rows, headers, playerColumn: core.player, minutesColumn: core.minutes, matchesColumn: core.matches, warnings };
 }
 

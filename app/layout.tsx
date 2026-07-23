@@ -16,7 +16,7 @@ const barlowCondensed = Barlow_Condensed({
 
 export const metadata: Metadata = {
   title: "FOS Scout Lab | Reportes de scouting",
-  description: "Genera reportes de jugadores y consolida varias temporadas de datos de scouting.",
+  description: "Genera reportes de jugadores y combina hasta tres bases de ligas o temporadas.",
 };
 
 export default function RootLayout({
