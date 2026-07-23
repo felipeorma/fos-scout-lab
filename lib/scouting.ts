@@ -1,4 +1,5 @@
 import { formatPlayerPositions, mergePlayerPositions, primaryPositionRole, roleCohort } from "./positions.ts";
+import { numberLocale, t, tf } from "./i18n.ts";
 
 export type CellValue = string | number | boolean | Date | null | undefined;
 export type DataRow = Record<string, CellValue>;
@@ -179,12 +180,12 @@ function weightedAverage(entries: Array<{ value: number; weight: number }>) {
 }
 
 export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult {
-  if (datasets.length < 1) throw new Error("Selecciona al menos un archivo de datos.");
+  if (datasets.length < 1) throw new Error(t("Selecciona al menos un archivo de datos."));
   const allHeaders = [...new Set(datasets.flatMap((dataset) => dataset.headers))];
   const core = detectCoreColumns(allHeaders);
-  if (!core.player) throw new Error("No se encontró una columna de jugador (Player/Jugador).");
-  if (!core.minutes) throw new Error("No se encontró la columna de minutos jugados.");
-  if (!core.matches) throw new Error("No se encontró la columna de partidos jugados.");
+  if (!core.player) throw new Error(t("No se encontró una columna de jugador (Player/Jugador)."));
+  if (!core.minutes) throw new Error(t("No se encontró la columna de minutos jugados."));
+  if (!core.matches) throw new Error(t("No se encontró la columna de partidos jugados."));
   const ageColumn = findColumn(allHeaders, AGE_ALIASES);
   const teamColumn = findColumn(allHeaders, TEAM_ALIASES);
 
@@ -263,8 +264,8 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
   const leading = ["Player", "Data sources", "Seasons", "Team", "Position", "Passport country", "Current Team", "Contract expires", "Age", core.matches, core.minutes];
   const headers = [...new Set([...leading.filter((header) => rows.some((row) => row[header] !== undefined)), ...totalHeaders, ...per90Headers, ...percentHeaders])];
   const warnings = [
-    ...(!ageColumn ? ["No se encontró una columna de edad; la clave de identidad usó nombre y club."] : []),
-    ...(!teamColumn ? ["No se encontró una columna de club; la clave de identidad usó nombre y edad."] : []),
+    ...(!ageColumn ? [t("No se encontró una columna de edad; la clave de identidad usó nombre y club.")] : []),
+    ...(!teamColumn ? [t("No se encontró una columna de club; la clave de identidad usó nombre y edad.")] : []),
   ];
   return { rows, headers, playerColumn: core.player, minutesColumn: core.minutes, matchesColumn: core.matches, warnings };
 }
@@ -380,10 +381,10 @@ function roleReading(cohort: string, metrics: RadarMetric[]) {
   };
   const top = [...metrics].sort((a, b) => b.percentile - a.percentile).slice(0, 3);
   const weak = [...metrics].sort((a, b) => a.percentile - b.percentile)[0];
-  const strengths = top.filter((metric) => metric.percentile >= 60).map((metric) => metric.label.toLowerCase());
-  let text = `El perfil encaja como ${roles[cohort]?.[dominant] ?? roles.OTHER[dominant]}.`;
-  if (strengths.length) text += ` Sus señales más fuertes aparecen en ${strengths.join(", ")}.`;
-  if (weak && weak.percentile < 35) text += ` Conviene revisar en vídeo su rendimiento en ${weak.label.toLowerCase()}, hoy por debajo de la cohorte.`;
+  const strengths = top.filter((metric) => metric.percentile >= 60).map((metric) => t(metric.label).toLowerCase());
+  let text = tf("El perfil encaja como {role}.", { role: t(roles[cohort]?.[dominant] ?? roles.OTHER[dominant]) });
+  if (strengths.length) text += tf(" Sus señales más fuertes aparecen en {list}.", { list: strengths.join(", ") });
+  if (weak && weak.percentile < 35) text += tf(" Conviene revisar en vídeo su rendimiento en {metric}, hoy por debajo de la cohorte.", { metric: t(weak.label).toLowerCase() });
   return text;
 }
 
@@ -412,8 +413,8 @@ export function buildPlayerReport(rows: DataRow[], selectedIndex: number, minimu
   const text = (aliases: string[]) => String(field(row, headers, aliases) ?? "").trim();
   const value = (aliases: string[]) => numeric(field(row, headers, aliases));
   return {
-    player: text(PLAYER_ALIASES) || "Jugador",
-    team: text(TEAM_ALIASES) || "Equipo no disponible",
+    player: text(PLAYER_ALIASES) || t("Jugador"),
+    team: text(TEAM_ALIASES) || t("Equipo no disponible"),
     position: formatPlayerPositions(text(POSITION_ALIASES)),
     cohort,
     age: text(["age", "edad"]) || "—",
@@ -434,7 +435,7 @@ export function buildPlayerReport(rows: DataRow[], selectedIndex: number, minimu
 
 export function formatCell(value: CellValue, digits = 2) {
   if (typeof value === "number") {
-    return new Intl.NumberFormat("es-CL", { maximumFractionDigits: digits }).format(value);
+    return new Intl.NumberFormat(numberLocale(), { maximumFractionDigits: digits }).format(value);
   }
   return String(value ?? "—");
 }

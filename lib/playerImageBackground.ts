@@ -1,3 +1,5 @@
+import { t } from "./i18n";
+
 type PlayerImageBackgroundProgress = (key: string, current: number, total: number) => void;
 
 type PlayerImageBackgroundRequest = {
@@ -34,14 +36,14 @@ export async function removePlayerImageBackground({
   onProgress,
 }: PlayerImageBackgroundRequest) {
   const source = playerImage.trim();
-  if (!source) throw new Error("La foto del jugador está vacía.");
+  if (!source) throw new Error(t("La foto del jugador está vacía."));
 
   const imageSource = /^data:|^blob:/i.test(source)
     ? source
     : `https://images.weserv.nl/?url=${encodeURIComponent(source.replace(/^https?:\/\//i, ""))}`;
 
   const response = await fetch(imageSource);
-  if (!response.ok) throw new Error("No se pudo descargar la foto del jugador.");
+  if (!response.ok) throw new Error(t("No se pudo descargar la foto del jugador."));
   const original = await response.blob();
 
   try {

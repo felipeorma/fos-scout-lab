@@ -15,6 +15,7 @@ import {
   Upload,
 } from "./Icons";
 import { DEFAULT_REPORT_THEME, REPORT_THEMES, reportThemeStyle, type ReportTheme } from "./reportTheme";
+import { t, tf } from "@/lib/i18n";
 
 type BlockType = "image" | "text";
 type TextAlign = "left" | "center" | "right";
@@ -179,7 +180,7 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
           const payload = JSON.parse(pendingComparison) as { image?: unknown; title?: unknown };
           if (typeof payload.image === "string" && payload.image.startsWith("data:image/")) {
             const page = nextPages[2];
-            const title = typeof payload.title === "string" ? payload.title : "Comparación de similitud";
+            const title = typeof payload.title === "string" ? payload.title : t("Comparación de similitud");
             const existing = page.blocks.find((block) => block.id === SIMILARITY_BLOCK_ID);
             const comparison = {
               ...(existing ?? imageBlock(SIMILARITY_BLOCK_ID, title, page.columns, SIMILARITY_BLOCK_HEIGHT)),
@@ -195,7 +196,7 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
               ...nextPages,
               2: {
                 ...page,
-                title: replaceEmptyTemplate ? "Comparación de similitud" : page.title,
+                title: replaceEmptyTemplate ? t("Comparación de similitud") : page.title,
                 blocks: replaceEmptyTemplate ? [comparison] : [comparison, ...remainingBlocks],
               },
             };
@@ -260,8 +261,8 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
   function addBlock(type: BlockType) {
     const id = `p${pageNumber}-${type}-${Date.now()}`;
     const block = type === "image"
-      ? imageBlock(id, "Nueva visualización", 1, 260)
-      : { ...textBlock(id, "Nuevo bloque de texto", "Escribe aquí tu análisis…", Math.min(2, config.columns), 180), color: theme.ink };
+      ? imageBlock(id, t("Nueva visualización"), 1, 260)
+      : { ...textBlock(id, t("Nuevo bloque de texto"), t("Escribe aquí tu análisis…"), Math.min(2, config.columns), 180), color: theme.ink };
     setConfig((current) => ({ ...current, blocks: [...current.blocks, block] }));
     setSelectedId(id);
   }
@@ -277,8 +278,8 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
       const blocks = current.blocks.map((block) => block.id === selected.id ? { ...block, span: imageSpan } : block);
       const comment = { ...textBlock(
         id,
-        `Comentario · ${selected.title || "Imagen"}`,
-        "Escribe aquí la observación o el contexto de esta imagen…",
+        tf("Comentario · {t}", { t: selected.title || t("Imagen") }),
+        t("Escribe aquí la observación o el contexto de esta imagen…"),
         commentSpan,
         placement === "side" ? selected.height : 150,
       ), color: theme.ink };
@@ -391,78 +392,78 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
   return (
     <div className="designer-workspace">
       <aside className="designer-controls">
-        <div className="designer-panel-head"><div><span className="mini-icon"><Columns size={18} /></span><div><h2>Diseño de página {pageNumber}</h2><p>Grid, estilo y contenido</p></div></div><span className="tiny-state">AUTO SAVE</span></div>
+        <div className="designer-panel-head"><div><span className="mini-icon"><Columns size={18} /></span><div><h2>{tf("Diseño de página {n}", { n: pageNumber })}</h2><p>{t("Grid, estilo y contenido")}</p></div></div><span className="tiny-state">AUTO SAVE</span></div>
 
-        <label className="field-group designer-title-field"><span className="field-label">Título de la página</span><input className="text-input" value={config.title} onChange={(event) => setConfig((current) => ({ ...current, title: event.target.value }))} /></label>
+        <label className="field-group designer-title-field"><span className="field-label">{t("Título de la página")}</span><input className="text-input" value={config.title} onChange={(event) => setConfig((current) => ({ ...current, title: event.target.value }))} /></label>
 
         <div className="designer-section">
-          <div className="designer-section-title"><span>Plantilla de grid</span><small>{config.columns} columnas</small></div>
+          <div className="designer-section-title"><span>{t("Plantilla de grid")}</span><small>{tf("{n} columnas", { n: config.columns })}</small></div>
           <div className="layout-presets">
-            <button onClick={() => applyLayout("single")} title="Una columna"><i className="layout-one"><b /></i><span>Simple</span></button>
-            <button onClick={() => applyLayout("split")} title="Dos columnas"><i className="layout-two"><b /><b /></i><span>Doble</span></button>
-            <button onClick={() => applyLayout("feature")} title="Bloque destacado"><i className="layout-feature"><b /><b /><b /></i><span>Portada</span></button>
-            <button onClick={() => applyLayout("mosaic")} title="Mosaico"><i className="layout-mosaic"><b /><b /><b /></i><span>Mosaico</span></button>
+            <button onClick={() => applyLayout("single")} title={t("Una columna")}><i className="layout-one"><b /></i><span>{t("Simple")}</span></button>
+            <button onClick={() => applyLayout("split")} title={t("Dos columnas")}><i className="layout-two"><b /><b /></i><span>{t("Doble")}</span></button>
+            <button onClick={() => applyLayout("feature")} title={t("Bloque destacado")}><i className="layout-feature"><b /><b /><b /></i><span>{t("Portada")}</span></button>
+            <button onClick={() => applyLayout("mosaic")} title={t("Mosaico")}><i className="layout-mosaic"><b /><b /><b /></i><span>{t("Mosaico")}</span></button>
           </div>
-          <label className="range-row"><span>Espacio entre bloques <b>{config.gap}px</b></span><input type="range" min="4" max="40" value={config.gap} onChange={(event) => setConfig((current) => ({ ...current, gap: Number(event.target.value) }))} /></label>
+          <label className="range-row"><span>{t("Espacio entre bloques")} <b>{config.gap}px</b></span><input type="range" min="4" max="40" value={config.gap} onChange={(event) => setConfig((current) => ({ ...current, gap: Number(event.target.value) }))} /></label>
         </div>
 
         <div className="designer-section">
-          <div className="designer-section-title"><span>Diseño compartido</span><Palette size={15} /></div>
-          <p className="shared-design-note">Se aplica automáticamente a Ficha, Visuales y Observaciones.</p>
+          <div className="designer-section-title"><span>{t("Diseño compartido")}</span><Palette size={15} /></div>
+          <p className="shared-design-note">{t("Se aplica automáticamente a Ficha, Visuales y Observaciones.")}</p>
           <div className="theme-swatches">{REPORT_THEMES.map((option) => <button key={option.name} className={theme.name === option.name ? "active" : ""} onClick={() => applyTheme(option)} title={option.name}><i style={{ background: option.paper }}><b style={{ background: option.accent }} /></i><span>{option.name}</span></button>)}</div>
-          <div className="color-inputs"><label><span>Acento</span><input type="color" value={theme.accent} onChange={(event) => onThemeChange({ ...theme, name: "Personalizado", accent: event.target.value })} /></label><label><span>Papel</span><input type="color" value={theme.paper} onChange={(event) => onThemeChange({ ...theme, name: "Personalizado", paper: event.target.value })} /></label><label><span>Texto</span><input type="color" value={theme.ink} onChange={(event) => applyTheme({ ...theme, name: "Personalizado", ink: event.target.value })} /></label></div>
+          <div className="color-inputs"><label><span>{t("Acento")}</span><input type="color" value={theme.accent} onChange={(event) => onThemeChange({ ...theme, name: "Personalizado", accent: event.target.value })} /></label><label><span>{t("Papel")}</span><input type="color" value={theme.paper} onChange={(event) => onThemeChange({ ...theme, name: "Personalizado", paper: event.target.value })} /></label><label><span>{t("Texto")}</span><input type="color" value={theme.ink} onChange={(event) => applyTheme({ ...theme, name: "Personalizado", ink: event.target.value })} /></label></div>
         </div>
 
         <div className="designer-section add-block-section">
-          <div className="designer-section-title"><span>Agregar contenido</span><small>{config.blocks.length} bloques</small></div>
-          <div className="add-block-buttons"><button onClick={() => addBlock("image")}><ImageIcon size={17} /><span><b>Imagen</b><small>Mapa, gráfico o captura</small></span></button><button onClick={() => addBlock("text")}><TextIcon size={16} /><span><b>Texto</b><small>Lectura u observación</small></span></button></div>
+          <div className="designer-section-title"><span>{t("Agregar contenido")}</span><small>{tf("{n} bloques", { n: config.blocks.length })}</small></div>
+          <div className="add-block-buttons"><button onClick={() => addBlock("image")}><ImageIcon size={17} /><span><b>{t("Imagen")}</b><small>{t("Mapa, gráfico o captura")}</small></span></button><button onClick={() => addBlock("text")}><TextIcon size={16} /><span><b>{t("Texto")}</b><small>{t("Lectura u observación")}</small></span></button></div>
         </div>
 
         {selected && <div className="designer-section selected-editor">
-          <div className="designer-section-title"><span>Bloque seleccionado</span><div className="order-buttons"><button onClick={() => moveSelected(-1)} title="Mover antes"><MoveUp size={14} /></button><button onClick={() => moveSelected(1)} title="Mover después"><MoveDown size={14} /></button><button className="delete-block" onClick={removeSelected} title="Eliminar bloque"><Trash size={14} /></button></div></div>
-          <label className="field-group"><span className="field-label">Etiqueta</span><input className="text-input" value={selected.title} onChange={(event) => patchSelected({ title: event.target.value })} /></label>
-          <div className="span-buttons"><span className="field-label">Ancho</span><div>{Array.from({ length: config.columns }, (_, index) => index + 1).map((span) => <button key={span} className={clampSpan(selected.span, config.columns) === span ? "active" : ""} onClick={() => patchSelected({ span })}>{span === config.columns ? "Completo" : `${span}/${config.columns}`}</button>)}</div></div>
-          <label className="range-row block-height"><span>Alto del espacio <b>{selected.height}px</b></span><input type="range" min={MIN_BLOCK_HEIGHT} max={MAX_BLOCK_HEIGHT} step="10" value={selected.height} onChange={(event) => patchSelected({ height: Number(event.target.value) })} /></label>
-          <p className="resize-alignment-note"><b>↘</b><span>Arrastra la esquina del bloque. El ancho encaja en columnas y el alto en una retícula de 10 px.</span></p>
+          <div className="designer-section-title"><span>{t("Bloque seleccionado")}</span><div className="order-buttons"><button onClick={() => moveSelected(-1)} title={t("Mover antes")}><MoveUp size={14} /></button><button onClick={() => moveSelected(1)} title={t("Mover después")}><MoveDown size={14} /></button><button className="delete-block" onClick={removeSelected} title={t("Eliminar bloque")}><Trash size={14} /></button></div></div>
+          <label className="field-group"><span className="field-label">{t("Etiqueta")}</span><input className="text-input" value={selected.title} onChange={(event) => patchSelected({ title: event.target.value })} /></label>
+          <div className="span-buttons"><span className="field-label">{t("Ancho")}</span><div>{Array.from({ length: config.columns }, (_, index) => index + 1).map((span) => <button key={span} className={clampSpan(selected.span, config.columns) === span ? "active" : ""} onClick={() => patchSelected({ span })}>{span === config.columns ? t("Completo") : `${span}/${config.columns}`}</button>)}</div></div>
+          <label className="range-row block-height"><span>{t("Alto del espacio")} <b>{selected.height}px</b></span><input type="range" min={MIN_BLOCK_HEIGHT} max={MAX_BLOCK_HEIGHT} step="10" value={selected.height} onChange={(event) => patchSelected({ height: Number(event.target.value) })} /></label>
+          <p className="resize-alignment-note"><b>↘</b><span>{t("Arrastra la esquina del bloque. El ancho encaja en columnas y el alto en una retícula de 10 px.")}</span></p>
 
           {selected.type === "image" ? <div className="image-options">
-            <span className="field-label">Ajuste de imagen</span><div className="segmented"><button className={selected.fit === "contain" ? "active" : ""} onClick={() => patchSelected({ fit: "contain" })}>Completa</button><button className={selected.fit === "cover" ? "active" : ""} onClick={() => patchSelected({ fit: "cover" })}>Recorta</button></div>
-            <div className="image-comment-tools"><span className="field-label">Agregar comentario a esta imagen</span><div><button onClick={() => addImageComment("below")}><TextIcon size={15} /><span><b>Debajo</b><small>Imagen arriba, texto abajo</small></span></button><button onClick={() => addImageComment("side")}><Columns size={15} /><span><b>Al lado</b><small>Imagen y texto en columnas</small></span></button></div><p>Se crea un bloque de texto independiente que puedes editar, mover y redimensionar.</p></div>
+            <span className="field-label">{t("Ajuste de imagen")}</span><div className="segmented"><button className={selected.fit === "contain" ? "active" : ""} onClick={() => patchSelected({ fit: "contain" })}>{t("Completa")}</button><button className={selected.fit === "cover" ? "active" : ""} onClick={() => patchSelected({ fit: "cover" })}>{t("Recorta")}</button></div>
+            <div className="image-comment-tools"><span className="field-label">{t("Agregar comentario a esta imagen")}</span><div><button onClick={() => addImageComment("below")}><TextIcon size={15} /><span><b>{t("Debajo")}</b><small>{t("Imagen arriba, texto abajo")}</small></span></button><button onClick={() => addImageComment("side")}><Columns size={15} /><span><b>{t("Al lado")}</b><small>{t("Imagen y texto en columnas")}</small></span></button></div><p>{t("Se crea un bloque de texto independiente que puedes editar, mover y redimensionar.")}</p></div>
           </div> : <>
-            <label className="field-group"><span className="field-label">Contenido</span><textarea className="designer-textarea" value={selected.content} onChange={(event) => patchSelected({ content: event.target.value })} /></label>
-            <div className="text-toolbar"><button className={selected.bold ? "active" : ""} onClick={() => patchSelected({ bold: !selected.bold })}><b>B</b></button><button className={selected.italic ? "active" : ""} onClick={() => patchSelected({ italic: !selected.italic })}><i>I</i></button><select value={selected.font} onChange={(event) => patchSelected({ font: event.target.value })}>{FONT_OPTIONS.map((font) => <option key={font.value} value={font.value}>{font.label}</option>)}</select><input type="color" value={usesSharedTextColor(selected.color, theme.ink) ? theme.ink : selected.color} onChange={(event) => patchSelected({ color: event.target.value })} title="Color de texto" /></div>
-            <label className="range-row"><span>Tamaño de letra <b>{selected.fontSize}px</b></span><input type="range" min="11" max="42" value={selected.fontSize} onChange={(event) => patchSelected({ fontSize: Number(event.target.value) })} /></label>
-            <div className="segmented align-buttons"><button className={selected.align === "left" ? "active" : ""} onClick={() => patchSelected({ align: "left" })}>Izq.</button><button className={selected.align === "center" ? "active" : ""} onClick={() => patchSelected({ align: "center" })}>Centro</button><button className={selected.align === "right" ? "active" : ""} onClick={() => patchSelected({ align: "right" })}>Der.</button></div>
+            <label className="field-group"><span className="field-label">{t("Contenido")}</span><textarea className="designer-textarea" value={selected.content} onChange={(event) => patchSelected({ content: event.target.value })} /></label>
+            <div className="text-toolbar"><button className={selected.bold ? "active" : ""} onClick={() => patchSelected({ bold: !selected.bold })}><b>B</b></button><button className={selected.italic ? "active" : ""} onClick={() => patchSelected({ italic: !selected.italic })}><i>I</i></button><select value={selected.font} onChange={(event) => patchSelected({ font: event.target.value })}>{FONT_OPTIONS.map((font) => <option key={font.value} value={font.value}>{font.label}</option>)}</select><input type="color" value={usesSharedTextColor(selected.color, theme.ink) ? theme.ink : selected.color} onChange={(event) => patchSelected({ color: event.target.value })} title={t("Color de texto")} /></div>
+            <label className="range-row"><span>{t("Tamaño de letra")} <b>{selected.fontSize}px</b></span><input type="range" min="11" max="42" value={selected.fontSize} onChange={(event) => patchSelected({ fontSize: Number(event.target.value) })} /></label>
+            <div className="segmented align-buttons"><button className={selected.align === "left" ? "active" : ""} onClick={() => patchSelected({ align: "left" })}>{t("Izq.")}</button><button className={selected.align === "center" ? "active" : ""} onClick={() => patchSelected({ align: "center" })}>{t("Centro")}</button><button className={selected.align === "right" ? "active" : ""} onClick={() => patchSelected({ align: "right" })}>{t("Der.")}</button></div>
           </>}
         </div>}
 
-        <button className="reset-design" onClick={() => { const base = defaultPages()[pageNumber]; const defaults = { ...base, blocks: base.blocks.map((block) => block.type === "text" ? { ...block, color: theme.ink } : block) }; setConfig(() => defaults); setSelectedId(defaults.blocks[0].id); }}><RotateCcw size={14} /> Restablecer página</button>
+        <button className="reset-design" onClick={() => { const base = defaultPages()[pageNumber]; const defaults = { ...base, blocks: base.blocks.map((block) => block.type === "text" ? { ...block, color: theme.ink } : block) }; setConfig(() => defaults); setSelectedId(defaults.blocks[0].id); }}><RotateCcw size={14} /> {t("Restablecer página")}</button>
       </aside>
 
       <section className="designer-stage" style={{ background: theme.canvas }}>
-        <div className="preview-toolbar designer-toolbar"><div><span className="live-dot" /> Página {pageNumber} · Editor visual</div><span><Grip size={14} /> Arrastra para ordenar · esquina ↘ para tamaño</span></div>
+        <div className="preview-toolbar designer-toolbar"><div><span className="live-dot" /> {tf("Página {n} · Editor visual", { n: pageNumber })}</div><span><Grip size={14} /> {t("Arrastra para ordenar · esquina ↘ para tamaño")}</span></div>
         <article className="visual-report-page unified-report-page" style={canvasStyle}>
           <header className="visual-page-header">
-            <div className="visual-page-folio"><span>FOS</span><small>PÁGINA</small><b>0{pageNumber}</b><em>{pageNumber === 2 ? "VISUALES" : "OBSERVACIONES"}</em></div>
-            <div className="visual-page-identity"><span>FOS SCOUT LAB · INFORME DE SCOUTING</span><h2>{player}</h2><p>{team} · {position}</p></div>
+            <div className="visual-page-folio"><span>FOS</span><small>{t("PÁGINA")}</small><b>0{pageNumber}</b><em>{pageNumber === 2 ? t("VISUALES") : t("OBSERVACIONES")}</em></div>
+            <div className="visual-page-identity"><span>{t("FOS SCOUT LAB · INFORME DE SCOUTING")}</span><h2>{player}</h2><p>{team} · {position}</p></div>
           </header>
-          <div className="visual-page-title"><span>ANÁLISIS COMPLEMENTARIO</span><h3>{config.title}</h3></div>
+          <div className="visual-page-title"><span>{t("ANÁLISIS COMPLEMENTARIO")}</span><h3>{t(config.title)}</h3></div>
           <div ref={gridRef} className="visual-block-grid" style={{ gridTemplateColumns: `repeat(${config.columns}, minmax(0, 1fr))`, gap: config.gap }} onDragOver={(event) => event.preventDefault()}>
             {config.blocks.map((block) => {
               const span = clampSpan(block.span, config.columns);
               const textStyle = { color: usesSharedTextColor(block.color, theme.ink) ? theme.ink : block.color, fontFamily: fontFamily(block.font), fontSize: block.fontSize, fontWeight: block.bold ? 700 : 400, fontStyle: block.italic ? "italic" : "normal", textAlign: block.align } as CSSProperties;
               return <div key={block.id} draggable={!resizeSession} className={`visual-block visual-${block.type} ${block.id === SIMILARITY_BLOCK_ID ? "similarity-comparison-block" : ""} ${selected?.id === block.id ? "selected" : ""} ${draggedId === block.id ? "dragging" : ""} ${resizeSession?.id === block.id ? "resizing" : ""}`} style={{ gridColumn: `span ${span}`, height: block.height }} onClick={() => setSelectedId(block.id)} onDragStart={() => { setDraggedId(block.id); setSelectedId(block.id); }} onDragEnd={() => setDraggedId("")} onDragOver={(event) => event.preventDefault()} onDrop={(event) => onDropBlock(event, block.id)} role="button" tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter") setSelectedId(block.id); }}>
-                <div className="block-chrome"><span><Grip size={13} /> {block.title || (block.type === "image" ? "Imagen" : "Texto")}</span><small>{span}/{config.columns}</small></div>
+                <div className="block-chrome"><span><Grip size={13} /> {t(block.title) || (block.type === "image" ? t("Imagen") : t("Texto"))}</span><small>{span}/{config.columns}</small></div>
                 {block.type === "image" ? <label className={`visual-image-slot ${block.image ? "has-image" : ""}`} onClick={(event) => event.stopPropagation()}>
-                  {block.image ? <LocalPreviewImage src={block.image} alt={block.title} fit={block.fit} /> : <span><span className="image-placeholder-icon"><ImageIcon size={27} /></span><b>Agregar imagen</b><small>PNG, JPG o WEBP</small><em><Upload size={13} /> Elegir archivo</em></span>}
+                  {block.image ? <LocalPreviewImage src={block.image} alt={t(block.title)} fit={block.fit} /> : <span><span className="image-placeholder-icon"><ImageIcon size={27} /></span><b>{t("Agregar imagen")}</b><small>{t("PNG, JPG o WEBP")}</small><em><Upload size={13} /> {t("Elegir archivo")}</em></span>}
                   <input type="file" accept="image/*" hidden onChange={(event) => onImage(event.target.files?.[0], block.id)} />
-                </label> : <div className="visual-text-content" style={textStyle}><p>{block.content || "Escribe tu análisis desde el panel lateral."}</p></div>}
-                <button type="button" className="block-resize-handle" draggable={false} aria-label={`Redimensionar ${block.title || "bloque"}`} title="Arrastra para ajustar ancho y alto" onPointerDown={(event) => startBlockResize(event, block)} onKeyDown={(event) => resizeBlockWithKeyboard(event, block)} onClick={(event) => event.stopPropagation()} onDragStart={(event) => { event.preventDefault(); event.stopPropagation(); }}>↘</button>
+                </label> : <div className="visual-text-content" style={textStyle}><p>{t(block.content) || t("Escribe tu análisis desde el panel lateral.")}</p></div>}
+                <button type="button" className="block-resize-handle" draggable={false} aria-label={tf("Redimensionar {t}", { t: t(block.title) || t("bloque") })} title={t("Arrastra para ajustar ancho y alto")} onPointerDown={(event) => startBlockResize(event, block)} onKeyDown={(event) => resizeBlockWithKeyboard(event, block)} onClick={(event) => event.stopPropagation()} onDragStart={(event) => { event.preventDefault(); event.stopPropagation(); }}>↘</button>
               </div>;
             })}
-            {!config.blocks.length && <button className="empty-designer-page" onClick={() => addBlock("image")}><Sparkles size={26} /><b>Tu página está vacía</b><span>Agrega una imagen o un texto desde el panel.</span></button>}
+            {!config.blocks.length && <button className="empty-designer-page" onClick={() => addBlock("image")}><Sparkles size={26} /><b>{t("Tu página está vacía")}</b><span>{t("Agrega una imagen o un texto desde el panel.")}</span></button>}
           </div>
-          <footer className="visual-page-footer"><span>{player.toUpperCase()} · REPORTE CONFIDENCIAL</span><span>FOS SCOUT LAB</span></footer>
+          <footer className="visual-page-footer"><span>{player.toUpperCase()} · {t("REPORTE CONFIDENCIAL")}</span><span>FOS SCOUT LAB</span></footer>
         </article>
       </section>
     </div>

@@ -2,6 +2,7 @@
 
 import type { SimilarityMetricComparison } from "@/lib/similarity";
 import { similarityMetricGroup } from "@/lib/similarityMetricGroups";
+import { t, tf } from "@/lib/i18n";
 import type { CSSProperties } from "react";
 
 const WIDTH = 800;
@@ -46,8 +47,8 @@ export function ComparisonRadar({ metrics, metricCohort, targetName, candidateNa
   return <div className="comparison-radar-wrap" style={{ "--comparison-target": targetColor, "--comparison-candidate": candidateColor, "--comparison-target-label": targetLabelColor, "--comparison-candidate-label": candidateLabelColor, "--comparison-target-label-opacity": targetLabelOpacity, "--comparison-candidate-label-opacity": candidateLabelOpacity } as CSSProperties}>
     <div className="comparison-radar-legend" aria-hidden="true"><span className="target"><i />{target}</span><span className="candidate"><i />{candidate}</span></div>
     <svg className="comparison-radar" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-labelledby="comparison-radar-title comparison-radar-description">
-      <title id="comparison-radar-title">Radar comparativo de {targetName} y {candidateName}</title>
-      <desc id="comparison-radar-description">Comparación de percentiles P0 a P100. {targetName} aparece con círculos y {candidateName} con cuadrados.</desc>
+      <title id="comparison-radar-title">{tf("Radar comparativo de {a} y {b}", { a: targetName, b: candidateName })}</title>
+      <desc id="comparison-radar-description">{tf("Comparación de percentiles P0 a P100. {a} aparece con círculos y {b} con cuadrados.", { a: targetName, b: candidateName })}</desc>
       {[25, 50, 75, 100].map((level) => <polygon key={level} className="comparison-radar-grid" points={metrics.map((_, index) => { const value = point(index, metrics.length, RADIUS * level / 100); return `${value.x},${value.y}`; }).join(" ")} />)}
       {metrics.map((metric, index) => { const edge = point(index, metrics.length, RADIUS); return <line key={metric.key} className="comparison-radar-axis" x1={CENTER_X} y1={CENTER_Y} x2={edge.x} y2={edge.y} />; })}
       {metrics.map((metric, index) => {
@@ -69,8 +70,8 @@ export function ComparisonRadar({ metrics, metricCohort, targetName, candidateNa
         return <g key={`values-${metric.key}`}>
           <circle className="comparison-radar-dot target" cx={targetPoint.x} cy={targetPoint.y} r="5" />
           <rect className="comparison-radar-dot candidate" x={candidatePoint.x - 4.5} y={candidatePoint.y - 4.5} width="9" height="9" rx="1.5" />
-          <text className="comparison-radar-label" x={label.x} y={label.y - 7} textAnchor="middle">{metric.label}</text>
-          <g className="comparison-radar-percentile" aria-label={`${targetName}: percentil ${metric.targetPercentile}; ${candidateName}: percentil ${metric.candidatePercentile}`}>
+          <text className="comparison-radar-label" x={label.x} y={label.y - 7} textAnchor="middle">{t(metric.label)}</text>
+          <g className="comparison-radar-percentile" aria-label={tf("{name}: percentil {a}; {other}: percentil {b}", { name: targetName, a: metric.targetPercentile, other: candidateName, b: metric.candidatePercentile })}>
             <g className="target">
               <rect x={badgesX} y={badgesY} width={badgeWidth} height="18" rx="9" />
               <text x={badgesX + badgeWidth / 2} y={badgesY + 12.5} textAnchor="middle">P{metric.targetPercentile}</text>

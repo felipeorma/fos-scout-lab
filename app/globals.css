@@ -902,3 +902,43 @@ body::before { position: fixed; inset: 0; z-index: -1; pointer-events: none; bac
   .block-chrome .ui-icon, .block-chrome small { display: none !important; }
   @page { size: A4 portrait; margin: 8mm; }
 }
+
+/* ---- Selector de idioma (ES/EN) ---- */
+.lang-switch {
+  margin: 14px 18px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.lang-switch-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.lang-switch-buttons button {
+  border: 1px solid rgba(148, 163, 184, .25);
+  background: rgba(148, 163, 184, .06);
+  color: inherit;
+  border-radius: 9px;
+  padding: 7px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease;
+}
+.lang-switch-buttons button:hover { border-color: rgba(148, 163, 184, .5); }
+.lang-switch-buttons button.active {
+  background: rgba(94, 141, 255, .18);
+  border-color: rgba(94, 141, 255, .65);
+}
+
+/* ---- Menú lateral oculto (más espacio de diseño) ---- */
+.app-shell.sidebar-hidden .sidebar { transform: translateX(-100%); visibility: hidden; }
+.app-shell.sidebar-hidden .main-area { margin-left: 0; }
+.sidebar { transition: transform .22s ease, visibility .22s ease; }
+.main-area { transition: margin-left .22s ease; }
+.sidebar-toggle { display: grid; }
+@media (max-width: 980px) {
+  .sidebar-toggle { display: none; }
+}

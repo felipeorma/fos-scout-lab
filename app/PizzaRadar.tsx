@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import type { RadarMetric } from "@/lib/scouting";
 import { similarityMetricGroup } from "@/lib/similarityMetricGroups";
+import { t, tf, type Lang } from "@/lib/i18n";
 
 function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
   const corner = Math.min(radius, width / 2, height / 2);
@@ -15,7 +16,7 @@ function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, width:
   ctx.closePath();
 }
 
-export function PizzaRadar({ metrics, score, cohort }: { metrics: RadarMetric[]; score: number; cohort: string }) {
+export function PizzaRadar({ metrics, score, cohort, lang = "es" }: { metrics: RadarMetric[]; score: number; cohort: string; lang?: Lang }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -117,7 +118,7 @@ export function PizzaRadar({ metrics, score, cohort }: { metrics: RadarMetric[];
         ctx.fillStyle = "#445366";
         ctx.font = `600 ${Math.max(9, size * 0.017)}px Arial`;
         ctx.textAlign = Math.cos(middle) > 0.18 ? "left" : Math.cos(middle) < -0.18 ? "right" : "center";
-        ctx.fillText(metric.label, lx, ly);
+        ctx.fillText(t(metric.label), lx, ly);
       });
 
       ctx.beginPath();
@@ -131,20 +132,20 @@ export function PizzaRadar({ metrics, score, cohort }: { metrics: RadarMetric[];
       ctx.fillText(String(score), cx, cy - size * 0.008);
       ctx.fillStyle = "#9fb0bb";
       ctx.font = `700 ${size * 0.013}px Arial`;
-      ctx.fillText("ÍNDICE", cx, cy + size * 0.032);
+      ctx.fillText(t("ÍNDICE"), cx, cy + size * 0.032);
     };
     draw();
     const observer = new ResizeObserver(draw);
     observer.observe(canvas);
     return () => observer.disconnect();
-  }, [cohort, metrics, score]);
+  }, [cohort, metrics, score, lang]);
 
   return (
     <canvas
       ref={canvasRef}
       className="pizza-radar"
       role="img"
-      aria-label={`Radar de percentiles con índice global ${score} de 100`}
+      aria-label={tf("Radar de percentiles con índice global {s} de 100", { s: score })}
     />
   );
 }

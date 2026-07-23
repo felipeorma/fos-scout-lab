@@ -3,6 +3,7 @@ import {
   parseTransfermarktProfile,
   type TransfermarktProfile,
 } from "./transfermarkt";
+import { t, tf } from "./i18n";
 
 /**
  * En GitHub Pages no hay servidor: las rutas /api/* no existen. Este flag se
@@ -11,6 +12,12 @@ import {
  * CORS con parseo en el navegador.
  */
 export const IS_STATIC_DEPLOYMENT = process.env.NEXT_PUBLIC_GITHUB_PAGES === "true";
+
+// En GitHub Pages la app vive bajo /fos-scout-lab; los assets de /public
+// deben llevar ese prefijo (Next solo lo agrega a sus propios bundles).
+export function assetPath(path: string) {
+  return IS_STATIC_DEPLOYMENT ? `/fos-scout-lab${path}` : path;
+}
 
 export function proxiedImageUrl(src: string) {
   if (IS_STATIC_DEPLOYMENT) {
@@ -27,19 +34,19 @@ export async function fetchTransfermarktProfile(url: string): Promise<Partial<Tr
       body: JSON.stringify({ url }),
     });
     const result = await response.json() as Partial<TransfermarktProfile> & { error?: string };
-    if (!response.ok) throw new Error(result.error || "No se pudo leer el perfil.");
+    if (!response.ok) throw new Error(result.error || t("No se pudo leer el perfil."));
     return result;
   }
 
   if (!isTransfermarktUrl(url)) {
-    throw new Error("Usa una URL válida de un perfil de Transfermarkt.");
+    throw new Error(t("Usa una URL válida de un perfil de Transfermarkt."));
   }
   const target = new URL(url);
   target.hostname = "www.transfermarkt.com";
   const html = await fetchHtmlThroughCorsProxy(target.href);
   const profile = parseTransfermarktProfile(html, target.href);
   if (!profile.name) {
-    throw new Error("No pudimos reconocer el perfil. Revisa que sea la página principal del jugador.");
+    throw new Error(t("No pudimos reconocer el perfil. Revisa que sea la página principal del jugador."));
   }
   return profile;
 }
@@ -54,15 +61,15 @@ async function fetchHtmlThroughCorsProxy(url: string) {
   for (const buildProxyUrl of CORS_PROXIES) {
     try {
       const response = await fetch(buildProxyUrl(url), { signal: AbortSignal.timeout(20_000) });
-      if (!response.ok) throw new Error(`El proxy respondió ${response.status}.`);
+      if (!response.ok) throw new Error(tf("El proxy respondió {code}.", { code: response.status }));
       const html = await response.text();
-      if (html.length < 1_000) throw new Error("El proxy devolvió una respuesta vacía.");
+      if (html.length < 1_000) throw new Error(t("El proxy devolvió una respuesta vacía."));
       return html;
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
     }
   }
   throw new Error(
-    `No se pudo leer Transfermarkt desde la versión publicada. ${lastError?.message ?? ""}`.trim(),
+    `${t("No se pudo leer Transfermarkt desde la versión publicada.")} ${lastError?.message ?? ""}`.trim(),
   );
 }

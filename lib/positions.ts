@@ -1,3 +1,5 @@
+import { t, tf } from "./i18n.ts";
+
 export const POSITION_ROLES = [
   "Goalkeeper",
   "Fullback",
@@ -94,7 +96,7 @@ export function formatPlayerPositions(value: unknown) {
   const positions = playerPositions(value);
   if (!positions.length) return "—";
   return positions.map((position, index) => {
-    const prefix = index === 0 ? "" : index === 1 ? "2ª " : index === 2 ? "3ª " : `${index + 1}ª `;
+    const prefix = index === 0 ? "" : index === 1 ? `${t("2ª")} ` : index === 2 ? `${t("3ª")} ` : `${tf("{n}ª", { n: index + 1 })} `;
     const code = lookupKey(position.code) === lookupKey(position.role) ? "" : ` (${position.code})`;
     return `${prefix}${position.role}${code}`;
   }).join(" · ");

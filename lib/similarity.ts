@@ -15,6 +15,7 @@ import {
   primaryPositionRole,
   type PlayerPosition,
 } from "./positions.ts";
+import { t, tf } from "./i18n.ts";
 
 export type SimilarityFilters = {
   query: string;
@@ -159,8 +160,8 @@ export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filt
 
   const candidates = rows.flatMap((row, index) => {
     if (index === targetIndex) return [];
-    const name = text(row, playerColumn, `Jugador ${index + 1}`);
-    const team = text(row, teamColumn, "Equipo no disponible");
+    const name = text(row, playerColumn, tf("Jugador {n}", { n: index + 1 }));
+    const team = text(row, teamColumn, t("Equipo no disponible"));
     const rawPosition = text(row, positionColumn, "—");
     const positions = playerPositions(rawPosition);
     const roles = positionRoles(rawPosition);
