@@ -67,7 +67,7 @@ test("los pesos personalizados cambian el ranking de similitud", () => {
       "Minutes played": 1500,
       "Goals per 90": 1,
       "xG per 90": 1,
-      "Shots per 90": 1,
+      "Shots on target, %": 60,
     },
     {
       Player: "Especialista en gol",
@@ -77,7 +77,7 @@ test("los pesos personalizados cambian el ranking de similitud", () => {
       "Minutes played": 1500,
       "Goals per 90": 1,
       "xG per 90": 0,
-      "Shots per 90": 0,
+      "Shots on target, %": 0,
     },
     {
       Player: "Perfil general",
@@ -87,7 +87,7 @@ test("los pesos personalizados cambian el ranking de similitud", () => {
       "Minutes played": 1500,
       "Goals per 90": 0,
       "xG per 90": 1,
-      "Shots per 90": 1,
+      "Shots on target, %": 60,
     },
   ];
   const filters = {
@@ -100,8 +100,8 @@ test("los pesos personalizados cambian el ranking de similitud", () => {
   };
 
   const neutral = buildSimilaritySearch(rows, 0, filters);
-  const weighted = buildSimilaritySearch(rows, 0, filters, { "Goals per 90": 3, "xG per 90": 0.25, "Shots per 90": 0.25 });
-  const contextOnly = buildSimilaritySearch(rows, 0, filters, { "Goals per 90": 0, "xG per 90": 0, "Shots per 90": 0 });
+  const weighted = buildSimilaritySearch(rows, 0, filters, { "Goals per 90": 3, "xG per 90": 0.25, "Shots on target, %": 0.25 });
+  const contextOnly = buildSimilaritySearch(rows, 0, filters, { "Goals per 90": 0, "xG per 90": 0, "Shots on target, %": 0 });
 
   assert.equal(neutral?.candidates[0].name, "Perfil general");
   assert.equal(weighted?.candidates[0].name, "Especialista en gol");

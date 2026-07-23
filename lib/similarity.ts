@@ -31,6 +31,7 @@ export type SimilarityMetricComparison = {
   key: string;
   label: string;
   group: number;
+  colorGroup?: string;
   weight: number;
   targetValue: number;
   candidateValue: number;
@@ -190,6 +191,7 @@ export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filt
         key: metric.key,
         label: metric.label,
         group: metric.group,
+        colorGroup: metric.colorGroup,
         weight: metricWeight(metric.key, metricWeights),
         targetValue: metric.value,
         candidateValue,

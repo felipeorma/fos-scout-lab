@@ -20,12 +20,15 @@ export type AggregationResult = {
   warnings: string[];
 };
 
+export type MetricColorGroup = "finishing" | "defending" | "creation" | "imbalance";
+
 export type RadarMetric = {
   key: string;
   label: string;
   value: number;
   percentile: number;
   group: number;
+  colorGroup?: MetricColorGroup;
 };
 
 export type PlayerReport = {
@@ -274,84 +277,133 @@ export function cohortOf(value: CellValue) {
   return roleCohort(primaryPositionRole(value));
 }
 
-type MetricDefinition = { label: string; aliases: string[]; group: number; inverse?: boolean };
+type MetricDefinition = { label: string; aliases: string[]; group: number; colorGroup: MetricColorGroup; inverse?: boolean };
 
+// Sets de métricas por rol según la especificación del cuaderno de análisis.
+// `colorGroup` fija el color del anillo del radar; para Wingers, Forwards y
+// Attack Midfielders los duelos aéreos cuentan como señal ofensiva.
 const METRICS: Record<string, MetricDefinition[]> = {
   GK: [
-    { label: "Paradas %", aliases: ["save rate %", "paradas %"], group: 0 },
-    { label: "Goles evitados", aliases: ["prevented goals per 90", "goles evitados 90"], group: 0 },
-    { label: "Goles recibidos", aliases: ["conceded goals per 90", "goles recibidos 90"], group: 0, inverse: true },
-    { label: "Salidas", aliases: ["exits per 90", "salidas 90"], group: 1 },
-    { label: "Duelos aéreos", aliases: ["aerial duels per 90", "duelos aereos 90"], group: 1 },
-    { label: "Pases largos", aliases: ["long passes per 90", "pases largos 90"], group: 2 },
-    { label: "Precisión largos", aliases: ["accurate long passes %", "precision pases largos %"], group: 2 },
+    { label: "Pases precisos, %", aliases: ["accurate passes %", "precision pases %", "pases precisos %"], group: 2, colorGroup: "imbalance" },
+    { label: "Pases largos precisos, %", aliases: ["accurate long passes %", "precision pases largos %", "pases largos precisos %"], group: 2, colorGroup: "imbalance" },
+    { label: "Duelos aéreos /90", aliases: ["aerial duels per 90", "duelos aereos 90"], group: 1, colorGroup: "defending" },
+    { label: "Porcentaje de atajadas, %", aliases: ["save rate %", "paradas %", "porcentaje de atajadas %"], group: 0, colorGroup: "defending" },
+    { label: "Goles evitados /90", aliases: ["prevented goals per 90", "goles evitados 90"], group: 0, colorGroup: "defending" },
+    { label: "Goles concedidos /90", aliases: ["conceded goals per 90", "goles recibidos 90", "goles concedidos 90"], group: 0, colorGroup: "defending", inverse: true },
+    { label: "xG en contra /90", aliases: ["xg against per 90", "xg en contra 90"], group: 0, colorGroup: "defending", inverse: true },
+    { label: "Salidas /90", aliases: ["exits per 90", "salidas 90"], group: 1, colorGroup: "defending" },
   ],
   CB: [
-    { label: "Acciones defensivas", aliases: ["successful defensive actions per 90", "acciones defensivas realizadas 90"], group: 0 },
-    { label: "Duelos defensivos", aliases: ["defensive duels won %", "duelos defensivos ganados %"], group: 0 },
-    { label: "Duelos aéreos", aliases: ["aerial duels won %", "duelos aereos ganados %"], group: 0 },
-    { label: "Intercepciones", aliases: ["interceptions per 90", "interceptaciones 90"], group: 1 },
-    { label: "Pases", aliases: ["passes per 90", "pases 90"], group: 2 },
-    { label: "Precisión", aliases: ["accurate passes %", "precision pases %"], group: 2 },
-    { label: "Pases progresivos", aliases: ["progressive passes per 90", "pases progresivos 90"], group: 2 },
-    { label: "Precisión progresivos", aliases: ["accurate progressive passes %", "precision pases progresivos %"], group: 2 },
+    { label: "Pases precisos, %", aliases: ["accurate passes %", "precision pases %", "pases precisos %"], group: 2, colorGroup: "imbalance" },
+    { label: "Pases largos precisos, %", aliases: ["accurate long passes %", "precision pases largos %", "pases largos precisos %"], group: 2, colorGroup: "imbalance" },
+    { label: "Pases /90", aliases: ["passes per 90", "pases 90"], group: 2, colorGroup: "imbalance" },
+    { label: "Pases recibidos /90", aliases: ["received passes per 90", "pases recibidos 90"], group: 2, colorGroup: "imbalance" },
+    { label: "Duelos aéreos ganados, %", aliases: ["aerial duels won %", "duelos aereos ganados %"], group: 0, colorGroup: "defending" },
+    { label: "Duelos defensivos ganados, %", aliases: ["defensive duels won %", "duelos defensivos ganados %"], group: 0, colorGroup: "defending" },
+    { label: "Entradas deslizantes PAdj", aliases: ["padj sliding tackles", "entradas padj", "entradas deslizantes padj", "sliding tackles padj"], group: 0, colorGroup: "defending" },
+    { label: "Intercepciones /90", aliases: ["interceptions per 90", "interceptaciones 90", "intercepciones 90"], group: 1, colorGroup: "defending" },
+    { label: "Acciones defensivas exitosas /90", aliases: ["successful defensive actions per 90", "acciones defensivas realizadas 90", "acciones defensivas exitosas 90"], group: 1, colorGroup: "defending" },
   ],
   FB: [
-    { label: "Duelos defensivos", aliases: ["defensive duels won %", "duelos defensivos ganados %"], group: 0 },
-    { label: "Intercepciones", aliases: ["interceptions per 90", "interceptaciones 90"], group: 0 },
-    { label: "Centros", aliases: ["crosses per 90", "centros 90"], group: 1 },
-    { label: "Precisión centros", aliases: ["accurate crosses %", "precision centros %"], group: 1 },
-    { label: "Pases progresivos", aliases: ["progressive passes per 90", "pases progresivos 90"], group: 1 },
-    { label: "Carreras progresivas", aliases: ["progressive runs per 90", "carreras en progresion 90"], group: 2 },
-    { label: "Regates", aliases: ["dribbles per 90", "regates 90"], group: 2 },
-    { label: "Regates exitosos", aliases: ["successful dribbles %", "regates realizados %"], group: 2 },
+    { label: "xG /90", aliases: ["xg per 90", "xg 90"], group: 2, colorGroup: "finishing" },
+    { label: "Regates exitosos, %", aliases: ["successful dribbles %", "regates realizados %", "regates exitosos %"], group: 2, colorGroup: "finishing" },
+    { label: "Duelos ofensivos /90", aliases: ["offensive duels per 90", "duelos ofensivos 90", "duelos atacantes 90"], group: 2, colorGroup: "finishing" },
+    { label: "Duelos ofensivos ganados, %", aliases: ["offensive duels won %", "duelos ofensivos ganados %", "duelos atacantes ganados %"], group: 2, colorGroup: "finishing" },
+    { label: "Carreras progresivas /90", aliases: ["progressive runs per 90", "carreras en progresion 90"], group: 2, colorGroup: "finishing" },
+    { label: "xA /90", aliases: ["xa per 90", "xa 90"], group: 2, colorGroup: "finishing" },
+    { label: "Asistencias /90", aliases: ["assists per 90", "asistencias 90"], group: 2, colorGroup: "finishing" },
+    { label: "Centros /90", aliases: ["crosses per 90", "centros 90"], group: 1, colorGroup: "creation" },
+    { label: "Centros precisos, %", aliases: ["accurate crosses %", "precision centros %", "centros precisos %"], group: 1, colorGroup: "creation" },
+    { label: "Pases precisos, %", aliases: ["accurate passes %", "precision pases %", "pases precisos %"], group: 1, colorGroup: "creation" },
+    { label: "Pases largos precisos, %", aliases: ["accurate long passes %", "precision pases largos %", "pases largos precisos %"], group: 1, colorGroup: "creation" },
+    { label: "Duelos defensivos /90", aliases: ["defensive duels per 90", "duelos defensivos 90"], group: 0, colorGroup: "defending" },
+    { label: "Duelos defensivos ganados, %", aliases: ["defensive duels won %", "duelos defensivos ganados %"], group: 0, colorGroup: "defending" },
+    { label: "Intercepciones /90", aliases: ["interceptions per 90", "interceptaciones 90", "intercepciones 90"], group: 0, colorGroup: "defending" },
   ],
-  MID: [
-    { label: "Acciones defensivas", aliases: ["successful defensive actions per 90", "acciones defensivas realizadas 90"], group: 0 },
-    { label: "Intercepciones", aliases: ["interceptions per 90", "interceptaciones 90"], group: 0 },
-    { label: "Pases", aliases: ["passes per 90", "pases 90"], group: 1 },
-    { label: "Precisión", aliases: ["accurate passes %", "precision pases %"], group: 1 },
-    { label: "Pases progresivos", aliases: ["progressive passes per 90", "pases progresivos 90"], group: 1 },
-    { label: "Pases último tercio", aliases: ["passes to final third per 90", "pases en el ultimo tercio 90"], group: 1 },
-    { label: "xA", aliases: ["xa per 90", "xa 90"], group: 2 },
-    { label: "Pases clave", aliases: ["key passes per 90", "jugadas claves 90"], group: 2 },
+  DMF: [
+    { label: "Pases precisos, %", aliases: ["accurate passes %", "precision pases %", "pases precisos %"], group: 1, colorGroup: "creation" },
+    { label: "Pases /90", aliases: ["passes per 90", "pases 90"], group: 1, colorGroup: "creation" },
+    { label: "Pases recibidos /90", aliases: ["received passes per 90", "pases recibidos 90"], group: 1, colorGroup: "creation" },
+    { label: "Pases largos precisos, %", aliases: ["accurate long passes %", "precision pases largos %", "pases largos precisos %"], group: 1, colorGroup: "creation" },
+    { label: "Pases progresivos /90", aliases: ["progressive passes per 90", "pases progresivos 90"], group: 1, colorGroup: "creation" },
+    { label: "Pases progresivos precisos, %", aliases: ["accurate progressive passes %", "precision pases progresivos %", "pases progresivos precisos %"], group: 1, colorGroup: "creation" },
+    { label: "Pases clave /90", aliases: ["key passes per 90", "jugadas claves 90", "pases clave 90"], group: 2, colorGroup: "creation" },
+    { label: "Duelos defensivos /90", aliases: ["defensive duels per 90", "duelos defensivos 90"], group: 0, colorGroup: "defending" },
+    { label: "Duelos defensivos ganados, %", aliases: ["defensive duels won %", "duelos defensivos ganados %"], group: 0, colorGroup: "defending" },
+    { label: "Intercepciones /90", aliases: ["interceptions per 90", "interceptaciones 90", "intercepciones 90"], group: 0, colorGroup: "defending" },
+    { label: "Entradas deslizantes PAdj", aliases: ["padj sliding tackles", "entradas padj", "entradas deslizantes padj", "sliding tackles padj"], group: 0, colorGroup: "defending" },
+    { label: "Acciones defensivas exitosas /90", aliases: ["successful defensive actions per 90", "acciones defensivas realizadas 90", "acciones defensivas exitosas 90"], group: 0, colorGroup: "defending" },
+    { label: "Duelos aéreos ganados, %", aliases: ["aerial duels won %", "duelos aereos ganados %"], group: 0, colorGroup: "defending" },
+    { label: "Duelos ganados, %", aliases: ["duels won %", "duelos ganados %"], group: 0, colorGroup: "defending" },
   ],
-  WING: [
-    { label: "Goles", aliases: ["non penalty goals per 90", "goals per 90", "goles excepto los penaltis 90", "goles 90"], group: 0 },
-    { label: "xG", aliases: ["xg per 90", "xg 90"], group: 0 },
-    { label: "Remates", aliases: ["shots per 90", "remates 90"], group: 0 },
-    { label: "Toques en área", aliases: ["touches in box per 90", "toques en el area de penalti 90"], group: 0 },
-    { label: "Duelos aéreos", aliases: ["aerial duels won %", "duelos aereos ganados %"], group: 0 },
-    { label: "xA", aliases: ["xa per 90", "xa 90"], group: 1 },
-    { label: "Pases clave", aliases: ["key passes per 90", "jugadas claves 90"], group: 1 },
-    { label: "Regates", aliases: ["dribbles per 90", "regates 90"], group: 2 },
-    { label: "Regates exitosos", aliases: ["successful dribbles %", "regates realizados %"], group: 2 },
-    { label: "Carreras progresivas", aliases: ["progressive runs per 90", "carreras en progresion 90"], group: 2 },
+  B2B: [
+    { label: "Goles /90", aliases: ["goals per 90", "goles 90"], group: 0, colorGroup: "finishing" },
+    { label: "xG /90", aliases: ["xg per 90", "xg 90"], group: 0, colorGroup: "finishing" },
+    { label: "Toques en el área /90", aliases: ["touches in box per 90", "toques en el area de penalti 90"], group: 0, colorGroup: "finishing" },
+    { label: "Regates exitosos, %", aliases: ["successful dribbles %", "regates realizados %", "regates exitosos %"], group: 0, colorGroup: "finishing" },
+    { label: "Carreras progresivas /90", aliases: ["progressive runs per 90", "carreras en progresion 90"], group: 0, colorGroup: "finishing" },
+    { label: "Asistencias /90", aliases: ["assists per 90", "asistencias 90"], group: 1, colorGroup: "creation" },
+    { label: "xA /90", aliases: ["xa per 90", "xa 90"], group: 1, colorGroup: "creation" },
+    { label: "Pases precisos, %", aliases: ["accurate passes %", "precision pases %", "pases precisos %"], group: 1, colorGroup: "creation" },
+    { label: "Pases /90", aliases: ["passes per 90", "pases 90"], group: 1, colorGroup: "creation" },
+    { label: "Pases recibidos /90", aliases: ["received passes per 90", "pases recibidos 90"], group: 1, colorGroup: "creation" },
+    { label: "Pases progresivos /90", aliases: ["progressive passes per 90", "pases progresivos 90"], group: 1, colorGroup: "creation" },
+    { label: "Pases progresivos precisos, %", aliases: ["accurate progressive passes %", "precision pases progresivos %", "pases progresivos precisos %"], group: 1, colorGroup: "creation" },
+    { label: "Duelos defensivos /90", aliases: ["defensive duels per 90", "duelos defensivos 90"], group: 2, colorGroup: "defending" },
+    { label: "Intercepciones /90", aliases: ["interceptions per 90", "interceptaciones 90", "intercepciones 90"], group: 2, colorGroup: "defending" },
+    { label: "Duelos ganados, %", aliases: ["duels won %", "duelos ganados %"], group: 2, colorGroup: "defending" },
+    { label: "Duelos aéreos ganados, %", aliases: ["aerial duels won %", "duelos aereos ganados %"], group: 2, colorGroup: "defending" },
   ],
   AM: [
-    { label: "Goles", aliases: ["goals per 90", "goles 90"], group: 0 },
-    { label: "xG", aliases: ["xg per 90", "xg 90"], group: 0 },
-    { label: "Asistencias", aliases: ["assists per 90", "asistencias 90"], group: 1 },
-    { label: "xA", aliases: ["xa per 90", "xa 90"], group: 1 },
-    { label: "Pases clave", aliases: ["key passes per 90", "jugadas claves 90"], group: 1 },
-    { label: "Pases al área", aliases: ["passes to penalty area per 90", "pases al area de penalti 90"], group: 1 },
-    { label: "Regates", aliases: ["dribbles per 90", "regates 90"], group: 2 },
-    { label: "Carreras progresivas", aliases: ["progressive runs per 90", "carreras en progresion 90"], group: 2 },
+    { label: "Goles /90", aliases: ["goals per 90", "goles 90"], group: 0, colorGroup: "finishing" },
+    { label: "xG /90", aliases: ["xg per 90", "xg 90"], group: 0, colorGroup: "finishing" },
+    { label: "Tiros al arco, %", aliases: ["shots on target %", "tiros a la porteria %", "tiros al arco %", "remates a puerta %"], group: 0, colorGroup: "finishing" },
+    { label: "Regates exitosos, %", aliases: ["successful dribbles %", "regates realizados %", "regates exitosos %"], group: 2, colorGroup: "finishing" },
+    { label: "Duelos ofensivos /90", aliases: ["offensive duels per 90", "duelos ofensivos 90", "duelos atacantes 90"], group: 2, colorGroup: "finishing" },
+    { label: "Duelos ofensivos ganados, %", aliases: ["offensive duels won %", "duelos ofensivos ganados %", "duelos atacantes ganados %"], group: 2, colorGroup: "finishing" },
+    { label: "Toques en el área /90", aliases: ["touches in box per 90", "toques en el area de penalti 90"], group: 0, colorGroup: "finishing" },
+    { label: "Carreras progresivas /90", aliases: ["progressive runs per 90", "carreras en progresion 90"], group: 2, colorGroup: "finishing" },
+    { label: "Asistencias /90", aliases: ["assists per 90", "asistencias 90"], group: 1, colorGroup: "creation" },
+    { label: "Pases recibidos /90", aliases: ["received passes per 90", "pases recibidos 90"], group: 1, colorGroup: "creation" },
+    { label: "Pases precisos, %", aliases: ["accurate passes %", "precision pases %", "pases precisos %"], group: 1, colorGroup: "creation" },
+    { label: "Pases clave /90", aliases: ["key passes per 90", "jugadas claves 90", "pases clave 90"], group: 1, colorGroup: "creation" },
+    { label: "Pases progresivos precisos, %", aliases: ["accurate progressive passes %", "precision pases progresivos %", "pases progresivos precisos %"], group: 1, colorGroup: "creation" },
+    { label: "Pases largos precisos, %", aliases: ["accurate long passes %", "precision pases largos %", "pases largos precisos %"], group: 1, colorGroup: "creation" },
+  ],
+  WING: [
+    { label: "Goles /90", aliases: ["goals per 90", "goles 90"], group: 0, colorGroup: "finishing" },
+    { label: "xG /90", aliases: ["xg per 90", "xg 90"], group: 0, colorGroup: "finishing" },
+    { label: "Tiros al arco, %", aliases: ["shots on target %", "tiros a la porteria %", "tiros al arco %", "remates a puerta %"], group: 0, colorGroup: "finishing" },
+    { label: "Regates exitosos, %", aliases: ["successful dribbles %", "regates realizados %", "regates exitosos %"], group: 2, colorGroup: "finishing" },
+    { label: "Duelos ofensivos /90", aliases: ["offensive duels per 90", "duelos ofensivos 90", "duelos atacantes 90"], group: 2, colorGroup: "finishing" },
+    { label: "Duelos ofensivos ganados, %", aliases: ["offensive duels won %", "duelos ofensivos ganados %", "duelos atacantes ganados %"], group: 2, colorGroup: "finishing" },
+    { label: "Toques en el área /90", aliases: ["touches in box per 90", "toques en el area de penalti 90"], group: 0, colorGroup: "finishing" },
+    { label: "Carreras progresivas /90", aliases: ["progressive runs per 90", "carreras en progresion 90"], group: 2, colorGroup: "finishing" },
+    { label: "xA /90", aliases: ["xa per 90", "xa 90"], group: 1, colorGroup: "creation" },
+    { label: "Asistencias /90", aliases: ["assists per 90", "asistencias 90"], group: 1, colorGroup: "creation" },
+    { label: "Centros /90", aliases: ["crosses per 90", "centros 90"], group: 1, colorGroup: "creation" },
+    { label: "Centros precisos, %", aliases: ["accurate crosses %", "precision centros %", "centros precisos %"], group: 1, colorGroup: "creation" },
+    { label: "Pases clave /90", aliases: ["key passes per 90", "jugadas claves 90", "pases clave 90"], group: 1, colorGroup: "creation" },
+    { label: "Duelos defensivos ganados, %", aliases: ["defensive duels won %", "duelos defensivos ganados %"], group: 0, colorGroup: "defending" },
   ],
   CF: [
-    { label: "Goles", aliases: ["non penalty goals per 90", "goals per 90", "goles excepto los penaltis 90", "goles 90"], group: 0 },
-    { label: "xG", aliases: ["xg per 90", "xg 90"], group: 0 },
-    { label: "Remates", aliases: ["shots per 90", "remates 90"], group: 0 },
-    { label: "Tiros a puerta", aliases: ["shots on target %", "tiros a la porteria %"], group: 0 },
-    // Los duelos aéreos cuentan como señal de finalización en atacantes:
-    // van pegados al bloque ofensivo para que el anillo del radar sea continuo.
-    { label: "Duelos aéreos", aliases: ["aerial duels won %", "duelos aereos ganados %"], group: 1 },
-    { label: "Toques en área", aliases: ["touches in box per 90", "toques en el area de penalti 90"], group: 1 },
-    { label: "Pases recibidos", aliases: ["received passes per 90", "pases recibidos 90"], group: 2 },
-    { label: "Asistencias", aliases: ["assists per 90", "asistencias 90"], group: 2 },
+    { label: "Goles /90", aliases: ["goals per 90", "goles 90"], group: 0, colorGroup: "finishing" },
+    { label: "xG /90", aliases: ["xg per 90", "xg 90"], group: 0, colorGroup: "finishing" },
+    { label: "Tiros al arco, %", aliases: ["shots on target %", "tiros a la porteria %", "tiros al arco %", "remates a puerta %"], group: 0, colorGroup: "finishing" },
+    { label: "Duelos ofensivos /90", aliases: ["offensive duels per 90", "duelos ofensivos 90", "duelos atacantes 90"], group: 1, colorGroup: "finishing" },
+    { label: "Duelos ofensivos ganados, %", aliases: ["offensive duels won %", "duelos ofensivos ganados %", "duelos atacantes ganados %"], group: 1, colorGroup: "finishing" },
+    { label: "Toques en el área /90", aliases: ["touches in box per 90", "toques en el area de penalti 90"], group: 0, colorGroup: "finishing" },
+    { label: "Duelos aéreos ganados, %", aliases: ["aerial duels won %", "duelos aereos ganados %"], group: 1, colorGroup: "finishing" },
+    { label: "Regates exitosos, %", aliases: ["successful dribbles %", "regates realizados %", "regates exitosos %"], group: 2, colorGroup: "finishing" },
+    { label: "Carreras progresivas /90", aliases: ["progressive runs per 90", "carreras en progresion 90"], group: 2, colorGroup: "finishing" },
+    { label: "xA /90", aliases: ["xa per 90", "xa 90"], group: 2, colorGroup: "creation" },
+    { label: "Asistencias /90", aliases: ["assists per 90", "asistencias 90"], group: 2, colorGroup: "creation" },
+    { label: "Pases recibidos /90", aliases: ["received passes per 90", "pases recibidos 90"], group: 2, colorGroup: "creation" },
+    { label: "Pases precisos, %", aliases: ["accurate passes %", "precision pases %", "pases precisos %"], group: 2, colorGroup: "creation" },
   ],
 };
 
+METRICS.MID = METRICS.DMF;
 METRICS.OTHER = METRICS.WING;
 
 function percentile(value: number, values: number[], inverse = false) {
@@ -377,42 +429,48 @@ type TacticalRule = { labels: string[]; lows?: string[]; text: string };
 
 const TACTICAL_PROFILES: Record<string, TacticalRule[]> = {
   GK: [
-    { labels: ["Paradas %", "Goles evitados"], text: "Portero de línea (shot-stopper): sostiene puntos con paradas de reflejos." },
-    { labels: ["Salidas", "Duelos aéreos"], text: "Domina el área: descuelga centros y balón parado con autoridad." },
-    { labels: ["Pases largos", "Precisión largos"], text: "Portero iniciador: aguanta salida corta o rompe la presión con pase largo dirigido." },
+    { labels: ["Porcentaje de atajadas, %", "Goles evitados /90"], text: "Portero de línea (shot-stopper): sostiene puntos con paradas de reflejos." },
+    { labels: ["Salidas /90", "Duelos aéreos /90"], text: "Domina el área: descuelga centros y balón parado con autoridad." },
+    { labels: ["Pases largos precisos, %", "Pases precisos, %"], text: "Portero iniciador: aguanta salida corta o rompe la presión con pase largo dirigido." },
   ],
   CB: [
-    { labels: ["Pases progresivos", "Precisión progresivos", "Precisión"], text: "Central con toque (ball-playing): rompe la primera línea con pase interior y sostiene la salida corta bajo presión." },
-    { labels: ["Duelos defensivos", "Duelos aéreos"], lows: ["Pases progresivos"], text: "Central rústico de duelos: manda en lo físico y lo aéreo; ideal para defender el área, los centros y el balón parado." },
-    { labels: ["Intercepciones", "Acciones defensivas"], text: "Defiende hacia adelante: anticipa y encaja en línea alta defendiendo el espacio." },
+    { labels: ["Pases precisos, %", "Pases largos precisos, %", "Pases /90"], text: "Central con toque (ball-playing): rompe la primera línea con pase interior y sostiene la salida corta bajo presión." },
+    { labels: ["Duelos defensivos ganados, %", "Duelos aéreos ganados, %", "Entradas deslizantes PAdj"], lows: ["Pases /90"], text: "Central rústico de duelos: manda en lo físico y lo aéreo; ideal para defender el área, los centros y el balón parado." },
+    { labels: ["Intercepciones /90", "Acciones defensivas exitosas /90"], text: "Defiende hacia adelante: anticipa y encaja en línea alta defendiendo el espacio." },
   ],
   FB: [
-    { labels: ["Centros", "Precisión centros"], text: "Lateral de amplitud: dobla por fuera y castiga con el centro al espacio." },
-    { labels: ["Carreras progresivas", "Regates"], text: "Carrilero de conducción: gana metros con balón y encaja en línea de cinco." },
-    { labels: ["Duelos defensivos", "Intercepciones"], text: "Lateral sobrio: primero defiende; fiable al duelo en bloque medio-bajo." },
+    { labels: ["Centros /90", "Centros precisos, %"], text: "Lateral de amplitud: dobla por fuera y castiga con el centro al espacio." },
+    { labels: ["Carreras progresivas /90", "Regates exitosos, %"], text: "Carrilero de conducción: gana metros con balón y encaja en línea de cinco." },
+    { labels: ["Duelos defensivos ganados, %", "Intercepciones /90"], text: "Lateral sobrio: primero defiende; fiable al duelo en bloque medio-bajo." },
   ],
-  MID: [
-    { labels: ["Acciones defensivas", "Intercepciones"], text: "Pivote pantalla: protege la zaga y gana recuperaciones en la contrapresión." },
-    { labels: ["Pases progresivos", "Pases", "Precisión"], text: "Organizador con toque: sale limpio bajo presión y rompe líneas desde la base." },
-    { labels: ["xA", "Pases clave"], text: "Interior de último pase: pisa el tercio final para asistir la llegada." },
+  DMF: [
+    { labels: ["Acciones defensivas exitosas /90", "Intercepciones /90", "Entradas deslizantes PAdj"], text: "Pivote pantalla: protege la zaga y gana recuperaciones en la contrapresión." },
+    { labels: ["Pases progresivos /90", "Pases /90", "Pases precisos, %"], text: "Organizador con toque: sale limpio bajo presión y rompe líneas desde la base." },
+    { labels: ["Pases clave /90", "Pases progresivos precisos, %"], text: "Interior de último pase: pisa el tercio final para asistir la llegada." },
+  ],
+  B2B: [
+    { labels: ["Goles /90", "Toques en el área /90", "xG /90"], text: "Llegador desde segunda línea: ataca el área sin balón y suma remate en zona de definición." },
+    { labels: ["Pases progresivos /90", "Pases precisos, %", "xA /90"], text: "Conecta fases: progresa con pase, sostiene la circulación bajo presión y alimenta el último tercio." },
+    { labels: ["Duelos defensivos /90", "Intercepciones /90", "Duelos ganados, %"], text: "Ida y vuelta: recupera en campo propio, gana duelos y reinicia el ataque de inmediato." },
   ],
   WING: [
-    { labels: ["Regates", "Carreras progresivas"], text: "Extremo de transición: encara en campo abierto y gana metros en conducción." },
-    { labels: ["xG", "Toques en área"], text: "Perfil interior con gol: ataca la espalda del lateral y el segundo palo con desmarques de ruptura (runs in behind)." },
-    { labels: ["xA", "Pases clave"], text: "Extremo creador: recibe por dentro y rompe con el último pase." },
+    { labels: ["Regates exitosos, %", "Carreras progresivas /90", "Duelos ofensivos ganados, %"], text: "Extremo de transición: encara en campo abierto y gana metros en conducción." },
+    { labels: ["xG /90", "Toques en el área /90"], text: "Perfil interior con gol: ataca la espalda del lateral y el segundo palo con desmarques de ruptura (runs in behind)." },
+    { labels: ["xA /90", "Pases clave /90", "Centros precisos, %"], text: "Extremo creador: recibe por dentro y rompe con el último pase." },
   ],
   AM: [
-    { labels: ["Goles", "xG"], text: "Mediapunta llegador: ataca el área en segunda línea como segundo delantero." },
-    { labels: ["xA", "Pases clave", "Pases al área"], text: "Diez creador: pide el balón entre líneas y decide en el último tercio." },
-    { labels: ["Regates", "Carreras progresivas"], text: "Rompe por conducción: recibe de espaldas, gira y progresa entre líneas." },
+    { labels: ["Goles /90", "xG /90", "Toques en el área /90"], text: "Mediapunta llegador: ataca el área en segunda línea como segundo delantero." },
+    { labels: ["Asistencias /90", "Pases clave /90"], text: "Diez creador: pide el balón entre líneas y decide en el último tercio." },
+    { labels: ["Regates exitosos, %", "Carreras progresivas /90", "Duelos ofensivos ganados, %"], text: "Rompe por conducción: recibe de espaldas, gira y progresa entre líneas." },
   ],
   CF: [
-    { labels: ["Duelos aéreos", "Pases recibidos"], text: "Nueve referencia: fija centrales, juega de espaldas y baja a descargar para la segunda jugada." },
-    { labels: ["Pases recibidos", "Asistencias"], lows: ["Duelos aéreos"], text: "Puede operar de falso nueve: cae entre líneas a asociarse y libera el área para las llegadas." },
-    { labels: ["xG", "Toques en área"], lows: ["Pases recibidos"], text: "Atacante de espacio: vive del desmarque de ruptura a la espalda de la línea (runs in behind)." },
+    { labels: ["Duelos aéreos ganados, %", "Pases recibidos /90"], text: "Nueve referencia: fija centrales, juega de espaldas y baja a descargar para la segunda jugada." },
+    { labels: ["Pases recibidos /90", "Asistencias /90", "Pases precisos, %"], lows: ["Duelos aéreos ganados, %"], text: "Puede operar de falso nueve: cae entre líneas a asociarse y libera el área para las llegadas." },
+    { labels: ["xG /90", "Toques en el área /90"], lows: ["Pases recibidos /90"], text: "Atacante de espacio: vive del desmarque de ruptura a la espalda de la línea (runs in behind)." },
   ],
 };
 
+TACTICAL_PROFILES.MID = TACTICAL_PROFILES.DMF;
 TACTICAL_PROFILES.OTHER = TACTICAL_PROFILES.WING;
 
 function tacticalNote(cohort: string, metrics: RadarMetric[]) {
@@ -442,6 +500,8 @@ function roleReading(cohort: string, metrics: RadarMetric[]) {
     CB: ["central de duelos y protección del área", "central agresivo para anticipar", "central constructor desde la base"],
     FB: ["lateral fiable en el duelo", "lateral de amplitud y progresión", "carrilero con capacidad de desequilibrio"],
     MID: ["mediocentro de recuperación", "pivote organizador", "interior creativo entre líneas"],
+    DMF: ["mediocentro de recuperación", "pivote organizador", "interior creativo entre líneas"],
+    B2B: ["interior llegador con presencia en el área rival", "interior organizador que conecta fases con pase", "mediocentro de ida y vuelta con volumen defensivo"],
     WING: ["extremo con llegada al área", "extremo creador", "extremo de uno contra uno y conducción"],
     AM: ["mediapunta con llegada", "creador entre líneas", "interior que rompe por conducción"],
     CF: ["delantero finalizador", "referencia para fijar centrales", "delantero asociativo"],
@@ -449,7 +509,7 @@ function roleReading(cohort: string, metrics: RadarMetric[]) {
   };
   const top = [...metrics].sort((a, b) => b.percentile - a.percentile).slice(0, 3);
   const weak = [...metrics].sort((a, b) => a.percentile - b.percentile)[0];
-  const strengths = top.filter((metric) => metric.percentile >= 60).map((metric) => t(metric.label).toLowerCase());
+  const strengths = top.filter((metric) => metric.percentile >= 60).map((metric) => t(metric.label).replace(/\s*\/90/g, "").replace(/,\s*%$/, "").toLowerCase());
   let text = tf("El perfil encaja como {role}.", { role: t(roles[cohort]?.[dominant] ?? roles.OTHER[dominant]) });
   const tactic = tacticalNote(cohort, metrics);
   if (tactic) text += ` ${tactic}`;
@@ -477,7 +537,7 @@ export function buildPlayerReport(rows: DataRow[], selectedIndex: number, minimu
     const value = numeric(row[key]);
     if (!Number.isFinite(value)) return [];
     const peerValues = peers.map((candidate) => numeric(candidate[key]));
-    return [{ key, label: definition.label, value, percentile: percentile(value, peerValues, definition.inverse), group: definition.group }];
+    return [{ key, label: definition.label, value, percentile: percentile(value, peerValues, definition.inverse), group: definition.group, colorGroup: definition.colorGroup }];
   });
   const score = metrics.length ? Math.round(average(metrics.map((metric) => metric.percentile))) : 0;
   const text = (aliases: string[]) => String(field(row, headers, aliases) ?? "").trim();

@@ -25,7 +25,7 @@ test("normaliza y conserva posiciones principal, secundaria y terciaria", () => 
 
 test("acepta abreviaturas y nombres completos del mapa Wyscout", () => {
   assert.deepEqual(positionRoles("Centre-Back, Right-Back, RCMF"), ["Defender", "Fullback", "Box2Box Midfielder"]);
-  assert.equal(roleCohort(primaryPositionRole("CM, CAM")), "MID");
+  assert.equal(roleCohort(primaryPositionRole("CM, CAM")), "DMF");
 });
 
 test("al combinar temporadas conserva primero las posiciones de la base más reciente", () => {

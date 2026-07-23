@@ -15,7 +15,13 @@ const AERIAL_METRIC = /aerial|aereo|cabece|header/;
 const DEFENSIVE_METRIC = /defens|intercep|duelo|parada|save|gol evitado|prevented|gol recibido|conceded|entrada|tackle|recupera|bloqueo|clearance/;
 const ATTACKING_AERIAL_COHORTS = new Set(["WING", "AM", "CF", "OTHER"]);
 
-export function similarityMetricGroup(metric: { key: string; label: string; group: number }, cohort = "") {
+export function similarityMetricGroup(metric: { key: string; label: string; group: number; colorGroup?: string }, cohort = "") {
+  // Las definiciones nuevas traen el grupo de color expl\u00edcito; la inferencia
+  // por regex queda como respaldo para m\u00e9tricas sin esa marca.
+  if (metric.colorGroup) {
+    const explicit = SIMILARITY_METRIC_GROUPS.find((group) => group.id === metric.colorGroup);
+    if (explicit) return explicit;
+  }
   const semanticName = `${metric.label} ${metric.key}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("es");
   if (AERIAL_METRIC.test(semanticName)) {
     return ATTACKING_AERIAL_COHORTS.has(cohort.toUpperCase())

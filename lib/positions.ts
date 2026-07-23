@@ -106,7 +106,8 @@ export function roleCohort(role: PositionRole | null) {
   if (role === "Goalkeeper") return "GK";
   if (role === "Defender") return "CB";
   if (role === "Fullback") return "FB";
-  if (role === "Defensive Midfielder" || role === "Box2Box Midfielder") return "MID";
+  if (role === "Defensive Midfielder") return "DMF";
+  if (role === "Box2Box Midfielder") return "B2B";
   if (role === "Wingers") return "WING";
   if (role === "Attack Midfielder") return "AM";
   if (role === "Forward") return "CF";
@@ -118,6 +119,8 @@ const COHORT_POSITION_LABELS: Record<string, PositionRole> = {
   CB: "Defender",
   FB: "Fullback",
   MID: "Defensive Midfielder",
+  DMF: "Defensive Midfielder",
+  B2B: "Box2Box Midfielder",
   WING: "Wingers",
   AM: "Attack Midfielder",
   CF: "Forward",
