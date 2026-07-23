@@ -258,7 +258,7 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
 
   const playerCard = (x: number, report: { name: string; team: string; position: string; age: string; passport: string }, profile: TransfermarktProfile, image: HTMLImageElement | null, club: HTMLImageElement | null, label: string, color: string) => {
     drawRoundedRect(ctx, x, 192, 350, 470, 18);
-    ctx.fillStyle = theme.surface;
+    ctx.fillStyle = "#ffffff";
     ctx.fill();
     ctx.strokeStyle = theme.line;
     ctx.lineWidth = 2;
@@ -270,19 +270,19 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
     ctx.fillStyle = "#ffffff";
     ctx.font = "700 14px Arial";
     ctx.fillText(label, x + 22, 222);
-    const portraitGradient = ctx.createLinearGradient(x, 240, x + 350, 488);
-    portraitGradient.addColorStop(0, theme.dark);
-    portraitGradient.addColorStop(.55, canvasColorWithAlpha(color, "30"));
-    portraitGradient.addColorStop(1, theme.dark);
+    const portraitGradient = ctx.createRadialGradient(x + 175, 388, 20, x + 175, 388, 195);
+    portraitGradient.addColorStop(0, canvasColorWithAlpha(color, "80"));
+    portraitGradient.addColorStop(.55, canvasColorWithAlpha(color, "45"));
+    portraitGradient.addColorStop(1, "#ffffff");
     ctx.fillStyle = portraitGradient;
     ctx.fillRect(x, 240, 350, 248);
     if (image) drawContain(ctx, image, x + 55, 252, 240, 230);
     else {
-      ctx.fillStyle = theme.line;
+      ctx.fillStyle = canvasColorWithAlpha(color, "38");
       ctx.beginPath();
       ctx.arc(x + 175, 357, 90, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = theme.muted;
+      ctx.fillStyle = color;
       ctx.font = "800 56px Arial";
       ctx.textAlign = "center";
       ctx.fillText(report.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join(""), x + 175, 375);
