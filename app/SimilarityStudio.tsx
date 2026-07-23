@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState, type CSSProperties, type FormEvent } from "react";
+import { useId, useMemo, useState, type CSSProperties, type FormEvent } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { ArrowDownToLine, BarChart3, ImageIcon, RotateCcw, Search, Sparkles, Upload } from "./Icons";
 import { ComparisonRadar } from "./ComparisonRadar";
 import { reportThemeStyle, type ReportTheme } from "./reportTheme";
@@ -41,6 +42,7 @@ type SimilarityStudioProps = {
 const PLAYER_PALETTE = ["#1f5fd6", "#e95b3f", "#43a8a0", "#9e07ae", "#d7a62c", "#16a34a", "#0f172a", "#f97316"];
 const alphabeticCollator = new Intl.Collator("es", { sensitivity: "base", numeric: true });
 const TRANSFERMARKT_LOGO = "/tm_logo.svg";
+const STAR_PATH = "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z";
 
 function optionalNumber(value: string) {
   if (!value.trim()) return null;
@@ -131,6 +133,57 @@ function drawContain(ctx: CanvasRenderingContext2D, image: HTMLImageElement, x: 
 
 function canvasColorWithAlpha(color: string, alpha: string) {
   return /^#[0-9a-f]{6}$/i.test(color) ? `${color}${alpha}` : color;
+}
+
+function drawStarPath(ctx: CanvasRenderingContext2D, cx: number, cy: number, outerRadius: number, innerRadius: number) {
+  ctx.beginPath();
+  for (let point = 0; point < 10; point += 1) {
+    const radius = point % 2 === 0 ? outerRadius : innerRadius;
+    const angle = -Math.PI / 2 + point * Math.PI / 5;
+    const x = cx + Math.cos(angle) * radius;
+    const y = cy + Math.sin(angle) * radius;
+    if (point === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+}
+
+function drawCanvasSimilarityStar(ctx: CanvasRenderingContext2D, similarity: number, cx: number, cy: number, radius: number, theme: ReportTheme) {
+  const percentage = Math.min(Math.max(Math.round(similarity), 0), 100);
+  const glowIntensity = percentage > 60 ? (percentage - 60) / 40 : 0;
+  const innerRadius = radius * .46;
+
+  ctx.save();
+  ctx.shadowColor = `rgba(250,204,21,${.18 + glowIntensity * .72})`;
+  ctx.shadowBlur = 5 + glowIntensity * 24;
+  drawStarPath(ctx, cx, cy, radius, innerRadius);
+  ctx.fillStyle = "#253146";
+  ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  drawStarPath(ctx, cx, cy, radius, innerRadius);
+  ctx.clip();
+  const fillHeight = radius * 2 * percentage / 100;
+  ctx.fillStyle = "#facc15";
+  ctx.fillRect(cx - radius, cy + radius - fillHeight, radius * 2, fillHeight);
+  ctx.restore();
+
+  ctx.save();
+  drawStarPath(ctx, cx, cy, radius, innerRadius);
+  ctx.strokeStyle = percentage >= 95 ? "#ffffff" : "#facc15";
+  ctx.lineWidth = percentage >= 95 ? 3 : 2;
+  ctx.lineJoin = "round";
+  ctx.stroke();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = "800 18px Arial";
+  ctx.lineWidth = 5;
+  ctx.strokeStyle = canvasColorWithAlpha(theme.dark, "cc");
+  ctx.strokeText(`${percentage}%`, cx, cy + 1);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillText(`${percentage}%`, cx, cy + 1);
+  ctx.restore();
 }
 
 function radarPoint(index: number, total: number, radius: number, cx: number, cy: number) {
@@ -245,15 +298,13 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
   ctx.font = "700 16px Arial";
   ctx.fillStyle = "rgba(255,255,255,.68)";
   ctx.fillText("COMPARACIÓN DE JUGADORES · PERCENTILES POSICIONALES", 78, 99);
-  ctx.textAlign = "right";
-  ctx.fillStyle = theme.accent;
-  ctx.font = "800 43px Arial";
-  ctx.fillText(`${candidate.similarity}%`, 1522, 67);
+  drawCanvasSimilarityStar(ctx, candidate.similarity, 1450, 65, 46, theme);
+  ctx.textAlign = "center";
   ctx.fillStyle = "rgba(255,255,255,.68)";
   ctx.font = "700 12px Arial";
-  ctx.fillText("SIMILITUD GLOBAL", 1522, 91);
+  ctx.fillText("SIMILITUD", 1450, 126);
   ctx.font = "600 11px Arial";
-  ctx.fillText(fitText(ctx, sourceName.toUpperCase(), 520), 1522, 116);
+  ctx.fillText(fitText(ctx, sourceName.toUpperCase(), 250), 1450, 145);
   ctx.textAlign = "left";
 
   const playerCard = (x: number, report: { name: string; team: string; position: string; age: string; passport: string }, profile: TransfermarktProfile, image: HTMLImageElement | null, club: HTMLImageElement | null, label: string, color: string) => {
@@ -710,7 +761,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, targets, the
             </section>
 
             <section className="similarity-report-sheet">
-              <header className="similarity-report-header"><div><span>FOS SCOUT LAB</span><b>COMPARACIÓN DE JUGADORES</b><small>Percentiles posicionales · {sourceName}</small></div><strong>{selectedCandidate.similarity}<small>%</small><span>similitud</span></strong></header>
+              <header className="similarity-report-header"><div><span>FOS SCOUT LAB</span><b>COMPARACIÓN DE JUGADORES</b><small>Percentiles posicionales · {sourceName}</small></div><SimilarityStarScore similarity={selectedCandidate.similarity} /></header>
               <div className="similarity-report-body">
                 <div className="similarity-showdown">
                   <ComparisonPlayer profile={targetProfile} name={search.target.player} team={search.target.team} position={search.target.position} age={search.target.age} passport={search.target.passport} label="JUGADOR OBJETIVO" color={targetColor} />
@@ -728,6 +779,56 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, targets, the
         </main>
       </div>
     </>}
+  </div>;
+}
+
+function SimilarityStarScore({ similarity }: { similarity: number }) {
+  const percentage = Math.min(Math.max(Math.round(similarity), 0), 100);
+  const glowIntensity = percentage > 60 ? (percentage - 60) / 40 : 0;
+  const isNearHundred = percentage >= 95;
+  const reduceMotion = useReducedMotion();
+  const clipId = `similarity-star-${useId().replace(/:/g, "")}`;
+  const fillHeight = 24 * percentage / 100;
+
+  return <div className="similarity-star-score" role="img" aria-label={`${percentage}% de similitud`}>
+    <div className="similarity-star-visual">
+      <motion.svg
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+        initial={false}
+        animate={{
+          filter: `drop-shadow(0 0 ${4 + glowIntensity * 20}px rgba(250,204,21,${.18 + glowIntensity * .78}))`,
+          scale: !reduceMotion && isNearHundred ? [1, 1.07, 1] : 1,
+        }}
+        transition={{
+          filter: { duration: .35, ease: "easeOut" },
+          scale: { duration: 1.25, repeat: !reduceMotion && isNearHundred ? Infinity : 0, ease: "easeInOut" },
+        }}
+      >
+        <defs><clipPath id={clipId}><path d={STAR_PATH} /></clipPath></defs>
+        <path d={STAR_PATH} fill="#253146" />
+        <motion.rect
+          x="0"
+          width="24"
+          fill="#facc15"
+          clipPath={`url(#${clipId})`}
+          initial={false}
+          animate={{ y: 24 - fillHeight, height: fillHeight }}
+          transition={{ duration: .55, ease: "easeOut" }}
+        />
+        <motion.path
+          d={STAR_PATH}
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          initial={false}
+          animate={{ stroke: isNearHundred ? "#ffffff" : "#facc15", strokeWidth: isNearHundred ? 1.25 : .85 }}
+          transition={{ duration: .3 }}
+        />
+      </motion.svg>
+      <span className="similarity-star-number"><b>{percentage}</b><small>%</small></span>
+    </div>
+    <span className="similarity-star-label">similitud</span>
   </div>;
 }
 
