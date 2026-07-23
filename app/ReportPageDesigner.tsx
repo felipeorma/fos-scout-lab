@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties, type DragEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type PointerEvent as ReactPointerEvent } from "react";
 import {
   Columns,
   Grip,
@@ -45,6 +45,17 @@ type PageConfig = {
 };
 
 type DesignerState = Record<2 | 3, PageConfig>;
+
+type ResizeSession = {
+  id: string;
+  pointerId: number;
+  startX: number;
+  startY: number;
+  startHeight: number;
+  startSpan: number;
+  columnStep: number;
+  columns: number;
+};
 
 const SHARED_TEXT_COLORS = new Set([
   ...REPORT_THEMES.map((theme) => theme.ink.toLowerCase()),
@@ -121,7 +132,9 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
   const [pages, setPages] = useState<DesignerState>(defaultPages);
   const [selectedId, setSelectedId] = useState(defaultPages()[pageNumber].blocks[0].id);
   const [draggedId, setDraggedId] = useState("");
+  const [resizeSession, setResizeSession] = useState<ResizeSession | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const gridRef = useRef<HTMLDivElement>(null);
   const config = pages[pageNumber];
   const selected = useMemo(() => config.blocks.find((block) => block.id === selectedId) ?? null, [config.blocks, selectedId]);
 
@@ -140,6 +153,39 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
     if (!loaded) return;
     try { window.localStorage.setItem("fos-scout-page-designer-v1", JSON.stringify(pages)); } catch { /* Sin persistencia si el navegador la bloquea. */ }
   }, [loaded, pages]);
+
+  useEffect(() => {
+    if (!resizeSession) return;
+
+    function finishResize(event: PointerEvent) {
+      if (event.pointerId !== resizeSession?.pointerId) return;
+      setResizeSession(null);
+    }
+
+    function resizeBlock(event: PointerEvent) {
+      if (event.pointerId !== resizeSession?.pointerId) return;
+      event.preventDefault();
+      const spanDelta = Math.round((event.clientX - resizeSession.startX) / resizeSession.columnStep);
+      const span = clampSpan(resizeSession.startSpan + spanDelta, resizeSession.columns);
+      const rawHeight = resizeSession.startHeight + event.clientY - resizeSession.startY;
+      const height = Math.max(140, Math.min(620, Math.round(rawHeight / 10) * 10));
+      setPages((current) => ({
+        ...current,
+        [pageNumber]: updateBlock(current[pageNumber], resizeSession.id, { span, height }),
+      }));
+    }
+
+    document.body.classList.add("is-resizing-report-block");
+    window.addEventListener("pointermove", resizeBlock, { passive: false });
+    window.addEventListener("pointerup", finishResize);
+    window.addEventListener("pointercancel", finishResize);
+    return () => {
+      document.body.classList.remove("is-resizing-report-block");
+      window.removeEventListener("pointermove", resizeBlock);
+      window.removeEventListener("pointerup", finishResize);
+      window.removeEventListener("pointercancel", finishResize);
+    };
+  }, [pageNumber, resizeSession]);
 
   function setConfig(updater: (current: PageConfig) => PageConfig) {
     setPages((current) => ({ ...current, [pageNumber]: updater(current[pageNumber]) }));
@@ -240,6 +286,45 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
     setDraggedId("");
   }
 
+  function startBlockResize(event: ReactPointerEvent<HTMLButtonElement>, block: PageBlock) {
+    event.preventDefault();
+    event.stopPropagation();
+    const grid = gridRef.current;
+    if (!grid) return;
+    const gridWidth = grid.getBoundingClientRect().width;
+    const columnWidth = (gridWidth - config.gap * (config.columns - 1)) / config.columns;
+    if (columnWidth <= 0) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setSelectedId(block.id);
+    setDraggedId("");
+    setResizeSession({
+      id: block.id,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startHeight: block.height,
+      startSpan: clampSpan(block.span, config.columns),
+      columnStep: columnWidth + config.gap,
+      columns: config.columns,
+    });
+  }
+
+  function resizeBlockWithKeyboard(event: React.KeyboardEvent<HTMLButtonElement>, block: PageBlock) {
+    const step = event.shiftKey ? 40 : 10;
+    if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+      event.preventDefault();
+      event.stopPropagation();
+      const direction = event.key === "ArrowUp" ? -1 : 1;
+      setConfig((current) => updateBlock(current, block.id, { height: Math.max(140, Math.min(620, block.height + direction * step)) }));
+    }
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      event.preventDefault();
+      event.stopPropagation();
+      const direction = event.key === "ArrowLeft" ? -1 : 1;
+      setConfig((current) => updateBlock(current, block.id, { span: clampSpan(block.span + direction, current.columns) }));
+    }
+  }
+
   const canvasStyle = reportThemeStyle(theme);
 
   return (
@@ -277,6 +362,7 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
           <label className="field-group"><span className="field-label">Etiqueta</span><input className="text-input" value={selected.title} onChange={(event) => patchSelected({ title: event.target.value })} /></label>
           <div className="span-buttons"><span className="field-label">Ancho</span><div>{Array.from({ length: config.columns }, (_, index) => index + 1).map((span) => <button key={span} className={clampSpan(selected.span, config.columns) === span ? "active" : ""} onClick={() => patchSelected({ span })}>{span === config.columns ? "Completo" : `${span}/${config.columns}`}</button>)}</div></div>
           <label className="range-row block-height"><span>Alto del espacio <b>{selected.height}px</b></span><input type="range" min="140" max="620" step="10" value={selected.height} onChange={(event) => patchSelected({ height: Number(event.target.value) })} /></label>
+          <p className="resize-alignment-note"><b>↘</b><span>Arrastra la esquina del bloque. El ancho encaja en columnas y el alto en una retícula de 10 px.</span></p>
 
           {selected.type === "image" ? <div className="image-options">
             <span className="field-label">Ajuste de imagen</span><div className="segmented"><button className={selected.fit === "contain" ? "active" : ""} onClick={() => patchSelected({ fit: "contain" })}>Completa</button><button className={selected.fit === "cover" ? "active" : ""} onClick={() => patchSelected({ fit: "cover" })}>Recorta</button></div>
@@ -293,23 +379,24 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
       </aside>
 
       <section className="designer-stage" style={{ background: theme.canvas }}>
-        <div className="preview-toolbar designer-toolbar"><div><span className="live-dot" /> Página {pageNumber} · Editor visual</div><span><Grip size={14} /> Arrastra los bloques para reordenar</span></div>
+        <div className="preview-toolbar designer-toolbar"><div><span className="live-dot" /> Página {pageNumber} · Editor visual</div><span><Grip size={14} /> Arrastra para ordenar · esquina ↘ para tamaño</span></div>
         <article className="visual-report-page unified-report-page" style={canvasStyle}>
           <header className="visual-page-header">
             <div className="visual-page-folio"><span>FOS</span><small>PÁGINA</small><b>0{pageNumber}</b><em>{pageNumber === 2 ? "VISUALES" : "OBSERVACIONES"}</em></div>
             <div className="visual-page-identity"><span>FOS SCOUT LAB · INFORME DE SCOUTING</span><h2>{player}</h2><p>{team} · {position}</p></div>
           </header>
           <div className="visual-page-title"><span>ANÁLISIS COMPLEMENTARIO</span><h3>{config.title}</h3></div>
-          <div className="visual-block-grid" style={{ gridTemplateColumns: `repeat(${config.columns}, minmax(0, 1fr))`, gap: config.gap }} onDragOver={(event) => event.preventDefault()}>
+          <div ref={gridRef} className="visual-block-grid" style={{ gridTemplateColumns: `repeat(${config.columns}, minmax(0, 1fr))`, gap: config.gap }} onDragOver={(event) => event.preventDefault()}>
             {config.blocks.map((block) => {
               const span = clampSpan(block.span, config.columns);
               const textStyle = { color: usesSharedTextColor(block.color, theme.ink) ? theme.ink : block.color, fontFamily: fontFamily(block.font), fontSize: block.fontSize, fontWeight: block.bold ? 700 : 400, fontStyle: block.italic ? "italic" : "normal", textAlign: block.align } as CSSProperties;
-              return <div key={block.id} draggable className={`visual-block visual-${block.type} ${selected?.id === block.id ? "selected" : ""} ${draggedId === block.id ? "dragging" : ""}`} style={{ gridColumn: `span ${span}`, height: block.height }} onClick={() => setSelectedId(block.id)} onDragStart={() => { setDraggedId(block.id); setSelectedId(block.id); }} onDragEnd={() => setDraggedId("")} onDragOver={(event) => event.preventDefault()} onDrop={(event) => onDropBlock(event, block.id)} role="button" tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter") setSelectedId(block.id); }}>
+              return <div key={block.id} draggable={!resizeSession} className={`visual-block visual-${block.type} ${selected?.id === block.id ? "selected" : ""} ${draggedId === block.id ? "dragging" : ""} ${resizeSession?.id === block.id ? "resizing" : ""}`} style={{ gridColumn: `span ${span}`, height: block.height }} onClick={() => setSelectedId(block.id)} onDragStart={() => { setDraggedId(block.id); setSelectedId(block.id); }} onDragEnd={() => setDraggedId("")} onDragOver={(event) => event.preventDefault()} onDrop={(event) => onDropBlock(event, block.id)} role="button" tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter") setSelectedId(block.id); }}>
                 <div className="block-chrome"><span><Grip size={13} /> {block.title || (block.type === "image" ? "Imagen" : "Texto")}</span><small>{span}/{config.columns}</small></div>
                 {block.type === "image" ? <label className={`visual-image-slot ${block.image ? "has-image" : ""}`} onClick={(event) => event.stopPropagation()}>
                   {block.image ? <LocalPreviewImage src={block.image} alt={block.title} fit={block.fit} /> : <span><span className="image-placeholder-icon"><ImageIcon size={27} /></span><b>Agregar imagen</b><small>PNG, JPG o WEBP</small><em><Upload size={13} /> Elegir archivo</em></span>}
                   <input type="file" accept="image/*" hidden onChange={(event) => onImage(event.target.files?.[0], block.id)} />
                 </label> : <div className="visual-text-content" style={textStyle}><p>{block.content || "Escribe tu análisis desde el panel lateral."}</p></div>}
+                <button type="button" className="block-resize-handle" draggable={false} aria-label={`Redimensionar ${block.title || "bloque"}`} title="Arrastra para ajustar ancho y alto" onPointerDown={(event) => startBlockResize(event, block)} onKeyDown={(event) => resizeBlockWithKeyboard(event, block)} onClick={(event) => event.stopPropagation()} onDragStart={(event) => { event.preventDefault(); event.stopPropagation(); }}>↘</button>
               </div>;
             })}
             {!config.blocks.length && <button className="empty-designer-page" onClick={() => addBlock("image")}><Sparkles size={26} /><b>Tu página está vacía</b><span>Agrega una imagen o un texto desde el panel.</span></button>}

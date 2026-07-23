@@ -39,7 +39,7 @@ Las páginas 2 y 3 del reporte incluyen un editor local con:
 - bloques de imagen y texto que se pueden agregar, eliminar y reordenar;
 - comentarios independientes debajo o al lado de cualquier imagen cargada;
 - arrastre de bloques y controles alternativos para moverlos;
-- ancho, alto y separación ajustables;
+- ancho y alto ajustables desde el panel o arrastrando la esquina; el ancho encaja en columnas y el alto en pasos de 10 px para conservar márgenes y alineación;
 - temas de color y colores personalizados;
 - tipografías, tamaño, color, negrita, cursiva y alineación para los textos;
 - guardado automático del diseño en el navegador e impresión de la página activa.

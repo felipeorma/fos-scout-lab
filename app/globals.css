@@ -235,6 +235,8 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .span-buttons button, .segmented button { min-height: 28px; flex: 1; border: 0; border-radius: 5px; color: #78898e; background: transparent; font-size: 8.5px; cursor: pointer; }
 .span-buttons button.active, .segmented button.active { color: #1d6356; background: #fff; box-shadow: 0 2px 7px rgba(30,60,65,.08); font-weight: 700; }
 .block-height { margin: 0 0 13px; }
+.resize-alignment-note { margin: -3px 0 13px; padding: 9px 10px; display: flex; align-items: center; gap: 8px; border: 1px solid #dbe6e4; border-radius: 7px; color: #728389; background: #f4f8f7; font-size: 8.5px; line-height: 1.4; }
+.resize-alignment-note b { width: 22px; height: 22px; display: grid; place-items: center; flex: none; border-radius: 6px; color: #277365; background: #e2f0ec; font-size: 13px; }
 .designer-textarea { width: 100%; min-height: 108px; padding: 10px; resize: vertical; border: 1px solid #d9e1e3; border-radius: 8px; color: #354b52; background: #fff; font-size: 10.5px; line-height: 1.5; }
 .text-toolbar { margin-bottom: 11px; display: grid; grid-template-columns: 32px 32px 1fr 30px; gap: 5px; }
 .text-toolbar > button { border: 1px solid #dce4e5; border-radius: 6px; color: #697c82; background: #fff; cursor: pointer; }
@@ -270,6 +272,11 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .visual-block:hover { border-color: color-mix(in srgb, var(--designer-accent) 55%, transparent); }
 .visual-block.selected { border-color: var(--designer-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--designer-accent) 15%, transparent), 0 10px 24px color-mix(in srgb, var(--designer-text) 7%, transparent); }
 .visual-block.dragging { opacity: .45; transform: scale(.985); }
+.visual-block.resizing { border-color: var(--designer-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--designer-accent) 23%, transparent), 0 14px 28px color-mix(in srgb, var(--designer-text) 10%, transparent); cursor: nwse-resize; }
+.block-resize-handle { position: absolute; right: 5px; bottom: 5px; z-index: 6; width: 27px; height: 27px; padding: 0; display: grid; place-items: center; border: 1px solid color-mix(in srgb, var(--designer-accent) 58%, transparent); border-radius: 7px; color: var(--designer-accent); background: color-mix(in srgb, var(--designer-paper) 90%, transparent); box-shadow: 0 4px 13px color-mix(in srgb, var(--designer-text) 16%, transparent); cursor: nwse-resize; opacity: 0; touch-action: none; transition: opacity .15s ease, transform .15s ease, background .15s ease; }
+.block-resize-handle:hover, .block-resize-handle:focus-visible { outline: 0; background: color-mix(in srgb, var(--designer-accent) 13%, var(--designer-paper)); transform: scale(1.06); }
+.visual-block:hover .block-resize-handle, .visual-block.selected .block-resize-handle, .visual-block.resizing .block-resize-handle, .block-resize-handle:focus-visible { opacity: 1; }
+body.is-resizing-report-block, body.is-resizing-report-block * { cursor: nwse-resize !important; user-select: none !important; }
 .block-chrome { height: 34px; padding: 0 10px; display: flex; align-items: center; justify-content: space-between; color: color-mix(in srgb, var(--designer-text) 62%, transparent); background: color-mix(in srgb, var(--designer-text) 5%, transparent); font-size: 8px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .block-chrome > span { min-width: 0; display: flex; align-items: center; gap: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .block-chrome small { opacity: .65; font-size: 7px; }
@@ -795,6 +802,7 @@ body::before { position: fixed; inset: 0; z-index: -1; pointer-events: none; bac
   .visual-report-page { width: 100% !important; max-width: none !important; min-height: 270mm !important; margin: 0 !important; box-shadow: none !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   .visual-block { break-inside: avoid; cursor: default !important; }
   .visual-block.selected { border-color: color-mix(in srgb, var(--designer-text) 14%, transparent) !important; box-shadow: 0 7px 18px color-mix(in srgb, var(--designer-text) 5%, transparent) !important; }
+  .block-resize-handle { display: none !important; }
   .block-chrome .ui-icon, .block-chrome small { display: none !important; }
   @page { size: A4 portrait; margin: 8mm; }
 }
