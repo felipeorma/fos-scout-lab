@@ -74,6 +74,23 @@ function numberFormat(value: number) {
   return new Intl.NumberFormat(numberLocale(), { maximumFractionDigits: 0 }).format(value);
 }
 
+const COHORT_LABELS: Record<string, string> = {
+  GK: "Porteros",
+  CB: "Centrales",
+  FB: "Laterales",
+  MID: "Pivotes / mediocentros",
+  DMF: "Pivotes / mediocentros",
+  B2B: "Interiores (box-to-box)",
+  WING: "Extremos",
+  AM: "Mediapuntas",
+  CF: "Delanteros",
+};
+
+function cohortLabel(cohort: string) {
+  const label = COHORT_LABELS[cohort];
+  return label ? t(label) : cohort;
+}
+
 const alphabeticCollator = new Intl.Collator("es", { sensitivity: "base", numeric: true });
 
 type PlayerOption = {
@@ -699,7 +716,7 @@ export default function ScoutStudio() {
                     </header>
 
                     <section className="dossier-season-strip">
-                      <div className="season-source"><span>{t(analysisLabel) || (reportSourceCount > 1 ? t("BASES ANALIZADAS") : t("BASE ANALIZADA"))}</span><b>{t(analysisSourceTitle || reportFileName)}</b><small>{tf("Cohorte {c} · mín. {m}′", { c: report.cohort, m: minimumMinutes })}</small></div>
+                      <div className="season-source"><span>{t(analysisLabel) || (reportSourceCount > 1 ? t("BASES ANALIZADAS") : t("BASE ANALIZADA"))}</span><b>{t(analysisSourceTitle || reportFileName)}</b><small>{tf("Cohorte {c} · mín. {m}′", { c: cohortLabel(report.cohort), m: minimumMinutes })}</small></div>
                       <div className="dossier-stat"><strong>{numberFormat(report.matches)}</strong><span>{t("Partidos")}</span></div>
                       <div className="dossier-stat"><strong>{numberFormat(report.minutes)}</strong><span>{t("Minutos")}</span></div>
                       <div className="dossier-stat goals"><strong>{numberFormat(report.goals)}</strong><span>{t("Goles")}</span></div>
