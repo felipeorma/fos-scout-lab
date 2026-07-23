@@ -41,7 +41,9 @@ type SimilarityStudioProps = {
 
 const PLAYER_PALETTE = ["#1f5fd6", "#e95b3f", "#43a8a0", "#9e07ae", "#d7a62c", "#16a34a", "#0f172a", "#f97316"];
 const alphabeticCollator = new Intl.Collator("es", { sensitivity: "base", numeric: true });
-const TRANSFERMARKT_LOGO = "/tm_logo.svg";
+const TRANSFERMARKT_LOGO = process.env.NEXT_PUBLIC_GITHUB_PAGES === "true"
+  ? "/fos-scout-lab/tm_logo.svg"
+  : "/tm_logo.svg";
 const STAR_PATH = "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z";
 
 function optionalNumber(value: string) {

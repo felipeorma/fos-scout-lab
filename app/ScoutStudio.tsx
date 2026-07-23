@@ -47,7 +47,9 @@ type ReportPage = 1 | 2 | 3;
 type ReportFileMode = "single" | "combine" | "replace";
 type ProfileAssetField = "playerImage" | "clubLogo" | "leagueLogo";
 
-const TRANSFERMARKT_LOGO = "/tm_logo.svg";
+const TRANSFERMARKT_LOGO = process.env.NEXT_PUBLIC_GITHUB_PAGES === "true"
+  ? "/fos-scout-lab/tm_logo.svg"
+  : "/tm_logo.svg";
 
 const PROFILE_ASSETS: Array<{ field: ProfileAssetField; label: string; linkLabel: string }> = [
   { field: "playerImage", label: "Foto del jugador", linkLabel: "Jugador" },
