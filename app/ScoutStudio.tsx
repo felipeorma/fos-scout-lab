@@ -175,7 +175,7 @@ export default function ScoutStudio() {
       <aside className={`sidebar ${mobileNav ? "sidebar-open" : ""}`}>
         <div className="brand-row">
           <div className="brand-mark"><span>F</span></div>
-          <div><strong>FOS Scout Lab</strong><small>Personal workspace</small></div>
+          <div><strong>FOS Scout Lab</strong><small>Scout intelligence</small></div>
           <button className="sidebar-close" onClick={() => setMobileNav(false)} aria-label="Cerrar menú"><X size={19} /></button>
         </div>
         <nav className="side-nav" aria-label="Navegación principal">
@@ -193,7 +193,7 @@ export default function ScoutStudio() {
           <ShieldCheck size={20} />
           <div><strong>Datos privados</strong><p>Los archivos se procesan localmente en este navegador.</p></div>
         </div>
-        <div className="sidebar-footer"><span className="status-dot" /> Prototipo local · v0.1</div>
+        <div className="sidebar-footer"><span className="status-dot" /> Sistema local · v0.3</div>
       </aside>
 
       <main className="main-area">
@@ -206,7 +206,7 @@ export default function ScoutStudio() {
         {view === "reports" ? (
           <div className="page-content reports-page">
             <section className="page-heading">
-              <div><span className="kicker">Centro de análisis</span><h1>Convierte datos en una lectura de scouting.</h1><p>Carga una base Wyscout, elige un jugador y genera un perfil comparable listo para revisión.</p></div>
+              <div><span className="kicker">Scout intelligence workspace</span><h1>Convierte datos en <span>decisiones de scouting.</span></h1><p>Explora rendimiento, compara perfiles y construye reportes visuales listos para presentar.</p><div className="heading-chips"><span>Percentiles posicionales</span><span>1–3 bases</span><span>Editor visual</span></div></div>
               <div className="heading-actions">
                 <button className="button secondary" onClick={resetReport}><RotateCcw size={16} /> Restablecer</button>
                 <button className="button primary" onClick={() => window.print()} disabled={!report}><Printer size={16} /> {reportPage === 1 ? "Imprimir reporte" : `Imprimir página ${reportPage}`}</button>
@@ -291,7 +291,7 @@ export default function ScoutStudio() {
         ) : (
           <div className="page-content seasons-page">
             <section className="page-heading">
-              <div><span className="kicker">Consolidador de bases</span><h1>Una sola lectura para ligas y temporadas.</h1><p>Procesa entre uno y tres archivos —de ligas o temporadas— con las ponderaciones correctas y descarga un Excel limpio.</p></div>
+              <div><span className="kicker">Data fusion workspace</span><h1>Una sola lectura para <span>ligas y temporadas.</span></h1><p>Procesa hasta tres fuentes, normaliza sus métricas y crea una base maestra lista para análisis.</p><div className="heading-chips"><span>Datos privados</span><span>Ponderación inteligente</span><span>Excel limpio</span></div></div>
               <div className="rule-pills"><span>Σ Minutos y partidos</span><span>Ø Totales</span><span>⚖ /90 y porcentajes</span></div>
             </section>
 

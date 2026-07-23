@@ -20,7 +20,8 @@ test("renderiza FOS Scout Lab con sus dos flujos", async () => {
 
   const html = await response.text();
   assert.match(html, /<title>FOS Scout Lab \| Reportes de scouting<\/title>/i);
-  assert.match(html, /Convierte datos en una lectura de scouting/);
+  assert.match(html, /Convierte datos en/);
+  assert.match(html, /decisiones de scouting/);
   assert.match(html, /Combinar bases/);
   assert.match(html, /1 a 3 archivos/);
   assert.match(html, /Las páginas 2 y 3 son totalmente editables/);
