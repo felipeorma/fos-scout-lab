@@ -343,7 +343,7 @@ function drawMagnifier(ctx: CanvasRenderingContext2D, x: number, y: number, radi
 async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer, sourceName: string, theme: ReportTheme, targetProfile: TransfermarktProfile, candidateProfile: TransfermarktProfile, recipientName: string, recipientLogoUrl: string, targetColor: string, candidateColor: string, targetLabelColor: string, candidateLabelColor: string, targetLabelTransparency: number, candidateLabelTransparency: number, forReport = false, targetPhotoScale = 100, candidatePhotoScale = 100) {
   const canvas = document.createElement("canvas");
   canvas.width = 1600;
-  canvas.height = forReport ? 1104 : 1200;
+  canvas.height = forReport ? 1250 : 1364;
   const ctx = canvas.getContext("2d");
   if (!ctx) return "";
   const [targetImage, targetClub, candidateImage, candidateClub, recipientLogo, transfermarktLogo] = await Promise.all([
@@ -357,94 +357,114 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
 
   ctx.fillStyle = theme.paper;
   ctx.fillRect(0, 0, 1600, canvas.height);
+
+  // ---- Cinta superior: jugadores a los costados y estrella al centro ----
+  const RIBBON = 250;
   ctx.fillStyle = theme.dark;
-  ctx.fillRect(0, 0, 1600, 154);
-  ctx.fillStyle = theme.accent;
-  ctx.fillRect(0, 150, 1600, 4);
-  drawMagnifier(ctx, 100, 68, 24, "#ffffff");
-  ctx.fillStyle = "#ffffff";
-  ctx.font = "800 30px Arial";
-  ctx.fillText(t("COMPARACIÓN DE JUGADORES"), 160, 65);
-  ctx.font = "700 16px Arial";
-  ctx.fillStyle = "rgba(255,255,255,.68)";
-  ctx.fillText(t("Percentiles posicionales").toUpperCase(), 160, 99);
-  drawCanvasSimilarityStar(ctx, candidate.similarity, 1450, 65, 46, theme);
+  ctx.fillRect(0, 0, 1600, RIBBON);
+  ctx.fillStyle = targetColor;
+  ctx.fillRect(0, RIBBON - 4, 800, 4);
+  ctx.fillStyle = candidateColor;
+  ctx.fillRect(800, RIBBON - 4, 800, 4);
+
+  const ribbonPlayer = (side: "left" | "right", info: { name: string; team: string; position: string; age: string; passport: string }, profile: TransfermarktProfile, image: HTMLImageElement | null, club: HTMLImageElement | null, label: string, color: string, photoScale: number) => {
+    const frameX = side === "left" ? 60 : 1380;
+    const textX = side === "left" ? 254 : 1346;
+    ctx.textAlign = side === "left" ? "left" : "right";
+
+    // Marco del retrato con degradado del color del jugador
+    drawRoundedRect(ctx, frameX, 34, 160, 186, 14);
+    const frameGradient = ctx.createLinearGradient(frameX, 34, frameX, 220);
+    frameGradient.addColorStop(0, canvasColorWithAlpha(color, "55"));
+    frameGradient.addColorStop(1, canvasColorWithAlpha(color, "18"));
+    ctx.fillStyle = frameGradient;
+    ctx.fill();
+    ctx.strokeStyle = canvasColorWithAlpha(color, "aa");
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    if (image) {
+      const scale = Math.max(0.6, Math.min(1.4, photoScale / 100));
+      const boxWidth = 150 * scale;
+      const boxHeight = 176 * scale;
+      ctx.save();
+      drawRoundedRect(ctx, frameX, 34, 160, 186, 14);
+      ctx.clip();
+      drawContain(ctx, image, frameX + 80 - boxWidth / 2, 218 - boxHeight, boxWidth, boxHeight);
+      ctx.restore();
+    } else {
+      ctx.fillStyle = "rgba(255,255,255,.85)";
+      ctx.font = "800 52px Arial";
+      const initialsAlign = ctx.textAlign;
+      ctx.textAlign = "center";
+      ctx.fillText(info.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join(""), frameX + 80, 145);
+      ctx.textAlign = initialsAlign;
+    }
+    if (club) {
+      const crestX = side === "left" ? frameX + 128 : frameX - 14;
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(crestX + 23, 195, 27, 0, Math.PI * 2);
+      ctx.fillStyle = "#ffffff";
+      ctx.fill();
+      ctx.restore();
+      drawContain(ctx, club, crestX, 172, 46, 46);
+    }
+
+    // Chip de rol del jugador en su color
+    ctx.font = "800 11px Arial";
+    const chipText = label;
+    const chipWidth = ctx.measureText(chipText).width + 26;
+    const chipX = side === "left" ? textX : textX - chipWidth;
+    drawRoundedRect(ctx, chipX, 44, chipWidth, 24, 12);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.fillStyle = "#ffffff";
+    const chipAlign = ctx.textAlign;
+    ctx.textAlign = "center";
+    ctx.fillText(chipText, chipX + chipWidth / 2, 60);
+    ctx.textAlign = chipAlign;
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "800 27px Arial";
+    ctx.fillText(fitText(ctx, info.name.toUpperCase(), 420), textX, 104);
+    ctx.fillStyle = "rgba(255,255,255,.78)";
+    ctx.font = "700 15px Arial";
+    ctx.fillText(fitText(ctx, profile.club || info.team, 400), textX, 131);
+    ctx.fillStyle = "rgba(255,255,255,.6)";
+    ctx.font = "600 12px Arial";
+    ctx.fillText(fitText(ctx, formatPlayerPositions(profile.position || info.position), 420), textX, 154);
+    ctx.fillText(tf("{age} años · {passport}", { age: profile.age || info.age || "—", passport: profile.citizenship || info.passport }), textX, 175);
+    const marketValue = profile.marketValue || t("VALOR N/D");
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "800 20px Arial";
+    ctx.fillText(marketValue, textX, 205);
+    if (transfermarktLogo) {
+      const valueWidth = ctx.measureText(marketValue).width;
+      const logoX = side === "left" ? textX + valueWidth + 14 : textX - valueWidth - 14 - 88;
+      ctx.fillStyle = "#ffffff";
+      drawRoundedRect(ctx, logoX, 188, 88, 22, 4);
+      ctx.fill();
+      drawContain(ctx, transfermarktLogo, logoX + 4, 190, 80, 18);
+    }
+  };
+
+  ribbonPlayer("left", { name: target.player, team: target.team, position: target.position, age: target.age, passport: target.passport }, targetProfile, targetImage, targetClub, t("JUGADOR OBJETIVO"), targetColor, targetPhotoScale);
+  ribbonPlayer("right", { name: candidate.name, team: candidate.team, position: candidate.position, age: candidate.age === null ? "—" : String(candidate.age), passport: candidate.passport }, candidateProfile, candidateImage, candidateClub, t("JUGADOR COMPARABLE"), candidateColor, candidatePhotoScale);
+
+  // Estrella de similitud al centro, entre los dos nombres
+  drawCanvasSimilarityStar(ctx, candidate.similarity, 800, 96, 44, theme);
   ctx.textAlign = "center";
   ctx.fillStyle = "rgba(255,255,255,.68)";
   ctx.font = "700 12px Arial";
-  ctx.fillText(t("SIMILITUD"), 1450, 126);
+  ctx.fillText(t("SIMILITUD"), 800, 160);
   ctx.font = "600 11px Arial";
-  ctx.fillText(fitText(ctx, t(sourceName).toUpperCase(), 250), 1450, 145);
+  const headerLine = fitText(ctx, `${t("COMPARACIÓN DE JUGADORES")} · ${t("Percentiles posicionales").toUpperCase()} · ${t(sourceName).toUpperCase()}`, 560);
+  ctx.fillText(headerLine, 812, 200);
+  drawMagnifier(ctx, 812 - ctx.measureText(headerLine).width / 2 - 22, 196, 8, "rgba(255,255,255,.68)");
   ctx.textAlign = "left";
 
-  const playerCard = (x: number, report: { name: string; team: string; position: string; age: string; passport: string }, profile: TransfermarktProfile, image: HTMLImageElement | null, club: HTMLImageElement | null, label: string, color: string, photoScale = 100) => {
-    drawRoundedRect(ctx, x, 192, 350, 470, 18);
-    ctx.fillStyle = "#ffffff";
-    ctx.fill();
-    ctx.strokeStyle = theme.line;
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    ctx.fillStyle = color;
-    ctx.fillRect(x, 192, 350, 6);
-    ctx.fillStyle = theme.dark;
-    ctx.fillRect(x, 198, 350, 42);
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "700 14px Arial";
-    ctx.fillText(label, x + 22, 222);
-    const portraitGradient = ctx.createRadialGradient(x + 175, 388, 20, x + 175, 388, 195);
-    portraitGradient.addColorStop(0, canvasColorWithAlpha(color, "80"));
-    portraitGradient.addColorStop(.55, canvasColorWithAlpha(color, "45"));
-    portraitGradient.addColorStop(1, "#ffffff");
-    ctx.fillStyle = portraitGradient;
-    ctx.fillRect(x, 240, 350, 248);
-    if (image) {
-      // El tamaño de la foto es ajustable; se ancla al borde inferior de la
-      // franja del retrato y se recorta a esa franja.
-      const scale = Math.max(0.6, Math.min(1.4, photoScale / 100));
-      const boxWidth = 240 * scale;
-      const boxHeight = 230 * scale;
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(x, 240, 350, 248);
-      ctx.clip();
-      drawContain(ctx, image, x + 175 - boxWidth / 2, 482 - boxHeight, boxWidth, boxHeight);
-      ctx.restore();
-    }
-    else {
-      ctx.fillStyle = canvasColorWithAlpha(color, "38");
-      ctx.beginPath();
-      ctx.arc(x + 175, 357, 90, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = color;
-      ctx.font = "800 56px Arial";
-      ctx.textAlign = "center";
-      ctx.fillText(report.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join(""), x + 175, 375);
-      ctx.textAlign = "left";
-    }
-    if (club) drawContain(ctx, club, x + 22, 493, 52, 52);
-    ctx.fillStyle = theme.ink;
-    ctx.font = "800 25px Arial";
-    ctx.fillText(fitText(ctx, report.name.toUpperCase(), 250), x + 86, 515);
-    ctx.fillStyle = theme.muted;
-    ctx.font = "700 14px Arial";
-    ctx.fillText(fitText(ctx, profile.club || report.team, 240), x + 86, 539);
-    ctx.fillStyle = theme.ink;
-    ctx.font = "700 14px Arial";
-    ctx.fillText(fitText(ctx, formatPlayerPositions(profile.position || report.position), 306), x + 22, 582);
-    ctx.fillStyle = theme.muted;
-    ctx.font = "600 13px Arial";
-    ctx.fillText(tf("{age} AÑOS · {passport}", { age: profile.age || report.age || "—", passport: profile.citizenship || report.passport }), x + 22, 610);
-    ctx.fillStyle = theme.accent;
-    ctx.font = "800 22px Arial";
-    ctx.fillText(profile.marketValue || t("VALOR N/D"), x + 22, 642);
-    if (transfermarktLogo) drawContain(ctx, transfermarktLogo, x + 212, 618, 116, 28);
-  };
-
-  playerCard(70, { name: target.player, team: target.team, position: target.position, age: target.age, passport: target.passport }, targetProfile, targetImage, targetClub, t("JUGADOR OBJETIVO"), targetColor, targetPhotoScale);
-  playerCard(1180, { name: candidate.name, team: candidate.team, position: candidate.position, age: candidate.age === null ? "—" : String(candidate.age), passport: candidate.passport }, candidateProfile, candidateImage, candidateClub, t("JUGADOR COMPARABLE"), candidateColor, candidatePhotoScale);
-  // Con sets densos el radar cede radio para que las etiquetas escalonadas
-  // respiren sin tocar el encabezado ni las cards laterales.
-  drawRadar(ctx, candidate.metrics, target.cohort, theme, 800, 432, candidate.metrics.length > 10 ? 172 : 210, targetColor, candidateColor, targetLabelColor, candidateLabelColor, targetLabelTransparency, candidateLabelTransparency);
+  // Radar a lo ancho, con radio generoso: la cinta liberó el espacio lateral.
+  drawRadar(ctx, candidate.metrics, target.cohort, theme, 800, 585, candidate.metrics.length > 10 ? 200 : 235, targetColor, candidateColor, targetLabelColor, candidateLabelColor, targetLabelTransparency, candidateLabelTransparency);
 
   // Solo los grupos presentes en las métricas comparadas aparecen en la leyenda.
   const legendGroups = SIMILARITY_METRIC_GROUPS.filter((group) => candidate.metrics.some((metric) => similarityMetricGroup(metric, target.cohort).id === group.id));
@@ -453,19 +473,19 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
   legendGroups.forEach((group, index) => {
     const x = legendStartX + index * legendItemWidth;
     ctx.fillStyle = group.color;
-    drawRoundedRect(ctx, x, 751, 12, 12, 3);
+    drawRoundedRect(ctx, x, 944, 12, 12, 3);
     ctx.fill();
     ctx.fillStyle = theme.ink;
     ctx.font = "700 11px Arial";
     ctx.textAlign = "left";
-    ctx.fillText(t(group.label).toUpperCase(), x + 20, 761);
+    ctx.fillText(t(group.label).toUpperCase(), x + 20, 954);
   });
   ctx.textAlign = "left";
 
   // Duelo métrica a métrica: una sola barra compartida por métrica. El lado
   // del jugador con mejor registro va saturado; el otro, atenuado.
   candidate.metrics.slice(0, 7).forEach((metric, index) => {
-    const y = 793 + index * 39;
+    const y = 992 + index * 39;
     const targetShare = metric.targetPercentile + metric.candidatePercentile > 0
       ? metric.targetPercentile / (metric.targetPercentile + metric.candidatePercentile)
       : 0.5;
@@ -511,25 +531,25 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
   if (!forReport) {
     ctx.strokeStyle = theme.line;
     ctx.beginPath();
-    ctx.moveTo(70, 1100);
-    ctx.lineTo(1530, 1100);
+    ctx.moveTo(70, 1264);
+    ctx.lineTo(1530, 1264);
     ctx.stroke();
     ctx.fillStyle = theme.muted;
     ctx.font = "700 11px Arial";
-    ctx.fillText(t("ELABORADO POR"), 70, 1134);
+    ctx.fillText(t("ELABORADO POR"), 70, 1298);
     ctx.fillStyle = theme.ink;
     ctx.font = "800 19px Arial";
-    ctx.fillText("FELIPE ORMAZABAL", 70, 1161);
+    ctx.fillText("FELIPE ORMAZABAL", 70, 1325);
     ctx.fillStyle = theme.accent;
     ctx.font = "700 11px Arial";
-    ctx.fillText("SCOUTING REPORT", 70, 1180);
-    if (recipientLogo) drawContain(ctx, recipientLogo, 1170, 1118, 62, 62);
+    ctx.fillText("SCOUTING REPORT", 70, 1344);
+    if (recipientLogo) drawContain(ctx, recipientLogo, 1170, 1282, 62, 62);
     ctx.fillStyle = theme.muted;
     ctx.font = "700 11px Arial";
-    ctx.fillText(t("REPORTE GENERADO PARA"), 1250, 1137);
+    ctx.fillText(t("REPORTE GENERADO PARA"), 1250, 1301);
     ctx.fillStyle = theme.ink;
     ctx.font = "800 18px Arial";
-    ctx.fillText(fitText(ctx, recipientName.toUpperCase(), 280), 1250, 1166);
+    ctx.fillText(fitText(ctx, recipientName.toUpperCase(), 280), 1250, 1330);
   }
   return canvas.toDataURL("image/png");
 }
@@ -880,7 +900,11 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
             </section>
 
             <section className="similarity-report-sheet">
-              <header className="similarity-report-header"><div><span className="report-lupa"><Search size={12} /></span><b>{t("COMPARACIÓN DE JUGADORES")}</b><small>{tf("Percentiles posicionales · {src}", { src: t(sourceName) })}</small></div><SimilarityStarScore similarity={selectedCandidate.similarity} /></header>
+              <header className="similarity-report-header duel-header">
+                <div className="duel-header-player left" style={{ "--player-color": targetColor } as CSSProperties}><span>{t("JUGADOR OBJETIVO")}</span><b>{search.target.player}</b></div>
+                <div className="duel-header-center"><SimilarityStarScore similarity={selectedCandidate.similarity} /><small><span className="report-lupa"><Search size={9} /></span> {t("COMPARACIÓN DE JUGADORES")} · {tf("Percentiles posicionales · {src}", { src: t(sourceName) })}</small></div>
+                <div className="duel-header-player right" style={{ "--player-color": candidateColor } as CSSProperties}><span>{t("JUGADOR COMPARABLE")}</span><b>{selectedCandidate.name}</b></div>
+              </header>
               <div className="similarity-report-body">
                 <div className="similarity-showdown">
                   <ComparisonPlayer profile={targetProfile} name={search.target.player} team={search.target.team} position={search.target.position} age={search.target.age} passport={search.target.passport} label={t("JUGADOR OBJETIVO")} color={targetColor} photoScale={targetPhotoScale} />

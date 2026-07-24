@@ -1049,3 +1049,13 @@ body::before { position: fixed; inset: 0; z-index: -1; pointer-events: none; bac
   border-color: var(--report-accent); color: var(--report-accent);
   background: color-mix(in srgb, var(--report-accent) 9%, transparent);
 }
+
+/* ---- Encabezado del duelo: nombre · estrella · nombre ---- */
+.duel-header { display: grid !important; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px; }
+.duel-header-player { min-width: 0; }
+.duel-header-player span { display: inline-block; margin-bottom: 6px; padding: 2.5px 9px; border-radius: 99px; background: var(--player-color); color: #fff; font-size: 6.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.duel-header-player b { display: block; overflow: hidden; color: #fff; font-family: var(--font-oswald), sans-serif; font-size: 19px; line-height: 1.05; text-transform: uppercase; text-overflow: ellipsis; white-space: nowrap; }
+.duel-header-player.right { text-align: right; }
+.duel-header-center { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.duel-header-center small { display: flex; align-items: center; gap: 5px; color: rgba(255,255,255,.6); font-size: 6.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; white-space: nowrap; }
+.duel-header-center .report-lupa { width: 14px; height: 14px; border-radius: 4px; }
