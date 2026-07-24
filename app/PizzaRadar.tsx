@@ -33,7 +33,9 @@ export function PizzaRadar({ metrics, score, cohort, lang = "es" }: { metrics: R
       ctx.clearRect(0, 0, size, size);
       const cx = size / 2;
       const cy = size / 2;
-      const outer = size * 0.31;
+      // Con sets de 14-16 métricas el radio se reduce para dejar aire a las
+      // etiquetas, que se envuelven en dos líneas y pierden el sufijo "/90".
+      const outer = size * (metrics.length > 10 ? 0.27 : 0.31);
       const inner = size * 0.085;
       const gap = 0.025;
       const step = Math.PI * 2 / metrics.length;
@@ -90,7 +92,7 @@ export function PizzaRadar({ metrics, score, cohort, lang = "es" }: { metrics: R
         const middle = start + step / 2 - gap;
         const valueRadius = Math.max(inner + 18, radius - 18);
         const value = String(metric.percentile);
-        const valueFontSize = Math.max(10, size * 0.019);
+        const valueFontSize = Math.max(10, size * (metrics.length > 10 ? 0.016 : 0.019));
         const valueX = cx + Math.cos(middle) * valueRadius;
         const valueY = cy + Math.sin(middle) * valueRadius;
         ctx.font = `800 ${valueFontSize}px Arial`;
@@ -112,13 +114,30 @@ export function PizzaRadar({ metrics, score, cohort, lang = "es" }: { metrics: R
         ctx.fillText(value, valueX, valueY + valueFontSize * 0.02);
         ctx.restore();
 
-        const labelRadius = outer + size * 0.065;
+        const labelRadius = outer + size * (metrics.length > 10 ? 0.075 : 0.065);
         const lx = cx + Math.cos(middle) * labelRadius;
         const ly = cy + Math.sin(middle) * labelRadius;
         ctx.fillStyle = "#445366";
-        ctx.font = `600 ${Math.max(9, size * 0.017)}px Arial`;
+        const labelFontSize = Math.max(9, size * (metrics.length > 10 ? 0.0145 : 0.017));
+        ctx.font = `600 ${labelFontSize}px Arial`;
         ctx.textAlign = Math.cos(middle) > 0.18 ? "left" : Math.cos(middle) < -0.18 ? "right" : "center";
-        ctx.fillText(t(metric.label), lx, ly);
+        const label = t(metric.label).replace(/\s*\/90/g, "").replace(/,\s*%$/, " %");
+        let lines = [label];
+        if (label.length > 16) {
+          const words = label.split(" ");
+          if (words.length > 1) {
+            let splitIndex = 1;
+            let bestDiff = Infinity;
+            for (let wordIndex = 1; wordIndex < words.length; wordIndex += 1) {
+              const diff = Math.abs(words.slice(0, wordIndex).join(" ").length - words.slice(wordIndex).join(" ").length);
+              if (diff < bestDiff) { bestDiff = diff; splitIndex = wordIndex; }
+            }
+            lines = [words.slice(0, splitIndex).join(" "), words.slice(splitIndex).join(" ")];
+          }
+        }
+        const lineHeight = labelFontSize * 1.12;
+        const labelOffset = -((lines.length - 1) * lineHeight) / 2 + (Math.sin(middle) > 0.4 ? lineHeight * 0.4 : Math.sin(middle) < -0.4 ? -lineHeight * 0.1 : 0);
+        lines.forEach((line, lineIndex) => ctx.fillText(line, lx, ly + labelOffset + lineIndex * lineHeight));
       });
 
       ctx.beginPath();

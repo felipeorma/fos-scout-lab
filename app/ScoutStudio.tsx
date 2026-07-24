@@ -728,7 +728,7 @@ export default function ScoutStudio() {
                       <div className="dossier-radar">{report.metrics.length ? <PizzaRadar metrics={report.metrics} score={report.score} cohort={report.cohort} lang={lang} /> : <div className="empty-radar"><BarChart3 size={34} /><b>{t("No encontramos métricas para esta cohorte")}</b></div>}</div>
                       <aside className="dossier-reading">
                         <div className="average-percentile"><strong>{report.score}</strong><small>{t("percentil")}<br />{t("medio")}</small></div>
-                        <div className="dossier-legend">{SIMILARITY_METRIC_GROUPS.map((group) => <span key={group.id}><i style={{ background: group.color }} />{t(group.label)}</span>)}</div>
+                        <div className="dossier-legend">{SIMILARITY_METRIC_GROUPS.filter((group) => report.metrics.some((metric) => similarityMetricGroup(metric, report.cohort).id === group.id)).map((group) => <span key={group.id}><i style={{ background: group.color }} />{t(group.label)}</span>)}</div>
                         <div className="quick-reading"><b>{t("LECTURA RÁPIDA")}</b><p>{report.reading}</p></div>
                       </aside>
                     </section>

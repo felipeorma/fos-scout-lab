@@ -35,6 +35,22 @@ function shortName(value: string) {
   return parts.length > 2 ? `${parts[0]} ${parts.at(-1)}` : value;
 }
 
+// Etiqueta compacta para el radar: sin sufijo "/90" y partida en dos líneas
+// cuando es larga, para que los sets de 14-16 métricas no se encimen.
+function radarLabelLines(label: string) {
+  const compact = label.replace(/\s*\/90/g, "").replace(/,\s*%$/, " %");
+  if (compact.length <= 16) return [compact];
+  const words = compact.split(" ");
+  if (words.length < 2) return [compact];
+  let splitIndex = 1;
+  let bestDiff = Infinity;
+  for (let wordIndex = 1; wordIndex < words.length; wordIndex += 1) {
+    const diff = Math.abs(words.slice(0, wordIndex).join(" ").length - words.slice(wordIndex).join(" ").length);
+    if (diff < bestDiff) { bestDiff = diff; splitIndex = wordIndex; }
+  }
+  return [words.slice(0, splitIndex).join(" "), words.slice(splitIndex).join(" ")];
+}
+
 export function ComparisonRadar({ metrics, metricCohort, targetName, candidateName, targetColor, candidateColor, targetLabelColor, candidateLabelColor, targetLabelTransparency, candidateLabelTransparency }: { metrics: SimilarityMetricComparison[]; metricCohort: string; targetName: string; candidateName: string; targetColor: string; candidateColor: string; targetLabelColor: string; candidateLabelColor: string; targetLabelTransparency: number; candidateLabelTransparency: number }) {
   if (metrics.length < 3) return null;
   const step = Math.PI * 2 / metrics.length;
@@ -70,7 +86,11 @@ export function ComparisonRadar({ metrics, metricCohort, targetName, candidateNa
         return <g key={`values-${metric.key}`}>
           <circle className="comparison-radar-dot target" cx={targetPoint.x} cy={targetPoint.y} r="5" />
           <rect className="comparison-radar-dot candidate" x={candidatePoint.x - 4.5} y={candidatePoint.y - 4.5} width="9" height="9" rx="1.5" />
-          <text className="comparison-radar-label" x={label.x} y={label.y - 7} textAnchor="middle">{t(metric.label)}</text>
+          <text className="comparison-radar-label" x={label.x} y={label.y - 7} textAnchor="middle">
+            {radarLabelLines(t(metric.label)).map((line, lineIndex, lines) => (
+              <tspan key={lineIndex} x={label.x} dy={lineIndex === 0 ? (lines.length > 1 ? -12 : 0) : 12}>{line}</tspan>
+            ))}
+          </text>
           <g className="comparison-radar-percentile" aria-label={tf("{name}: percentil {a}; {other}: percentil {b}", { name: targetName, a: metric.targetPercentile, other: candidateName, b: metric.candidatePercentile })}>
             <g className="target">
               <rect x={badgesX} y={badgesY} width={badgeWidth} height="18" rx="9" />
