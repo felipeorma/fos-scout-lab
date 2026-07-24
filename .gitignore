@@ -42,3 +42,8 @@ next-env.d.ts
 /outputs/
 /work/
 /.api-backup/
+
+# Bases de datos de scouting (datos privados, nunca al repo público)
+*.xlsx
+*.xls
+*.csv
