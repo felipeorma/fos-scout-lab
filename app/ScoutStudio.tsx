@@ -356,7 +356,7 @@ export default function ScoutStudio() {
 
   async function onReportFiles(files?: FileList | File[], mode: ReportFileMode = "replace") {
     if (!files) return;
-    const list = [...files].filter((file) => /\.(xlsx|xls)$/i.test(file.name));
+    const list = [...files].filter((file) => /\.(xlsx|xls|csv)$/i.test(file.name));
     if (!list.length) return;
     setReportLoading(true);
     setReportError("");
@@ -365,7 +365,7 @@ export default function ScoutStudio() {
       if (mode === "combine" && list.length < 2) throw new Error(t("Para combinar bases, selecciona dos o más archivos Excel."));
       const datasets = await Promise.all(list.map(readWorkbook));
       const result = aggregateDatasets(datasets);
-      const sourceTitle = datasets.map((dataset) => dataset.fileName.replace(/\.(xlsx|xls)$/i, "")).join(" + ");
+      const sourceTitle = datasets.map((dataset) => dataset.fileName.replace(/\.(xlsx|xls|csv)$/i, "")).join(" + ");
       const displayName = datasets.length > 1 ? combinedBaseName.trim() || "Combinación temporal" : sourceTitle;
       setReportRows(result.rows);
       setReportFileName(displayName);
@@ -570,9 +570,9 @@ export default function ScoutStudio() {
               </div>
             </section>
 
-            <input ref={singleReportInputRef} type="file" accept=".xlsx,.xls" hidden onChange={(event) => { if (event.target.files) void onReportFiles(event.target.files, "single"); event.target.value = ""; }} />
-            <input ref={combinedReportInputRef} type="file" accept=".xlsx,.xls" multiple hidden onChange={(event) => { if (event.target.files) void onReportFiles(event.target.files, "combine"); event.target.value = ""; }} />
-            <input ref={reportInputRef} type="file" accept=".xlsx,.xls" multiple hidden onChange={(event) => { if (event.target.files) void onReportFiles(event.target.files, "replace"); event.target.value = ""; }} />
+            <input ref={singleReportInputRef} type="file" accept=".xlsx,.xls,.csv" hidden onChange={(event) => { if (event.target.files) void onReportFiles(event.target.files, "single"); event.target.value = ""; }} />
+            <input ref={combinedReportInputRef} type="file" accept=".xlsx,.xls,.csv" multiple hidden onChange={(event) => { if (event.target.files) void onReportFiles(event.target.files, "combine"); event.target.value = ""; }} />
+            <input ref={reportInputRef} type="file" accept=".xlsx,.xls,.csv" multiple hidden onChange={(event) => { if (event.target.files) void onReportFiles(event.target.files, "replace"); event.target.value = ""; }} />
 
             <section className="workflow-strip" aria-label={t("Flujo del reporte")}>
               <div className={`workflow-step ${dataReady ? "complete" : "active"}`}><span>{dataReady ? <Check size={15} /> : "01"}</span><div><b>{t("01 · Base de datos")}</b><small>{dataReady ? t(reportFileName) : t("Una base o combinar 2+")}</small></div></div>
@@ -602,7 +602,7 @@ export default function ScoutStudio() {
                     <span className="database-choice-tag">{t("2+ ARCHIVOS")}</span><span className="database-choice-icon"><Merge size={25} /></span><b>{t("Combinar bases")}</b><small>{t("Une todas las ligas o temporadas seleccionadas y usa el resultado directamente.")}</small><em>{reportLoading ? t("Combinando datos…") : t("Elegir archivos")}<Files size={14} /></em>
                   </button>
                 </div>
-                <small>{t(".XLSX o .XLS · primera hoja · clave: nombre + edad + club · procesamiento local")}</small>
+                <small>{t(".XLSX, .XLS o .CSV · primera hoja · clave: nombre + edad + club · procesamiento local")}</small>
                 {reportError && <div className="inline-error">{reportError}</div>}
               </section>
             ) : <>

@@ -134,7 +134,7 @@ const EN: Record<string, string> = {
   "Une todas las ligas o temporadas seleccionadas y usa el resultado directamente.": "Merge every selected league or season and use the result directly.",
   "Combinando datos…": "Combining data…",
   "Elegir archivos": "Choose files",
-  ".XLSX o .XLS · primera hoja · clave: nombre + edad + club · procesamiento local": ".XLSX or .XLS · first sheet · key: name + age + club · local processing",
+  ".XLSX, .XLS o .CSV · primera hoja · clave: nombre + edad + club · procesamiento local": ".XLSX, .XLS or .CSV · first sheet · key: name + age + club · local processing",
 
   // ---- Tabs de páginas ----
   "Páginas del reporte": "Report pages",

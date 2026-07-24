@@ -40,3 +40,13 @@ test("separa homónimos cuando cambia la edad o el club", () => {
   assert.equal(result.rows.length, 2);
   assert.deepEqual(new Set(result.rows.map((row) => row.Team)), new Set(["Club Norte", "Club Sur"]));
 });
+
+test("resuelve el club por fila cuando las bases usan columnas de equipo distintas", () => {
+  const result = aggregateDatasets([
+    dataset(0, { Player: "Jugador Uno", Age: 22, "Team within selected timeframe": "Cavalry FC", "Matches played": 10, "Minutes played": 900 }),
+    dataset(1, { Player: "S. Dewaele", Age: 27, Team: "SK Beveren", "Matches played": 43, "Minutes played": 3959 }),
+  ]);
+
+  assert.equal(result.rows.length, 2);
+  assert.deepEqual(new Set(result.rows.map((row) => row.Team)), new Set(["Cavalry FC", "SK Beveren"]));
+});

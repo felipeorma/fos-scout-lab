@@ -192,15 +192,26 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
   if (!core.matches) throw new Error(t("No se encontró la columna de partidos jugados."));
   const ageColumn = findColumn(allHeaders, AGE_ALIASES);
   const teamColumn = findColumn(allHeaders, TEAM_ALIASES);
+  // Cada export puede traer el club en una columna distinta ("Team within
+  // selected timeframe" o "Team"); se resuelve por fila con fallback para que
+  // ninguna base quede con equipo vacío al combinar.
+  const teamColumns = TEAM_ALIASES.map((alias) => findColumn(allHeaders, [alias])).filter(Boolean);
+  const rowTeam = (row: DataRow) => {
+    for (const column of teamColumns) {
+      const value = String(row[column] ?? "").trim();
+      if (value && value.toLowerCase() !== "nan") return value;
+    }
+    return "";
+  };
 
   const combined = datasets.flatMap((dataset, sourceIndex) => dataset.rows.map((row) => ({
     row,
     season: dataset.season,
     sourceIndex,
-    source: dataset.fileName.replace(/\.(xlsx|xls)$/i, ""),
+    source: dataset.fileName.replace(/\.(xlsx|xls|csv)$/i, ""),
     player: String(row[core.player] ?? "").trim(),
     ageIdentity: normalizeIdentityAge(ageColumn ? row[ageColumn] : ""),
-    clubIdentity: normalizeIdentityText(teamColumn ? row[teamColumn] : ""),
+    clubIdentity: normalizeIdentityText(rowTeam(row)),
   }))).filter((entry) => entry.player);
 
   const grouped = new Map<string, typeof combined>();
@@ -241,7 +252,7 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
     };
     if (seasons) output.Seasons = seasons;
 
-    if (teamColumn) output.Team = latest.row[teamColumn] ?? "";
+    if (teamColumn) output.Team = rowTeam(latest.row);
     if (positionColumn) output.Position = mergePlayerPositions([...sorted].reverse().map(({ row }) => row[positionColumn]));
     if (passportColumn) output["Passport country"] = uniqueText(sorted.map(({ row }) => row[passportColumn]));
     if (currentTeamColumn) output["Current Team"] = latest.row[currentTeamColumn] ?? "";
