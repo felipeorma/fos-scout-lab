@@ -25,9 +25,10 @@ export type SimilarityFilters = {
   ageMax: number | null;
   minimumMinutes: number;
   passport: string;
+  /** Rol principal (primera posición del jugador) */
   position: string;
-  /** "primary": solo posición principal · "any": incluye secundarias */
-  roleScope?: "primary" | "any";
+  /** Rol secundario: debe aparecer entre las posiciones no principales */
+  secondaryRole?: string;
   /** Lado del campo según el prefijo del código Wyscout (L/R) */
   side?: "" | "left" | "right";
 };
@@ -124,13 +125,32 @@ export function similarityOptions(rows: DataRow[]): SimilarityOptions {
   const positionColumn = findColumn(headers, POSITION_ALIASES);
   const passportColumn = findColumn(headers, PASSPORT_ALIASES);
   return {
-    positions: POSITION_ROLES.filter((role) => rows.some((row) => positionRoles(text(row, positionColumn, "")).includes(role))),
+    positions: POSITION_ROLES.filter((role) => rows.some((row) => primaryPositionRole(text(row, positionColumn, "")) === role)),
     passports: [...new Map(
       rows
         .flatMap((row) => playerPassports(text(row, passportColumn, "")))
         .map((passport) => [normalizeSearch(passport), passport] as const),
     ).values()].sort(collator.compare),
   };
+}
+
+/**
+ * Roles secundarios disponibles tras aplicar el filtro de rol principal:
+ * roles que aparecen en posiciones no principales de esos jugadores.
+ */
+export function secondaryRoleOptions(rows: DataRow[], primaryRole: string): string[] {
+  const headers = [...new Set(rows.flatMap((row) => Object.keys(row)))];
+  const positionColumn = findColumn(headers, POSITION_ALIASES);
+  const available = new Set<string>();
+  for (const row of rows) {
+    const raw = text(row, positionColumn, "");
+    const primary = primaryPositionRole(raw);
+    if (primaryRole && primary !== primaryRole) continue;
+    for (const role of positionRoles(raw)) {
+      if (role !== primary) available.add(role);
+    }
+  }
+  return POSITION_ROLES.filter((role) => available.has(role));
 }
 
 function metricWeight(key: string, weights: SimilarityMetricWeights) {
@@ -184,12 +204,9 @@ export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filt
     if (filters.ageMin !== null && (age === null || age < filters.ageMin)) return [];
     if (filters.ageMax !== null && (age === null || age > filters.ageMax)) return [];
     if (filters.passport && !playerPassports(passport).some((item) => normalizeSearch(item) === normalizeSearch(filters.passport))) return [];
-    if (filters.position) {
-      const matchesRole = (filters.roleScope ?? "any") === "primary"
-        ? primaryPositionRole(rawPosition) === filters.position
-        : roles.includes(filters.position as (typeof POSITION_ROLES)[number]);
-      if (!matchesRole) return [];
-    }
+    const candidatePrimary = primaryPositionRole(rawPosition);
+    if (filters.position && candidatePrimary !== filters.position) return [];
+    if (filters.secondaryRole && !roles.some((role) => role !== candidatePrimary && role === filters.secondaryRole)) return [];
     if (filters.side && !positionSides(rawPosition).includes(filters.side)) return [];
     if (normalizedQuery && !normalizeSearch(`${name} ${team}`).includes(normalizedQuery)) return [];
 

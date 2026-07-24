@@ -7,6 +7,7 @@ import { ComparisonRadar } from "./ComparisonRadar";
 import { reportThemeStyle, type ReportTheme } from "./reportTheme";
 import {
   buildSimilaritySearch,
+  secondaryRoleOptions,
   similarityOptions,
   type SimilarityFilters,
   type SimilarityMetricComparison,
@@ -517,7 +518,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
   const [minimumMinutes, setMinimumMinutes] = useState("500");
   const [passport, setPassport] = useState("");
   const [position, setPosition] = useState("");
-  const [roleScope, setRoleScope] = useState<"primary" | "any">("any");
+  const [secondaryRole, setSecondaryRole] = useState("");
   const [side, setSide] = useState<"" | "left" | "right">("");
   const [selectedCandidateIndex, setSelectedCandidateIndex] = useState<number | null>(null);
   const [candidateProfileState, setCandidateProfileState] = useState<TransfermarktProfile>(() => createEmptyTransfermarktProfile());
@@ -538,6 +539,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
   const [exportBusy, setExportBusy] = useState(false);
   const [exportStatus, setExportStatus] = useState("");
   const options = useMemo(() => similarityOptions(rows), [rows]);
+  const secondaryOptions = useMemo(() => secondaryRoleOptions(rows, position), [rows, position]);
   const targetTeams = useMemo(() => [...new Set(targets.map((target) => target.team))].sort(alphabeticCollator.compare), [targets]);
   const selectedTarget = targets.find((target) => target.index === selectedIndex);
   const selectedTargetTeam = selectedTarget?.team ?? targetTeams[0] ?? "";
@@ -549,9 +551,9 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     minimumMinutes: Math.max(0, optionalNumber(minimumMinutes) ?? 0),
     passport,
     position,
-    roleScope,
+    secondaryRole,
     side,
-  }), [ageMax, ageMin, minimumMinutes, passport, position, query, roleScope, side]);
+  }), [ageMax, ageMin, minimumMinutes, passport, position, query, secondaryRole, side]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const search = useMemo(() => buildSimilaritySearch(rows, selectedIndex, filters, metricWeights), [filters, metricWeights, rows, selectedIndex, lang]);
   const candidates = search?.candidates ?? [];
@@ -593,7 +595,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     setMinimumMinutes("500");
     setPassport("");
     setPosition("");
-    setRoleScope("any");
+    setSecondaryRole("");
     setSide("");
   }
 
@@ -824,12 +826,9 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
           <div className="similarity-age-fields"><label><span>{t("Edad mínima")}</span><input type="number" min="14" max="50" value={ageMin} onChange={(event) => setAgeMin(event.target.value)} placeholder={t("Todas")} /></label><label><span>{t("Edad máxima")}</span><input type="number" min="14" max="50" value={ageMax} onChange={(event) => setAgeMax(event.target.value)} placeholder={t("Todas")} /></label></div>
           <label><span>{t("Mínimo de minutos")}</span><input type="number" min="0" step="100" value={minimumMinutes} onChange={(event) => setMinimumMinutes(event.target.value)} /></label>
           <label><span>{t("Pasaporte · principal o secundario")}</span><select value={passport} onChange={(event) => setPassport(event.target.value)}><option value="">{t("Todos los pasaportes")}</option>{options.passports.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-          <label><span>{t("Rol del jugador")}</span><select value={position} onChange={(event) => setPosition(event.target.value)}><option value="">{t("Todos los roles")}</option>{options.positions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-          <div className="role-scope-toggle" role="group" aria-label={t("Alcance del rol")}>
-            <button type="button" className={roleScope === "primary" ? "active" : ""} onClick={() => setRoleScope("primary")}>{t("Rol · posición principal")}</button>
-            <button type="button" className={roleScope === "any" ? "active" : ""} onClick={() => setRoleScope("any")}>{t("Rol · incluye secundarias")}</button>
-          </div>
-          <label><span>{t("Lado del campo · prefijo L / R")}</span><select value={side} onChange={(event) => setSide(event.target.value as "" | "left" | "right")}><option value="">{t("Ambos lados")}</option><option value="left">{t("Izquierdo (L)")}</option><option value="right">{t("Derecho (R)")}</option></select></label>
+          <label><span>{t("Rol principal")}</span><select value={position} onChange={(event) => { setPosition(event.target.value); setSecondaryRole(""); }}><option value="">{t("Todos los roles")}</option>{options.positions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+          <label><span>{t("Rol secundario · según el primer filtro")}</span><select value={secondaryRole} onChange={(event) => setSecondaryRole(event.target.value)} disabled={!secondaryOptions.length}><option value="">{t("Cualquiera")}</option>{secondaryOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+          <label><span>{t("Lado del campo · prefijo L / R")}</span><select value={side} onChange={(event) => setSide(event.target.value as "" | "left" | "right")}><option value="">{t("Cualquiera")}</option><option value="left">{t("Izquierdo (L)")}</option><option value="right">{t("Derecho (R)")}</option></select></label>
           <div className="similarity-method-note"><b>{t("Motor actual: baseline")}</b><p>{t("Esta comparación es explicable y funciona con Excel agregados. RisingBALLER–Wyscout podrá reemplazar el vector cuando existan datos por partido.")}</p></div>
           <div className="similarity-recipient-editor">
             <span>{t("REPORTE GENERADO PARA")}</span>
