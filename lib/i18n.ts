@@ -524,6 +524,8 @@ const EN: Record<string, string> = {
   "Color": "Color",
   "LABEL DE PERCENTIL": "PERCENTILE LABEL",
   "Transparencia del fondo": "Background transparency",
+  "Tamaño de la foto": "Photo size",
+  "Tamaño de la foto de {p}": "Photo size for {p}",
   "Color del label de percentil de {p}": "Percentile label color for {p}",
   "Transparencia del label de percentil de {p}": "Percentile label transparency for {p}",
 

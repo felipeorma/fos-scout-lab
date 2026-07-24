@@ -18,7 +18,7 @@ import { formatPlayerPositions, type PlayerPosition } from "@/lib/positions";
 import { SIMILARITY_METRIC_GROUPS, similarityMetricGroup } from "@/lib/similarityMetricGroups";
 import { createEmptyTransfermarktProfile, type TransfermarktProfile } from "@/lib/transfermarkt";
 import { removePlayerImageBackground } from "@/lib/playerImageBackground";
-import { fetchTransfermarktProfile, proxiedImageUrl } from "@/lib/remoteData";
+import { canvasImageCandidates, fetchTransfermarktProfile, proxiedImageUrl } from "@/lib/remoteData";
 import { t, tf, numberLocale, type Lang } from "@/lib/i18n";
 
 type TargetOption = { index: number; player: string; team: string };
@@ -108,15 +108,24 @@ function canvasImageSource(src: string) {
   return src.startsWith("data:image/") || src.startsWith("/") ? src : proxiedImageUrl(src);
 }
 
-function loadCanvasImage(src: string) {
+function loadImageAttempt(url: string, timeoutMs = 12_000) {
   return new Promise<HTMLImageElement | null>((resolve) => {
-    if (!src) return resolve(null);
     const image = new Image();
+    const timer = window.setTimeout(() => resolve(null), timeoutMs);
     image.crossOrigin = "anonymous";
-    image.onload = () => resolve(image);
-    image.onerror = () => resolve(null);
-    image.src = canvasImageSource(src);
+    image.onload = () => { window.clearTimeout(timer); resolve(image); };
+    image.onerror = () => { window.clearTimeout(timer); resolve(null); };
+    image.src = url;
   });
+}
+
+async function loadCanvasImage(src: string) {
+  // Cadena de respaldos: si un proxy falla, la foto no se pierde en silencio.
+  for (const candidate of canvasImageCandidates(src)) {
+    const image = await loadImageAttempt(candidate);
+    if (image) return image;
+  }
+  return null;
 }
 
 function blobToDataUrl(blob: Blob) {
@@ -309,7 +318,7 @@ function drawMagnifier(ctx: CanvasRenderingContext2D, x: number, y: number, radi
 
 // `forReport`: la lámina va incrustada en la Página 2 del reporte, que ya trae
 // firma propia — se omiten el nombre del título y el bloque de firma inferior.
-async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer, sourceName: string, theme: ReportTheme, targetProfile: TransfermarktProfile, candidateProfile: TransfermarktProfile, recipientName: string, recipientLogoUrl: string, targetColor: string, candidateColor: string, targetLabelColor: string, candidateLabelColor: string, targetLabelTransparency: number, candidateLabelTransparency: number, forReport = false) {
+async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer, sourceName: string, theme: ReportTheme, targetProfile: TransfermarktProfile, candidateProfile: TransfermarktProfile, recipientName: string, recipientLogoUrl: string, targetColor: string, candidateColor: string, targetLabelColor: string, candidateLabelColor: string, targetLabelTransparency: number, candidateLabelTransparency: number, forReport = false, targetPhotoScale = 100, candidatePhotoScale = 100) {
   const canvas = document.createElement("canvas");
   canvas.width = 1600;
   canvas.height = forReport ? 1104 : 1200;
@@ -346,7 +355,7 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
   ctx.fillText(fitText(ctx, t(sourceName).toUpperCase(), 250), 1450, 145);
   ctx.textAlign = "left";
 
-  const playerCard = (x: number, report: { name: string; team: string; position: string; age: string; passport: string }, profile: TransfermarktProfile, image: HTMLImageElement | null, club: HTMLImageElement | null, label: string, color: string) => {
+  const playerCard = (x: number, report: { name: string; team: string; position: string; age: string; passport: string }, profile: TransfermarktProfile, image: HTMLImageElement | null, club: HTMLImageElement | null, label: string, color: string, photoScale = 100) => {
     drawRoundedRect(ctx, x, 192, 350, 470, 18);
     ctx.fillStyle = "#ffffff";
     ctx.fill();
@@ -366,7 +375,19 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
     portraitGradient.addColorStop(1, "#ffffff");
     ctx.fillStyle = portraitGradient;
     ctx.fillRect(x, 240, 350, 248);
-    if (image) drawContain(ctx, image, x + 55, 252, 240, 230);
+    if (image) {
+      // El tamaño de la foto es ajustable; se ancla al borde inferior de la
+      // franja del retrato y se recorta a esa franja.
+      const scale = Math.max(0.6, Math.min(1.4, photoScale / 100));
+      const boxWidth = 240 * scale;
+      const boxHeight = 230 * scale;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x, 240, 350, 248);
+      ctx.clip();
+      drawContain(ctx, image, x + 175 - boxWidth / 2, 482 - boxHeight, boxWidth, boxHeight);
+      ctx.restore();
+    }
     else {
       ctx.fillStyle = canvasColorWithAlpha(color, "38");
       ctx.beginPath();
@@ -397,8 +418,8 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
     if (transfermarktLogo) drawContain(ctx, transfermarktLogo, x + 212, 618, 116, 28);
   };
 
-  playerCard(70, { name: target.player, team: target.team, position: target.position, age: target.age, passport: target.passport }, targetProfile, targetImage, targetClub, t("JUGADOR OBJETIVO"), targetColor);
-  playerCard(1180, { name: candidate.name, team: candidate.team, position: candidate.position, age: candidate.age === null ? "—" : String(candidate.age), passport: candidate.passport }, candidateProfile, candidateImage, candidateClub, t("JUGADOR COMPARABLE"), candidateColor);
+  playerCard(70, { name: target.player, team: target.team, position: target.position, age: target.age, passport: target.passport }, targetProfile, targetImage, targetClub, t("JUGADOR OBJETIVO"), targetColor, targetPhotoScale);
+  playerCard(1180, { name: candidate.name, team: candidate.team, position: candidate.position, age: candidate.age === null ? "—" : String(candidate.age), passport: candidate.passport }, candidateProfile, candidateImage, candidateClub, t("JUGADOR COMPARABLE"), candidateColor, candidatePhotoScale);
   drawRadar(ctx, candidate.metrics, target.cohort, theme, 800, 426, 210, targetColor, candidateColor, targetLabelColor, candidateLabelColor, targetLabelTransparency, candidateLabelTransparency);
 
   // Solo los grupos presentes en las métricas comparadas aparecen en la leyenda.
@@ -417,31 +438,48 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
   });
   ctx.textAlign = "left";
 
+  // Duelo métrica a métrica: una sola barra compartida por métrica. El lado
+  // del jugador con mejor registro va saturado; el otro, atenuado.
   candidate.metrics.slice(0, 7).forEach((metric, index) => {
     const y = 793 + index * 39;
-    ctx.fillStyle = theme.ink;
-    ctx.font = "700 13px Arial";
+    const targetShare = metric.targetPercentile + metric.candidatePercentile > 0
+      ? metric.targetPercentile / (metric.targetPercentile + metric.candidatePercentile)
+      : 0.5;
+    const winner = metric.targetPercentile > metric.candidatePercentile ? "target" : metric.candidatePercentile > metric.targetPercentile ? "candidate" : "tie";
     const metricLabel = metric.weight === 1
       ? t(metric.label)
       : `${t(metric.label)} · ${metric.weight === 0 ? t("SIN INFLUENCIA") : tf("PESO {p}%", { p: Math.round(metric.weight * 100) })}`;
-    ctx.fillText(fitText(ctx, metricLabel.toUpperCase(), 240), 360, y + 5);
-    ctx.fillStyle = theme.line;
-    drawRoundedRect(ctx, 620, y - 8, 300, 14, 7);
-    ctx.fill();
+    ctx.fillStyle = theme.ink;
+    ctx.font = "700 13px Arial";
+    ctx.textAlign = "left";
+    ctx.fillText(fitText(ctx, metricLabel.toUpperCase(), 230), 360, y + 4);
+
+    const barX = 740;
+    const barWidth = 550;
+    const splitX = barX + barWidth * targetShare;
+    ctx.save();
+    drawRoundedRect(ctx, barX, y - 9, barWidth, 17, 9);
+    ctx.clip();
+    ctx.globalAlpha = winner === "candidate" ? 0.3 : 1;
     ctx.fillStyle = targetColor;
-    drawRoundedRect(ctx, 620, y - 8, 300 * metric.targetPercentile / 100, 14, 7);
-    ctx.fill();
-    ctx.fillStyle = theme.ink;
-    ctx.font = "800 13px Arial";
-    ctx.fillText(formatMetricValue(metric.targetValue, metric.key), 930, y + 4);
-    ctx.fillStyle = theme.line;
-    drawRoundedRect(ctx, 1010, y - 8, 300, 14, 7);
-    ctx.fill();
+    ctx.fillRect(barX, y - 9, barWidth * targetShare, 17);
+    ctx.globalAlpha = winner === "target" ? 0.3 : 1;
     ctx.fillStyle = candidateColor;
-    drawRoundedRect(ctx, 1010, y - 8, 300 * metric.candidatePercentile / 100, 14, 7);
-    ctx.fill();
-    ctx.fillStyle = theme.ink;
-    ctx.fillText(formatMetricValue(metric.candidateValue, metric.key), 1320, y + 4);
+    ctx.fillRect(splitX, y - 9, barWidth * (1 - targetShare), 17);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = theme.paper;
+    ctx.fillRect(splitX - 1.5, y - 9, 3, 17);
+    ctx.restore();
+
+    ctx.font = winner === "target" ? "800 14px Arial" : "700 13px Arial";
+    ctx.fillStyle = winner === "target" ? targetColor : theme.muted;
+    ctx.textAlign = "right";
+    ctx.fillText(formatMetricValue(metric.targetValue, metric.key), barX - 14, y + 4);
+    ctx.font = winner === "candidate" ? "800 14px Arial" : "700 13px Arial";
+    ctx.fillStyle = winner === "candidate" ? candidateColor : theme.muted;
+    ctx.textAlign = "left";
+    ctx.fillText(formatMetricValue(metric.candidateValue, metric.key), barX + barWidth + 14, y + 4);
+    ctx.textAlign = "left";
   });
 
   // La firma solo va en la lámina independiente; incrustada en el reporte,
@@ -492,6 +530,8 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
   const [candidateLabelColorChoice, setCandidateLabelColorChoice] = useState("");
   const [targetLabelTransparency, setTargetLabelTransparency] = useState(82);
   const [candidateLabelTransparency, setCandidateLabelTransparency] = useState(82);
+  const [targetPhotoScale, setTargetPhotoScale] = useState(100);
+  const [candidatePhotoScale, setCandidatePhotoScale] = useState(100);
   const [metricWeights, setMetricWeights] = useState<SimilarityMetricWeights>({});
   const [exportBusy, setExportBusy] = useState(false);
   const [exportStatus, setExportStatus] = useState("");
@@ -703,7 +743,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
 
   async function createImage(forReport = false) {
     if (!search?.target || !selectedCandidate) return "";
-    return comparisonImage(search.target, selectedCandidate, sourceName, theme, targetProfile, candidateProfile, reportRecipient, recipientLogoUrl.trim(), targetColor, candidateColor, targetLabelColor, candidateLabelColor, targetLabelTransparency, candidateLabelTransparency, forReport);
+    return comparisonImage(search.target, selectedCandidate, sourceName, theme, targetProfile, candidateProfile, reportRecipient, recipientLogoUrl.trim(), targetColor, candidateColor, targetLabelColor, candidateLabelColor, targetLabelTransparency, candidateLabelTransparency, forReport, targetPhotoScale, candidatePhotoScale);
   }
 
   async function downloadComparison() {
@@ -802,17 +842,17 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
 
             <section className="similarity-color-panel">
               <div className="similarity-color-heading"><span>{t("PALETA DE COMPARACIÓN")}</span><b>{t("Personaliza jugadores y labels")}</b><small>{t("Define el color del jugador, el color del label de percentil y la transparencia de su fondo.")}</small></div>
-              <PalettePicker label={t("Jugador objetivo")} player={search.target.player} color={targetColor} labelColor={targetLabelColor} labelTransparency={targetLabelTransparency} colors={paletteColors} onChange={setTargetColorChoice} onLabelColorChange={setTargetLabelColorChoice} onLabelTransparencyChange={setTargetLabelTransparency} />
-              <PalettePicker label={t("Jugador comparable")} player={selectedCandidate.name} color={candidateColor} labelColor={candidateLabelColor} labelTransparency={candidateLabelTransparency} colors={paletteColors} onChange={setCandidateColorChoice} onLabelColorChange={setCandidateLabelColorChoice} onLabelTransparencyChange={setCandidateLabelTransparency} />
+              <PalettePicker label={t("Jugador objetivo")} player={search.target.player} color={targetColor} labelColor={targetLabelColor} labelTransparency={targetLabelTransparency} photoScale={targetPhotoScale} colors={paletteColors} onChange={setTargetColorChoice} onLabelColorChange={setTargetLabelColorChoice} onLabelTransparencyChange={setTargetLabelTransparency} onPhotoScaleChange={setTargetPhotoScale} />
+              <PalettePicker label={t("Jugador comparable")} player={selectedCandidate.name} color={candidateColor} labelColor={candidateLabelColor} labelTransparency={candidateLabelTransparency} photoScale={candidatePhotoScale} colors={paletteColors} onChange={setCandidateColorChoice} onLabelColorChange={setCandidateLabelColorChoice} onLabelTransparencyChange={setCandidateLabelTransparency} onPhotoScaleChange={setCandidatePhotoScale} />
             </section>
 
             <section className="similarity-report-sheet">
               <header className="similarity-report-header"><div><span className="report-lupa"><Search size={12} /></span><b>{t("COMPARACIÓN DE JUGADORES")}</b><small>{tf("Percentiles posicionales · {src}", { src: t(sourceName) })}</small></div><SimilarityStarScore similarity={selectedCandidate.similarity} /></header>
               <div className="similarity-report-body">
                 <div className="similarity-showdown">
-                  <ComparisonPlayer profile={targetProfile} name={search.target.player} team={search.target.team} position={search.target.position} age={search.target.age} passport={search.target.passport} label={t("JUGADOR OBJETIVO")} color={targetColor} />
+                  <ComparisonPlayer profile={targetProfile} name={search.target.player} team={search.target.team} position={search.target.position} age={search.target.age} passport={search.target.passport} label={t("JUGADOR OBJETIVO")} color={targetColor} photoScale={targetPhotoScale} />
                   <div className="similarity-radar-column"><ComparisonRadar metrics={selectedCandidate.metrics} metricCohort={search.target.cohort} targetName={search.target.player} candidateName={selectedCandidate.name} targetColor={targetColor} candidateColor={candidateColor} targetLabelColor={targetLabelColor} candidateLabelColor={candidateLabelColor} targetLabelTransparency={targetLabelTransparency} candidateLabelTransparency={candidateLabelTransparency} /><MetricGroupLegend metrics={selectedCandidate.metrics} cohort={search.target.cohort} /></div>
-                  <ComparisonPlayer profile={candidateProfile} name={selectedCandidate.name} team={selectedCandidate.team} position={selectedCandidate.position} age={selectedCandidate.age === null ? "—" : String(selectedCandidate.age)} passport={selectedCandidate.passport} label={t("JUGADOR COMPARABLE")} color={candidateColor} />
+                  <ComparisonPlayer profile={candidateProfile} name={selectedCandidate.name} team={selectedCandidate.team} position={selectedCandidate.position} age={selectedCandidate.age === null ? "—" : String(selectedCandidate.age)} passport={selectedCandidate.passport} label={t("JUGADOR COMPARABLE")} color={candidateColor} photoScale={candidatePhotoScale} />
                 </div>
                 <div className="similarity-metric-section"><div className="similarity-metric-head"><span style={{ color: targetColor }}>{search.target.player}</span><b>{t("COMPARATIVA MÉTRICA A MÉTRICA")}</b><span style={{ color: candidateColor }}>{selectedCandidate.name}</span></div><div className="metric-comparison-list">{selectedCandidate.metrics.map((metric) => <MetricComparison key={metric.key} metric={metric} targetName={search.target.player} candidateName={selectedCandidate.name} targetColor={targetColor} candidateColor={candidateColor} />)}</div></div>
               </div>
@@ -896,11 +936,11 @@ function ProfileEnrichment({ side, label, player, color, profile, busy, backgrou
   </article>;
 }
 
-function ComparisonPlayer({ profile, name, team, position, age, passport, label, color }: { profile: TransfermarktProfile; name: string; team: string; position: string; age: string; passport: string; label: string; color: string }) {
-  return <article className="comparison-player-card" style={{ "--player-color": color } as CSSProperties}><header><span>{label}</span>{profile.clubLogo ? <ReportImage src={profile.clubLogo} alt={profile.club || team} className="comparison-club-logo" /> : <span className="comparison-club-fallback">{team.slice(0, 2).toUpperCase()}</span>}</header><div className="comparison-player-portrait">{profile.playerImage ? <ReportImage src={profile.playerImage} alt={name} className="comparison-player-image" /> : <span>{name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("")}</span>}</div><div className="comparison-player-copy"><h3>{name}</h3><b>{profile.club || team}</b><p>{formatPlayerPositions(profile.position || position)}</p><small>{tf("{age} años · {passport}", { age: profile.age || age, passport: profile.citizenship || passport })}</small>{profile.marketValue && <strong className="comparison-market-value"><span>{profile.marketValue}</span><ReportImage src={TRANSFERMARKT_LOGO} alt="Transfermarkt" className="comparison-transfermarkt-logo" /></strong>}</div></article>;
+function ComparisonPlayer({ profile, name, team, position, age, passport, label, color, photoScale = 100 }: { profile: TransfermarktProfile; name: string; team: string; position: string; age: string; passport: string; label: string; color: string; photoScale?: number }) {
+  return <article className="comparison-player-card" style={{ "--player-color": color } as CSSProperties}><header><span>{label}</span>{profile.clubLogo ? <ReportImage src={profile.clubLogo} alt={profile.club || team} className="comparison-club-logo" /> : <span className="comparison-club-fallback">{team.slice(0, 2).toUpperCase()}</span>}</header><div className="comparison-player-portrait">{profile.playerImage ? <span className="comparison-player-photo-frame" style={{ "--photo-scale": photoScale / 100 } as CSSProperties}><ReportImage src={profile.playerImage} alt={name} className="comparison-player-image" /></span> : <span>{name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("")}</span>}</div><div className="comparison-player-copy"><h3>{name}</h3><b>{profile.club || team}</b><p>{formatPlayerPositions(profile.position || position)}</p><small>{tf("{age} años · {passport}", { age: profile.age || age, passport: profile.citizenship || passport })}</small>{profile.marketValue && <strong className="comparison-market-value"><span>{profile.marketValue}</span><ReportImage src={TRANSFERMARKT_LOGO} alt="Transfermarkt" className="comparison-transfermarkt-logo" /></strong>}</div></article>;
 }
 
-function PalettePicker({ label, player, color, labelColor, labelTransparency, colors, onChange, onLabelColorChange, onLabelTransparencyChange }: { label: string; player: string; color: string; labelColor: string; labelTransparency: number; colors: string[]; onChange: (color: string) => void; onLabelColorChange: (color: string) => void; onLabelTransparencyChange: (value: number) => void }) {
+function PalettePicker({ label, player, color, labelColor, labelTransparency, photoScale = 100, colors, onChange, onLabelColorChange, onLabelTransparencyChange, onPhotoScaleChange }: { label: string; player: string; color: string; labelColor: string; labelTransparency: number; photoScale?: number; colors: string[]; onChange: (color: string) => void; onLabelColorChange: (color: string) => void; onLabelTransparencyChange: (value: number) => void; onPhotoScaleChange?: (value: number) => void }) {
   const labelOpacity = `${100 - labelTransparency}%`;
   return <div className="similarity-palette-picker">
     <div><span>{label}</span><b><i style={{ backgroundColor: color }} />{player}</b></div>
@@ -911,6 +951,7 @@ function PalettePicker({ label, player, color, labelColor, labelTransparency, co
       <label className="label-color-control"><span>{t("Color")}</span><input type="color" value={labelColor} onChange={(event) => onLabelColorChange(event.target.value)} aria-label={tf("Color del label de percentil de {p}", { p: player })} /></label>
       <label className="label-transparency-control"><span>{t("Transparencia del fondo")} <b>{labelTransparency}%</b></span><input type="range" min="0" max="100" step="1" value={labelTransparency} onChange={(event) => onLabelTransparencyChange(Number(event.target.value))} aria-label={tf("Transparencia del label de percentil de {p}", { p: player })} /></label>
     </div>
+    {onPhotoScaleChange && <label className="photo-scale-control"><span>{t("Tamaño de la foto")} <b>{photoScale}%</b></span><input type="range" min="60" max="140" step="5" value={photoScale} onChange={(event) => onPhotoScaleChange(Number(event.target.value))} aria-label={tf("Tamaño de la foto de {p}", { p: player })} /></label>}
   </div>;
 }
 
@@ -934,11 +975,20 @@ function MetricGroupLegend({ metrics, cohort }: { metrics: SimilarityMetricCompa
 }
 
 function MetricComparison({ metric, targetName, candidateName, targetColor, candidateColor }: { metric: SimilarityMetricComparison; targetName: string; candidateName: string; targetColor: string; candidateColor: string }) {
+  // Duelo con una sola barra compartida: cada lado ocupa su proporción de
+  // percentil y el jugador con mejor registro queda saturado; el otro,
+  // atenuado. Los nombres viven solo en el encabezado de la sección.
   const targetValue = formatMetricValue(metric.targetValue, metric.key);
   const candidateValue = formatMetricValue(metric.candidateValue, metric.key);
-  return <div className="metric-comparison-row" style={{ "--target-color": targetColor, "--candidate-color": candidateColor } as CSSProperties}>
-    <div className="metric-player-bar left" aria-label={`${targetName}: ${t(metric.label)}, ${targetValue}`}><span>{targetName}</span><b>{targetValue}</b><i><em style={{ width: `${metric.targetPercentile}%` }} /></i></div>
-    <div className="metric-comparison-label"><span>{t(metric.label)}</span>{metric.weight !== 1 && <small>{metric.weight === 0 ? t("Sin influencia") : tf("Peso {p}%", { p: Math.round(metric.weight * 100) })}</small>}</div>
-    <div className="metric-player-bar right" aria-label={`${candidateName}: ${t(metric.label)}, ${candidateValue}`}><span>{candidateName}</span><b>{candidateValue}</b><i><em style={{ width: `${metric.candidatePercentile}%` }} /></i></div>
+  const total = metric.targetPercentile + metric.candidatePercentile;
+  const targetShare = total > 0 ? (metric.targetPercentile / total) * 100 : 50;
+  const winner = metric.targetPercentile > metric.candidatePercentile ? "target" : metric.candidatePercentile > metric.targetPercentile ? "candidate" : "tie";
+  return <div className={`metric-duel winner-${winner}`} style={{ "--target-color": targetColor, "--candidate-color": candidateColor, "--target-share": `${targetShare}%` } as CSSProperties} aria-label={`${t(metric.label)} — ${targetName}: ${targetValue}; ${candidateName}: ${candidateValue}`}>
+    <div className="metric-duel-head"><span>{t(metric.label)}</span>{metric.weight !== 1 && <small>{metric.weight === 0 ? t("Sin influencia") : tf("Peso {p}%", { p: Math.round(metric.weight * 100) })}</small>}</div>
+    <div className="metric-duel-row">
+      <b className={`duel-value target ${winner === "target" ? "win" : ""}`}>{targetValue}</b>
+      <div className="metric-duel-bar"><i className="duel-side target" /><i className="duel-side candidate" /></div>
+      <b className={`duel-value candidate ${winner === "candidate" ? "win" : ""}`}>{candidateValue}</b>
+    </div>
   </div>;
 }

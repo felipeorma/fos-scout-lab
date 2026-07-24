@@ -1008,3 +1008,30 @@ body::before { position: fixed; inset: 0; z-index: -1; pointer-events: none; bac
 .visual-page-signature .report-author span, .visual-page-signature .report-recipient span { font-size: 6.5px; }
 .visual-page-signature .report-author b, .visual-page-signature .report-recipient b { font-size: 10px; }
 .visual-page-signature .dossier-footer-club-logo, .visual-page-signature .dossier-footer-club-fallback { width: 26px; height: 26px; }
+
+/* ---- Duelo métrica a métrica (una barra compartida) ---- */
+.metric-duel { padding: 9px 0 10px; border-bottom: 1px solid var(--report-line); }
+.metric-duel:last-child { border-bottom: 0; }
+.metric-duel-head { margin-bottom: 6px; display: flex; align-items: baseline; justify-content: center; gap: 8px; }
+.metric-duel-head span { color: var(--report-ink); font-size: 8px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.metric-duel-head small { color: var(--report-muted); font-size: 6.5px; font-weight: 700; text-transform: uppercase; }
+.metric-duel-row { display: grid; grid-template-columns: minmax(58px, auto) 1fr minmax(58px, auto); align-items: center; gap: 11px; }
+.duel-value { font-family: var(--font-space-grotesk), sans-serif; font-size: 9.5px; font-weight: 700; color: var(--report-muted); }
+.duel-value.target { text-align: right; }
+.duel-value.candidate { text-align: left; }
+.duel-value.win { padding: 2.5px 8px; border-radius: 99px; color: #fff; font-weight: 800; font-size: 10px; }
+.duel-value.target.win { background: var(--target-color); box-shadow: 0 3px 10px color-mix(in srgb, var(--target-color) 45%, transparent); }
+.duel-value.candidate.win { background: var(--candidate-color); box-shadow: 0 3px 10px color-mix(in srgb, var(--candidate-color) 45%, transparent); }
+.metric-duel-bar { position: relative; height: 13px; display: flex; overflow: hidden; border-radius: 99px; background: var(--report-line); }
+.metric-duel-bar .duel-side.target { width: var(--target-share); background: var(--target-color); transition: width .35s ease; }
+.metric-duel-bar .duel-side.candidate { flex: 1; background: var(--candidate-color); }
+.metric-duel.winner-candidate .duel-side.target { opacity: .28; }
+.metric-duel.winner-target .duel-side.candidate { opacity: .28; }
+.metric-duel.winner-tie .duel-side { opacity: .6; }
+.metric-duel-bar::after { content: ""; position: absolute; top: 0; bottom: 0; left: calc(var(--target-share) - 1.5px); width: 3px; background: var(--report-paper); }
+
+/* ---- Tamaño de foto ajustable en las cards de comparación ---- */
+.comparison-player-photo-frame { width: 100%; height: 100%; display: block; transform: scale(var(--photo-scale, 1)); transform-origin: center bottom; }
+.photo-scale-control { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+.photo-scale-control span { color: var(--report-muted); font-size: 7px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.photo-scale-control input { width: 100%; accent-color: var(--report-accent); }

@@ -19,6 +19,28 @@ export function assetPath(path: string) {
   return IS_STATIC_DEPLOYMENT ? `/fos-scout-lab${path}` : path;
 }
 
+/**
+ * Candidatos para cargar una imagen en canvas, en orden de fiabilidad. Los
+ * CDNs que envían CORS (escudos de Transfermarkt) van directo; el resto pasa
+ * por weserv y su espejo, con el original como último intento.
+ */
+export function canvasImageCandidates(src: string): string[] {
+  const value = src.trim();
+  if (!value) return [];
+  if (value.startsWith("data:image/") || value.startsWith("blob:") || value.startsWith("/")) return [value];
+  const bare = value.replace(/^https?:\/\//i, "");
+  const candidates: string[] = [];
+  try {
+    const host = new URL(value).hostname;
+    if (/akamaized\.net$|githubusercontent\.com$|wikimedia\.org$/i.test(host)) candidates.push(value);
+  } catch { return []; }
+  if (!IS_STATIC_DEPLOYMENT) candidates.push(`/api/image?url=${encodeURIComponent(value)}`);
+  candidates.push(`https://images.weserv.nl/?url=${encodeURIComponent(bare)}`);
+  candidates.push(`https://wsrv.nl/?url=${encodeURIComponent(bare)}`);
+  if (!candidates.includes(value)) candidates.push(value);
+  return candidates;
+}
+
 export function proxiedImageUrl(src: string) {
   if (IS_STATIC_DEPLOYMENT) {
     return `https://images.weserv.nl/?url=${encodeURIComponent(src.replace(/^https?:\/\//i, ""))}`;
