@@ -277,11 +277,15 @@ function drawRadar(ctx: CanvasRenderingContext2D, metrics: SimilarityMetricCompa
   const badgeHeight = dense ? 19 : 22;
   const badgeGap = dense ? 4 : 6;
   metrics.forEach((metric, index) => {
-    const stagger = dense ? (index % 2 === 0 ? 46 : 96) : 66;
+    // Las etiquetas laterales se empujan más hacia afuera (el texto centrado
+    // crece en horizontal); arriba y abajo se mantiene el escalonado corto.
+    const angle = -Math.PI / 2 + index * Math.PI * 2 / metrics.length;
+    const horizontalPush = Math.abs(Math.cos(angle)) * 30;
+    const stagger = (dense ? (index % 2 === 0 ? 46 : 96) : 66) + horizontalPush;
     const label = radarPoint(index, metrics.length, radius + stagger, cx, cy);
     const text = t(metric.label).replace(/\s*\/90/g, "").replace(/,\s*%$/, " %").toUpperCase();
     ctx.font = `700 ${labelFont}px Arial`;
-    let lines = [fitText(ctx, text, dense ? 150 : 160)];
+    let lines = [fitText(ctx, text, dense ? 175 : 175)];
     if (dense && text.length > 14) {
       const words = text.split(" ");
       if (words.length > 1) {
@@ -297,7 +301,7 @@ function drawRadar(ctx: CanvasRenderingContext2D, metrics: SimilarityMetricCompa
     ctx.fillStyle = theme.ink;
     ctx.textAlign = "center";
     lines.forEach((line, lineIndex) => {
-      ctx.fillText(fitText(ctx, line, dense ? 150 : 160), label.x, label.y - (lines.length - 1 - lineIndex) * (labelFont + 1));
+      ctx.fillText(fitText(ctx, line, dense ? 175 : 175), label.x, label.y - (lines.length - 1 - lineIndex) * (labelFont + 1));
     });
     const badgesWidth = badgeWidth * 2 + badgeGap;
     const badgesX = label.x - badgesWidth / 2;
@@ -343,7 +347,7 @@ function drawMagnifier(ctx: CanvasRenderingContext2D, x: number, y: number, radi
 async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer, sourceName: string, theme: ReportTheme, targetProfile: TransfermarktProfile, candidateProfile: TransfermarktProfile, recipientName: string, recipientLogoUrl: string, targetColor: string, candidateColor: string, targetLabelColor: string, candidateLabelColor: string, targetLabelTransparency: number, candidateLabelTransparency: number, forReport = false, targetPhotoScale = 100, candidatePhotoScale = 100) {
   const canvas = document.createElement("canvas");
   canvas.width = 1600;
-  canvas.height = forReport ? 1250 : 1364;
+  canvas.height = forReport ? 1452 : 1566;
   const ctx = canvas.getContext("2d");
   if (!ctx) return "";
   const [targetImage, targetClub, candidateImage, candidateClub, recipientLogo, transfermarktLogo] = await Promise.all([
@@ -464,7 +468,7 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
   ctx.textAlign = "left";
 
   // Radar a lo ancho, con radio generoso: la cinta liberó el espacio lateral.
-  drawRadar(ctx, candidate.metrics, target.cohort, theme, 800, 585, candidate.metrics.length > 10 ? 200 : 235, targetColor, candidateColor, targetLabelColor, candidateLabelColor, targetLabelTransparency, candidateLabelTransparency);
+  drawRadar(ctx, candidate.metrics, target.cohort, theme, 800, 615, candidate.metrics.length > 10 ? 235 : 260, targetColor, candidateColor, targetLabelColor, candidateLabelColor, targetLabelTransparency, candidateLabelTransparency);
 
   // Solo los grupos presentes en las métricas comparadas aparecen en la leyenda.
   const legendGroups = SIMILARITY_METRIC_GROUPS.filter((group) => candidate.metrics.some((metric) => similarityMetricGroup(metric, target.cohort).id === group.id));
@@ -473,19 +477,21 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
   legendGroups.forEach((group, index) => {
     const x = legendStartX + index * legendItemWidth;
     ctx.fillStyle = group.color;
-    drawRoundedRect(ctx, x, 944, 12, 12, 3);
+    drawRoundedRect(ctx, x, 992, 12, 12, 3);
     ctx.fill();
     ctx.fillStyle = theme.ink;
     ctx.font = "700 11px Arial";
     ctx.textAlign = "left";
-    ctx.fillText(t(group.label).toUpperCase(), x + 20, 954);
+    ctx.fillText(t(group.label).toUpperCase(), x + 20, 1002);
   });
   ctx.textAlign = "left";
 
-  // Duelo métrica a métrica: una sola barra compartida por métrica. El lado
-  // del jugador con mejor registro va saturado; el otro, atenuado.
+  // Duelo métrica a métrica: etiqueta centrada sobre una barra a todo lo
+  // ancho. El lado del jugador con mejor registro va saturado; el otro,
+  // atenuado, con los valores en los extremos.
   candidate.metrics.slice(0, 7).forEach((metric, index) => {
-    const y = 992 + index * 39;
+    const labelY = 1046 + index * 56;
+    const barTop = labelY + 10;
     const targetShare = metric.targetPercentile + metric.candidatePercentile > 0
       ? metric.targetPercentile / (metric.targetPercentile + metric.candidatePercentile)
       : 0.5;
@@ -495,34 +501,34 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
       : `${t(metric.label)} · ${metric.weight === 0 ? t("SIN INFLUENCIA") : tf("PESO {p}%", { p: Math.round(metric.weight * 100) })}`;
     ctx.fillStyle = theme.ink;
     ctx.font = "700 13px Arial";
-    ctx.textAlign = "left";
-    ctx.fillText(fitText(ctx, metricLabel.toUpperCase(), 230), 360, y + 4);
+    ctx.textAlign = "center";
+    ctx.fillText(fitText(ctx, metricLabel.toUpperCase(), 900), 800, labelY);
 
-    const barX = 740;
-    const barWidth = 550;
+    const barX = 240;
+    const barWidth = 1120;
     const splitX = barX + barWidth * targetShare;
     ctx.save();
-    drawRoundedRect(ctx, barX, y - 9, barWidth, 17, 9);
+    drawRoundedRect(ctx, barX, barTop, barWidth, 18, 9);
     ctx.clip();
     ctx.globalAlpha = winner === "candidate" ? 0.3 : 1;
     ctx.fillStyle = targetColor;
-    ctx.fillRect(barX, y - 9, barWidth * targetShare, 17);
+    ctx.fillRect(barX, barTop, barWidth * targetShare, 18);
     ctx.globalAlpha = winner === "target" ? 0.3 : 1;
     ctx.fillStyle = candidateColor;
-    ctx.fillRect(splitX, y - 9, barWidth * (1 - targetShare), 17);
+    ctx.fillRect(splitX, barTop, barWidth * (1 - targetShare), 18);
     ctx.globalAlpha = 1;
     ctx.fillStyle = theme.paper;
-    ctx.fillRect(splitX - 1.5, y - 9, 3, 17);
+    ctx.fillRect(splitX - 1.5, barTop, 3, 18);
     ctx.restore();
 
-    ctx.font = winner === "target" ? "800 14px Arial" : "700 13px Arial";
+    ctx.font = winner === "target" ? "800 15px Arial" : "700 13px Arial";
     ctx.fillStyle = winner === "target" ? targetColor : theme.muted;
     ctx.textAlign = "right";
-    ctx.fillText(formatMetricValue(metric.targetValue, metric.key), barX - 14, y + 4);
-    ctx.font = winner === "candidate" ? "800 14px Arial" : "700 13px Arial";
+    ctx.fillText(formatMetricValue(metric.targetValue, metric.key), barX - 16, barTop + 14);
+    ctx.font = winner === "candidate" ? "800 15px Arial" : "700 13px Arial";
     ctx.fillStyle = winner === "candidate" ? candidateColor : theme.muted;
     ctx.textAlign = "left";
-    ctx.fillText(formatMetricValue(metric.candidateValue, metric.key), barX + barWidth + 14, y + 4);
+    ctx.fillText(formatMetricValue(metric.candidateValue, metric.key), barX + barWidth + 16, barTop + 14);
     ctx.textAlign = "left";
   });
 
@@ -531,25 +537,25 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
   if (!forReport) {
     ctx.strokeStyle = theme.line;
     ctx.beginPath();
-    ctx.moveTo(70, 1264);
-    ctx.lineTo(1530, 1264);
+    ctx.moveTo(70, 1466);
+    ctx.lineTo(1530, 1466);
     ctx.stroke();
     ctx.fillStyle = theme.muted;
     ctx.font = "700 11px Arial";
-    ctx.fillText(t("ELABORADO POR"), 70, 1298);
+    ctx.fillText(t("ELABORADO POR"), 70, 1500);
     ctx.fillStyle = theme.ink;
     ctx.font = "800 19px Arial";
-    ctx.fillText("FELIPE ORMAZABAL", 70, 1325);
+    ctx.fillText("FELIPE ORMAZABAL", 70, 1527);
     ctx.fillStyle = theme.accent;
     ctx.font = "700 11px Arial";
-    ctx.fillText("SCOUTING REPORT", 70, 1344);
-    if (recipientLogo) drawContain(ctx, recipientLogo, 1170, 1282, 62, 62);
+    ctx.fillText("SCOUTING REPORT", 70, 1546);
+    if (recipientLogo) drawContain(ctx, recipientLogo, 1170, 1484, 62, 62);
     ctx.fillStyle = theme.muted;
     ctx.font = "700 11px Arial";
-    ctx.fillText(t("REPORTE GENERADO PARA"), 1250, 1301);
+    ctx.fillText(t("REPORTE GENERADO PARA"), 1250, 1503);
     ctx.fillStyle = theme.ink;
     ctx.font = "800 18px Arial";
-    ctx.fillText(fitText(ctx, recipientName.toUpperCase(), 280), 1250, 1330);
+    ctx.fillText(fitText(ctx, recipientName.toUpperCase(), 280), 1250, 1532);
   }
   return canvas.toDataURL("image/png");
 }
