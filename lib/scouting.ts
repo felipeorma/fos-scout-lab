@@ -228,8 +228,11 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
   if (ageColumn) excluded.add(ageColumn);
   const numericHeaders = allHeaders.filter((header) => {
     if (!header || header === core.player || excluded.has(header)) return false;
+    // Basta con que exista algún valor: las columnas específicas de rol
+    // (atajadas, goles evitados, salidas…) solo traen datos para los porteros
+    // y un umbral de cobertura las eliminaría del combinado.
     const values = combined.map(({ row }) => numeric(row[header])).filter(Number.isFinite);
-    return values.length > 0 && values.length >= Math.max(1, combined.length * 0.2);
+    return values.length > 0;
   });
   const per90Headers = numericHeaders.filter(isPer90);
   const percentHeaders = numericHeaders.filter((header) => !per90Headers.includes(header) && isPercentage(header));

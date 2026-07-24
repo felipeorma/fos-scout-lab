@@ -50,3 +50,20 @@ test("resuelve el club por fila cuando las bases usan columnas de equipo distint
   assert.equal(result.rows.length, 2);
   assert.deepEqual(new Set(result.rows.map((row) => row.Team)), new Set(["Cavalry FC", "SK Beveren"]));
 });
+
+test("conserva columnas específicas de rol aunque pocas filas tengan datos", () => {
+  const rows = Array.from({ length: 9 }, (_, index) => ({
+    Player: `Jugador ${index + 1}`,
+    Age: 20 + index,
+    Team: "Club Test",
+    "Matches played": 10,
+    "Minutes played": 900,
+    "Passes per 90": 40,
+  }));
+  rows.push({ Player: "Portero Uno", Age: 30, Team: "Club Test", "Matches played": 10, "Minutes played": 900, "Passes per 90": 25, "Save rate, %": 71.4, "Exits per 90": 1.2 });
+  const result = aggregateDatasets([{ fileName: "liga-2026.xlsx", season: 2026, headers: Object.keys(rows.at(-1)), rows }]);
+  assert.ok(result.headers.includes("Save rate, %"));
+  assert.ok(result.headers.includes("Exits per 90"));
+  const keeper = result.rows.find((row) => row.Player === "Portero Uno");
+  assert.equal(keeper["Save rate, %"], 71.4);
+});
