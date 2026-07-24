@@ -258,8 +258,9 @@ const EN: Record<string, string> = {
   // ---- Grupos de métricas ----
   "Finalización": "Finishing",
   "Defensa": "Defending",
-  "Creación / progresión": "Creation / progression",
-  "Desequilibrio / pase": "Unbalancing / passing",
+  "Creación": "Creating",
+  "Pase": "Passing",
+  "Portero": "Goalkeeping",
 
   // ---- Métricas del radar (spec del cuaderno de análisis) ----
   "Goles /90": "Goals per 90",
@@ -582,7 +583,7 @@ const EN: Record<string, string> = {
   "PÁGINA": "PAGE",
   "VISUALES": "VISUALS",
   "OBSERVACIONES": "OBSERVATIONS",
-  "FOS SCOUT LAB · INFORME DE SCOUTING": "FOS SCOUT LAB · SCOUTING REPORT",
+  "FELIPE ORMAZABAL SCOUTING · INFORME DE SCOUTING": "FELIPE ORMAZABAL SCOUTING · SCOUTING REPORT",
   "ANÁLISIS COMPLEMENTARIO": "COMPLEMENTARY ANALYSIS",
   "Agregar imagen": "Add image",
   "PNG, JPG o WEBP": "PNG, JPG or WEBP",

@@ -1,14 +1,15 @@
 export type SimilarityMetricGroup = {
-  id: "finishing" | "defending" | "creation" | "imbalance";
+  id: "finishing" | "creating" | "passing" | "defending" | "goalkeeper";
   label: string;
   color: string;
 };
 
 export const SIMILARITY_METRIC_GROUPS: SimilarityMetricGroup[] = [
   { id: "finishing", label: "Finalización", color: "#e95b3f" },
+  { id: "creating", label: "Creación", color: "#d7a62c" },
+  { id: "passing", label: "Pase", color: "#43a8a0" },
   { id: "defending", label: "Defensa", color: "#3f72d9" },
-  { id: "creation", label: "Creación / progresión", color: "#d7a62c" },
-  { id: "imbalance", label: "Desequilibrio / pase", color: "#43a8a0" },
+  { id: "goalkeeper", label: "Portero", color: "#8b5cf6" },
 ];
 
 const AERIAL_METRIC = /aerial|aereo|cabece|header/;
@@ -26,10 +27,10 @@ export function similarityMetricGroup(metric: { key: string; label: string; grou
   if (AERIAL_METRIC.test(semanticName)) {
     return ATTACKING_AERIAL_COHORTS.has(cohort.toUpperCase())
       ? SIMILARITY_METRIC_GROUPS[0]
-      : SIMILARITY_METRIC_GROUPS[1];
+      : SIMILARITY_METRIC_GROUPS[3];
   }
-  if (DEFENSIVE_METRIC.test(semanticName)) return SIMILARITY_METRIC_GROUPS[1];
-  if (metric.group === 1) return SIMILARITY_METRIC_GROUPS[2];
-  if (metric.group === 2) return SIMILARITY_METRIC_GROUPS[3];
+  if (DEFENSIVE_METRIC.test(semanticName)) return SIMILARITY_METRIC_GROUPS[3];
+  if (metric.group === 1) return SIMILARITY_METRIC_GROUPS[1];
+  if (metric.group === 2) return SIMILARITY_METRIC_GROUPS[2];
   return SIMILARITY_METRIC_GROUPS[0];
 }

@@ -499,8 +499,8 @@ export default function ScoutStudio() {
     setCombinedBaseName("Combinación temporal 01");
     setAnalysisLabel("BASE ANALIZADA");
     setAnalysisSourceTitle("");
-    setReportRecipientName("");
-    setReportRecipientLogoUrl("");
+    // El club destinatario y su logo se recuerdan entre sesiones y reinicios:
+    // son independientes de la base y del jugador cargados.
     setSelectedTeam("");
     setSelectedPlayer(0);
     setMinimumMinutes(500);
@@ -524,7 +524,7 @@ export default function ScoutStudio() {
       <aside className={`sidebar ${mobileNav ? "sidebar-open" : ""}`}>
         <div className="brand-row">
           <div className="brand-mark"><span>F</span></div>
-          <div><strong>FOS Scout Lab</strong><small>Scout intelligence</small></div>
+          <div><strong>Felipe Ormazabal Scouting</strong><small>Scout intelligence</small></div>
           <button className="sidebar-close" onClick={() => setMobileNav(false)} aria-label={t("Cerrar menú")}><X size={19} /></button>
         </div>
         <nav className="side-nav" aria-label={t("Navegación principal")}>
@@ -556,7 +556,7 @@ export default function ScoutStudio() {
         <header className="topbar">
           <button className="menu-button" onClick={() => setMobileNav(true)} aria-label={t("Abrir menú")}><Menu size={20} /></button>
           <button className="icon-button sidebar-toggle" onClick={() => setSidebarHidden((hidden) => !hidden)} aria-pressed={sidebarHidden} aria-label={sidebarHidden ? t("Mostrar menú lateral") : t("Ocultar menú lateral")} title={sidebarHidden ? t("Mostrar menú lateral") : t("Ocultar menú lateral")}><Menu size={18} /></button>
-          <div className="breadcrumb"><LayoutDashboard size={15} /><span>Scout Lab</span><span>/</span><strong>{view === "home" ? t("Inicio") : view === "reports" ? t("Reportes") : t("Similitud")}</strong></div>
+          <div className="breadcrumb"><LayoutDashboard size={15} /><span>FO Scouting</span><span>/</span><strong>{view === "home" ? t("Inicio") : view === "reports" ? t("Reportes") : t("Similitud")}</strong></div>
           <div className="top-actions"><span className="privacy-pill"><LockKeyhole size={14} /> {t("Solo tú")}</span><button className="icon-button" aria-label={t("Ayuda")} title={t("Los datos nunca salen del navegador")}><CircleHelp size={18} /></button></div>
         </header>
 

@@ -31,7 +31,7 @@ const oswald = Oswald({
 });
 
 export const metadata: Metadata = {
-  title: "FOS Scout Lab | Reportes de scouting · Scouting Reports",
+  title: "Felipe Ormazabal Scouting | Reportes de scouting · Scouting Reports",
   description: "Genera reportes de jugadores y combina múltiples bases de ligas o temporadas. Build player scouting reports and combine multiple league or season databases.",
 };
 

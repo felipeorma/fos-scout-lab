@@ -466,7 +466,7 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
         <article className="visual-report-page unified-report-page" style={canvasStyle}>
           <header className="visual-page-header">
             <div className="visual-page-folio"><span>FOS</span><small>{t("PÁGINA")}</small><b>0{pageNumber}</b><em>{pageNumber === 2 ? t("VISUALES") : t("OBSERVACIONES")}</em></div>
-            <div className="visual-page-identity"><span>{t("FOS SCOUT LAB · INFORME DE SCOUTING")}</span><h2>{player}</h2><p>{team} · {position}</p></div>
+            <div className="visual-page-identity"><span>{t("FELIPE ORMAZABAL SCOUTING · INFORME DE SCOUTING")}</span><h2>{player}</h2><p>{team} · {position}</p></div>
           </header>
           <div className="visual-page-title"><span>{t("ANÁLISIS COMPLEMENTARIO")}</span><h3>{t(config.title)}</h3></div>
           <div ref={gridRef} className="visual-block-grid" style={{ gridTemplateColumns: `repeat(${config.columns}, minmax(0, 1fr))`, gap: config.gap }} onDragOver={(event) => event.preventDefault()}>
@@ -484,7 +484,7 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
             })}
             {!config.blocks.length && <button className="empty-designer-page" onClick={() => addBlock("image")}><Sparkles size={26} /><b>{t("Tu página está vacía")}</b><span>{t("Agrega una imagen o un texto desde el panel.")}</span></button>}
           </div>
-          <footer className="visual-page-footer"><span>{player.toUpperCase()} · {t("REPORTE CONFIDENCIAL")}</span><span>FOS SCOUT LAB</span></footer>
+          <footer className="visual-page-footer"><span>{player.toUpperCase()} · {t("REPORTE CONFIDENCIAL")}</span><span>FELIPE ORMAZABAL SCOUTING</span></footer>
         </article>
       </section>
     </div>

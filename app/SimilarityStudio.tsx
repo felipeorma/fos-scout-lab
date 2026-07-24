@@ -314,7 +314,7 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
   ctx.fillRect(0, 150, 1600, 4);
   ctx.fillStyle = "#ffffff";
   ctx.font = "800 30px Arial";
-  ctx.fillText("FOS SCOUT LAB", 78, 65);
+  ctx.fillText("FELIPE ORMAZABAL SCOUTING", 78, 65);
   ctx.font = "700 16px Arial";
   ctx.fillStyle = "rgba(255,255,255,.68)";
   ctx.fillText(t("COMPARACIÓN DE JUGADORES · PERCENTILES POSICIONALES"), 78, 99);
@@ -784,7 +784,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
             </section>
 
             <section className="similarity-report-sheet">
-              <header className="similarity-report-header"><div><span>FOS SCOUT LAB</span><b>{t("COMPARACIÓN DE JUGADORES")}</b><small>{tf("Percentiles posicionales · {src}", { src: t(sourceName) })}</small></div><SimilarityStarScore similarity={selectedCandidate.similarity} /></header>
+              <header className="similarity-report-header"><div><span>FELIPE ORMAZABAL SCOUTING</span><b>{t("COMPARACIÓN DE JUGADORES")}</b><small>{tf("Percentiles posicionales · {src}", { src: t(sourceName) })}</small></div><SimilarityStarScore similarity={selectedCandidate.similarity} /></header>
               <div className="similarity-report-body">
                 <div className="similarity-showdown">
                   <ComparisonPlayer profile={targetProfile} name={search.target.player} team={search.target.team} position={search.target.position} age={search.target.age} passport={search.target.passport} label={t("JUGADOR OBJETIVO")} color={targetColor} />
