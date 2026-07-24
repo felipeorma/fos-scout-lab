@@ -269,18 +269,39 @@ function drawRadar(ctx: CanvasRenderingContext2D, metrics: SimilarityMetricCompa
   };
   area("targetPercentile", targetColor, `${targetColor}33`);
   area("candidatePercentile", candidateColor, `${candidateColor}2b`);
+  // Con 10+ métricas las etiquetas se escalonan en dos alturas alternadas y
+  // se envuelven en dos líneas: así no chocan entre sí ni con el radar.
+  const dense = metrics.length > 10;
+  const labelFont = dense ? 12 : 14;
+  const badgeWidth = dense ? 38 : 44;
+  const badgeHeight = dense ? 19 : 22;
+  const badgeGap = dense ? 4 : 6;
   metrics.forEach((metric, index) => {
-    const label = radarPoint(index, metrics.length, radius + 66, cx, cy);
+    const stagger = dense ? (index % 2 === 0 ? 46 : 96) : 66;
+    const label = radarPoint(index, metrics.length, radius + stagger, cx, cy);
+    const text = t(metric.label).replace(/\s*\/90/g, "").replace(/,\s*%$/, " %").toUpperCase();
+    ctx.font = `700 ${labelFont}px Arial`;
+    let lines = [fitText(ctx, text, dense ? 150 : 160)];
+    if (dense && text.length > 14) {
+      const words = text.split(" ");
+      if (words.length > 1) {
+        let splitIndex = 1;
+        let bestDiff = Infinity;
+        for (let wordIndex = 1; wordIndex < words.length; wordIndex += 1) {
+          const diff = Math.abs(words.slice(0, wordIndex).join(" ").length - words.slice(wordIndex).join(" ").length);
+          if (diff < bestDiff) { bestDiff = diff; splitIndex = wordIndex; }
+        }
+        lines = [words.slice(0, splitIndex).join(" "), words.slice(splitIndex).join(" ")];
+      }
+    }
     ctx.fillStyle = theme.ink;
-    ctx.font = "700 14px Arial";
     ctx.textAlign = "center";
-    ctx.fillText(fitText(ctx, t(metric.label).replace(/\s*\/90/g, "").replace(/,\s*%$/, " %").toUpperCase(), 160), label.x, label.y);
-    const badgeWidth = 44;
-    const badgeGap = 6;
-    const badgeHeight = 22;
+    lines.forEach((line, lineIndex) => {
+      ctx.fillText(fitText(ctx, line, dense ? 150 : 160), label.x, label.y - (lines.length - 1 - lineIndex) * (labelFont + 1));
+    });
     const badgesWidth = badgeWidth * 2 + badgeGap;
     const badgesX = label.x - badgesWidth / 2;
-    const badgesY = label.y + 7;
+    const badgesY = label.y + 6;
     const percentileBadge = (x: number, value: number, color: string, transparency: number, corner: number) => {
       drawRoundedRect(ctx, x, badgesY, badgeWidth, badgeHeight, corner);
       ctx.save();
@@ -292,9 +313,9 @@ function drawRadar(ctx: CanvasRenderingContext2D, metrics: SimilarityMetricCompa
       ctx.lineWidth = 1.5;
       ctx.stroke();
       ctx.fillStyle = color;
-      ctx.font = "800 11px Arial";
+      ctx.font = `800 ${dense ? 10 : 11}px Arial`;
       ctx.textAlign = "center";
-      ctx.fillText(`P${value}`, x + badgeWidth / 2, badgesY + 15);
+      ctx.fillText(`P${value}`, x + badgeWidth / 2, badgesY + (dense ? 13.5 : 15));
     };
     percentileBadge(badgesX, metric.targetPercentile, targetLabelColor, targetLabelTransparency, badgeHeight / 2);
     percentileBadge(badgesX + badgeWidth + badgeGap, metric.candidatePercentile, candidateLabelColor, candidateLabelTransparency, 4);
@@ -421,7 +442,9 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
 
   playerCard(70, { name: target.player, team: target.team, position: target.position, age: target.age, passport: target.passport }, targetProfile, targetImage, targetClub, t("JUGADOR OBJETIVO"), targetColor, targetPhotoScale);
   playerCard(1180, { name: candidate.name, team: candidate.team, position: candidate.position, age: candidate.age === null ? "—" : String(candidate.age), passport: candidate.passport }, candidateProfile, candidateImage, candidateClub, t("JUGADOR COMPARABLE"), candidateColor, candidatePhotoScale);
-  drawRadar(ctx, candidate.metrics, target.cohort, theme, 800, 426, 210, targetColor, candidateColor, targetLabelColor, candidateLabelColor, targetLabelTransparency, candidateLabelTransparency);
+  // Con sets densos el radar cede radio para que las etiquetas escalonadas
+  // respiren sin tocar el encabezado ni las cards laterales.
+  drawRadar(ctx, candidate.metrics, target.cohort, theme, 800, 432, candidate.metrics.length > 10 ? 172 : 210, targetColor, candidateColor, targetLabelColor, candidateLabelColor, targetLabelTransparency, candidateLabelTransparency);
 
   // Solo los grupos presentes en las métricas comparadas aparecen en la leyenda.
   const legendGroups = SIMILARITY_METRIC_GROUPS.filter((group) => candidate.metrics.some((metric) => similarityMetricGroup(metric, target.cohort).id === group.id));
