@@ -291,10 +291,28 @@ function drawRadar(ctx: CanvasRenderingContext2D, metrics: SimilarityMetricCompa
   });
 }
 
-async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer, sourceName: string, theme: ReportTheme, targetProfile: TransfermarktProfile, candidateProfile: TransfermarktProfile, recipientName: string, recipientLogoUrl: string, targetColor: string, candidateColor: string, targetLabelColor: string, candidateLabelColor: string, targetLabelTransparency: number, candidateLabelTransparency: number) {
+// Lupa de scouting dibujada a mano: identifica las láminas sin firmar con nombre.
+function drawMagnifier(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number, color: string) {
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.max(3, radius * 0.3);
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x + radius * 0.74, y + radius * 0.74);
+  ctx.lineTo(x + radius * 1.65, y + radius * 1.65);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// `forReport`: la lámina va incrustada en la Página 2 del reporte, que ya trae
+// firma propia — se omiten el nombre del título y el bloque de firma inferior.
+async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer, sourceName: string, theme: ReportTheme, targetProfile: TransfermarktProfile, candidateProfile: TransfermarktProfile, recipientName: string, recipientLogoUrl: string, targetColor: string, candidateColor: string, targetLabelColor: string, candidateLabelColor: string, targetLabelTransparency: number, candidateLabelTransparency: number, forReport = false) {
   const canvas = document.createElement("canvas");
   canvas.width = 1600;
-  canvas.height = 1200;
+  canvas.height = forReport ? 1104 : 1200;
   const ctx = canvas.getContext("2d");
   if (!ctx) return "";
   const [targetImage, targetClub, candidateImage, candidateClub, recipientLogo, transfermarktLogo] = await Promise.all([
@@ -307,17 +325,18 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
   ]);
 
   ctx.fillStyle = theme.paper;
-  ctx.fillRect(0, 0, 1600, 1200);
+  ctx.fillRect(0, 0, 1600, canvas.height);
   ctx.fillStyle = theme.dark;
   ctx.fillRect(0, 0, 1600, 154);
   ctx.fillStyle = theme.accent;
   ctx.fillRect(0, 150, 1600, 4);
+  drawMagnifier(ctx, 100, 68, 24, "#ffffff");
   ctx.fillStyle = "#ffffff";
   ctx.font = "800 30px Arial";
-  ctx.fillText("FELIPE ORMAZABAL SCOUTING", 78, 65);
+  ctx.fillText(t("COMPARACIÓN DE JUGADORES"), 160, 65);
   ctx.font = "700 16px Arial";
   ctx.fillStyle = "rgba(255,255,255,.68)";
-  ctx.fillText(t("COMPARACIÓN DE JUGADORES · PERCENTILES POSICIONALES"), 78, 99);
+  ctx.fillText(t("Percentiles posicionales").toUpperCase(), 160, 99);
   drawCanvasSimilarityStar(ctx, candidate.similarity, 1450, 65, 46, theme);
   ctx.textAlign = "center";
   ctx.fillStyle = "rgba(255,255,255,.68)";
@@ -425,27 +444,31 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
     ctx.fillText(formatMetricValue(metric.candidateValue, metric.key), 1320, y + 4);
   });
 
-  ctx.strokeStyle = theme.line;
-  ctx.beginPath();
-  ctx.moveTo(70, 1100);
-  ctx.lineTo(1530, 1100);
-  ctx.stroke();
-  ctx.fillStyle = theme.muted;
-  ctx.font = "700 11px Arial";
-  ctx.fillText(t("ELABORADO POR"), 70, 1134);
-  ctx.fillStyle = theme.ink;
-  ctx.font = "800 19px Arial";
-  ctx.fillText("FELIPE ORMAZABAL", 70, 1161);
-  ctx.fillStyle = theme.accent;
-  ctx.font = "700 11px Arial";
-  ctx.fillText("SCOUTING REPORT", 70, 1180);
-  if (recipientLogo) drawContain(ctx, recipientLogo, 1170, 1118, 62, 62);
-  ctx.fillStyle = theme.muted;
-  ctx.font = "700 11px Arial";
-  ctx.fillText(t("REPORTE GENERADO PARA"), 1250, 1137);
-  ctx.fillStyle = theme.ink;
-  ctx.font = "800 18px Arial";
-  ctx.fillText(fitText(ctx, recipientName.toUpperCase(), 280), 1250, 1166);
+  // La firma solo va en la lámina independiente; incrustada en el reporte,
+  // la página ya firma por sí misma.
+  if (!forReport) {
+    ctx.strokeStyle = theme.line;
+    ctx.beginPath();
+    ctx.moveTo(70, 1100);
+    ctx.lineTo(1530, 1100);
+    ctx.stroke();
+    ctx.fillStyle = theme.muted;
+    ctx.font = "700 11px Arial";
+    ctx.fillText(t("ELABORADO POR"), 70, 1134);
+    ctx.fillStyle = theme.ink;
+    ctx.font = "800 19px Arial";
+    ctx.fillText("FELIPE ORMAZABAL", 70, 1161);
+    ctx.fillStyle = theme.accent;
+    ctx.font = "700 11px Arial";
+    ctx.fillText("SCOUTING REPORT", 70, 1180);
+    if (recipientLogo) drawContain(ctx, recipientLogo, 1170, 1118, 62, 62);
+    ctx.fillStyle = theme.muted;
+    ctx.font = "700 11px Arial";
+    ctx.fillText(t("REPORTE GENERADO PARA"), 1250, 1137);
+    ctx.fillStyle = theme.ink;
+    ctx.font = "800 18px Arial";
+    ctx.fillText(fitText(ctx, recipientName.toUpperCase(), 280), 1250, 1166);
+  }
   return canvas.toDataURL("image/png");
 }
 
@@ -678,9 +701,9 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     }
   }
 
-  async function createImage() {
+  async function createImage(forReport = false) {
     if (!search?.target || !selectedCandidate) return "";
-    return comparisonImage(search.target, selectedCandidate, sourceName, theme, targetProfile, candidateProfile, reportRecipient, recipientLogoUrl.trim(), targetColor, candidateColor, targetLabelColor, candidateLabelColor, targetLabelTransparency, candidateLabelTransparency);
+    return comparisonImage(search.target, selectedCandidate, sourceName, theme, targetProfile, candidateProfile, reportRecipient, recipientLogoUrl.trim(), targetColor, candidateColor, targetLabelColor, candidateLabelColor, targetLabelTransparency, candidateLabelTransparency, forReport);
   }
 
   async function downloadComparison() {
@@ -701,7 +724,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
   async function addComparisonToReport() {
     setExportBusy(true);
     try {
-      const image = await createImage();
+      const image = await createImage(true);
       if (!image || !selectedCandidate || !search?.target) return;
       window.localStorage.setItem("fos-scout-similarity-comparison-v1", JSON.stringify({ image, title: tf("Similitud · {a} vs. {b}", { a: search.target.player, b: selectedCandidate.name }), createdAt: Date.now() }));
       setExportStatus(t("✓ Comparación agregada a la Página 2 con formato completo y alineado."));
@@ -784,7 +807,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
             </section>
 
             <section className="similarity-report-sheet">
-              <header className="similarity-report-header"><div><span>FELIPE ORMAZABAL SCOUTING</span><b>{t("COMPARACIÓN DE JUGADORES")}</b><small>{tf("Percentiles posicionales · {src}", { src: t(sourceName) })}</small></div><SimilarityStarScore similarity={selectedCandidate.similarity} /></header>
+              <header className="similarity-report-header"><div><span className="report-lupa"><Search size={12} /></span><b>{t("COMPARACIÓN DE JUGADORES")}</b><small>{tf("Percentiles posicionales · {src}", { src: t(sourceName) })}</small></div><SimilarityStarScore similarity={selectedCandidate.similarity} /></header>
               <div className="similarity-report-body">
                 <div className="similarity-showdown">
                   <ComparisonPlayer profile={targetProfile} name={search.target.player} team={search.target.team} position={search.target.position} age={search.target.age} passport={search.target.passport} label={t("JUGADOR OBJETIVO")} color={targetColor} />

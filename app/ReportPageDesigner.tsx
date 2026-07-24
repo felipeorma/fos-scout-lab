@@ -9,6 +9,7 @@ import {
   MoveUp,
   Palette,
   RotateCcw,
+  Search,
   Sparkles,
   TextIcon,
   Trash,
@@ -159,7 +160,7 @@ function normalizeSimilarityBlock(config: PageConfig) {
   };
 }
 
-export function ReportPageDesigner({ pageNumber, player, team, position, theme, onThemeChange }: { pageNumber: 2 | 3; player: string; team: string; position: string; theme: ReportTheme; onThemeChange: (theme: ReportTheme) => void }) {
+export function ReportPageDesigner({ pageNumber, player, team, position, theme, onThemeChange, recipientName = "", recipientLogoUrl = "" }: { pageNumber: 2 | 3; player: string; team: string; position: string; theme: ReportTheme; onThemeChange: (theme: ReportTheme) => void; recipientName?: string; recipientLogoUrl?: string }) {
   const [pages, setPages] = useState<DesignerState>(defaultPages);
   const [selectedId, setSelectedId] = useState(defaultPages()[pageNumber].blocks[0].id);
   const [draggedId, setDraggedId] = useState("");
@@ -466,7 +467,7 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
         <article className="visual-report-page unified-report-page" style={canvasStyle}>
           <header className="visual-page-header">
             <div className="visual-page-folio"><span>FOS</span><small>{t("PÁGINA")}</small><b>0{pageNumber}</b><em>{pageNumber === 2 ? t("VISUALES") : t("OBSERVACIONES")}</em></div>
-            <div className="visual-page-identity"><span>{t("FELIPE ORMAZABAL SCOUTING · INFORME DE SCOUTING")}</span><h2>{player}</h2><p>{team} · {position}</p></div>
+            <div className="visual-page-identity"><span className="visual-identity-lupa"><Search size={11} /> {t("INFORME DE SCOUTING")}</span><h2>{player}</h2><p>{team} · {position}</p></div>
           </header>
           <div className="visual-page-title"><span>{t("ANÁLISIS COMPLEMENTARIO")}</span><h3>{t(config.title)}</h3></div>
           <div ref={gridRef} className="visual-block-grid" style={{ gridTemplateColumns: `repeat(${config.columns}, minmax(0, 1fr))`, gap: config.gap }} onDragOver={(event) => event.preventDefault()}>
@@ -484,7 +485,19 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
             })}
             {!config.blocks.length && <button className="empty-designer-page" onClick={() => addBlock("image")}><Sparkles size={26} /><b>{t("Tu página está vacía")}</b><span>{t("Agrega una imagen o un texto desde el panel.")}</span></button>}
           </div>
-          <footer className="visual-page-footer"><span>{player.toUpperCase()} · {t("REPORTE CONFIDENCIAL")}</span><span>FELIPE ORMAZABAL SCOUTING</span></footer>
+          <footer className="visual-page-footer visual-page-signature">
+            <div className="report-signatures">
+              <div className="report-author"><span>{t("ELABORADO POR")}</span><b>FELIPE ORMAZABAL</b><small>SCOUTING REPORT</small></div>
+              <span className="visual-footer-confidential">{player.toUpperCase()} · {t("REPORTE CONFIDENCIAL")}</span>
+              <div className="report-recipient">
+                {/^(https?:\/\/|data:image\/)/i.test(recipientLogoUrl.trim())
+                  // eslint-disable-next-line @next/next/no-img-element
+                  ? <img src={recipientLogoUrl.trim()} alt={recipientName || t("Club destinatario")} className="dossier-footer-club-logo" />
+                  : <span className="dossier-footer-club-fallback">{(recipientName || t("Club destinatario")).split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span>}
+                <div><span>{t("REPORTE GENERADO PARA")}</span><b>{recipientName || t("Club destinatario")}</b></div>
+              </div>
+            </div>
+          </footer>
         </article>
       </section>
     </div>

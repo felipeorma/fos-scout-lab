@@ -785,7 +785,7 @@ export default function ScoutStudio() {
                 </section>
               </div> : null}
               {report ? ([2, 3] as const).filter((page) => printRun ? printRun.includes(page) : reportPage === page).map((page) => (
-                <ReportPageDesigner key={page} pageNumber={page} player={report.player} team={profile.club || report.team} position={formatPlayerPositions(profile.position || report.position)} theme={reportTheme} onThemeChange={setReportTheme} />
+                <ReportPageDesigner key={page} pageNumber={page} player={report.player} team={profile.club || report.team} position={formatPlayerPositions(profile.position || report.position)} theme={reportTheme} onThemeChange={setReportTheme} recipientName={recipientName} recipientLogoUrl={reportRecipientLogoUrl} />
               )) : !printRun && reportPage !== 1 ? <div className="empty-preview">{t("Selecciona un jugador para diseñar las páginas.")}</div> : null}
 
               {printDialogOpen && <div className="print-dialog-overlay" role="dialog" aria-modal="true" aria-label={t("¿Qué páginas quieres incluir en el PDF?")} onClick={() => setPrintDialogOpen(false)}>

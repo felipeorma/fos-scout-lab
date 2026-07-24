@@ -998,3 +998,13 @@ body::before { position: fixed; inset: 0; z-index: -1; pointer-events: none; bac
   font-size: 11.5px; font-weight: 600; cursor: pointer;
 }
 .reading-editor button:hover { border-color: rgba(94, 141, 255, .55); }
+
+/* ---- Lupa de scouting y firma unificada en páginas del editor ---- */
+.report-lupa { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border: 1.5px solid currentColor; border-radius: 6px; opacity: .85; }
+.visual-identity-lupa { display: inline-flex; align-items: center; gap: 5px; }
+.visual-page-signature { padding-top: 10px; }
+.visual-page-signature .report-signatures { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.visual-footer-confidential { color: var(--report-muted); font-size: 6.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.visual-page-signature .report-author span, .visual-page-signature .report-recipient span { font-size: 6.5px; }
+.visual-page-signature .report-author b, .visual-page-signature .report-recipient b { font-size: 10px; }
+.visual-page-signature .dossier-footer-club-logo, .visual-page-signature .dossier-footer-club-fallback { width: 26px; height: 26px; }
