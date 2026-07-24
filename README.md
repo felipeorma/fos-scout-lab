@@ -98,7 +98,7 @@ Los Excel se procesan completamente en el navegador. No se suben a un servidor.
    automáticamente al modelo `medium` de `@imgly/background-removal` en el
    navegador, con refinado de máscara para no recortar de más al jugador.
    Instalación del servidor (una sola vez):
-   `python3.11 -m venv ~/.rembg-venv && ~/.rembg-venv/bin/pip install "rembg[cpu,cli]"`.
+   `python3.11 -m venv ~/.rembg-venv && ~/.rembg-venv/bin/pip install "rembg[cpu,cli]" fastapi uvicorn python-multipart`.
 4. **Diseñar reporte:** revisar la ficha imprimible inspirada en
    `Radar Jordhy Thompson v2`, y editar las páginas de visuales y observaciones.
    La etiqueta “Base analizada” y el nombre de la liga o temporada también son

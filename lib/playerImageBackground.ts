@@ -47,10 +47,11 @@ export async function removePlayerImageBackground({
   const original = await response.blob();
 
   try {
-    onProgress?.("recorte HD (servidor local)", 0, 0);
+    onProgress?.("recorte HD con BiRefNet (servidor local)", 0, 0);
     return await removeWithLocalRembg(original);
   } catch {
     // Servidor local apagado o falló: seguimos con el modelo del navegador.
+    onProgress?.("modelo del navegador — inicia el servidor local para máxima precisión", 0, 0);
   }
 
   const { removeBackground, segmentForeground } = await import("@imgly/background-removal");

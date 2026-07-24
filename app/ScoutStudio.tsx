@@ -498,7 +498,7 @@ export default function ScoutStudio() {
         playerImage: source,
         onProgress: (key, current, total) => {
           const percent = total > 0 ? Math.min(100, Math.round(current / total * 100)) : 0;
-          setBackgroundRemovalStatus(percent ? tf("Descargando modelo IA · {p}%", { p: percent }) : tf("Preparando {k}…", { k: key }));
+          setBackgroundRemovalStatus(percent ? tf("Descargando modelo IA · {p}%", { p: percent }) : tf("Preparando {k}…", { k: t(key) }));
         },
       });
       const dataUrl = await blobToDataUrl(result);

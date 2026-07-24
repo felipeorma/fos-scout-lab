@@ -631,7 +631,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
         playerImage: source,
         onProgress: (key, currentProgress, total) => {
           const percent = total > 0 ? Math.min(100, Math.round(currentProgress / total * 100)) : 0;
-          setProfileStatus((status) => ({ ...status, [side]: percent ? tf("Descargando modelo IA · {p}%", { p: percent }) : tf("Preparando {k}…", { k: key }) }));
+          setProfileStatus((status) => ({ ...status, [side]: percent ? tf("Descargando modelo IA · {p}%", { p: percent }) : tf("Preparando {k}…", { k: t(key) }) }));
         },
       });
       const dataUrl = await blobToDataUrl(result);

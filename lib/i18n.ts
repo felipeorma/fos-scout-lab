@@ -231,6 +231,8 @@ const EN: Record<string, string> = {
   "Preparando el modelo de IA… La primera vez puede tardar.": "Preparing the AI model… The first time may take a while.",
   "Descargando modelo IA · {p}%": "Downloading AI model · {p}%",
   "Preparando {k}…": "Preparing {k}…",
+  "recorte HD con BiRefNet (servidor local)": "HD cutout with BiRefNet (local server)",
+  "modelo del navegador — inicia el servidor local para máxima precisión": "browser model — start the local server for maximum precision",
   "✓ Fondo eliminado. La imagen PNG quedó guardada en esta sesión.": "✓ Background removed. The PNG image is saved for this session.",
   "No se pudo eliminar el fondo. Reintenta o utiliza otra imagen.": "The background could not be removed. Retry or use another image.",
 
