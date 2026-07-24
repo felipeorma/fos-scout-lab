@@ -92,6 +92,19 @@ export function primaryPositionRole(value: unknown) {
   return roleForPosition(splitPlayerPositions(value)[0] ?? "");
 }
 
+export type PositionSide = "left" | "right" | "center";
+
+// Los códigos Wyscout llevan la lateralidad en el prefijo: LW/LB/LCMF juegan
+// por izquierda, RWF/RB/RDMF por derecha; el resto ocupa el eje central.
+export function positionSides(value: unknown): PositionSide[] {
+  return [...new Set(splitPlayerPositions(value).map((code): PositionSide => {
+    const key = lookupKey(code);
+    if (/^L/.test(key)) return "left";
+    if (/^R/.test(key)) return "right";
+    return "center";
+  }))];
+}
+
 export function formatPlayerPositions(value: unknown) {
   const positions = playerPositions(value);
   if (!positions.length) return "—";

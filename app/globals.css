@@ -1035,3 +1035,17 @@ body::before { position: fixed; inset: 0; z-index: -1; pointer-events: none; bac
 .photo-scale-control { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
 .photo-scale-control span { color: var(--report-muted); font-size: 7px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .photo-scale-control input { width: 100%; accent-color: var(--report-accent); }
+
+/* ---- Alcance del rol (principal vs. secundarias) ---- */
+.role-scope-toggle { margin: -6px 0 2px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.role-scope-toggle button {
+  padding: 6px 7px; border: 1px solid var(--report-line); border-radius: 8px;
+  background: transparent; color: var(--report-muted);
+  font-size: 9.5px; font-weight: 700; letter-spacing: .02em; cursor: pointer;
+  transition: border-color .15s ease, color .15s ease, background .15s ease;
+}
+.role-scope-toggle button:hover { border-color: color-mix(in srgb, var(--report-accent) 45%, var(--report-line)); }
+.role-scope-toggle button.active {
+  border-color: var(--report-accent); color: var(--report-accent);
+  background: color-mix(in srgb, var(--report-accent) 9%, transparent);
+}

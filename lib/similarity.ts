@@ -12,6 +12,7 @@ import {
   formatPlayerPositions,
   playerPositions,
   positionRoles,
+  positionSides,
   primaryPositionRole,
   roleCohort,
   type PlayerPosition,
@@ -25,6 +26,10 @@ export type SimilarityFilters = {
   minimumMinutes: number;
   passport: string;
   position: string;
+  /** "primary": solo posición principal · "any": incluye secundarias */
+  roleScope?: "primary" | "any";
+  /** Lado del campo según el prefijo del código Wyscout (L/R) */
+  side?: "" | "left" | "right";
 };
 
 export type SimilarityMetricComparison = {
@@ -179,7 +184,13 @@ export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filt
     if (filters.ageMin !== null && (age === null || age < filters.ageMin)) return [];
     if (filters.ageMax !== null && (age === null || age > filters.ageMax)) return [];
     if (filters.passport && !playerPassports(passport).some((item) => normalizeSearch(item) === normalizeSearch(filters.passport))) return [];
-    if (filters.position && !roles.includes(filters.position as (typeof POSITION_ROLES)[number])) return [];
+    if (filters.position) {
+      const matchesRole = (filters.roleScope ?? "any") === "primary"
+        ? primaryPositionRole(rawPosition) === filters.position
+        : roles.includes(filters.position as (typeof POSITION_ROLES)[number]);
+      if (!matchesRole) return [];
+    }
+    if (filters.side && !positionSides(rawPosition).includes(filters.side)) return [];
     if (normalizedQuery && !normalizeSearch(`${name} ${team}`).includes(normalizedQuery)) return [];
 
     const metrics = target.metrics.flatMap((metric) => {
