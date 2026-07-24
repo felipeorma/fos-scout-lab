@@ -222,6 +222,7 @@ export default function ScoutStudio() {
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const [printPages, setPrintPages] = useState<ReportPage[]>([1, 2, 3]);
   const [printRun, setPrintRun] = useState<ReportPage[] | null>(null);
+  const [readingOverride, setReadingOverride] = useState("");
   const [mobileNav, setMobileNav] = useState(false);
   const [sidebarHidden, setSidebarHidden] = useState(false);
   const [reportRows, setReportRows] = useState<DataRow[]>([]);
@@ -319,6 +320,24 @@ export default function ScoutStudio() {
     }, 250);
     return () => window.clearTimeout(timer);
   }, [printRun]);
+
+  useEffect(() => {
+    // Cada jugador recuerda su lectura rápida editada a mano (si existe).
+    if (!report?.player) { setReadingOverride(""); return; }
+    try {
+      setReadingOverride(window.localStorage.getItem(`fos-scout-reading:${report.player.toLocaleLowerCase("es")}`) ?? "");
+    } catch { setReadingOverride(""); }
+  }, [report?.player]);
+
+  function updateReadingOverride(value: string) {
+    setReadingOverride(value);
+    if (!report?.player) return;
+    try {
+      const key = `fos-scout-reading:${report.player.toLocaleLowerCase("es")}`;
+      if (value.trim()) window.localStorage.setItem(key, value);
+      else window.localStorage.removeItem(key);
+    } catch { /* Sin persistencia la edición vive durante la sesión. */ }
+  }
 
   function startPrint() {
     if (!printPages.length) return;
@@ -680,6 +699,15 @@ export default function ScoutStudio() {
                       {([['number', 'Dorsal'], ['league', 'Liga'], ['club', 'Club'], ['marketValue', 'Valor mercado'], ['birthDate', 'Nacimiento'], ['birthPlace', 'Lugar'], ['height', 'Altura'], ['position', 'Posiciones'], ['foot', 'Pie'], ['contract', 'Contrato'], ['agent', 'Agente'], ['nationalTeam', 'Selección'], ['capsGoals', 'Caps / goles']] as Array<[keyof TransfermarktProfile, string]>).map(([field, label]) => <label key={field}><span>{t(label)}</span><input value={profile[field]} onChange={(event) => updateProfile(field, event.target.value)} /></label>)}
                     </div>
                   </details>
+
+                  <details className="profile-details">
+                    <summary>{t("Editar lectura rápida")}</summary>
+                    <div className="reading-editor">
+                      <textarea value={readingOverride} placeholder={report?.reading ?? ""} onChange={(event) => updateReadingOverride(event.target.value)} rows={5} />
+                      <small>{t("Escribe tu propia lectura; si la dejas vacía se usa la generada por datos.")}</small>
+                      {readingOverride.trim() !== "" && <button type="button" onClick={() => updateReadingOverride("")}>{t("Usar texto automático")}</button>}
+                    </div>
+                  </details>
                 </section>
 
                 <section className="report-preview-wrap">
@@ -729,7 +757,7 @@ export default function ScoutStudio() {
                       <aside className="dossier-reading">
                         <div className="average-percentile"><strong>{report.score}</strong><small>{t("percentil")}<br />{t("medio")}</small></div>
                         <div className="dossier-legend">{SIMILARITY_METRIC_GROUPS.filter((group) => report.metrics.some((metric) => similarityMetricGroup(metric, report.cohort).id === group.id)).map((group) => <span key={group.id}><i style={{ background: group.color }} />{t(group.label)}</span>)}</div>
-                        <div className="quick-reading"><b>{t("LECTURA RÁPIDA")}</b><p>{report.reading}</p></div>
+                        <div className="quick-reading"><b>{t("LECTURA RÁPIDA")}</b><p>{readingOverride.trim() || report.reading}</p></div>
                       </aside>
                     </section>
 

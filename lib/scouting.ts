@@ -440,55 +440,55 @@ function field(row: DataRow, headers: string[], aliases: string[]) {
 // que mejor respaldan los percentiles. `lows` marca métricas que deben ser
 // bajas para que el perfil gane fuerza (p. ej. poco juego aéreo en un nueve
 // de espacio).
-type TacticalRule = { labels: string[]; lows?: string[]; text: string };
+type TacticalRule = { labels: string[]; lows?: string[]; text: string; role: string };
 
 const TACTICAL_PROFILES: Record<string, TacticalRule[]> = {
   GK: [
-    { labels: ["Porcentaje de atajadas, %", "Goles evitados /90"], text: "Detiene por encima de lo esperado: la diferencia entre goles evitados y xG en contra respalda su rendimiento bajo los palos." },
-    { labels: ["Salidas /90", "Duelos aéreos /90"], text: "Los números de salidas y duelo aéreo indican dominio del área en centros y balón parado." },
-    { labels: ["Pases largos precisos, %", "Pases precisos, %"], text: "La precisión de pase corto y largo sostiene la salida bajo presión y permite alternar el envío directo." },
+    { labels: ["Porcentaje de atajadas, %", "Goles evitados /90"], text: "Detiene más de lo que le corresponde: evita goles que, por la calidad del remate rival, normalmente terminarían dentro.", role: "portero de reflejos (shot-stopper)" },
+    { labels: ["Salidas /90", "Duelos aéreos /90"], text: "Gobierna su área: sale a cortar centros y gana el duelo aéreo con regularidad, una garantía en balón parado defensivo.", role: "portero dominador del área" },
+    { labels: ["Pases largos precisos, %", "Pases precisos, %"], text: "Con el pie es fiable: mantiene la calma en salida corta y también encuentra al compañero con el envío largo.", role: "portero iniciador" },
   ],
   CB: [
-    { labels: ["Pases precisos, %", "Pases largos precisos, %", "Pases /90"], text: "La salida limpia es el diferencial: precisión alta en corto y largo para romper la primera línea de presión." },
-    { labels: ["Duelos defensivos ganados, %", "Duelos aéreos ganados, %", "Entradas deslizantes PAdj"], lows: ["Pases /90"], text: "Su valor está en el duelo: gana lo físico y lo aéreo con regularidad; el pase aporta menos que el resto del perfil." },
-    { labels: ["Intercepciones /90", "Acciones defensivas exitosas /90"], text: "Anticipa más de lo que corrige: los volúmenes de intercepción y acción defensiva hablan de una lectura adelantada del juego." },
+    { labels: ["Pases precisos, %", "Pases largos precisos, %", "Pases /90"], text: "Su diferencial es la salida limpia: encuentra pases por dentro que saltan la primera presión rival sin arriesgar la pérdida.", role: "central con salida de balón (ball-playing)" },
+    { labels: ["Duelos defensivos ganados, %", "Duelos aéreos ganados, %", "Entradas deslizantes PAdj"], lows: ["Pases /90"], text: "Su valor está en el duelo: gana lo físico y lo aéreo con regularidad; con el balón aporta menos, conviene rodearlo de buen pie.", role: "central de área y duelos" },
+    { labels: ["Intercepciones /90", "Acciones defensivas exitosas /90"], text: "Defiende leyendo el juego: llega antes que el rival y corta la jugada en origen en lugar de corregir atrás.", role: "central de anticipación para línea adelantada" },
   ],
   FB: [
-    { labels: ["Centros /90", "Centros precisos, %"], text: "El centro es su argumento: volumen y precisión de envío al área por encima de la cohorte." },
-    { labels: ["Carreras progresivas /90", "Regates exitosos, %"], text: "Gana metros con balón: conducción y regate sostienen la progresión por su banda." },
-    { labels: ["Duelos defensivos ganados, %", "Intercepciones /90"], text: "Primero defiende: los números de duelo e intercepción son la parte más sólida del perfil." },
+    { labels: ["Centros /90", "Centros precisos, %"], text: "Su argumento es el centro: llega a línea de fondo con frecuencia y el envío al área encuentra rematador más de lo habitual.", role: "lateral de amplitud y centro" },
+    { labels: ["Carreras progresivas /90", "Regates exitosos, %"], text: "Gana metros con el balón controlado: conduce y encara para hacer avanzar al equipo por su banda.", role: "carrilero de conducción" },
+    { labels: ["Duelos defensivos ganados, %", "Intercepciones /90"], text: "Primero defiende: el duelo y el corte son lo más sólido de su juego, con menos aporte en campo rival.", role: "lateral defensivo para bloque medio-bajo" },
   ],
   DMF: [
-    { labels: ["Acciones defensivas exitosas /90", "Intercepciones /90", "Entradas deslizantes PAdj"], text: "Corta el juego rival: acciones defensivas, intercepciones y entradas por encima de la cohorte respaldan la protección de la zaga." },
-    { labels: ["Pases progresivos /90", "Pases /90", "Pases precisos, %"], text: "La circulación es fiable bajo presión: precisión y volumen de pase sostienen la salida desde la base." },
-    { labels: ["Pases clave /90", "Pases progresivos precisos, %"], text: "Aporta último pase desde zonas profundas: pase clave y progresivo preciso por encima de lo habitual en la cohorte." },
+    { labels: ["Acciones defensivas exitosas /90", "Intercepciones /90", "Entradas deslizantes PAdj"], text: "Corta el juego rival antes de que llegue a la zaga: recupera, intercepta y entra bien, con volumen alto y pocas fallas.", role: "pivote de contención delante de la zaga" },
+    { labels: ["Pases progresivos /90", "Pases /90", "Pases precisos, %"], text: "Da salida limpia bajo presión: pide el balón, lo cuida y mantiene el ritmo de circulación aunque lo aprieten.", role: "pivote organizador de la salida" },
+    { labels: ["Pases clave /90", "Pases progresivos precisos, %"], text: "Desde zonas profundas encuentra el pase que rompe líneas y deja a un compañero de cara al arco.", role: "mediocentro con último pase" },
   ],
   B2B: [
-    { labels: ["Goles /90", "Toques en el área /90", "xG /90"], text: "Llega al área sin balón: toques en zona de remate y producción de gol por encima de la cohorte." },
-    { labels: ["Pases progresivos /90", "Pases precisos, %", "xA /90"], text: "Conecta fases con el pase: progresión y precisión mantienen el ritmo entre defensa y ataque." },
-    { labels: ["Duelos defensivos /90", "Intercepciones /90", "Duelos ganados, %"], text: "Los registros defensivos completan el perfil: recupera, gana duelos y reinicia el ataque de inmediato." },
+    { labels: ["Goles /90", "Toques en el área /90", "xG /90"], text: "Llega al área sin balón: aparece en zona de remate en el momento justo y convierte esas llegadas en gol.", role: "interior llegador (box-to-box ofensivo)" },
+    { labels: ["Pases progresivos /90", "Pases precisos, %", "xA /90"], text: "Conecta defensa y ataque con el pase: progresa con criterio y casi no pierde balones en la construcción.", role: "interior conector entre líneas" },
+    { labels: ["Duelos defensivos /90", "Intercepciones /90", "Duelos ganados, %"], text: "Cubre los dos lados del juego: recupera en campo propio, gana duelos y reinicia el ataque de inmediato.", role: "mediocentro de ida y vuelta" },
   ],
   WING: [
-    { labels: ["Regates exitosos, %", "Carreras progresivas /90", "Duelos ofensivos ganados, %"], text: "El uno contra uno es su argumento: regate y conducción efectivos para ganar metros en campo abierto." },
-    { labels: ["xG /90", "Toques en el área /90"], text: "Pisa el área con frecuencia: los toques en zona de remate y el xG apuntan a llegadas por dentro y desmarques de ruptura (runs in behind)." },
-    { labels: ["xA /90", "Pases clave /90", "Centros precisos, %"], text: "Genera para otros: pase clave, xA y centro preciso por encima de la cohorte." },
+    { labels: ["Regates exitosos, %", "Carreras progresivas /90", "Duelos ofensivos ganados, %"], text: "El uno contra uno es su argumento: encara, supera a su marcador y hace avanzar al equipo en campo abierto.", role: "extremo de transición y uno contra uno" },
+    { labels: ["xG /90", "Toques en el área /90"], text: "Pisa el área con frecuencia: sus llegadas por dentro y sus desmarques a la espalda del lateral (runs in behind) terminan en ocasiones claras.", role: "extremo interior con gol (inside forward)" },
+    { labels: ["xA /90", "Pases clave /90", "Centros precisos, %"], text: "Hace mejores a los demás: su último pase y su centro generan ocasiones claras partido tras partido.", role: "extremo creador" },
   ],
   AM: [
-    { labels: ["Goles /90", "xG /90", "Toques en el área /90"], text: "Suma gol desde segunda línea: producción y presencia en el área por encima de la cohorte." },
-    { labels: ["Asistencias /90", "Pases clave /90"], text: "El último pase es su diferencial: genera ocasiones con regularidad entre líneas." },
-    { labels: ["Regates exitosos, %", "Carreras progresivas /90", "Duelos ofensivos ganados, %"], text: "Progresa por conducción: recibe, gira y rompe líneas con el balón controlado." },
+    { labels: ["Goles /90", "xG /90", "Toques en el área /90"], text: "Suma gol desde segunda línea: llega al área como un delantero más y sus remates valen puntos.", role: "mediapunta llegador (segundo delantero)" },
+    { labels: ["Asistencias /90", "Pases clave /90"], text: "Su diferencial es el último pase: recibe entre líneas y deja a los delanteros de cara al gol con regularidad.", role: "enganche creador entre líneas" },
+    { labels: ["Regates exitosos, %", "Carreras progresivas /90", "Duelos ofensivos ganados, %"], text: "Rompe líneas con el balón controlado: recibe de espaldas, gira y avanza donde otros necesitan dos pases.", role: "interior que progresa por conducción" },
   ],
   CF: [
-    { labels: ["Duelos aéreos ganados, %", "Pases recibidos /90"], text: "Sostiene el juego de espaldas: duelo aéreo ganado y volumen de recepción para fijar la defensa y habilitar la segunda jugada." },
-    { labels: ["Pases recibidos /90", "Asistencias /90", "Pases precisos, %"], lows: ["Duelos aéreos ganados, %"], text: "Asocia más de lo que remata: recepción y último pase altos indican que su mejor aporte llega saliendo de la zona de definición." },
-    { labels: ["xG /90", "Toques en el área /90"], lows: ["Pases recibidos /90"], text: "El peligro nace del desmarque: xG y toques en el área altos, con poca participación en la circulación, apuntan a ataques al espacio (runs in behind)." },
+    { labels: ["Duelos aéreos ganados, %", "Pases recibidos /90"], text: "Sostiene el juego de espaldas: gana el duelo aéreo, aguanta el balón y permite que el equipo suba en bloque.", role: "nueve de referencia (target man)" },
+    { labels: ["Pases recibidos /90", "Asistencias /90", "Pases precisos, %"], lows: ["Duelos aéreos ganados, %"], text: "Asocia más de lo que remata: su mejor versión aparece saliendo de la zona de definición para combinar y liberar espacio a las llegadas.", role: "delantero asociativo (falso nueve)" },
+    { labels: ["xG /90", "Toques en el área /90"], lows: ["Pases recibidos /90"], text: "Su peligro nace del desmarque: participa poco en la circulación, pero cada ataque al espacio a la espalda de la defensa (runs in behind) termina en remate.", role: "delantero de ruptura al espacio" },
   ],
 };
 
 TACTICAL_PROFILES.MID = TACTICAL_PROFILES.DMF;
 TACTICAL_PROFILES.OTHER = TACTICAL_PROFILES.WING;
 
-function tacticalNote(cohort: string, metrics: RadarMetric[]) {
+function tacticalNote(cohort: string, metrics: RadarMetric[]): TacticalRule | null {
   const percentileOf = (label: string) => metrics.find((metric) => metric.label === label)?.percentile;
   const rules = TACTICAL_PROFILES[cohort] ?? TACTICAL_PROFILES.OTHER;
   let best: TacticalRule | null = null;
@@ -504,13 +504,21 @@ function tacticalNote(cohort: string, metrics: RadarMetric[]) {
       best = rule;
     }
   }
-  return best && bestScore >= 58 ? t(best.text) : "";
+  return best && bestScore >= 58 ? best : null;
 }
+
+const FACET_PHRASES: Record<string, string> = {
+  finishing: "la finalización",
+  creating: "la creación de juego",
+  passing: "el pase",
+  defending: "el trabajo defensivo",
+  goalkeeper: "el rendimiento bajo los palos",
+};
 
 function roleReading(cohort: string, metrics: RadarMetric[]) {
   if (!metrics.length) return "";
-  // Lectura basada en datos: qué bloque sostiene el perfil, qué comportamiento
-  // respaldan los números, fortalezas y punto débil. Sin sugerir roles.
+  // Informe corto en lenguaje llano: en qué se apoya su juego, qué muestra el
+  // dato, en qué rol encajaría, dónde destaca y qué vigilar. Sin jerga.
   const facets = SIMILARITY_METRIC_GROUPS.map((group) => ({
     group,
     score: average(metrics.filter((metric) => similarityMetricGroup(metric, cohort).id === group.id).map((metric) => metric.percentile)),
@@ -521,12 +529,15 @@ function roleReading(cohort: string, metrics: RadarMetric[]) {
   const readable = (label: string) => t(label).replace(/\s*\/90/g, "").replace(/,\s*%$/, "").toLowerCase();
   const strengths = top.filter((metric) => metric.percentile >= 60).map((metric) => readable(metric.label));
   let text = dominant
-    ? tf("La base del perfil está en {facet}: P{p} promedio del bloque frente a la cohorte.", { facet: t(dominant.group.label).toLowerCase(), p: Math.round(dominant.score) })
+    ? tf("Su juego se apoya en {facet}: ahí supera al {p}% de los jugadores de su posición.", { facet: t(FACET_PHRASES[dominant.group.id] ?? dominant.group.label), p: Math.round(dominant.score) })
     : "";
   const tactic = tacticalNote(cohort, metrics);
-  if (tactic) text += ` ${tactic}`;
-  if (strengths.length) text += tf(" Sus señales más fuertes aparecen en {list}.", { list: strengths.join(", ") });
-  if (weak && weak.percentile < 35) text += tf(" El punto a vigilar es {metric}, hoy por debajo de la cohorte.", { metric: readable(weak.label) });
+  if (tactic) {
+    text += ` ${t(tactic.text)}`;
+    text += tf(" Encajaría en un rol de {role}.", { role: t(tactic.role) });
+  }
+  if (strengths.length) text += tf(" Sus números más sólidos están en {list}.", { list: strengths.join(", ") });
+  if (weak && weak.percentile < 35) text += tf(" El punto a vigilar es {metric}, hoy por debajo de lo esperado para su posición.", { metric: readable(weak.label) });
   return text.trim();
 }
 
