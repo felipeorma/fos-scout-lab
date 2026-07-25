@@ -24,6 +24,7 @@ import {
   reportBlockHeightBounds,
   resizeReportBlock,
   similarityGridRows,
+  similarityMetricDensity,
   type ReportBlockResizeMode,
 } from "@/lib/reportPageLayout";
 
@@ -161,6 +162,7 @@ function sanitizeSimilarityMarkup(value: string) {
       }
     });
   });
+  report.dataset.metricDensity = similarityMetricDensity(report.querySelectorAll(".metric-duel").length);
   return report.outerHTML;
 }
 

@@ -6,6 +6,12 @@ export const MIN_REPORT_IMAGE_HEIGHT = 140;
 export const MAX_REPORT_BLOCK_HEIGHT = 900;
 export const MIN_SIMILARITY_NOTES_HEIGHT = 90;
 export const MAX_SIMILARITY_NOTES_HEIGHT = 360;
+export const COMPACT_SIMILARITY_METRIC_THRESHOLD = 13;
+
+export function similarityMetricDensity(metricCount: number) {
+  const safeCount = Number.isFinite(metricCount) ? Math.max(0, Math.floor(metricCount)) : 0;
+  return safeCount >= COMPACT_SIMILARITY_METRIC_THRESHOLD ? "compact" : "comfortable";
+}
 
 export function reportBlockHeightBounds(kind: ReportBlockKind, similarityNotes = false) {
   if (similarityNotes) {

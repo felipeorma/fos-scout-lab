@@ -344,9 +344,18 @@ export default function ScoutStudio() {
         await new Promise<void>((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve())));
         if (cancelled) return;
         const fitTargets = Array.from(document.querySelectorAll<HTMLElement>(
-          ".legal-page-shell .scout-report, .legal-page-shell .visual-report-page, .legal-page-shell .similarity-native-block, .legal-page-shell .similarity-native-content, .legal-page-shell .similarity-report-main, .legal-page-shell .visual-text-content",
+          ".legal-page-shell .scout-report, .legal-page-shell .visual-report-page, .legal-page-shell .similarity-native-block, .legal-page-shell .similarity-native-content, .legal-page-shell .similarity-report-main, .legal-page-shell .similarity-metric-section, .legal-page-shell .visual-text-content",
         ));
-        const overflowing = fitTargets.some((element) => element.clientHeight > 0 && element.scrollHeight > element.clientHeight + 2);
+        const clippedMetrics = Array.from(document.querySelectorAll<HTMLElement>(".legal-page-shell .similarity-metric-section")).some((section) => {
+          const metrics = section.querySelectorAll<HTMLElement>(".metric-duel");
+          const lastMetric = metrics.item(metrics.length - 1);
+          const boundary = section.closest<HTMLElement>(".similarity-native-content");
+          if (!lastMetric || !boundary) return false;
+          const metricRect = lastMetric.getBoundingClientRect();
+          const boundaryRect = boundary.getBoundingClientRect();
+          return metricRect.bottom > boundaryRect.bottom + 2 || metricRect.right > boundaryRect.right + 2;
+        });
+        const overflowing = clippedMetrics || fitTargets.some((element) => element.clientHeight > 0 && element.scrollHeight > element.clientHeight + 2);
         if (overflowing) {
           document.body.classList.remove("print-layout-check");
           setPrintLayoutError(t("Una página excede el área Legal. Reduce el texto o ajusta su contenido antes de exportar."));

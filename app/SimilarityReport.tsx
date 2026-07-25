@@ -5,6 +5,7 @@ import { type CSSProperties, useId } from "react";
 import { ComparisonRadar } from "./ComparisonRadar";
 import { Search } from "./Icons";
 import { formatPlayerPositions } from "@/lib/positions";
+import { similarityMetricDensity } from "@/lib/reportPageLayout";
 import { formatCell } from "@/lib/scouting";
 import { type SimilarityMetricComparison } from "@/lib/similarity";
 import { SIMILARITY_METRIC_GROUPS, similarityMetricGroup } from "@/lib/similarityMetricGroups";
@@ -197,7 +198,7 @@ function MetricComparison({ metric, targetName, candidateName, targetColor, cand
 
 export function SimilarityReportMain({ payload }: { payload: SimilarityReportPayload }) {
   const { target, candidate, metrics } = payload;
-  return <div className="similarity-report-main">
+  return <div className="similarity-report-main" data-metric-density={similarityMetricDensity(metrics.length)}>
     <header className="similarity-report-header duel-header">
       <div className="duel-header-player left" style={{ "--player-color": target.color } as CSSProperties}><span>{t("JUGADOR OBJETIVO")}</span><b>{target.name}</b></div>
       <div className="duel-header-center"><SimilarityStarScore similarity={payload.similarity} /><small><span className="report-lupa"><Search size={9} /></span> {t("COMPARACIÓN DE JUGADORES")} · {tf("Percentiles posicionales · {src}", { src: t(payload.sourceName) })}</small></div>

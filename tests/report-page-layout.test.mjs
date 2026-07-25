@@ -6,6 +6,7 @@ import {
   clampReportBlockSpan,
   reportBlockHeightBounds,
   resizeReportBlock,
+  similarityMetricDensity,
   similarityGridRows,
 } from "../lib/reportPageLayout.ts";
 
@@ -82,4 +83,11 @@ test("la comparación y los comentarios ocupan filas separadas del mismo grid", 
   assert.equal(similarityGridRows(180), "minmax(0, 1fr) 180px");
   assert.equal(similarityGridRows(999), "minmax(0, 1fr) 360px");
   assert.equal(similarityGridRows(20), "minmax(0, 1fr) 90px");
+});
+
+test("compacta únicamente los reportes con trece o más métricas", () => {
+  assert.equal(similarityMetricDensity(12), "comfortable");
+  assert.equal(similarityMetricDensity(13), "compact");
+  assert.equal(similarityMetricDensity(16), "compact");
+  assert.equal(similarityMetricDensity(Number.NaN), "comfortable");
 });
