@@ -11,8 +11,13 @@ const CENTER_X = 400;
 const CENTER_Y = 350;
 const RADIUS = 205;
 
+/**
+ * Mismo reparto angular que la pizza de la Página 1: cada métrica se centra en
+ * medio de su porción (de ahí el medio paso), no sobre el vértice superior.
+ * Así ambos radares muestran las métricas en la misma posición.
+ */
 function point(index: number, total: number, radius: number) {
-  const angle = -Math.PI / 2 + index * Math.PI * 2 / total;
+  const angle = -Math.PI / 2 + (index + 0.5) * Math.PI * 2 / total;
   return { x: CENTER_X + Math.cos(angle) * radius, y: CENTER_Y + Math.sin(angle) * radius, angle };
 }
 
@@ -68,8 +73,8 @@ export function ComparisonRadar({ metrics, metricCohort, targetName, candidateNa
       {[25, 50, 75, 100].map((level) => <polygon key={level} className="comparison-radar-grid" points={metrics.map((_, index) => { const value = point(index, metrics.length, RADIUS * level / 100); return `${value.x},${value.y}`; }).join(" ")} />)}
       {metrics.map((metric, index) => { const edge = point(index, metrics.length, RADIUS); return <line key={metric.key} className="comparison-radar-axis" x1={CENTER_X} y1={CENTER_Y} x2={edge.x} y2={edge.y} />; })}
       {metrics.map((metric, index) => {
-        const start = -Math.PI / 2 + index * step - step * .43;
-        const end = -Math.PI / 2 + index * step + step * .43;
+        const start = -Math.PI / 2 + (index + 0.5) * step - step * .43;
+        const end = -Math.PI / 2 + (index + 0.5) * step + step * .43;
         return <path key={`ring-${metric.key}`} d={arcPath(start, end, RADIUS + 18)} fill="none" stroke={similarityMetricGroup(metric, metricCohort).color} className="comparison-radar-group" />;
       })}
       <polygon className="comparison-radar-area target" points={polygon(metrics, "targetPercentile")} />
