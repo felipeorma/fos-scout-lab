@@ -107,6 +107,24 @@ const EN: Record<string, string> = {
   "Selecciona al menos una página.": "Select at least one page.",
   "Abrir el editor de páginas visuales": "Open the visual page editor",
 
+  // ---- Armazón lineal (sin menú lateral) ----
+  "Reportes de scouting": "Scouting reports",
+  "Cargar datos": "Load data",
+  "Excel o CSV": "Excel or CSV",
+  "Elegir jugador": "Choose player",
+  "Equipo y jugador": "Team and player",
+  "Construir reporte": "Build report",
+  "Ficha, similitud y visuales": "Card, similarity and visuals",
+  "Percentiles del jugador": "Player percentiles",
+  "Visuales {n}": "Visuals {n}",
+  "Mapas, imágenes y texto": "Maps, images and text",
+  "Agregar página": "Add page",
+  "Quitar página": "Remove page",
+  "VISUALES": "VISUALS",
+
+  "Escribe tu lectura de la comparación: contexto, rol y recomendación.": "Write your read of the comparison: context, role and recommendation.",
+  "Aparece dentro de la hoja, debajo de la comparación, respetando los márgenes de la página.": "It appears inside the sheet, below the comparison, respecting the page margins.",
+
   // ---- Workflow ----
   "Flujo del reporte": "Report workflow",
   "01 · Base de datos": "01 · Database",
@@ -649,7 +667,6 @@ const EN: Record<string, string> = {
   "Arrastra para ordenar · esquina ↘ para tamaño": "Drag to reorder · corner ↘ to resize",
   "Arrastra para ordenar · ↕ cambia solo el alto · ↘ ajusta ambos": "Drag to reorder · ↕ changes height only · ↘ adjusts both",
   "PÁGINA": "PAGE",
-  "VISUALES": "VISUALS",
   "OBSERVACIONES": "OBSERVATIONS",
   "INFORME DE SCOUTING": "SCOUTING REPORT",
   "ANÁLISIS COMPLEMENTARIO": "COMPLEMENTARY ANALYSIS",

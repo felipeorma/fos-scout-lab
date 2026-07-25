@@ -58,7 +58,7 @@ type PageConfig = {
   blocks: PageBlock[];
 };
 
-type DesignerState = Record<2 | 3, PageConfig>;
+type DesignerState = Record<number, PageConfig>;
 
 type ResizeSession = {
   id: string;
@@ -74,6 +74,7 @@ type ResizeSession = {
   columns: number;
 };
 
+const FIRST_VISUAL_PAGE = 3;
 const SIMILARITY_BLOCK_ID = "p2-similarity-comparison";
 const SIMILARITY_NOTES_BLOCK_ID = "p2-similarity-notes";
 const SIMILARITY_BLOCK_HEIGHT = 900;
@@ -98,31 +99,37 @@ function textBlock(id: string, title: string, content: string, span = 2, height 
   return { id, type: "text", title, content, image: "", span, height, fit: "cover", bold: false, italic: false, font: "barlow", fontSize: 17, color: DEFAULT_REPORT_THEME.ink, align: "left" };
 }
 
-function defaultPages(): DesignerState {
-  return {
-    2: {
+// Plantilla para cualquier página de visualizaciones. La primera trae mapas,
+// las siguientes arrancan con un lienzo mixto listo para llenar.
+function defaultPage(pageNumber: number): PageConfig {
+  if (pageNumber === FIRST_VISUAL_PAGE) {
+    return {
       title: "Mapa visual del rendimiento",
       columns: 2,
       gap: 18,
       blocks: [
-        imageBlock("p2-shotmap", "Mapa de remates"),
-        imageBlock("p2-heatmap", "Mapa de calor"),
-        imageBlock("p2-actions", "Acciones con balón"),
-        imageBlock("p2-defence", "Acciones defensivas"),
+        imageBlock(`p${pageNumber}-shotmap`, "Mapa de remates"),
+        imageBlock(`p${pageNumber}-heatmap`, "Mapa de calor"),
+        imageBlock(`p${pageNumber}-actions`, "Acciones con balón"),
+        imageBlock(`p${pageNumber}-defence`, "Acciones defensivas"),
       ],
-    },
-    3: {
-      title: "Observaciones y contexto",
-      columns: 2,
-      gap: 18,
-      blocks: [
-        textBlock("p3-summary", "Resumen del scout", "Agrega aquí tu lectura del jugador: contexto competitivo, rol ideal, fortalezas transferibles y riesgos observados en vídeo.", 2, 190),
-        imageBlock("p3-frame-a", "Secuencia destacada", 1, 300),
-        imageBlock("p3-frame-b", "Comportamiento táctico", 1, 300),
-        textBlock("p3-decision", "Conclusión", "Recomendación final y próximos pasos de seguimiento.", 2, 160),
-      ],
-    },
+    };
+  }
+  return {
+    title: "Observaciones y contexto",
+    columns: 2,
+    gap: 18,
+    blocks: [
+      textBlock(`p${pageNumber}-summary`, "Resumen del scout", "Agrega aquí tu lectura del jugador: contexto competitivo, rol ideal, fortalezas transferibles y riesgos observados.", 2, 190),
+      imageBlock(`p${pageNumber}-frame-a`, "Secuencia destacada", 1, 300),
+      imageBlock(`p${pageNumber}-frame-b`, "Comportamiento táctico", 1, 300),
+      textBlock(`p${pageNumber}-decision`, "Conclusión", "Recomendación final y próximos pasos de seguimiento.", 2, 160),
+    ],
   };
+}
+
+function defaultPages(pageNumber: number): DesignerState {
+  return { [pageNumber]: defaultPage(pageNumber) };
 }
 
 const FONT_OPTIONS = [
@@ -196,32 +203,14 @@ function similarityNotesBlock(config: PageConfig) {
   };
 }
 
-function normalizeSimilarityBlock(config: PageConfig) {
-  const comparison = config.blocks.find((block) => block.id === SIMILARITY_BLOCK_ID);
-  if (!comparison) return config;
-  const notes = similarityNotesBlock(config);
-  return {
-    ...config,
-    title: t("Comparación de similitud"),
-    blocks: [{
-      ...comparison,
-      html: sanitizeSimilarityMarkup(comparison.html ?? ""),
-      similarity: isSimilarityReportPayload(comparison.similarity) ? comparison.similarity : undefined,
-      span: config.columns,
-      height: SIMILARITY_BLOCK_HEIGHT,
-      fit: "contain" as const,
-    }, notes],
-  };
-}
-
-export function ReportPageDesigner({ pageNumber, player, team, position, theme, onThemeChange, recipientName = "", recipientLogoUrl = "" }: { pageNumber: 2 | 3; player: string; team: string; position: string; theme: ReportTheme; onThemeChange: (theme: ReportTheme) => void; recipientName?: string; recipientLogoUrl?: string }) {
-  const [pages, setPages] = useState<DesignerState>(defaultPages);
-  const [selectedId, setSelectedId] = useState(defaultPages()[pageNumber].blocks[0].id);
+export function ReportPageDesigner({ pageNumber, player, team, position, theme, onThemeChange, recipientName = "", recipientLogoUrl = "" }: { pageNumber: number; player: string; team: string; position: string; theme: ReportTheme; onThemeChange: (theme: ReportTheme) => void; recipientName?: string; recipientLogoUrl?: string }) {
+  const [pages, setPages] = useState<DesignerState>(() => defaultPages(pageNumber));
+  const [selectedId, setSelectedId] = useState(() => defaultPage(pageNumber).blocks[0].id);
   const [draggedId, setDraggedId] = useState("");
   const [resizeSession, setResizeSession] = useState<ResizeSession | null>(null);
   const [loaded, setLoaded] = useState(false);
   const gridRef = useRef<HTMLDivElement>(null);
-  const config = pages[pageNumber];
+  const config = pages[pageNumber] ?? defaultPage(pageNumber);
   const selected = useMemo(() => config.blocks.find((block) => block.id === selectedId) ?? null, [config.blocks, selectedId]);
   const hasSimilarityComparison = pageNumber === 2 && config.blocks.some((block) => block.id === SIMILARITY_BLOCK_ID && Boolean(block.similarity || block.html || block.image));
 
@@ -229,60 +218,13 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
     const timer = window.setTimeout(() => {
       try {
         const stored = window.localStorage.getItem("fos-scout-page-designer-v1");
-        let nextPages = stored ? { ...defaultPages(), ...JSON.parse(stored) } as DesignerState : defaultPages();
-        nextPages = { ...nextPages, 2: normalizeSimilarityBlock(nextPages[2]) };
-        // El título "Comparación de similitud" solo aplica mientras exista esa
-        // comparación importada; sin ella la página vuelve al diseño normal
-        // para seguir agregando imágenes y textos.
-        const page2 = nextPages[2];
-        const hasComparisonBlock = page2.blocks.some((block) => block.id === SIMILARITY_BLOCK_ID);
-        if (!hasComparisonBlock && /comparación de similitud|similarity comparison/i.test(page2.title)) {
-          nextPages = {
-            ...nextPages,
-            2: {
-              ...page2,
-              title: defaultPages()[2].title,
-              blocks: page2.blocks.length ? page2.blocks : defaultPages()[2].blocks,
-            },
-          };
-        }
-        const pendingComparison = window.localStorage.getItem("fos-scout-similarity-comparison-v1");
-        if (pendingComparison) {
-          const payload = JSON.parse(pendingComparison) as { data?: unknown; html?: unknown; image?: unknown; title?: unknown };
-          const nativeData = isSimilarityReportPayload(payload.data) ? payload.data : undefined;
-          const nativeHtml = typeof payload.html === "string" ? sanitizeSimilarityMarkup(payload.html) : "";
-          const legacyImage = typeof payload.image === "string" && payload.image.startsWith("data:image/") ? payload.image : "";
-          if (nativeData || nativeHtml || legacyImage) {
-            const page = nextPages[2];
-            const title = typeof payload.title === "string" ? payload.title : t("Comparación de similitud");
-            const existing = page.blocks.find((block) => block.id === SIMILARITY_BLOCK_ID);
-            const comparison = {
-              ...(existing ?? imageBlock(SIMILARITY_BLOCK_ID, title, page.columns, SIMILARITY_BLOCK_HEIGHT)),
-              image: nativeData || nativeHtml ? "" : legacyImage,
-              html: nativeData ? "" : nativeHtml,
-              similarity: nativeData,
-              title,
-              span: page.columns,
-              height: SIMILARITY_BLOCK_HEIGHT,
-              fit: "contain" as const,
-            };
-            const notes = similarityNotesBlock(page);
-            nextPages = {
-              ...nextPages,
-              2: {
-                ...page,
-                title: t("Comparación de similitud"),
-                blocks: [comparison, notes],
-              },
-            };
-            if (pageNumber === 2) setSelectedId(SIMILARITY_NOTES_BLOCK_ID);
-          }
-          window.localStorage.removeItem("fos-scout-similarity-comparison-v1");
-        }
-        if (pageNumber === 2 && nextPages[2].blocks.some((block) => block.id === SIMILARITY_NOTES_BLOCK_ID)) {
-          setSelectedId(SIMILARITY_NOTES_BLOCK_ID);
-        }
+        const saved = stored ? JSON.parse(stored) as DesignerState : {};
+        // Cada página se repone con su plantilla si no existe todavía en el
+        // diseño guardado; así funcionan las páginas 4, 5, 6… recién creadas.
+        const nextPages: DesignerState = { ...saved };
+        if (!nextPages[pageNumber]?.blocks?.length) nextPages[pageNumber] = defaultPage(pageNumber);
         setPages(nextPages);
+        setSelectedId(nextPages[pageNumber].blocks[0]?.id ?? "");
       } catch { /* La configuración local es opcional. */ }
       setLoaded(true);
     }, 0);
@@ -422,9 +364,9 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
     const removedComparison = selected.id === SIMILARITY_BLOCK_ID;
     setConfig((current) => ({
       ...current,
-      blocks: nextBlocks.length || !removedComparison ? nextBlocks : defaultPages()[2].blocks,
+      blocks: nextBlocks.length || !removedComparison ? nextBlocks : defaultPage(pageNumber).blocks,
       // Al quitar la comparación importada, el título vuelve al de la página normal.
-      title: removedComparison && /comparación de similitud|similarity comparison/i.test(current.title) ? defaultPages()[2].title : current.title,
+      title: removedComparison && /comparación de similitud|similarity comparison/i.test(current.title) ? defaultPage(pageNumber).title : current.title,
     }));
     setSelectedId(nextBlocks[Math.max(0, index - 1)]?.id ?? "");
   }
@@ -455,10 +397,12 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
   }
 
   function applyTheme(nextTheme: ReportTheme) {
-    setPages((current) => ({
-      2: { ...current[2], blocks: current[2].blocks.map((block) => block.type === "text" && usesSharedTextColor(block.color, theme.ink) ? { ...block, color: nextTheme.ink } : block) },
-      3: { ...current[3], blocks: current[3].blocks.map((block) => block.type === "text" && usesSharedTextColor(block.color, theme.ink) ? { ...block, color: nextTheme.ink } : block) },
-    }));
+    // Se recorren TODAS las páginas: con páginas 4, 5, 6… reconstruir solo dos
+    // claves borraría el resto en silencio.
+    setPages((current) => Object.fromEntries(Object.entries(current).map(([key, page]) => [
+      key,
+      { ...page, blocks: page.blocks.map((block) => block.type === "text" && usesSharedTextColor(block.color, theme.ink) ? { ...block, color: nextTheme.ink } : block) },
+    ])));
     onThemeChange(nextTheme);
   }
 
@@ -600,16 +544,16 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
           </>}
         </div>}
 
-        <button className="reset-design" onClick={() => { const base = defaultPages()[pageNumber]; const defaults = { ...base, blocks: base.blocks.map((block) => block.type === "text" ? { ...block, color: theme.ink } : block) }; setConfig(() => defaults); setSelectedId(defaults.blocks[0].id); }}><RotateCcw size={14} /> {t("Restablecer página")}</button>
+        <button className="reset-design" onClick={() => { const base = defaultPage(pageNumber); const defaults = { ...base, blocks: base.blocks.map((block) => block.type === "text" ? { ...block, color: theme.ink } : block) }; setConfig(() => defaults); setSelectedId(defaults.blocks[0].id); }}><RotateCcw size={14} /> {t("Restablecer página")}</button>
       </aside>
 
       <section className="designer-stage" style={{ background: theme.canvas }}>
         <div className="preview-toolbar designer-toolbar"><div><span className="live-dot" /> {tf("Página {n} · Editor visual", { n: pageNumber })}</div><span><Grip size={14} /> {t("Arrastra para ordenar · ↕ cambia solo el alto · ↘ ajusta ambos")}</span></div>
         <div className="legal-page-shell">
         <article className={`visual-report-page unified-report-page ${hasSimilarityComparison ? "similarity-legal-page" : ""}`} style={canvasStyle}>
-          {pageNumber === 3 && <>
+          {pageNumber >= FIRST_VISUAL_PAGE && <>
             <header className="visual-page-header">
-              <div className="visual-page-folio"><span>FOS</span><small>{t("PÁGINA")}</small><b>03</b><em>{t("OBSERVACIONES")}</em></div>
+              <div className="visual-page-folio"><span>FOS</span><small>{t("PÁGINA")}</small><b>{String(pageNumber).padStart(2, "0")}</b><em>{t("VISUALES")}</em></div>
               <div className="visual-page-identity"><span className="visual-identity-lupa"><Search size={11} /> {t("INFORME DE SCOUTING")}</span><h2>{player}</h2><p>{team} · {position}</p></div>
             </header>
             <div className="visual-page-title"><span>{t("ANÁLISIS COMPLEMENTARIO")}</span><h3>{t(config.title)}</h3></div>

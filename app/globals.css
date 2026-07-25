@@ -1201,3 +1201,94 @@ body.print-layout-check .similarity-star-visual > svg { transform: none !importa
 .duel-header-center { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .duel-header-center small { display: flex; align-items: center; gap: 5px; color: rgba(255,255,255,.6); font-size: 6.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; white-space: nowrap; }
 .duel-header-center .report-lupa { width: 14px; height: 14px; border-radius: 4px; }
+
+/* ---- Armazón sin menú lateral: topbar lineal ---- */
+.app-shell.no-sidebar { display: block; }
+.app-shell.no-sidebar .main-area { margin: 0 !important; width: 100%; }
+.studio-topbar {
+  display: flex; align-items: center; gap: 22px;
+  padding: 12px 26px;
+  border-bottom: 1px solid rgba(148, 163, 184, .16);
+}
+.studio-brand { display: flex; align-items: center; gap: 11px; flex: none; }
+.studio-brand-mark {
+  width: 34px; height: 34px; display: grid; place-items: center;
+  border-radius: 10px; color: #fff; font-weight: 800; font-size: 15px;
+  background: linear-gradient(140deg, #6366f1, #a855f7 55%, #ec4899);
+}
+.studio-brand-copy b { display: block; font-size: 13px; line-height: 1.15; }
+.studio-brand-copy small { display: block; color: rgba(148, 163, 184, .8); font-size: 10px; letter-spacing: .04em; }
+
+.studio-flow { flex: 1; margin: 0; padding: 0; display: flex; align-items: center; gap: 10px; list-style: none; min-width: 0; }
+.studio-flow li {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 9px;
+  padding: 7px 13px; border: 1px solid rgba(148, 163, 184, .16); border-radius: 11px;
+  opacity: .55; transition: opacity .18s ease, border-color .18s ease, background .18s ease;
+}
+.studio-flow li.current { opacity: 1; border-color: rgba(94, 141, 255, .55); background: rgba(94, 141, 255, .1); }
+.studio-flow li.done { opacity: 1; border-color: rgba(34, 197, 94, .4); }
+.studio-flow li > span {
+  width: 22px; height: 22px; flex: none; display: grid; place-items: center;
+  border-radius: 50%; background: rgba(148, 163, 184, .16);
+  font-size: 10px; font-weight: 800;
+}
+.studio-flow li.done > span { background: rgba(34, 197, 94, .22); color: #4ade80; }
+.studio-flow li div { min-width: 0; }
+.studio-flow li b { display: block; font-size: 11.5px; line-height: 1.2; }
+.studio-flow li small { display: block; overflow: hidden; color: rgba(148, 163, 184, .8); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+
+.lang-switch-inline { display: flex; gap: 3px; padding: 3px; border: 1px solid rgba(148, 163, 184, .2); border-radius: 9px; }
+.lang-switch-inline button {
+  padding: 4px 9px; border: 0; border-radius: 6px; background: transparent; color: inherit;
+  font-size: 10.5px; font-weight: 700; cursor: pointer;
+}
+.lang-switch-inline button.active { background: rgba(94, 141, 255, .22); color: #c7d7ff; }
+.button.compact { padding: 7px 13px; font-size: 12px; }
+
+/* ---- Pestañas de página con agregar/quitar ---- */
+.page-tab-actions { margin-left: auto; display: flex; align-items: center; gap: 7px; }
+.page-tab-add, .page-tab-remove {
+  padding: 7px 12px; border: 1px dashed rgba(148, 163, 184, .4); border-radius: 9px;
+  background: transparent; color: inherit; font-size: 11.5px; font-weight: 700; cursor: pointer;
+  transition: border-color .15s ease, color .15s ease;
+}
+.page-tab-add:hover { border-color: rgba(94, 141, 255, .7); color: #c7d7ff; }
+.page-tab-remove { border-style: solid; border-color: rgba(248, 113, 113, .32); color: rgba(248, 160, 160, .95); }
+.page-tab-remove:hover { border-color: rgba(248, 113, 113, .7); }
+
+/* La similitud queda montada aunque no sea la página activa: así conserva
+   filtros, pesos y candidato. */
+.similarity-page-host.is-hidden { display: none; }
+@media print { .similarity-page-host.is-hidden { display: none !important; } }
+
+/* ---- Comentario del scout dentro de la hoja de similitud ---- */
+.similarity-note-block {
+  margin: 0 30px 18px;
+  padding: 12px 15px;
+  border-left: 3px solid var(--report-accent);
+  border-radius: 0 9px 9px 0;
+  background: color-mix(in srgb, var(--report-accent) 5%, transparent);
+}
+.similarity-note-block > span {
+  display: block; margin-bottom: 5px;
+  color: var(--report-muted); font-size: 7px; font-weight: 800;
+  letter-spacing: .11em; text-transform: uppercase;
+}
+.similarity-note-block > p {
+  margin: 0; color: var(--report-ink);
+  font-size: 9.5px; line-height: 1.5; white-space: pre-wrap;
+}
+.similarity-note-editor { margin-top: 16px; display: flex; flex-direction: column; gap: 6px; }
+.similarity-note-editor label { display: flex; flex-direction: column; gap: 6px; }
+.similarity-note-editor label > span {
+  color: rgba(148, 163, 184, .9); font-size: 10.5px; font-weight: 700;
+  letter-spacing: .08em; text-transform: uppercase;
+}
+.similarity-note-editor textarea {
+  width: 100%; min-height: 76px; resize: vertical;
+  padding: 10px 12px; border: 1px solid rgba(148, 163, 184, .26); border-radius: 10px;
+  background: rgba(148, 163, 184, .05); color: inherit; font: inherit; font-size: 12.5px; line-height: 1.45;
+}
+.similarity-note-editor textarea:focus { outline: none; border-color: rgba(94, 141, 255, .6); }
+.similarity-note-editor small { color: rgba(148, 163, 184, .75); font-size: 11px; }
+@media print { .similarity-note-editor, .comparison-actions, .similarity-export-status { display: none !important; } }

@@ -6,21 +6,17 @@ import {
   BarChart3,
   Check,
   ChevronDown,
-  CircleHelp,
   FileSpreadsheet,
   Files,
   ImageIcon,
   LayoutDashboard,
   LockKeyhole,
-  Menu,
   Merge,
   Printer,
   RotateCcw,
   Search,
-  ShieldCheck,
   Sparkles,
   Upload,
-  X,
 } from "./Icons";
 import { PizzaRadar } from "./PizzaRadar";
 import { ReportPageDesigner } from "./ReportPageDesigner";
@@ -44,8 +40,12 @@ import { reportExportBaseName } from "@/lib/reportExportName";
 import { SIMILARITY_METRIC_GROUPS, similarityMetricGroup } from "@/lib/similarityMetricGroups";
 import { numberLocale, setActiveLang, t, tf, type Lang } from "@/lib/i18n";
 
-type View = "home" | "reports" | "similarity";
-type ReportPage = 1 | 2 | 3;
+// Página 1 = ficha del jugador · Página 2 = comparación de similitud ·
+// Página 3 en adelante = páginas libres de visualizaciones que el usuario agrega.
+type ReportPage = number;
+const CARD_PAGE = 1;
+const SIMILARITY_PAGE = 2;
+const FIRST_VISUAL_PAGE = 3;
 type ReportFileMode = "single" | "combine" | "replace";
 type ProfileAssetField = "playerImage" | "clubLogo" | "leagueLogo";
 
@@ -164,69 +164,16 @@ function blobToDataUrl(blob: Blob) {
   });
 }
 
-function LandingPage({ onReports, onMerge }: { onReports: () => void; onMerge: () => void }) {
-  return <div className="landing-page">
-    <section className="landing-hero">
-      <div className="landing-copy">
-        <div className="system-badge"><span /> SYSTEM ONLINE <i>SCOUT.OS / 04</i></div>
-        <span className="landing-kicker">SCOUTING INTELLIGENCE PLATFORM</span>
-        <h1>{t("LEE EL JUEGO.")}<br /><em>{t("ANTES QUE LOS DEMÁS.")}</em></h1>
-        <p>{t("Fusiona datos, descubre perfiles y transforma cada señal en un reporte de scouting listo para decidir.")}</p>
-        <div className="landing-actions">
-          <button className="neon-button primary-neon" onClick={onReports}><BarChart3 size={17} /> {t("Crear reporte")} <span>↗</span></button>
-          <button className="neon-button secondary-neon" onClick={onMerge}><Merge size={17} /> {t("Combinar datos")}</button>
-        </div>
-        <div className="landing-stats">
-          <div><strong>01—03</strong><span>{t("BASES SIMULTÁNEAS")}</span></div>
-          <div><strong>100%</strong><span>{t("PROCESAMIENTO LOCAL")}</span></div>
-          <div><strong>03</strong><span>{t("PÁGINAS EDITABLES")}</span></div>
-        </div>
-      </div>
-
-      <div className="landing-visual" role="img" aria-label={t("Radar holográfico tridimensional de análisis de jugadores")}>
-        <span className="visual-tag tag-top">LIVE ANALYSIS</span>
-        <span className="visual-tag tag-side">POSITION / WING</span>
-        <div className="holo-scene" aria-hidden="true">
-          <div className="holo-floor"><i /><i /><i /><i /></div>
-          <div className="orbit orbit-one"><i /><i /><i /></div>
-          <div className="orbit orbit-two"><i /><i /></div>
-          <div className="orbit orbit-three"><i /></div>
-          <div className="holo-core"><span /><b>87</b><small>FIT INDEX</small></div>
-          <div className="scan-line" />
-          <div className="data-node node-a"><i /><span>PROGRESSION<br /><b>92</b></span></div>
-          <div className="data-node node-b"><i /><span>1V1 IMPACT<br /><b>84</b></span></div>
-          <div className="data-node node-c"><i /><span>CREATION<br /><b>78</b></span></div>
-        </div>
-        <div className="floating-card card-player"><span>PROFILE_021</span><b>ELITE SIGNAL</b><i>+12.8%</i></div>
-        <div className="floating-card card-data"><span>DATA POINTS</span><b>24.8K</b><i>SYNCED</i></div>
-      </div>
-    </section>
-
-    <div className="signal-marquee" aria-hidden="true"><div><span>DATA FUSION</span><i>◆</i><span>POSITIONAL PERCENTILES</span><i>◆</i><span>TRANSFERMARKT ENRICHMENT</span><i>◆</i><span>VISUAL REPORT BUILDER</span><i>◆</i><span>DATA FUSION</span></div></div>
-
-    <section className="landing-capabilities">
-      <div className="capability-heading"><span>CORE MODULES / 03</span><h2>{t("DE LA SEÑAL A LA DECISIÓN.")}</h2><p>{t("Un flujo conectado, diseñado para trabajar rápido sin sacrificar profundidad.")}</p></div>
-      <div className="capability-grid">
-        <button onClick={onMerge} className="capability-card"><span className="capability-index">01</span><span className="capability-icon"><Files size={22} /></span><h3>DATA FUSION</h3><p>{t("Combina ligas o temporadas con ponderaciones inteligentes y úsalo directamente en el informe.")}</p><b>{t("COMBINAR BASES ↗")}</b></button>
-        <button onClick={onReports} className="capability-card featured"><span className="capability-index">02</span><span className="capability-icon"><Sparkles size={22} /></span><h3>PROFILE INTEL</h3><p>{t("Percentiles posicionales, Transfermarkt, logos y retrato transparente en una sola ficha.")}</p><b>{t("EXPLORAR PERFILES ↗")}</b></button>
-        <button onClick={onReports} className="capability-card"><span className="capability-index">03</span><span className="capability-icon"><LayoutDashboard size={22} /></span><h3>REPORT BUILDER</h3><p>{t("Construye páginas visuales con imágenes, comentarios, grids y estilos completamente editables.")}</p><b>{t("CREAR REPORTE ↗")}</b></button>
-      </div>
-    </section>
-  </div>;
-}
-
 export default function ScoutStudio() {
   const [lang, setLang] = useState<Lang>("es");
   const [langLoaded, setLangLoaded] = useState(false);
-  const [view, setView] = useState<View>("home");
-  const [reportPage, setReportPage] = useState<ReportPage>(1);
+  const [reportPage, setReportPage] = useState<ReportPage>(CARD_PAGE);
+  const [visualPages, setVisualPages] = useState<ReportPage[]>([FIRST_VISUAL_PAGE]);
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
-  const [printPages, setPrintPages] = useState<ReportPage[]>([1, 2, 3]);
+  const [printPages, setPrintPages] = useState<ReportPage[]>([CARD_PAGE, SIMILARITY_PAGE, FIRST_VISUAL_PAGE]);
   const [printRun, setPrintRun] = useState<ReportPage[] | null>(null);
   const [printLayoutError, setPrintLayoutError] = useState("");
   const [readingOverride, setReadingOverride] = useState("");
-  const [mobileNav, setMobileNav] = useState(false);
-  const [sidebarHidden, setSidebarHidden] = useState(false);
   const [reportRows, setReportRows] = useState<DataRow[]>([]);
   const [reportFileName, setReportFileName] = useState("Sin datos cargados");
   const [reportSourceCount, setReportSourceCount] = useState(0);
@@ -407,6 +354,22 @@ export default function ScoutStudio() {
       if (value.trim()) window.localStorage.setItem(key, value);
       else window.localStorage.removeItem(key);
     } catch { /* Sin persistencia la edición vive durante la sesión. */ }
+  }
+
+  function addVisualPage() {
+    const next = (visualPages.at(-1) ?? SIMILARITY_PAGE) + 1;
+    setVisualPages((pages) => [...pages, next]);
+    setPrintPages((pages) => [...pages, next].sort((a, b) => a - b));
+    setReportPage(next);
+  }
+
+  function removeVisualPage(page: ReportPage) {
+    if (page < FIRST_VISUAL_PAGE) return;
+    const remaining = visualPages.filter((item) => item !== page);
+    if (!remaining.length) return;
+    setVisualPages(remaining);
+    setPrintPages((pages) => pages.filter((item) => item !== page));
+    setReportPage(remaining.at(-1) ?? SIMILARITY_PAGE);
   }
 
   function startPrint() {
@@ -608,76 +571,37 @@ export default function ScoutStudio() {
     setAssetSourceStatus("");
   }
 
-  const navItems = [
-    { id: "home" as const, label: t("Inicio"), hint: "Scouting platform", icon: LayoutDashboard },
-    { id: "reports" as const, label: t("Reportes"), hint: t("Radar y percentiles"), icon: BarChart3 },
-    { id: "similarity" as const, label: t("Similitud"), hint: t("Jugadores comparables"), icon: Search },
-  ];
 
   return (
-    <div className={`app-shell ${sidebarHidden ? "sidebar-hidden" : ""}`}>
-      <aside className={`sidebar ${mobileNav ? "sidebar-open" : ""}`}>
-        <div className="brand-row">
-          <div className="brand-mark"><span>F</span></div>
-          <div><strong>Felipe Ormazabal Scouting</strong><small>Scout intelligence</small></div>
-          <button className="sidebar-close" onClick={() => setMobileNav(false)} aria-label={t("Cerrar menú")}><X size={19} /></button>
-        </div>
-        <nav className="side-nav" aria-label={t("Navegación principal")}>
-          <span className="nav-eyebrow">{t("Espacio de trabajo")}</span>
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <button key={item.id} className={view === item.id ? "nav-item active" : "nav-item"} onClick={() => { setView(item.id); setMobileNav(false); }}>
-                <Icon size={19} /><span><b>{item.label}</b><small>{item.hint}</small></span>
-              </button>
-            );
-          })}
-        </nav>
-        <div className="lang-switch" role="group" aria-label={t("Idioma del estudio y del reporte")}>
-          <span className="nav-eyebrow">{lang === "es" ? "Idioma / Language" : "Language / Idioma"}</span>
-          <div className="lang-switch-buttons">
-            <button className={lang === "es" ? "active" : ""} onClick={() => setLang("es")} aria-pressed={lang === "es"}>ES · Español</button>
-            <button className={lang === "en" ? "active" : ""} onClick={() => setLang("en")} aria-pressed={lang === "en"}>EN · English</button>
-          </div>
-        </div>
-        <div className="side-card">
-          <ShieldCheck size={20} />
-          <div><strong>{t("Datos privados")}</strong><p>{t("Los archivos se procesan localmente en este navegador.")}</p></div>
-        </div>
-        <div className="sidebar-footer"><span className="status-dot" /> {t("Sistema local · v0.4")}</div>
-      </aside>
-
+    <div className="app-shell no-sidebar">
       <main className="main-area">
-        <header className="topbar">
-          <button className="menu-button" onClick={() => setMobileNav(true)} aria-label={t("Abrir menú")}><Menu size={20} /></button>
-          <button className="icon-button sidebar-toggle" onClick={() => setSidebarHidden((hidden) => !hidden)} aria-pressed={sidebarHidden} aria-label={sidebarHidden ? t("Mostrar menú lateral") : t("Ocultar menú lateral")} title={sidebarHidden ? t("Mostrar menú lateral") : t("Ocultar menú lateral")}><Menu size={18} /></button>
-          <div className="breadcrumb"><LayoutDashboard size={15} /><span>FO Scouting</span><span>/</span><strong>{view === "home" ? t("Inicio") : view === "reports" ? t("Reportes") : t("Similitud")}</strong></div>
-          <div className="top-actions"><span className="privacy-pill"><LockKeyhole size={14} /> {t("Solo tú")}</span><button className="icon-button" aria-label={t("Ayuda")} title={t("Los datos nunca salen del navegador")}><CircleHelp size={18} /></button></div>
+        <header className="topbar studio-topbar">
+          <div className="studio-brand">
+            <span className="studio-brand-mark">F</span>
+            <span className="studio-brand-copy"><b>Felipe Ormazabal Scouting</b><small>{t("Reportes de scouting")}</small></span>
+          </div>
+
+          <ol className="studio-flow" aria-label={t("Flujo del reporte")}>
+            <li className={dataReady ? "done" : "current"}><span>{dataReady ? <Check size={13} /> : "1"}</span><div><b>{t("Cargar datos")}</b><small>{dataReady ? t(reportFileName) : t("Excel o CSV")}</small></div></li>
+            <li className={report ? "done" : dataReady ? "current" : ""}><span>{report ? <Check size={13} /> : "2"}</span><div><b>{t("Elegir jugador")}</b><small>{report ? report.player : t("Equipo y jugador")}</small></div></li>
+            <li className={reportPage !== CARD_PAGE ? "done" : report ? "current" : ""}><span>3</span><div><b>{t("Construir reporte")}</b><small>{t("Ficha, similitud y visuales")}</small></div></li>
+          </ol>
+
+          <div className="top-actions">
+            <div className="lang-switch-inline" role="group" aria-label={t("Idioma del estudio y del reporte")}>
+              <button className={lang === "es" ? "active" : ""} onClick={() => setLang("es")} aria-pressed={lang === "es"}>ES</button>
+              <button className={lang === "en" ? "active" : ""} onClick={() => setLang("en")} aria-pressed={lang === "en"}>EN</button>
+            </div>
+            <span className="privacy-pill" title={t("Los datos nunca salen del navegador")}><LockKeyhole size={14} /> {t("Solo tú")}</span>
+            {dataReady && <button className="button secondary compact" onClick={resetReport}><RotateCcw size={15} /> {t("Restablecer")}</button>}
+            <button className="button primary compact" onClick={() => { setPrintLayoutError(""); setPrintDialogOpen(true); }} disabled={!report || !dataReady}><Printer size={15} /> {t("Imprimir / PDF")}</button>
+          </div>
         </header>
 
-        {view === "home" ? <LandingPage onReports={() => setView("reports")} onMerge={() => setView("reports")} /> : view === "reports" ? (
-          <div className="page-content reports-page">
-            <section className="page-heading">
-              <div><span className="kicker">Scout intelligence workspace</span><h1>{t("Convierte datos en")} <span>{t("decisiones de scouting.")}</span></h1><p>{t("Explora rendimiento, compara perfiles y construye reportes visuales listos para presentar.")}</p><div className="heading-chips"><span>{t("Percentiles posicionales")}</span><span>{t("1 o más bases")}</span><span>{t("Editor visual")}</span></div></div>
-              <div className="heading-actions">
-                <button className="button secondary" onClick={resetReport}><RotateCcw size={16} /> {t("Restablecer")}</button>
-                <button className="button primary" onClick={() => { setPrintLayoutError(""); setPrintDialogOpen(true); }} disabled={!report || !dataReady}><Printer size={16} /> {t("Imprimir / PDF")}</button>
-              </div>
-            </section>
-
+        <div className="page-content reports-page">
             <input ref={singleReportInputRef} type="file" accept=".xlsx,.xls,.csv" hidden onChange={(event) => { if (event.target.files) void onReportFiles(event.target.files, "single"); event.target.value = ""; }} />
             <input ref={combinedReportInputRef} type="file" accept=".xlsx,.xls,.csv" multiple hidden onChange={(event) => { if (event.target.files) void onReportFiles(event.target.files, "combine"); event.target.value = ""; }} />
             <input ref={reportInputRef} type="file" accept=".xlsx,.xls,.csv" multiple hidden onChange={(event) => { if (event.target.files) void onReportFiles(event.target.files, "replace"); event.target.value = ""; }} />
-
-            <section className="workflow-strip" aria-label={t("Flujo del reporte")}>
-              <div className={`workflow-step ${dataReady ? "complete" : "active"}`}><span>{dataReady ? <Check size={15} /> : "01"}</span><div><b>{t("01 · Base de datos")}</b><small>{dataReady ? t(reportFileName) : t("Una base o combinar 2+")}</small></div></div>
-              <div className="workflow-line" />
-              <div className={`workflow-step ${report ? "complete" : dataReady ? "active" : ""}`}><span>{report ? <Check size={15} /> : "02"}</span><div><b>{t("02 · Elegir jugador")}</b><small>{t("Equipo y jugador en orden alfabético")}</small></div></div>
-              <div className="workflow-line" />
-              <div className={`workflow-step ${profileReady ? "complete" : report ? "active" : ""}`}><span>{profileReady ? <Check size={15} /> : "03"}</span><div><b>{t("03 · Perfil e imágenes")}</b><small>{t("Transfermarkt, logos y foto PNG")}</small></div></div>
-              <div className="workflow-line" />
-              <button type="button" className={`workflow-step workflow-step-link ${reportPage !== 1 ? "complete" : profileReady ? "active" : ""}`} disabled={!report} onClick={() => setReportPage(2)} title={t("Abrir el editor de páginas visuales")}><span>{reportPage !== 1 ? <Check size={15} /> : "04"}</span><div><b>{t("04 · Diseñar informe")}</b><small>{t("Ficha, visuales y observaciones")}</small></div></button>
-            </section>
 
             {!dataReady ? (
               <section className="dataset-onboarding database-gate">
@@ -702,10 +626,20 @@ export default function ScoutStudio() {
               </section>
             ) : <>
               <nav className="report-page-tabs" aria-label={t("Páginas del reporte")}>
-                <button className={reportPage === 1 ? "active" : ""} onClick={() => setReportPage(1)}><span>01</span><div><b>{t("Ficha y radar")}</b><small>{t("Estilo Jordhy Thompson")}</small></div></button>
-                <button className={reportPage === 2 ? "active" : ""} onClick={() => setReportPage(2)}><span>02</span><div><b>{t("Visuales")}</b><small>{t("Mapas e imágenes")}</small></div></button>
-                <button className={reportPage === 3 ? "active" : ""} onClick={() => setReportPage(3)}><span>03</span><div><b>{t("Observaciones")}</b><small>{t("Texto y contexto")}</small></div></button>
-                <em>{t("ETAPA 04 · Las páginas 2 y 3 son totalmente editables")}</em>
+                <button className={reportPage === CARD_PAGE ? "active" : ""} onClick={() => setReportPage(CARD_PAGE)}><span>01</span><div><b>{t("Ficha y radar")}</b><small>{t("Percentiles del jugador")}</small></div></button>
+                <button className={reportPage === SIMILARITY_PAGE ? "active" : ""} onClick={() => setReportPage(SIMILARITY_PAGE)}><span>02</span><div><b>{t("Similitud")}</b><small>{t("Jugadores comparables")}</small></div></button>
+                {visualPages.map((page, index) => (
+                  <button key={page} className={reportPage === page ? "active" : ""} onClick={() => setReportPage(page)}>
+                    <span>{String(page).padStart(2, "0")}</span>
+                    <div><b>{tf("Visuales {n}", { n: index + 1 })}</b><small>{t("Mapas, imágenes y texto")}</small></div>
+                  </button>
+                ))}
+                <div className="page-tab-actions">
+                  <button type="button" className="page-tab-add" onClick={addVisualPage}>+ {t("Agregar página")}</button>
+                  {visualPages.length > 1 && reportPage >= FIRST_VISUAL_PAGE && (
+                    <button type="button" className="page-tab-remove" onClick={() => removeVisualPage(reportPage)}>{t("Quitar página")}</button>
+                  )}
+                </div>
               </nav>
 
               {(printRun ? printRun.includes(1) : reportPage === 1) ? <div className="report-workspace">
@@ -860,9 +794,30 @@ export default function ScoutStudio() {
                   </article></div> : <div className="empty-preview">{t("Selecciona un jugador para generar el informe.")}</div>}
                 </section>
               </div> : null}
-              {report ? ([2, 3] as const).filter((page) => printRun ? printRun.includes(page) : reportPage === page).map((page) => (
+              {/* La similitud vive montada siempre: filtros, pesos y candidato
+                  sobreviven al cambiar de página del reporte. */}
+              <div className={`similarity-page-host ${(printRun ? printRun.includes(SIMILARITY_PAGE) : reportPage === SIMILARITY_PAGE) ? "" : "is-hidden"}`}>
+                <SimilarityStudio
+                  rows={reportRows}
+                  selectedIndex={selectedPlayer}
+                  sourceName={reportFileName}
+                  lang={lang}
+                  targets={players}
+                  theme={reportTheme}
+                  targetProfile={profile}
+                  recipientName={reportRecipientName}
+                  recipientLogoUrl={reportRecipientLogoUrl}
+                  onSelectTarget={selectPlayer}
+                  onTargetProfileChange={(nextProfile) => { setProfile(nextProfile); setTransfermarktUrl(nextProfile.sourceUrl); }}
+                  onRecipientNameChange={setReportRecipientName}
+                  onRecipientLogoChange={setReportRecipientLogoUrl}
+                  onOpenReports={() => setReportPage(CARD_PAGE)}
+                />
+              </div>
+
+              {report ? visualPages.filter((page) => printRun ? printRun.includes(page) : reportPage === page).map((page) => (
                 <ReportPageDesigner key={page} pageNumber={page} player={report.player} team={profile.club || report.team} position={formatPlayerPositions(profile.position || report.position)} theme={reportTheme} onThemeChange={setReportTheme} recipientName={recipientName} recipientLogoUrl={reportRecipientLogoUrl} />
-              )) : !printRun && reportPage !== 1 ? <div className="empty-preview">{t("Selecciona un jugador para diseñar las páginas.")}</div> : null}
+              )) : !printRun && reportPage >= FIRST_VISUAL_PAGE ? <div className="empty-preview">{t("Selecciona un jugador para diseñar las páginas.")}</div> : null}
 
               {printDialogOpen && <div className="print-dialog-overlay" role="dialog" aria-modal="true" aria-label={t("¿Qué páginas quieres incluir en el PDF?")} onClick={() => setPrintDialogOpen(false)}>
                 <div className="print-dialog" onClick={(event) => event.stopPropagation()}>
@@ -872,14 +827,14 @@ export default function ScoutStudio() {
                     <span>{t("Nombre sugerido")}</span>
                     <b>{reportExportName}.pdf</b>
                   </div>
-                  {([
-                    [1, t("Ficha y radar"), t("Estilo Jordhy Thompson")],
-                    [2, t("Visuales"), t("Mapas e imágenes")],
-                    [3, t("Observaciones"), t("Texto y contexto")],
-                  ] as Array<[ReportPage, string, string]>).map(([page, title, hint]) => (
+                  {[
+                    { page: CARD_PAGE, title: t("Ficha y radar"), hint: t("Percentiles del jugador") },
+                    { page: SIMILARITY_PAGE, title: t("Similitud"), hint: t("Jugadores comparables") },
+                    ...visualPages.map((page, index) => ({ page, title: tf("Visuales {n}", { n: index + 1 }), hint: t("Mapas, imágenes y texto") })),
+                  ].map(({ page, title, hint }) => (
                     <label key={page} className={printPages.includes(page) ? "selected" : ""}>
                       <input type="checkbox" checked={printPages.includes(page)} onChange={() => togglePrintPage(page)} />
-                      <span><b>0{page} · {title}</b><small>{hint}</small></span>
+                      <span><b>{String(page).padStart(2, "0")} · {title}</b><small>{hint}</small></span>
                     </label>
                   ))}
                   <div className="print-dialog-actions">
@@ -892,24 +847,6 @@ export default function ScoutStudio() {
               </div>}
             </>}
           </div>
-        ) : (
-          <SimilarityStudio
-            rows={reportRows}
-            selectedIndex={selectedPlayer}
-            sourceName={reportFileName}
-            lang={lang}
-            targets={players}
-            theme={reportTheme}
-            targetProfile={profile}
-            recipientName={reportRecipientName}
-            recipientLogoUrl={reportRecipientLogoUrl}
-            onSelectTarget={selectPlayer}
-            onTargetProfileChange={(nextProfile) => { setProfile(nextProfile); setTransfermarktUrl(nextProfile.sourceUrl); }}
-            onRecipientNameChange={setReportRecipientName}
-            onRecipientLogoChange={setReportRecipientLogoUrl}
-            onOpenReports={() => { setReportPage(2); setView("reports"); }}
-          />
-        )}
       </main>
     </div>
   );
