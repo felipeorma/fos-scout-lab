@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState, type CSSProperties, type FormEvent } from "react";
+import { useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { ArrowDownToLine, BarChart3, ImageIcon, RotateCcw, Search, Sparkles, Upload } from "./Icons";
+import { ArrowDownToLine, BarChart3, ImageIcon, Printer, RotateCcw, Search, Sparkles, Upload } from "./Icons";
 import { ComparisonRadar } from "./ComparisonRadar";
 import { reportThemeStyle, type ReportTheme } from "./reportTheme";
 import {
@@ -587,6 +587,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
   const [metricWeights, setMetricWeights] = useState<SimilarityMetricWeights>({});
   const [exportBusy, setExportBusy] = useState(false);
   const [exportStatus, setExportStatus] = useState("");
+  const reportSheetRef = useRef<HTMLElement>(null);
   const options = useMemo(() => similarityOptions(rows), [rows]);
   const secondaryOptions = useMemo(() => secondaryRoleOptions(rows, position), [rows, position]);
   const targetTeams = useMemo(() => [...new Set(targets.map((target) => target.team))].sort(alphabeticCollator.compare), [targets]);
@@ -803,16 +804,91 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     return comparisonImage(search.target, selectedCandidate, sourceName, theme, targetProfile, candidateProfile, reportRecipient, recipientLogoUrl.trim(), targetColor, candidateColor, targetLabelColor, candidateLabelColor, targetLabelTransparency, candidateLabelTransparency, forReport, targetPhotoScale, candidatePhotoScale);
   }
 
+  async function exportAssetDataUrl(url: string) {
+    if (url.startsWith("data:image/")) return url;
+    let parsed: URL;
+    try {
+      parsed = new URL(url, window.location.href);
+    } catch {
+      return false;
+    }
+    const candidates = parsed.protocol === "blob:" || parsed.origin === window.location.origin
+      ? [parsed.href]
+      : canvasImageCandidates(parsed.href);
+    for (const candidate of candidates) {
+      try {
+        const response = await fetch(candidate);
+        if (!response.ok) continue;
+        const blob = await response.blob();
+        if (!blob.type.startsWith("image/")) continue;
+        return await blobToDataUrl(blob);
+      } catch { /* Se intenta el siguiente proxy o fuente disponible. */ }
+    }
+    return false;
+  }
+
+  async function captureVisibleReport() {
+    const reportSheet = reportSheetRef.current;
+    if (!reportSheet) throw new Error("report-not-ready");
+    await document.fonts?.ready;
+    await Promise.all(Array.from(reportSheet.querySelectorAll("img")).map(async (image) => {
+      try {
+        await Promise.race([
+          image.decode?.() ?? Promise.resolve(),
+          new Promise<void>((resolve) => window.setTimeout(resolve, 10_000)),
+        ]);
+      } catch { /* La captura conserva el espacio aunque una fuente externa falle. */ }
+    }));
+    const { domToPng } = await import("modern-screenshot");
+    return domToPng(reportSheet, {
+      scale: 2,
+      backgroundColor: theme.paper,
+      timeout: 30_000,
+      fetchFn: exportAssetDataUrl,
+      fetch: { bypassingCache: true },
+      features: { restoreScrollPosition: true },
+    });
+  }
+
   async function downloadComparison() {
     setExportBusy(true);
     try {
-      const image = await createImage();
+      const image = await captureVisibleReport();
       if (!image || !selectedCandidate || !search?.target) return;
       const link = document.createElement("a");
       link.href = image;
       link.download = `${safeFileName(`${t("similitud")}-${search.target.player}-${selectedCandidate.name}`)}.png`;
       link.click();
-      setExportStatus(t("✓ Comparación exportada como PNG con radar, imágenes y firma."));
+      setExportStatus(t("✓ PNG exportado exactamente como aparece en el reporte."));
+    } catch {
+      setExportStatus(t("No se pudo exportar el reporte. Revisa que las imágenes estén disponibles."));
+    } finally {
+      setExportBusy(false);
+    }
+  }
+
+  async function downloadComparisonPdf() {
+    setExportBusy(true);
+    try {
+      const image = await captureVisibleReport();
+      if (!image || !selectedCandidate || !search?.target || !reportSheetRef.current) return;
+      const { jsPDF } = await import("jspdf");
+      const reportWidth = reportSheetRef.current.offsetWidth;
+      const reportHeight = reportSheetRef.current.offsetHeight;
+      const pdf = new jsPDF({
+        orientation: reportWidth > reportHeight ? "landscape" : "portrait",
+        unit: "px",
+        format: [reportWidth, reportHeight],
+        compress: true,
+        hotfixes: ["px_scaling"],
+      });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      pdf.addImage(image, "PNG", 0, 0, pageWidth, pageHeight, undefined, "FAST");
+      pdf.save(`${safeFileName(`${t("similitud")}-${search.target.player}-${selectedCandidate.name}`)}.pdf`);
+      setExportStatus(t("✓ PDF exportado exactamente como aparece en el reporte."));
+    } catch {
+      setExportStatus(t("No se pudo exportar el reporte. Revisa que las imágenes estén disponibles."));
     } finally {
       setExportBusy(false);
     }
@@ -835,7 +911,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
 
   return <div className="page-content similarity-page similarity-report-theme" style={reportThemeStyle(theme)}>
     <section className="page-heading">
-      <div><span className="kicker">Player similarity report</span><h1>{t("Compara perfiles con el")} <span>{t("mismo lenguaje del reporte.")}</span></h1><p>{t("Ranking, radar superpuesto, imágenes de Transfermarkt y una lámina lista para presentar.")}</p><div className="heading-chips"><span>{t("Radar P0–P100")}</span><span>Transfermarkt</span><span>{t("Exportación PNG")}</span></div></div>
+      <div><span className="kicker">Player similarity report</span><h1>{t("Compara perfiles con el")} <span>{t("mismo lenguaje del reporte.")}</span></h1><p>{t("Ranking, radar superpuesto, imágenes de Transfermarkt y una lámina lista para presentar.")}</p><div className="heading-chips"><span>{t("Radar P0–P100")}</span><span>Transfermarkt</span><span>{t("Exportación PNG / PDF")}</span></div></div>
       <div className="heading-actions"><button className="button secondary" onClick={onOpenReports}><BarChart3 size={16} /> {t("Volver al reporte")}</button></div>
     </section>
 
@@ -905,7 +981,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
               <PalettePicker label={t("Jugador comparable")} player={selectedCandidate.name} color={candidateColor} labelColor={candidateLabelColor} labelTransparency={candidateLabelTransparency} photoScale={candidatePhotoScale} colors={paletteColors} onChange={setCandidateColorChoice} onLabelColorChange={setCandidateLabelColorChoice} onLabelTransparencyChange={setCandidateLabelTransparency} onPhotoScaleChange={setCandidatePhotoScale} />
             </section>
 
-            <section className="similarity-report-sheet">
+            <section ref={reportSheetRef} className="similarity-report-sheet">
               <header className="similarity-report-header duel-header">
                 <div className="duel-header-player left" style={{ "--player-color": targetColor } as CSSProperties}><span>{t("JUGADOR OBJETIVO")}</span><b>{search.target.player}</b></div>
                 <div className="duel-header-center"><SimilarityStarScore similarity={selectedCandidate.similarity} /><small><span className="report-lupa"><Search size={9} /></span> {t("COMPARACIÓN DE JUGADORES")} · {tf("Percentiles posicionales · {src}", { src: t(sourceName) })}</small></div>
@@ -922,7 +998,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
               <footer className="dossier-footer similarity-report-footer"><p>{tf("Percentiles P0–P100 · métricas comunes {n}% · {w}.", { n: selectedCandidate.coverage, w: activeMetricWeights ? tf("{n} ponderaciones personalizadas activas", { n: activeMetricWeights }) : t("pesos métricos uniformes") })}</p><div className="report-signatures"><div className="report-author"><span>{t("ELABORADO POR")}</span><b>FELIPE ORMAZABAL</b><small>SCOUTING REPORT</small></div><div className="report-recipient">{recipientLogoReady ? <ReportImage src={recipientLogoUrl.trim()} alt={reportRecipient} className="dossier-footer-club-logo" /> : <span className="dossier-footer-club-fallback">{reportRecipient.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span>}<div><span>{t("REPORTE GENERADO PARA")}</span><b>{reportRecipient}</b></div></div></div></footer>
             </section>
 
-            <div className="comparison-actions"><button className="button secondary" onClick={() => void downloadComparison()} disabled={exportBusy}><ArrowDownToLine size={16} /> {exportBusy ? t("Preparando…") : t("Descargar PNG")}</button><button className="button primary" onClick={() => void addComparisonToReport()} disabled={exportBusy}><ImageIcon size={16} /> {t("Agregar a Página 2")}</button></div>
+            <div className="comparison-actions"><button className="button secondary" onClick={() => void downloadComparison()} disabled={exportBusy}><ArrowDownToLine size={16} /> {exportBusy ? t("Preparando…") : t("Descargar PNG")}</button><button className="button secondary" onClick={() => void downloadComparisonPdf()} disabled={exportBusy}><Printer size={16} /> {exportBusy ? t("Preparando…") : t("Descargar PDF")}</button><button className="button primary" onClick={() => void addComparisonToReport()} disabled={exportBusy}><ImageIcon size={16} /> {t("Agregar a Página 2")}</button></div>
             {exportStatus && <p className="similarity-export-status" aria-live="polite">{exportStatus}</p>}
           </>}
         </main>
