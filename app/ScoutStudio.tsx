@@ -313,12 +313,35 @@ export default function ScoutStudio() {
 
   useEffect(() => {
     if (!printRun) return;
-    // Las páginas seleccionadas ya están montadas: se imprime y se restaura la vista.
+    let cancelled = false;
+    // Espera fuentes, imágenes y dos ciclos de layout antes de abrir la impresión.
+    // Así Chrome no captura una página todavía reordenándose.
     const timer = window.setTimeout(() => {
-      window.print();
-      setPrintRun(null);
-    }, 250);
-    return () => window.clearTimeout(timer);
+      void (async () => {
+        await document.fonts?.ready;
+        const images = Array.from(document.querySelectorAll<HTMLImageElement>(".scout-report img, .visual-report-page img"));
+        await Promise.all(images.map(async (image) => {
+          if (!image.complete) {
+            await Promise.race([
+              new Promise<void>((resolve) => {
+                image.addEventListener("load", () => resolve(), { once: true });
+                image.addEventListener("error", () => resolve(), { once: true });
+              }),
+              new Promise<void>((resolve) => window.setTimeout(resolve, 3_000)),
+            ]);
+          }
+          try { await image.decode(); } catch { /* El navegador puede imprimir el fallback ya renderizado. */ }
+        }));
+        await new Promise<void>((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve())));
+        if (cancelled) return;
+        window.print();
+        setPrintRun(null);
+      })();
+    }, 100);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, [printRun]);
 
   useEffect(() => {
