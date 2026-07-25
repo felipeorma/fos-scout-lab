@@ -887,14 +887,15 @@ body::before { position: fixed; inset: 0; z-index: -1; pointer-events: none; bac
 }
 
 @media print {
-  body { background: #fff !important; }
+  html, body { background: #fff !important; color-scheme: light; }
+  body::before { display: none !important; }
   .sidebar, .topbar, .landing-page, .page-heading, .workflow-strip, .report-page-tabs, .control-panel, .designer-controls, .preview-toolbar, .seasons-page { display: none !important; }
   .main-area { margin: 0 !important; }
   .page-content, .report-workspace, .designer-workspace { margin: 0 !important; padding: 0 !important; display: block !important; }
   .report-preview-wrap { border: 0 !important; background: #fff !important; box-shadow: none !important; }
-  .scout-report { width: 100% !important; max-width: none !important; height: 262mm !important; margin: 0 !important; box-shadow: none !important; overflow: hidden; break-after: page; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .scout-report { width: 100% !important; max-width: none !important; height: 339mm !important; margin: 0 !important; box-sizing: border-box; box-shadow: none !important; overflow: hidden; break-after: page; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   .designer-stage { border: 0 !important; background: #fff !important; box-shadow: none !important; }
-  .visual-report-page { width: 100% !important; max-width: none !important; height: 262mm !important; min-height: 0 !important; margin: 0 !important; box-shadow: none !important; overflow: hidden; break-after: page; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .visual-report-page { width: 100% !important; max-width: none !important; height: 339mm !important; min-height: 0 !important; margin: 0 !important; box-sizing: border-box; box-shadow: none !important; overflow: hidden; break-after: page; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   .visual-block { break-inside: avoid; cursor: default !important; }
   .visual-block.selected { border-color: color-mix(in srgb, var(--designer-text) 14%, transparent) !important; box-shadow: 0 7px 18px color-mix(in srgb, var(--designer-text) 5%, transparent) !important; }
   .similarity-comparison-block { height: 530px !important; }
@@ -902,7 +903,7 @@ body::before { position: fixed; inset: 0; z-index: -1; pointer-events: none; bac
   .block-chrome .ui-icon, .block-chrome small { display: none !important; }
   .print-dialog-overlay { display: none !important; }
   .designer-workspace { break-inside: avoid; }
-  @page { size: letter portrait; margin: 8mm; }
+  @page { size: legal portrait; margin: 8mm; }
 }
 
 /* ---- Selector de idioma (ES/EN) ---- */

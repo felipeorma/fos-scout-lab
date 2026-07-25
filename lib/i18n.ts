@@ -100,7 +100,7 @@ const EN: Record<string, string> = {
   "Imprimir página {n}": "Print page {n}",
   "Imprimir / PDF": "Print / PDF",
   "¿Qué páginas quieres incluir en el PDF?": "Which pages do you want to include in the PDF?",
-  "Cada página seleccionada sale en su propia hoja tamaño carta.": "Each selected page prints on its own letter-size sheet.",
+  "Cada página seleccionada sale en su propia hoja tamaño legal.": "Each selected page prints on its own legal-size sheet.",
   "Cancelar": "Cancel",
   "Generar PDF / Imprimir": "Generate PDF / Print",
   "Selecciona al menos una página.": "Select at least one page.",

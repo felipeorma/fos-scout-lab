@@ -791,7 +791,7 @@ export default function ScoutStudio() {
               {printDialogOpen && <div className="print-dialog-overlay" role="dialog" aria-modal="true" aria-label={t("¿Qué páginas quieres incluir en el PDF?")} onClick={() => setPrintDialogOpen(false)}>
                 <div className="print-dialog" onClick={(event) => event.stopPropagation()}>
                   <h3>{t("¿Qué páginas quieres incluir en el PDF?")}</h3>
-                  <p>{t("Cada página seleccionada sale en su propia hoja tamaño carta.")}</p>
+                  <p>{t("Cada página seleccionada sale en su propia hoja tamaño legal.")}</p>
                   {([
                     [1, t("Ficha y radar"), t("Estilo Jordhy Thompson")],
                     [2, t("Visuales"), t("Mapas e imágenes")],
