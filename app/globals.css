@@ -1424,3 +1424,47 @@ body.print-layout-check .similarity-star-visual > svg { transform: none !importa
 }
 /* El escudo se mantiene legible sobre la cinta, ya sin la caja de la foto. */
 .duel-header-crest { z-index: 2; box-shadow: 0 2px 6px rgba(0, 0, 0, .35); }
+
+/* ---- Retrato de la cinta compuesto como la ficha de la Página 1 ----
+   Escudo arriba a la izquierda, dorsal a la derecha y la foto apoyada abajo,
+   sobre un degradado tenue del color asignado al jugador. */
+.duel-header-photo {
+  width: 96px;
+  overflow: hidden;
+  border-radius: 9px;
+  background:
+    linear-gradient(165deg,
+      color-mix(in srgb, var(--player-color) 26%, transparent) 0%,
+      color-mix(in srgb, var(--player-color) 12%, transparent) 58%,
+      transparent 100%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--player-color) 28%, transparent);
+}
+.duel-header-photo::before { content: none; }
+.duel-header-glow {
+  position: absolute; top: -32%; right: -26%;
+  width: 96%; height: 96%;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--player-color) 38%, transparent), transparent 68%);
+  pointer-events: none;
+}
+.duel-header-crest {
+  position: absolute; top: 4px; left: 4px; right: auto; bottom: auto;
+  z-index: 3; width: 24px; height: 24px;
+  padding: 2px; border-radius: 5px;
+  background: rgba(255, 255, 255, .96);
+  object-fit: contain;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .32);
+}
+.duel-header-number {
+  position: absolute; top: 3px; right: 6px; z-index: 3;
+  color: rgba(255, 255, 255, .34);
+  font-family: var(--font-oswald), sans-serif; font-size: 18px; line-height: 1;
+  letter-spacing: -.02em;
+}
+.duel-header-photo .comparison-player-photo-frame { z-index: 2; }
+
+/* Un comentario de varios párrafos no debe empujar la hoja fuera de la
+   página: el radar cede un poco de alto y la nota se compacta. */
+.similarity-showdown.radar-only .similarity-radar-column { max-width: 505px; }
+.similarity-report-sheet .similarity-note-block { margin-bottom: 12px; padding: 9px 13px; }
+.similarity-report-sheet .similarity-note-block > p { font-size: 9px; line-height: 1.42; }

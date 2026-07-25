@@ -204,10 +204,12 @@ function HeaderPlayer({ player, label, side }: { player: SimilarityReportPlayer;
   const { profile, name, team, position, age, passport, color, photoScale, photoFit } = player;
   return <div className={`duel-header-player ${side}`} style={{ "--player-color": color } as CSSProperties}>
     <div className="duel-header-photo">
+      <span className="duel-header-glow" aria-hidden="true" />
+      {profile.clubLogo && <ReportImage src={profile.clubLogo} alt={profile.club || team} className="duel-header-crest" />}
+      {profile.number && <b className="duel-header-number">#{profile.number}</b>}
       {profile.playerImage
         ? <PlayerPortrait key={`${profile.playerImage.slice(-40)}-${photoScale}-${photoFit ?? "auto"}`} src={profile.playerImage} alt={name} photoScale={photoScale} fit={photoFit ?? "auto"} />
         : <span className="duel-header-initials">{name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("")}</span>}
-      {profile.clubLogo && <ReportImage src={profile.clubLogo} alt={profile.club || team} className="duel-header-crest" />}
     </div>
     <div className="duel-header-copy">
       <span className="duel-header-role">{label}</span>
