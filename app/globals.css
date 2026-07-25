@@ -1468,3 +1468,19 @@ body.print-layout-check .similarity-star-visual > svg { transform: none !importa
 .similarity-showdown.radar-only .similarity-radar-column { max-width: 505px; }
 .similarity-report-sheet .similarity-note-block { margin-bottom: 12px; padding: 9px 13px; }
 .similarity-report-sheet .similarity-note-block > p { font-size: 9px; line-height: 1.42; }
+
+/* ---- Escudo y halo exactamente como en la Página 1 ----
+   El escudo es el propio PNG con sombra (sin recuadro blanco) y el halo es
+   un acento de esquina que se disuelve, no un óvalo sólido tras la cara. */
+.duel-header-crest {
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, .38));
+}
+.duel-header-glow {
+  top: -34%; right: -30%;
+  width: 82%; height: 82%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--player-color) 20%, transparent) 0%, transparent 66%);
+}
