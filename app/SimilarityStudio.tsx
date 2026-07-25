@@ -902,12 +902,17 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
   async function addComparisonToReport() {
     setExportBusy(true);
     try {
-      const image = reportContentRef.current
-        ? await captureReportNode(reportContentRef.current, 1).catch(() => createImage(true))
-        : await createImage(true);
-      if (!image || !selectedCandidate || !search?.target) return;
-      window.localStorage.setItem("fos-scout-similarity-comparison-v1", JSON.stringify({ image, title: tf("Similitud · {a} vs. {b}", { a: search.target.player, b: selectedCandidate.name }), createdAt: Date.now() }));
-      setExportStatus(t("✓ Reporte exacto agregado a la Página 2 con un espacio editable para comentarios."));
+      const html = reportContentRef.current?.outerHTML ?? "";
+      const image = html ? "" : await createImage(true);
+      if ((!html && !image) || !selectedCandidate || !search?.target) return;
+      window.localStorage.setItem("fos-scout-similarity-comparison-v1", JSON.stringify({
+        html,
+        image,
+        format: html ? "native-dom-v1" : "legacy-image",
+        title: tf("Similitud · {a} vs. {b}", { a: search.target.player, b: selectedCandidate.name }),
+        createdAt: Date.now(),
+      }));
+      setExportStatus(t("✓ Página 2 creada en calidad nativa, con texto y radar vectoriales."));
       onOpenReports();
     } catch {
       setExportStatus(t("No se pudo guardar la comparación. Descárgala como PNG y súbela manualmente."));
@@ -1007,7 +1012,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
               <footer className="dossier-footer similarity-report-footer"><p>{tf("Percentiles P0–P100 · métricas comunes {n}% · {w}.", { n: selectedCandidate.coverage, w: activeMetricWeights ? tf("{n} ponderaciones personalizadas activas", { n: activeMetricWeights }) : t("pesos métricos uniformes") })}</p><div className="report-signatures"><div className="report-author"><span>{t("ELABORADO POR")}</span><b>FELIPE ORMAZABAL</b><small>SCOUTING REPORT</small></div><div className="report-recipient">{recipientLogoReady ? <ReportImage src={recipientLogoUrl.trim()} alt={reportRecipient} className="dossier-footer-club-logo" /> : <span className="dossier-footer-club-fallback">{reportRecipient.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span>}<div><span>{t("REPORTE GENERADO PARA")}</span><b>{reportRecipient}</b></div></div></div></footer>
             </section>
 
-            <div className="comparison-actions"><button className="button secondary" onClick={() => void downloadComparison()} disabled={exportBusy}><ArrowDownToLine size={16} /> {exportBusy ? t("Preparando…") : t("Descargar PNG")}</button><button className="button secondary" onClick={() => void downloadComparisonPdf()} disabled={exportBusy}><Printer size={16} /> {exportBusy ? t("Preparando…") : t("Descargar PDF")}</button><button className="button primary" onClick={() => void addComparisonToReport()} disabled={exportBusy}><ImageIcon size={16} /> {t("Agregar a Página 2")}</button></div>
+            <div className="comparison-actions"><button className="button secondary" onClick={() => void downloadComparison()} disabled={exportBusy}><ArrowDownToLine size={16} /> {exportBusy ? t("Preparando…") : t("Descargar PNG")}</button><button className="button secondary" onClick={() => void downloadComparisonPdf()} disabled={exportBusy}><Printer size={16} /> {exportBusy ? t("Preparando…") : t("Descargar PDF")}</button><button className="button primary" onClick={() => void addComparisonToReport()} disabled={exportBusy}><ImageIcon size={16} /> {t("Usar como Página 2 · calidad nativa")}</button></div>
             {exportStatus && <p className="similarity-export-status" aria-live="polite">{exportStatus}</p>}
           </>}
         </main>
