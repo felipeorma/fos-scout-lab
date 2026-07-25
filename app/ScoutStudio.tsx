@@ -222,6 +222,7 @@ export default function ScoutStudio() {
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const [printPages, setPrintPages] = useState<ReportPage[]>([1, 2, 3]);
   const [printRun, setPrintRun] = useState<ReportPage[] | null>(null);
+  const [printLayoutError, setPrintLayoutError] = useState("");
   const [readingOverride, setReadingOverride] = useState("");
   const [mobileNav, setMobileNav] = useState(false);
   const [sidebarHidden, setSidebarHidden] = useState(false);
@@ -314,6 +315,7 @@ export default function ScoutStudio() {
   useEffect(() => {
     if (!printRun) return;
     let cancelled = false;
+    document.body.classList.add("print-layout-check");
     // Espera fuentes, imágenes y dos ciclos de layout antes de abrir la impresión.
     // Así Chrome no captura una página todavía reordenándose.
     const timer = window.setTimeout(() => {
@@ -334,12 +336,25 @@ export default function ScoutStudio() {
         }));
         await new Promise<void>((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve())));
         if (cancelled) return;
+        const fitTargets = Array.from(document.querySelectorAll<HTMLElement>(
+          ".legal-page-shell .scout-report, .legal-page-shell .visual-report-page, .legal-page-shell .similarity-native-block, .legal-page-shell .similarity-native-content, .legal-page-shell .similarity-report-main, .legal-page-shell .visual-text-content",
+        ));
+        const overflowing = fitTargets.some((element) => element.clientHeight > 0 && element.scrollHeight > element.clientHeight + 2);
+        if (overflowing) {
+          document.body.classList.remove("print-layout-check");
+          setPrintLayoutError(t("Una página excede el área Legal. Reduce el texto o ajusta su contenido antes de exportar."));
+          setPrintRun(null);
+          setPrintDialogOpen(true);
+          return;
+        }
         window.print();
+        document.body.classList.remove("print-layout-check");
         setPrintRun(null);
       })();
     }, 100);
     return () => {
       cancelled = true;
+      document.body.classList.remove("print-layout-check");
       window.clearTimeout(timer);
     };
   }, [printRun]);
@@ -364,6 +379,7 @@ export default function ScoutStudio() {
 
   function startPrint() {
     if (!printPages.length) return;
+    setPrintLayoutError("");
     setPrintDialogOpen(false);
     setPrintRun([...printPages].sort((a, b) => a - b));
   }
@@ -608,7 +624,7 @@ export default function ScoutStudio() {
               <div><span className="kicker">Scout intelligence workspace</span><h1>{t("Convierte datos en")} <span>{t("decisiones de scouting.")}</span></h1><p>{t("Explora rendimiento, compara perfiles y construye reportes visuales listos para presentar.")}</p><div className="heading-chips"><span>{t("Percentiles posicionales")}</span><span>{t("1 o más bases")}</span><span>{t("Editor visual")}</span></div></div>
               <div className="heading-actions">
                 <button className="button secondary" onClick={resetReport}><RotateCcw size={16} /> {t("Restablecer")}</button>
-                <button className="button primary" onClick={() => setPrintDialogOpen(true)} disabled={!report || !dataReady}><Printer size={16} /> {t("Imprimir / PDF")}</button>
+                <button className="button primary" onClick={() => { setPrintLayoutError(""); setPrintDialogOpen(true); }} disabled={!report || !dataReady}><Printer size={16} /> {t("Imprimir / PDF")}</button>
               </div>
             </section>
 
@@ -735,7 +751,7 @@ export default function ScoutStudio() {
 
                 <section className="report-preview-wrap">
                   <div className="preview-toolbar"><div><span className="live-dot" /> {t("Página 01 · Ficha de scouting")}</div><span>{t("Basada en Radar Jordhy Thompson v2")}</span></div>
-                  {report ? <article className="scout-report jordhy-report" style={reportThemeStyle(reportTheme)}>
+                  {report ? <div className="legal-page-shell"><article className="scout-report jordhy-report" style={reportThemeStyle(reportTheme)}>
                     <header className="dossier-header">
                       <div className="dossier-portrait">
                         <span className="portrait-glow" />
@@ -804,7 +820,7 @@ export default function ScoutStudio() {
                         </div>
                       </div>
                     </footer>
-                  </article> : <div className="empty-preview">{t("Selecciona un jugador para generar el informe.")}</div>}
+                  </article></div> : <div className="empty-preview">{t("Selecciona un jugador para generar el informe.")}</div>}
                 </section>
               </div> : null}
               {report ? ([2, 3] as const).filter((page) => printRun ? printRun.includes(page) : reportPage === page).map((page) => (
@@ -830,6 +846,7 @@ export default function ScoutStudio() {
                     <button className="button primary" onClick={startPrint} disabled={!printPages.length}><Printer size={15} /> {t("Generar PDF / Imprimir")}</button>
                   </div>
                   {!printPages.length && <small className="print-dialog-note">{t("Selecciona al menos una página.")}</small>}
+                  {printLayoutError && <small className="print-dialog-note">{t(printLayoutError)}</small>}
                 </div>
               </div>}
             </>}

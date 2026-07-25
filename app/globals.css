@@ -254,6 +254,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 
 .designer-stage { min-width: 0; overflow: hidden; border: 1px solid #d9e1e1; border-radius: 13px; box-shadow: 0 10px 35px rgba(20,45,52,.045); transition: background .2s ease; }
 .designer-toolbar > span { display: flex; align-items: center; gap: 5px; }
+.legal-page-shell { display: contents; }
 .visual-report-page { width: calc(100% - 34px); max-width: 1080px; min-height: 1230px; margin: 17px auto 24px; padding: 0 0 26px; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--report-line); border-radius: 17px; color: var(--designer-text); background: var(--designer-paper); font-family: var(--font-barlow), Arial, sans-serif; box-shadow: 0 30px 80px -30px rgba(0,0,0,.56); transition: background .2s ease, color .2s ease; }
 .visual-page-header { min-height: 170px; display: grid; grid-template-columns: 210px minmax(0, 1fr); border-bottom: 1px solid var(--report-line); }
 .visual-page-folio { padding: 23px 27px; display: flex; flex-direction: column; justify-content: center; color: #fff; background: radial-gradient(circle at 85% 15%,color-mix(in srgb,var(--report-accent) 45%,transparent),transparent 45%),linear-gradient(155deg,color-mix(in srgb,var(--report-dark) 88%,white),var(--report-dark)); }
@@ -312,6 +313,35 @@ body.is-resizing-report-block, body.is-resizing-report-block * { cursor: nwse-re
 .similarity-native-content .comparison-player-copy small { overflow-wrap: anywhere; }
 .similarity-native-content .similarity-metric-section { margin-top: 14px; padding-top: 11px; }
 .similarity-native-content.similarity-report-sheet .metric-comparison-row { padding: 6px 0; gap: 10px; }
+.similarity-legal-page { height: 1230px; min-height: 0; }
+.similarity-legal-page .visual-block-grid { flex: 1; min-height: 0; grid-template-rows: minmax(0,1fr) 144px; }
+.similarity-legal-page .visual-block { height: 100% !important; }
+.similarity-legal-page .similarity-native-block,
+.similarity-legal-page .similarity-native-content,
+.similarity-legal-page .similarity-report-main { min-height: 0; height: 100% !important; }
+.similarity-legal-page .similarity-native-content,
+.similarity-legal-page .similarity-native-block { overflow: hidden; }
+.similarity-legal-page .similarity-report-main { display: flex; flex-direction: column; }
+.similarity-legal-page .similarity-report-header { flex: none; min-height: 0; padding: 10px 24px 18px; }
+.similarity-legal-page .duel-header-center { width: 260px; min-width: 0; }
+.similarity-legal-page .duel-header-center small { max-width: 100%; justify-content: center; line-height: 1.25; text-align: center; white-space: normal; }
+.similarity-legal-page .similarity-report-body { flex: 1; min-height: 0; padding: 0 18px 10px; display: grid; grid-template-rows: minmax(320px,.95fr) minmax(330px,1.05fr); }
+.similarity-legal-page .similarity-showdown { min-height: 0; height: 100%; margin-top: 0; align-items: stretch; }
+.similarity-legal-page .comparison-player-card { height: 100%; display: flex; flex-direction: column; }
+.similarity-legal-page .comparison-player-portrait { min-height: 135px; height: auto; flex: 1; }
+.similarity-legal-page .comparison-player-copy { flex: none; }
+.similarity-legal-page .similarity-radar-column,
+.similarity-legal-page .comparison-radar-wrap { min-height: 0; height: 100%; }
+.similarity-legal-page .comparison-radar-wrap { display: flex; flex-direction: column; }
+.similarity-legal-page .comparison-radar { min-height: 0; flex: 1; }
+.similarity-legal-page .similarity-metric-section { min-height: 0; margin-top: 10px; padding-top: 9px; overflow: hidden; }
+.similarity-legal-page .metric-comparison-list { min-height: 0; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); grid-auto-flow: row; column-gap: 20px; }
+.similarity-legal-page .metric-duel { min-width: 0; padding: 5px 0 6px; }
+.similarity-legal-page .metric-duel-head { margin-bottom: 4px; }
+.similarity-legal-page .metric-duel-row { grid-template-columns: minmax(46px,auto) 1fr minmax(46px,auto); gap: 7px; }
+.similarity-legal-page .metric-duel-bar { height: 10px; }
+.similarity-legal-page .visual-text-content { padding: 18px 22px; align-items: flex-start; }
+.similarity-legal-page .visual-page-footer { min-height: 31px; margin: 12px 38px 0; flex: none; }
 .native-similarity-note { margin: 0; padding: 11px; border: 1px solid color-mix(in srgb,var(--designer-accent) 24%,transparent); border-radius: 8px; color: var(--designer-text); background: color-mix(in srgb,var(--designer-accent) 8%,transparent); }
 .native-similarity-note b, .native-similarity-note span { display: block; }.native-similarity-note b { font-size: 9px; }.native-similarity-note span { margin-top: 4px; color: color-mix(in srgb,var(--designer-text) 68%,transparent); font-size: 8px; line-height: 1.45; }
 .visual-text-content { height: calc(100% - 34px); padding: clamp(18px, 3vw, 34px); display: flex; align-items: center; overflow: hidden; line-height: 1.55; white-space: pre-wrap; }
@@ -640,7 +670,7 @@ body::before { position: fixed; inset: 0; z-index: -1; pointer-events: none; bac
 .profile-field-grid input:focus { border-color: rgba(91,132,255,.5); }
 
 /* ---------- Página 01 · Radar Jordhy Thompson ---------- */
-.jordhy-report { --report-paper: #fff; --report-accent: #1f5fd6; --report-ink: #0d1b2a; --report-muted: #8493ab; --report-surface: #f7f9fc; --report-line: #e8ecf2; --report-dark: #16315f; max-width: 1080px; overflow: hidden; border: 1px solid var(--report-line); border-radius: 17px; color: var(--report-ink); background: var(--report-paper); font-family: var(--font-barlow), Arial, sans-serif; box-shadow: 0 30px 80px -30px rgba(0,0,0,.56); }
+.jordhy-report { --report-paper: #fff; --report-accent: #1f5fd6; --report-ink: #0d1b2a; --report-muted: #8493ab; --report-surface: #f7f9fc; --report-line: #e8ecf2; --report-dark: #16315f; max-width: 1080px; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--report-line); border-radius: 17px; color: var(--report-ink); background: var(--report-paper); font-family: var(--font-barlow), Arial, sans-serif; box-shadow: 0 30px 80px -30px rgba(0,0,0,.56); }
 .dossier-header { min-height: 294px; display: grid; grid-template-columns: 268px minmax(0,1fr); border-bottom: 1px solid var(--report-line); }
 .dossier-portrait { position: relative; min-height: 294px; display: flex; align-items: flex-end; justify-content: center; overflow: hidden; background: linear-gradient(160deg,color-mix(in srgb,var(--report-dark) 88%,white) 0%,var(--report-dark) 62%,color-mix(in srgb,var(--report-dark) 86%,black) 100%); }
 .portrait-glow { position: absolute; top: -75px; right: -60px; width: 240px; height: 240px; border-radius: 50%; background: radial-gradient(circle,color-mix(in srgb,var(--report-accent) 55%,transparent),transparent 68%); }
@@ -925,6 +955,16 @@ body::before { position: fixed; inset: 0; z-index: -1; pointer-events: none; bac
   .dossier-footer { padding: 15px 18px; align-items: flex-start; flex-direction: column; }.report-signatures { width: 100%; justify-content: flex-start; flex-wrap: wrap; }.report-author { text-align: left; }.report-recipient { padding-left: 14px; }
 }
 
+/* Replica el lienzo fisico justo antes de imprimir para detectar desbordes. */
+body.print-layout-check .legal-page-shell { width: 215.9mm; height: 355.6mm; padding: 8mm; display: block; overflow: hidden; box-sizing: border-box; }
+body.print-layout-check .scout-report,
+body.print-layout-check .visual-report-page { width: 100%; max-width: none; height: 100%; min-height: 0; margin: 0; box-sizing: border-box; overflow: hidden; }
+body.print-layout-check .jordhy-report .dossier-footer { margin-top: auto; }
+body.print-layout-check .block-chrome,
+body.print-layout-check .block-resize-handle { display: none; }
+body.print-layout-check .visual-image-slot,
+body.print-layout-check .visual-text-content { height: 100%; }
+
 @media print {
   html, body { background: #fff !important; color-scheme: light; }
   body::before { display: none !important; }
@@ -932,14 +972,18 @@ body::before { position: fixed; inset: 0; z-index: -1; pointer-events: none; bac
   .main-area { margin: 0 !important; }
   .page-content, .report-workspace, .designer-workspace { margin: 0 !important; padding: 0 !important; display: block !important; }
   .report-preview-wrap { border: 0 !important; background: #fff !important; box-shadow: none !important; }
-  .scout-report { width: 100% !important; max-width: none !important; height: 339mm !important; margin: 0 !important; box-sizing: border-box; box-shadow: none !important; overflow: hidden; break-after: page; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .legal-page-shell { width: 215.9mm !important; height: 355.6mm !important; padding: 8mm !important; display: block !important; overflow: hidden; box-sizing: border-box; break-after: auto; }
+  .scout-report { width: 100% !important; max-width: none !important; height: 100% !important; margin: 0 !important; box-sizing: border-box; box-shadow: none !important; overflow: hidden; break-after: auto; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .jordhy-report .dossier-footer { margin-top: auto; }
   .designer-stage { border: 0 !important; background: #fff !important; box-shadow: none !important; }
-  .visual-report-page { width: 100% !important; max-width: none !important; height: 339mm !important; min-height: 0 !important; margin: 0 !important; box-sizing: border-box; box-shadow: none !important; overflow: hidden; break-after: page; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .visual-report-page { width: 100% !important; max-width: none !important; height: 100% !important; min-height: 0 !important; margin: 0 !important; box-sizing: border-box; box-shadow: none !important; overflow: hidden; break-after: auto; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   .visual-block { break-inside: avoid; cursor: default !important; }
   .visual-block.selected { border-color: color-mix(in srgb, var(--designer-text) 14%, transparent) !important; box-shadow: 0 7px 18px color-mix(in srgb, var(--designer-text) 5%, transparent) !important; }
   .similarity-comparison-block:not(.similarity-native-block) { height: 900px !important; }
   .similarity-comparison-block { border: 0 !important; box-shadow: none !important; }
-  .similarity-native-block, .similarity-native-content { height: auto !important; overflow: visible !important; }
+  .similarity-native-block, .similarity-native-content { overflow: hidden !important; }
+  .similarity-legal-page .similarity-native-block,
+  .similarity-legal-page .similarity-native-content { height: 100% !important; }
   .similarity-native-content > .similarity-report-main { break-inside: avoid; }
   .similarity-native-content .similarity-showdown { grid-template-columns: minmax(0,1fr) minmax(0,2.15fr) minmax(0,1fr) !important; align-items: stretch !important; }
   .similarity-native-content .similarity-radar-column { width: 100% !important; max-width: 100% !important; margin: 0 !important; padding-top: 18px !important; grid-column: auto !important; grid-row: auto !important; }
@@ -950,7 +994,7 @@ body::before { position: fixed; inset: 0; z-index: -1; pointer-events: none; bac
   .visual-image-slot, .visual-text-content { height: 100% !important; }
   .print-dialog-overlay { display: none !important; }
   .designer-workspace { break-inside: avoid; }
-  @page { size: legal portrait; margin: 8mm; }
+  @page { size: legal portrait; margin: 0; }
 }
 
 /* ---- Selector de idioma (ES/EN) ---- */
