@@ -18,6 +18,14 @@ import {
 import { DEFAULT_REPORT_THEME, REPORT_THEMES, reportThemeStyle, type ReportTheme } from "./reportTheme";
 import { SimilarityReportMain, isSimilarityReportPayload, type SimilarityReportPayload } from "./SimilarityReport";
 import { t, tf } from "@/lib/i18n";
+import {
+  clampReportBlockHeight,
+  clampReportBlockSpan,
+  reportBlockHeightBounds,
+  resizeReportBlock,
+  similarityGridRows,
+  type ReportBlockResizeMode,
+} from "@/lib/reportPageLayout";
 
 type BlockType = "image" | "text";
 type TextAlign = "left" | "center" | "right";
@@ -54,6 +62,9 @@ type DesignerState = Record<2 | 3, PageConfig>;
 type ResizeSession = {
   id: string;
   pointerId: number;
+  mode: ReportBlockResizeMode;
+  kind: BlockType;
+  similarityNotes: boolean;
   startX: number;
   startY: number;
   startHeight: number;
@@ -62,8 +73,6 @@ type ResizeSession = {
   columns: number;
 };
 
-const MIN_BLOCK_HEIGHT = 140;
-const MAX_BLOCK_HEIGHT = 900;
 const SIMILARITY_BLOCK_ID = "p2-similarity-comparison";
 const SIMILARITY_NOTES_BLOCK_ID = "p2-similarity-notes";
 const SIMILARITY_BLOCK_HEIGHT = 900;
@@ -132,10 +141,6 @@ function LocalPreviewImage({ src, alt, fit }: { src: string; alt: string; fit: I
   return <img src={src} alt={alt} style={{ objectFit: fit }} />;
 }
 
-function clampSpan(span: number, columns: number) {
-  return Math.max(1, Math.min(columns, span));
-}
-
 function updateBlock(config: PageConfig, id: string, patch: Partial<PageBlock>) {
   return { ...config, blocks: config.blocks.map((block) => block.id === id ? { ...block, ...patch } : block) };
 }
@@ -159,22 +164,40 @@ function sanitizeSimilarityMarkup(value: string) {
   return report.outerHTML;
 }
 
-function normalizeSimilarityBlock(config: PageConfig) {
-  const comparison = config.blocks.find((block) => block.id === SIMILARITY_BLOCK_ID);
-  if (!comparison) return config;
+function similarityNotesBlock(config: PageConfig) {
   const existingNotes = config.blocks.find((block) => block.id === SIMILARITY_NOTES_BLOCK_ID && block.type === "text");
-  const notes = {
-    ...(existingNotes ?? textBlock(
+  const additionalNotes = config.blocks.filter((block) => block.type === "text" && block.id !== SIMILARITY_NOTES_BLOCK_ID);
+  const source = existingNotes ?? additionalNotes[0];
+  const defaultContentSource = "Agrega aquí tu lectura, contexto o recomendación sobre la comparación.";
+  const defaultContent = t(defaultContentSource);
+  const contentParts = [existingNotes, ...additionalNotes]
+    .map((block) => block?.content.trim() ?? "")
+    .filter(Boolean);
+  const meaningfulParts = contentParts.filter((content) => content !== defaultContent && content !== defaultContentSource);
+  const content = [...new Set(meaningfulParts)].join("\n\n") || defaultContent;
+
+  return {
+    ...(source ?? textBlock(
       SIMILARITY_NOTES_BLOCK_ID,
       t("Comentario del scout"),
-      t("Agrega aquí tu lectura, contexto o recomendación sobre la comparación."),
+      defaultContent,
       config.columns,
       SIMILARITY_NOTES_HEIGHT,
     )),
+    id: SIMILARITY_NOTES_BLOCK_ID,
+    type: "text" as const,
+    title: source?.title || t("Comentario del scout"),
+    content,
     span: config.columns,
-    height: SIMILARITY_NOTES_HEIGHT,
-    color: existingNotes?.color ?? DEFAULT_REPORT_THEME.ink,
+    height: clampReportBlockHeight(source?.height ?? SIMILARITY_NOTES_HEIGHT, "text", true),
+    color: source?.color ?? DEFAULT_REPORT_THEME.ink,
   };
+}
+
+function normalizeSimilarityBlock(config: PageConfig) {
+  const comparison = config.blocks.find((block) => block.id === SIMILARITY_BLOCK_ID);
+  if (!comparison) return config;
+  const notes = similarityNotesBlock(config);
   return {
     ...config,
     title: t("Comparación de similitud"),
@@ -241,19 +264,7 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
               height: SIMILARITY_BLOCK_HEIGHT,
               fit: "contain" as const,
             };
-            const existingNotes = page.blocks.find((block) => block.id === SIMILARITY_NOTES_BLOCK_ID && block.type === "text");
-            const notes = {
-              ...(existingNotes ?? textBlock(
-                SIMILARITY_NOTES_BLOCK_ID,
-                t("Comentario del scout"),
-                t("Agrega aquí tu lectura, contexto o recomendación sobre la comparación."),
-                page.columns,
-                SIMILARITY_NOTES_HEIGHT,
-              )),
-              span: page.columns,
-              height: SIMILARITY_NOTES_HEIGHT,
-              color: existingNotes?.color ?? DEFAULT_REPORT_THEME.ink,
-            };
+            const notes = similarityNotesBlock(page);
             nextPages = {
               ...nextPages,
               2: {
@@ -282,6 +293,31 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
   }, [loaded, pages]);
 
   useEffect(() => {
+    if (!loaded || !selectedId || selected?.type !== "text") return;
+    const frame = window.requestAnimationFrame(() => {
+      const content = gridRef.current?.querySelector<HTMLElement>(`[data-block-id="${selectedId}"] .visual-text-content`);
+      if (!content) return;
+      const extraHeight = content.scrollHeight - content.clientHeight;
+      if (extraHeight <= 2) return;
+      setPages((current) => {
+        const currentBlock = current[pageNumber].blocks.find((block) => block.id === selectedId);
+        if (!currentBlock || currentBlock.type !== "text") return current;
+        const height = clampReportBlockHeight(
+          currentBlock.height + extraHeight,
+          currentBlock.type,
+          currentBlock.id === SIMILARITY_NOTES_BLOCK_ID,
+        );
+        if (height === currentBlock.height) return current;
+        return {
+          ...current,
+          [pageNumber]: updateBlock(current[pageNumber], currentBlock.id, { height }),
+        };
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [loaded, pageNumber, selected?.bold, selected?.content, selected?.font, selected?.fontSize, selected?.italic, selected?.type, selectedId]);
+
+  useEffect(() => {
     if (!resizeSession) return;
 
     function finishResize(event: PointerEvent) {
@@ -292,22 +328,31 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
     function resizeBlock(event: PointerEvent) {
       if (event.pointerId !== resizeSession?.pointerId) return;
       event.preventDefault();
-      const spanDelta = Math.round((event.clientX - resizeSession.startX) / resizeSession.columnStep);
-      const span = clampSpan(resizeSession.startSpan + spanDelta, resizeSession.columns);
-      const rawHeight = resizeSession.startHeight + event.clientY - resizeSession.startY;
-      const height = Math.max(MIN_BLOCK_HEIGHT, Math.min(MAX_BLOCK_HEIGHT, Math.round(rawHeight / 10) * 10));
+      const nextSize = resizeReportBlock({
+        mode: resizeSession.mode,
+        kind: resizeSession.kind,
+        similarityNotes: resizeSession.similarityNotes,
+        startHeight: resizeSession.startHeight,
+        startSpan: resizeSession.startSpan,
+        deltaX: event.clientX - resizeSession.startX,
+        deltaY: event.clientY - resizeSession.startY,
+        columnStep: resizeSession.columnStep,
+        columns: resizeSession.columns,
+      });
       setPages((current) => ({
         ...current,
-        [pageNumber]: updateBlock(current[pageNumber], resizeSession.id, { span, height }),
+        [pageNumber]: updateBlock(current[pageNumber], resizeSession.id, nextSize),
       }));
     }
 
     document.body.classList.add("is-resizing-report-block");
+    if (resizeSession.mode === "height") document.body.classList.add("is-resizing-report-block-height");
     window.addEventListener("pointermove", resizeBlock, { passive: false });
     window.addEventListener("pointerup", finishResize);
     window.addEventListener("pointercancel", finishResize);
     return () => {
       document.body.classList.remove("is-resizing-report-block");
+      document.body.classList.remove("is-resizing-report-block-height");
       window.removeEventListener("pointermove", resizeBlock);
       window.removeEventListener("pointerup", finishResize);
       window.removeEventListener("pointercancel", finishResize);
@@ -324,6 +369,10 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
   }
 
   function addBlock(type: BlockType) {
+    if (hasSimilarityComparison) {
+      setSelectedId(type === "text" ? SIMILARITY_NOTES_BLOCK_ID : SIMILARITY_BLOCK_ID);
+      return;
+    }
     const id = `p${pageNumber}-${type}-${Date.now()}`;
     const block = type === "image"
       ? imageBlock(id, t("Nueva visualización"), 1, 260)
@@ -334,6 +383,10 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
 
   function addImageComment(placement: "below" | "side") {
     if (!selected || selected.type !== "image") return;
+    if (hasSimilarityComparison) {
+      setSelectedId(SIMILARITY_NOTES_BLOCK_ID);
+      return;
+    }
     const id = `p${pageNumber}-comment-${Date.now()}`;
     setConfig((current) => {
       const columns = placement === "side" ? Math.max(2, current.columns) : current.columns;
@@ -356,6 +409,12 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
 
   function removeSelected() {
     if (!selected) return;
+    if (hasSimilarityComparison && selected.id === SIMILARITY_NOTES_BLOCK_ID) {
+      setConfig((current) => updateBlock(current, selected.id, {
+        content: t("Agrega aquí tu lectura, contexto o recomendación sobre la comparación."),
+      }));
+      return;
+    }
     const index = config.blocks.findIndex((block) => block.id === selected.id);
     const nextBlocks = config.blocks.filter((block) => block.id !== selected.id);
     const removedComparison = selected.id === SIMILARITY_BLOCK_ID;
@@ -370,6 +429,7 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
 
   function moveSelected(direction: -1 | 1) {
     if (!selected) return;
+    if (hasSimilarityComparison) return;
     const from = config.blocks.findIndex((block) => block.id === selected.id);
     const to = Math.max(0, Math.min(config.blocks.length - 1, from + direction));
     if (from === to) return;
@@ -380,6 +440,7 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
   }
 
   function applyLayout(layout: "single" | "split" | "feature" | "mosaic") {
+    if (hasSimilarityComparison) return;
     const columns = layout === "single" ? 1 : layout === "mosaic" ? 3 : 2;
     setConfig((current) => ({
       ...current,
@@ -408,6 +469,7 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
 
   function onDropBlock(event: DragEvent<HTMLDivElement>, targetId: string) {
     event.preventDefault();
+    if (hasSimilarityComparison) return;
     if (!draggedId || draggedId === targetId) return;
     const blocks = [...config.blocks];
     const from = blocks.findIndex((block) => block.id === draggedId);
@@ -419,7 +481,7 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
     setDraggedId("");
   }
 
-  function startBlockResize(event: ReactPointerEvent<HTMLButtonElement>, block: PageBlock) {
+  function startBlockResize(event: ReactPointerEvent<HTMLButtonElement>, block: PageBlock, mode: ReportBlockResizeMode) {
     event.preventDefault();
     event.stopPropagation();
     const grid = gridRef.current;
@@ -433,32 +495,48 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
     setResizeSession({
       id: block.id,
       pointerId: event.pointerId,
+      mode,
+      kind: block.type,
+      similarityNotes: block.id === SIMILARITY_NOTES_BLOCK_ID,
       startX: event.clientX,
       startY: event.clientY,
-      startHeight: block.height,
-      startSpan: clampSpan(block.span, config.columns),
+      startHeight: clampReportBlockHeight(block.height, block.type, block.id === SIMILARITY_NOTES_BLOCK_ID),
+      startSpan: clampReportBlockSpan(block.span, config.columns),
       columnStep: columnWidth + config.gap,
       columns: config.columns,
     });
   }
 
-  function resizeBlockWithKeyboard(event: React.KeyboardEvent<HTMLButtonElement>, block: PageBlock) {
+  function resizeBlockWithKeyboard(event: React.KeyboardEvent<HTMLButtonElement>, block: PageBlock, mode: ReportBlockResizeMode) {
     const step = event.shiftKey ? 40 : 10;
     if (event.key === "ArrowUp" || event.key === "ArrowDown") {
       event.preventDefault();
       event.stopPropagation();
       const direction = event.key === "ArrowUp" ? -1 : 1;
-      setConfig((current) => updateBlock(current, block.id, { height: Math.max(MIN_BLOCK_HEIGHT, Math.min(MAX_BLOCK_HEIGHT, block.height + direction * step)) }));
+      setConfig((current) => updateBlock(current, block.id, {
+        height: clampReportBlockHeight(block.height + direction * step, block.type, block.id === SIMILARITY_NOTES_BLOCK_ID),
+      }));
     }
-    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+    if (mode === "both" && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
       event.preventDefault();
       event.stopPropagation();
       const direction = event.key === "ArrowLeft" ? -1 : 1;
-      setConfig((current) => updateBlock(current, block.id, { span: clampSpan(block.span + direction, current.columns) }));
+      setConfig((current) => updateBlock(current, block.id, { span: clampReportBlockSpan(block.span + direction, current.columns) }));
     }
   }
 
   const canvasStyle = reportThemeStyle(theme);
+  const selectedHeightBounds = selected
+    ? reportBlockHeightBounds(selected.type, selected.id === SIMILARITY_NOTES_BLOCK_ID)
+    : reportBlockHeightBounds("text");
+  const similarityNotes = hasSimilarityComparison
+    ? config.blocks.find((block) => block.id === SIMILARITY_NOTES_BLOCK_ID && block.type === "text")
+    : undefined;
+  const gridStyle = {
+    gridTemplateColumns: `repeat(${config.columns}, minmax(0, 1fr))`,
+    gridTemplateRows: similarityNotes ? similarityGridRows(similarityNotes.height) : undefined,
+    gap: config.gap,
+  } as CSSProperties;
 
   return (
     <div className="designer-workspace">
@@ -470,11 +548,12 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
         <div className="designer-section">
           <div className="designer-section-title"><span>{t("Plantilla de grid")}</span><small>{tf("{n} columnas", { n: config.columns })}</small></div>
           <div className="layout-presets">
-            <button onClick={() => applyLayout("single")} title={t("Una columna")}><i className="layout-one"><b /></i><span>{t("Simple")}</span></button>
-            <button onClick={() => applyLayout("split")} title={t("Dos columnas")}><i className="layout-two"><b /><b /></i><span>{t("Doble")}</span></button>
-            <button onClick={() => applyLayout("feature")} title={t("Bloque destacado")}><i className="layout-feature"><b /><b /><b /></i><span>{t("Portada")}</span></button>
-            <button onClick={() => applyLayout("mosaic")} title={t("Mosaico")}><i className="layout-mosaic"><b /><b /><b /></i><span>{t("Mosaico")}</span></button>
+            <button disabled={hasSimilarityComparison} onClick={() => applyLayout("single")} title={t("Una columna")}><i className="layout-one"><b /></i><span>{t("Simple")}</span></button>
+            <button disabled={hasSimilarityComparison} onClick={() => applyLayout("split")} title={t("Dos columnas")}><i className="layout-two"><b /><b /></i><span>{t("Doble")}</span></button>
+            <button disabled={hasSimilarityComparison} onClick={() => applyLayout("feature")} title={t("Bloque destacado")}><i className="layout-feature"><b /><b /><b /></i><span>{t("Portada")}</span></button>
+            <button disabled={hasSimilarityComparison} onClick={() => applyLayout("mosaic")} title={t("Mosaico")}><i className="layout-mosaic"><b /><b /><b /></i><span>{t("Mosaico")}</span></button>
           </div>
+          {hasSimilarityComparison && <p className="shared-design-note">{t("La comparación mantiene una estructura fija para que el texto nunca se superponga con la visualización.")}</p>}
           <label className="range-row"><span>{t("Espacio entre bloques")} <b>{config.gap}px</b></span><input type="range" min="4" max="40" value={config.gap} onChange={(event) => setConfig((current) => ({ ...current, gap: Number(event.target.value) }))} /></label>
         </div>
 
@@ -487,19 +566,28 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
 
         <div className="designer-section add-block-section">
           <div className="designer-section-title"><span>{t("Agregar contenido")}</span><small>{tf("{n} bloques", { n: config.blocks.length })}</small></div>
-          <div className="add-block-buttons"><button onClick={() => addBlock("image")}><ImageIcon size={17} /><span><b>{t("Imagen")}</b><small>{t("Mapa, gráfico o captura")}</small></span></button><button onClick={() => addBlock("text")}><TextIcon size={16} /><span><b>{t("Texto")}</b><small>{t("Lectura u observación")}</small></span></button></div>
+          {hasSimilarityComparison
+            ? <div className="add-block-buttons single"><button onClick={() => addBlock("text")}><TextIcon size={16} /><span><b>{t("Editar comentarios")}</b><small>{t("Texto debajo de la comparación")}</small></span></button></div>
+            : <div className="add-block-buttons"><button onClick={() => addBlock("image")}><ImageIcon size={17} /><span><b>{t("Imagen")}</b><small>{t("Mapa, gráfico o captura")}</small></span></button><button onClick={() => addBlock("text")}><TextIcon size={16} /><span><b>{t("Texto")}</b><small>{t("Lectura u observación")}</small></span></button></div>}
         </div>
 
         {selected && <div className="designer-section selected-editor">
-          <div className="designer-section-title"><span>{t("Bloque seleccionado")}</span><div className="order-buttons"><button onClick={() => moveSelected(-1)} title={t("Mover antes")}><MoveUp size={14} /></button><button onClick={() => moveSelected(1)} title={t("Mover después")}><MoveDown size={14} /></button><button className="delete-block" onClick={removeSelected} title={t("Eliminar bloque")}><Trash size={14} /></button></div></div>
+          <div className="designer-section-title"><span>{t("Bloque seleccionado")}</span><div className="order-buttons"><button disabled={hasSimilarityComparison} onClick={() => moveSelected(-1)} title={t("Mover antes")}><MoveUp size={14} /></button><button disabled={hasSimilarityComparison} onClick={() => moveSelected(1)} title={t("Mover después")}><MoveDown size={14} /></button><button disabled={hasSimilarityComparison && selected.id === SIMILARITY_NOTES_BLOCK_ID} className="delete-block" onClick={removeSelected} title={t("Eliminar bloque")}><Trash size={14} /></button></div></div>
           <label className="field-group"><span className="field-label">{t("Etiqueta")}</span><input className="text-input" value={selected.title} onChange={(event) => patchSelected({ title: event.target.value })} /></label>
-          <div className="span-buttons"><span className="field-label">{t("Ancho")}</span><div>{Array.from({ length: config.columns }, (_, index) => index + 1).map((span) => <button key={span} className={clampSpan(selected.span, config.columns) === span ? "active" : ""} onClick={() => patchSelected({ span })}>{span === config.columns ? t("Completo") : `${span}/${config.columns}`}</button>)}</div></div>
-          <label className="range-row block-height"><span>{t("Alto del espacio")} <b>{selected.height}px</b></span><input type="range" min={MIN_BLOCK_HEIGHT} max={MAX_BLOCK_HEIGHT} step="10" value={selected.height} onChange={(event) => patchSelected({ height: Number(event.target.value) })} /></label>
-          <p className="resize-alignment-note"><b>↘</b><span>{t("Arrastra la esquina del bloque. El ancho encaja en columnas y el alto en una retícula de 10 px.")}</span></p>
+          {selected.id !== SIMILARITY_BLOCK_ID && <>
+            {!hasSimilarityComparison && <div className="span-buttons"><span className="field-label">{t("Ancho")}</span><div>{Array.from({ length: config.columns }, (_, index) => index + 1).map((span) => <button key={span} className={clampReportBlockSpan(selected.span, config.columns) === span ? "active" : ""} onClick={() => patchSelected({ span })}>{span === config.columns ? t("Completo") : `${span}/${config.columns}`}</button>)}</div></div>}
+            <label className="range-row block-height"><span>{t("Alto del espacio")} <b>{selected.height}px</b></span><input type="range" min={selectedHeightBounds.min} max={selectedHeightBounds.max} step="10" value={clampReportBlockHeight(selected.height, selected.type, selected.id === SIMILARITY_NOTES_BLOCK_ID)} onChange={(event) => patchSelected({ height: Number(event.target.value) })} /></label>
+            <p className="resize-alignment-note"><b>{selected.type === "text" ? "↕" : "↘"}</b><span>{selected.type === "text" ? t("Arrastra el tirador inferior para cambiar solo el alto. La esquina mantiene el ajuste combinado.") : t("Arrastra la esquina del bloque. El ancho encaja en columnas y el alto en una retícula de 10 px.")}</span></p>
+          </>}
 
           {selected.type === "image" ? <div className="image-options">
-            {selected.id === SIMILARITY_BLOCK_ID && (selected.similarity || selected.html)
-              ? <p className="native-similarity-note"><b>{t("Calidad nativa activa")}</b><span>{t("El texto y el radar se exportan como elementos vectoriales, no como una captura.")}</span></p>
+            {selected.id === SIMILARITY_BLOCK_ID
+              ? <p className="native-similarity-note">
+                  <b>{t(selected.similarity || selected.html ? "Calidad nativa activa" : "Comentarios separados")}</b>
+                  <span>{t(selected.similarity || selected.html
+                    ? "El texto y el radar se exportan como elementos vectoriales, no como una captura."
+                    : "Usa «Editar comentarios» para mantener el texto debajo de la comparación.")}</span>
+                </p>
               : <><span className="field-label">{t("Ajuste de imagen")}</span><div className="segmented"><button className={selected.fit === "contain" ? "active" : ""} onClick={() => patchSelected({ fit: "contain" })}>{t("Completa")}</button><button className={selected.fit === "cover" ? "active" : ""} onClick={() => patchSelected({ fit: "cover" })}>{t("Recorta")}</button></div>
                 <div className="image-comment-tools"><span className="field-label">{t("Agregar comentario a esta imagen")}</span><div><button onClick={() => addImageComment("below")}><TextIcon size={15} /><span><b>{t("Debajo")}</b><small>{t("Imagen arriba, texto abajo")}</small></span></button><button onClick={() => addImageComment("side")}><Columns size={15} /><span><b>{t("Al lado")}</b><small>{t("Imagen y texto en columnas")}</small></span></button></div><p>{t("Se crea un bloque de texto independiente que puedes editar, mover y redimensionar.")}</p></div></>}
           </div> : <>
@@ -514,7 +602,7 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
       </aside>
 
       <section className="designer-stage" style={{ background: theme.canvas }}>
-        <div className="preview-toolbar designer-toolbar"><div><span className="live-dot" /> {tf("Página {n} · Editor visual", { n: pageNumber })}</div><span><Grip size={14} /> {t("Arrastra para ordenar · esquina ↘ para tamaño")}</span></div>
+        <div className="preview-toolbar designer-toolbar"><div><span className="live-dot" /> {tf("Página {n} · Editor visual", { n: pageNumber })}</div><span><Grip size={14} /> {t("Arrastra para ordenar · ↕ cambia solo el alto · ↘ ajusta ambos")}</span></div>
         <div className="legal-page-shell">
         <article className={`visual-report-page unified-report-page ${hasSimilarityComparison ? "similarity-legal-page" : ""}`} style={canvasStyle}>
           {pageNumber === 3 && <>
@@ -524,12 +612,14 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
             </header>
             <div className="visual-page-title"><span>{t("ANÁLISIS COMPLEMENTARIO")}</span><h3>{t(config.title)}</h3></div>
           </>}
-          <div ref={gridRef} className="visual-block-grid" style={{ gridTemplateColumns: `repeat(${config.columns}, minmax(0, 1fr))`, gap: config.gap }} onDragOver={(event) => event.preventDefault()}>
+          <div ref={gridRef} className="visual-block-grid" style={gridStyle} onDragOver={(event) => event.preventDefault()}>
             {config.blocks.map((block) => {
-              const span = clampSpan(block.span, config.columns);
+              const span = clampReportBlockSpan(block.span, config.columns);
               const nativeSimilarity = block.id === SIMILARITY_BLOCK_ID && Boolean(block.similarity || block.html);
+              const fixedSimilarityNotes = hasSimilarityComparison && block.id === SIMILARITY_NOTES_BLOCK_ID;
+              const blockHeight = clampReportBlockHeight(block.height, block.type, block.id === SIMILARITY_NOTES_BLOCK_ID);
               const textStyle = { color: usesSharedTextColor(block.color, theme.ink) ? theme.ink : block.color, fontFamily: fontFamily(block.font), fontSize: block.fontSize, fontWeight: block.bold ? 700 : 400, fontStyle: block.italic ? "italic" : "normal", textAlign: block.align } as CSSProperties;
-              return <div key={block.id} draggable={!resizeSession && !nativeSimilarity} className={`visual-block visual-${block.type} ${block.id === SIMILARITY_BLOCK_ID ? "similarity-comparison-block" : ""} ${nativeSimilarity ? "similarity-native-block" : ""} ${selected?.id === block.id ? "selected" : ""} ${draggedId === block.id ? "dragging" : ""} ${resizeSession?.id === block.id ? "resizing" : ""}`} style={{ gridColumn: `span ${span}`, height: block.height }} onClick={() => setSelectedId(block.id)} onDragStart={() => { if (!nativeSimilarity) { setDraggedId(block.id); setSelectedId(block.id); } }} onDragEnd={() => setDraggedId("")} onDragOver={(event) => event.preventDefault()} onDrop={(event) => onDropBlock(event, block.id)} role="button" tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter") setSelectedId(block.id); }}>
+              return <div key={block.id} data-block-id={block.id} draggable={!resizeSession && !nativeSimilarity && !hasSimilarityComparison} className={`visual-block visual-${block.type} ${block.id === SIMILARITY_BLOCK_ID ? "similarity-comparison-block" : ""} ${nativeSimilarity ? "similarity-native-block" : ""} ${fixedSimilarityNotes ? "similarity-notes-block" : ""} ${selected?.id === block.id ? "selected" : ""} ${draggedId === block.id ? "dragging" : ""} ${resizeSession?.id === block.id ? "resizing" : ""}`} style={{ gridColumn: `span ${span}`, height: blockHeight }} onClick={() => setSelectedId(block.id)} onDragStart={() => { if (!nativeSimilarity && !hasSimilarityComparison) { setDraggedId(block.id); setSelectedId(block.id); } }} onDragEnd={() => setDraggedId("")} onDragOver={(event) => event.preventDefault()} onDrop={(event) => onDropBlock(event, block.id)} role="button" tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedId(block.id); } }}>
                 <div className="block-chrome"><span><Grip size={13} /> {t(block.title) || (block.type === "image" ? t("Imagen") : t("Texto"))}</span><small>{span}/{config.columns}</small></div>
                 {block.type === "image" ? nativeSimilarity
                   ? block.similarity
@@ -539,7 +629,8 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
                     {block.image ? <LocalPreviewImage src={block.image} alt={t(block.title)} fit={block.fit} /> : <span><span className="image-placeholder-icon"><ImageIcon size={27} /></span><b>{t("Agregar imagen")}</b><small>{t("PNG, JPG o WEBP")}</small><em><Upload size={13} /> {t("Elegir archivo")}</em></span>}
                     <input type="file" accept="image/*" hidden onChange={(event) => onImage(event.target.files?.[0], block.id)} />
                   </label> : <div className="visual-text-content" style={textStyle}><p>{t(block.content) || t("Escribe tu análisis desde el panel lateral.")}</p></div>}
-                {!nativeSimilarity && <button type="button" className="block-resize-handle" draggable={false} aria-label={tf("Redimensionar {t}", { t: t(block.title) || t("bloque") })} title={t("Arrastra para ajustar ancho y alto")} onPointerDown={(event) => startBlockResize(event, block)} onKeyDown={(event) => resizeBlockWithKeyboard(event, block)} onClick={(event) => event.stopPropagation()} onDragStart={(event) => { event.preventDefault(); event.stopPropagation(); }}>↘</button>}
+                {!nativeSimilarity && !fixedSimilarityNotes && <button type="button" className="block-resize-handle" draggable={false} aria-label={tf("Redimensionar {t}", { t: t(block.title) || t("bloque") })} title={t("Arrastra para ajustar ancho y alto")} onPointerDown={(event) => startBlockResize(event, block, "both")} onKeyDown={(event) => resizeBlockWithKeyboard(event, block, "both")} onClick={(event) => event.stopPropagation()} onDragStart={(event) => { event.preventDefault(); event.stopPropagation(); }}>↘</button>}
+                {block.type === "text" && <button type="button" className="block-height-resize-handle" draggable={false} aria-label={tf("Ajustar solo la altura de {t}", { t: t(block.title) || t("bloque") })} title={t("Arrastra para ajustar solo el alto")} onPointerDown={(event) => startBlockResize(event, block, "height")} onKeyDown={(event) => resizeBlockWithKeyboard(event, block, "height")} onClick={(event) => event.stopPropagation()} onDragStart={(event) => { event.preventDefault(); event.stopPropagation(); }}>↕</button>}
               </div>;
             })}
             {!config.blocks.length && <button className="empty-designer-page" onClick={() => addBlock("image")}><Sparkles size={26} /><b>{t("Tu página está vacía")}</b><span>{t("Agrega una imagen o un texto desde el panel.")}</span></button>}
