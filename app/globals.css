@@ -1507,3 +1507,49 @@ body.print-layout-check .similarity-star-visual > svg { transform: none !importa
   object-fit: contain; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .45));
 }
 .duel-header-number { color: rgba(255, 255, 255, .42); }
+
+/* ---- Acabado de la Página 2 igualado al de la Página 1 ----
+   La comparativa usaba barras gruesas saturadas y píldoras de color muy
+   fuertes; la ficha usa barras finas sobre pista clara y tipografía sobria.
+   Aquí se replica ese lenguaje. */
+.similarity-report-sheet .metric-duel-head span {
+  color: var(--report-ink); font-size: 7.5px; font-weight: 600;
+  letter-spacing: .05em; text-transform: uppercase;
+}
+.similarity-report-sheet .metric-duel-bar {
+  height: 6px; border-radius: 99px;
+  background: color-mix(in srgb, var(--report-line) 70%, transparent);
+}
+.similarity-report-sheet .metric-duel-bar .duel-side { opacity: .9; }
+.similarity-report-sheet .metric-duel.winner-candidate .duel-side.target,
+.similarity-report-sheet .metric-duel.winner-target .duel-side.candidate { opacity: .3; }
+/* la muesca de separación se afina para no cortar la barra */
+.similarity-report-sheet .metric-duel-bar::after { width: 2px; }
+
+/* Valores: sin píldoras sólidas. El ganador se distingue por color y peso,
+   como los números de la ficha. */
+.similarity-report-sheet .duel-value {
+  padding: 0; border-radius: 0; background: none !important; box-shadow: none !important;
+  color: var(--report-muted);
+  font-family: var(--font-oswald), var(--font-barlow-condensed), sans-serif;
+  font-size: 10px; font-weight: 500;
+}
+.similarity-report-sheet .duel-value.win { font-size: 11px; font-weight: 600; }
+.similarity-report-sheet .duel-value.target.win { color: var(--target-color); }
+.similarity-report-sheet .duel-value.candidate.win { color: var(--candidate-color); }
+
+/* Bloque de comentarios con la misma tarjeta suave que LECTURA RÁPIDA. */
+.similarity-report-sheet .similarity-note-block {
+  border-left: 0; border: 1px solid var(--report-line); border-radius: 10px;
+  background: var(--report-surface);
+  padding: 12px 14px;
+}
+.similarity-report-sheet .similarity-note-block > span { color: var(--report-accent); }
+
+/* Encabezado de sección con el mismo subrayado que los grupos de la ficha. */
+.similarity-report-sheet .similarity-metric-head b {
+  padding-bottom: 6px; border-bottom: 2px solid var(--report-line);
+  font-family: var(--font-barlow-condensed), sans-serif; letter-spacing: .065em;
+}
+/* La regla de densidad compacta no debe engordar la barra fina. */
+.similarity-report-sheet .similarity-report-main[data-metric-density="compact"] .metric-duel-bar { height: 6px; }
