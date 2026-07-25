@@ -205,6 +205,7 @@ function HeaderPlayer({ player, label, side }: { player: SimilarityReportPlayer;
   return <div className={`duel-header-player ${side}`} style={{ "--player-color": color } as CSSProperties}>
     <div className="duel-header-photo">
       <span className="duel-header-glow" aria-hidden="true" />
+      {profile.clubLogo && <ReportImage src={profile.clubLogo} alt={profile.club || team} className="duel-header-crest" />}
       {profile.number && <b className="duel-header-number">#{profile.number}</b>}
       {profile.playerImage
         ? <PlayerPortrait key={`${profile.playerImage.slice(-40)}-${photoScale}-${photoFit ?? "auto"}`} src={profile.playerImage} alt={name} photoScale={photoScale} fit={photoFit ?? "auto"} />
@@ -213,9 +214,7 @@ function HeaderPlayer({ player, label, side }: { player: SimilarityReportPlayer;
     <div className="duel-header-copy">
       <span className="duel-header-role">{label}</span>
       <b>{name}</b>
-      <em className="duel-header-club">{profile.clubLogo
-        ? <ReportImage src={profile.clubLogo} alt={profile.club || team} className="duel-header-crest" />
-        : <span>{profile.club || team}</span>}</em>
+      {!profile.clubLogo && <em className="duel-header-club"><span>{profile.club || team}</span></em>}
       <small>{formatPlayerPositions(profile.position || position)}</small>
       <small>{tf("{age} años · {passport}", { age: profile.age || age, passport: profile.citizenship || passport })}</small>
       {profile.marketValue && <strong className="duel-header-value">{profile.marketValue}<ReportImage src={TRANSFERMARKT_LOGO} alt="Transfermarkt" className="duel-header-tm" /></strong>}

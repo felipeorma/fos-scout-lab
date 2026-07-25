@@ -1591,3 +1591,38 @@ body.print-layout-check .similarity-star-visual > svg { transform: none !importa
 .duel-header-role { font-size: 5.5px; padding: 2px 7px; }
 .duel-header-value { font-size: 13px; }
 .duel-header-number { font-size: 15px; }
+
+/* ---- Retrato de la Página 2 como tarjeta de fichaje ----
+   Referencia: fondo claro que vira al color del club hacia abajo, escudo
+   arriba a la izquierda y el jugador apoyado en la base. Mismas dimensiones
+   (82 px de ancho, proporción 139/181 del retrato de Transfermarkt). */
+.duel-header-photo {
+  overflow: hidden;
+  border-radius: 11px;
+  background: linear-gradient(180deg,
+    #ffffff 0%,
+    #ffffff 34%,
+    color-mix(in srgb, var(--player-color) 16%, #ffffff) 78%,
+    color-mix(in srgb, var(--player-color) 26%, #ffffff) 100%);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .26);
+}
+.duel-header-glow { display: none; }
+
+/* Escudo dentro de la tarjeta, sin recuadro: es el propio PNG. */
+.duel-header-photo > .duel-header-crest {
+  position: absolute; top: 5px; left: 5px; z-index: 3;
+  width: 22px; height: 22px; padding: 0;
+  border-radius: 0; background: none; box-shadow: none;
+  object-fit: contain; filter: drop-shadow(0 1px 3px rgba(0, 0, 0, .3));
+}
+
+/* El jugador se apoya en la base de la tarjeta. */
+.duel-header-photo .comparison-player-photo-frame { z-index: 2; }
+.duel-header-photo .comparison-player-image {
+  object-fit: contain; object-position: center bottom; filter: none;
+}
+.duel-header-initials { color: color-mix(in srgb, var(--player-color) 62%, #7b8a90); }
+/* El dorsal sale de la tarjeta clara y se apoya sobre la cinta. */
+.duel-header-number { top: 1px; right: 4px; color: rgba(255, 255, 255, .5); }
+/* El halo antiguo queda desactivado: la tarjeta ya aporta el fondo. */
+.duel-header-photo > .duel-header-glow { display: none !important; }
