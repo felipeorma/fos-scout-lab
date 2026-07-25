@@ -125,6 +125,11 @@ const EN: Record<string, string> = {
   "Escribe tu lectura de la comparación: contexto, rol y recomendación.": "Write your read of the comparison: context, role and recommendation.",
   "Aparece dentro de la hoja, debajo de la comparación, respetando los márgenes de la página.": "It appears inside the sheet, below the comparison, respecting the page margins.",
 
+  "Ajuste de la foto": "Photo fit",
+  "Ajuste de la foto de {p}": "Photo fit for {p}",
+  "Automático": "Automatic",
+  "Rellenar": "Fill",
+
   // ---- Workflow ----
   "Flujo del reporte": "Report workflow",
   "01 · Base de datos": "01 · Database",

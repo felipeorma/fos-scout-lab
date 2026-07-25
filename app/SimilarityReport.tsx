@@ -32,6 +32,8 @@ export type SimilarityReportPlayer = {
   labelColor: string;
   labelTransparency: number;
   photoScale: number;
+  /** cómo encaja la foto en su marco: completa, recortada o encuadre automático */
+  photoFit?: "auto" | "contain" | "cover";
 };
 
 export type SimilarityReportPayload = {
@@ -155,14 +157,14 @@ function SimilarityStarScore({ similarity }: { similarity: number }) {
  * Si la imagen no se puede leer (otro origen sin CORS), se deja el encuadre
  * clásico y la foto sigue viéndose.
  */
-function PlayerPortrait({ src, alt, photoScale }: { src: string; alt: string; photoScale: number }) {
+function PlayerPortrait({ src, alt, photoScale, fit = "auto" }: { src: string; alt: string; photoScale: number; fit?: "auto" | "contain" | "cover" }) {
   const frameRef = useRef<HTMLSpanElement>(null);
   const [style, setStyle] = useState<CSSProperties | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     const frame = frameRef.current;
-    if (!src || !frame) return;
+    if (!src || !frame || fit !== "auto") return;
     const image = new Image();
     image.crossOrigin = "anonymous";
     image.onload = () => {
@@ -191,35 +193,31 @@ function PlayerPortrait({ src, alt, photoScale }: { src: string; alt: string; ph
     };
     image.src = src;
     return () => { cancelled = true; };
-  }, [src, photoScale]);
+  }, [src, photoScale, fit]);
 
-  return <span ref={frameRef} className={`comparison-player-photo-frame ${style ? "is-framed" : ""}`} style={style ? undefined : { "--photo-scale": photoScale / 100 } as CSSProperties}>
+  return <span ref={frameRef} className={`comparison-player-photo-frame fit-${fit} ${style ? "is-framed" : ""}`} style={style ? undefined : { "--photo-scale": photoScale / 100 } as CSSProperties}>
     <ReportImage src={src} alt={alt} className="comparison-player-image" style={style ?? undefined} />
   </span>;
 }
 
-function ComparisonPlayer({ player, label }: { player: SimilarityReportPlayer; label: string }) {
-  const { profile, name, team, position, age, passport, color, photoScale } = player;
-  return <article className="comparison-player-card" style={{ "--player-color": color } as CSSProperties}>
-    <header>
-      <span>{label}</span>
-      {profile.clubLogo
-        ? <ReportImage src={profile.clubLogo} alt={profile.club || team} className="comparison-club-logo" />
-        : <span className="comparison-club-fallback">{team.slice(0, 2).toUpperCase()}</span>}
-    </header>
-    <div className="comparison-player-portrait">
+function HeaderPlayer({ player, label, side }: { player: SimilarityReportPlayer; label: string; side: "left" | "right" }) {
+  const { profile, name, team, position, age, passport, color, photoScale, photoFit } = player;
+  return <div className={`duel-header-player ${side}`} style={{ "--player-color": color } as CSSProperties}>
+    <div className="duel-header-photo">
       {profile.playerImage
-        ? <PlayerPortrait key={`${profile.playerImage.slice(-40)}-${photoScale}`} src={profile.playerImage} alt={name} photoScale={photoScale} />
-        : <span>{name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("")}</span>}
+        ? <PlayerPortrait key={`${profile.playerImage.slice(-40)}-${photoScale}-${photoFit ?? "auto"}`} src={profile.playerImage} alt={name} photoScale={photoScale} fit={photoFit ?? "auto"} />
+        : <span className="duel-header-initials">{name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("")}</span>}
+      {profile.clubLogo && <ReportImage src={profile.clubLogo} alt={profile.club || team} className="duel-header-crest" />}
     </div>
-    <div className="comparison-player-copy">
-      <h3>{name}</h3>
-      <b>{profile.club || team}</b>
-      <p>{formatPlayerPositions(profile.position || position)}</p>
+    <div className="duel-header-copy">
+      <span className="duel-header-role">{label}</span>
+      <b>{name}</b>
+      <em>{profile.club || team}</em>
+      <small>{formatPlayerPositions(profile.position || position)}</small>
       <small>{tf("{age} años · {passport}", { age: profile.age || age, passport: profile.citizenship || passport })}</small>
-      {profile.marketValue && <strong className="comparison-market-value"><span>{profile.marketValue}</span><ReportImage src={TRANSFERMARKT_LOGO} alt="Transfermarkt" className="comparison-transfermarkt-logo" /></strong>}
+      {profile.marketValue && <strong className="duel-header-value">{profile.marketValue}<ReportImage src={TRANSFERMARKT_LOGO} alt="Transfermarkt" className="duel-header-tm" /></strong>}
     </div>
-  </article>;
+  </div>;
 }
 
 function MetricGroupLegend({ metrics, cohort }: { metrics: SimilarityMetricComparison[]; cohort: string }) {
@@ -249,18 +247,16 @@ export function SimilarityReportMain({ payload }: { payload: SimilarityReportPay
   const { target, candidate, metrics } = payload;
   return <div className="similarity-report-main" data-metric-density={similarityMetricDensity(metrics.length)}>
     <header className="similarity-report-header duel-header">
-      <div className="duel-header-player left" style={{ "--player-color": target.color } as CSSProperties}><span>{t("JUGADOR OBJETIVO")}</span><b>{target.name}</b></div>
+      <HeaderPlayer player={target} label={t("JUGADOR OBJETIVO")} side="left" />
       <div className="duel-header-center"><SimilarityStarScore similarity={payload.similarity} /><small><span className="report-lupa"><Search size={9} /></span> {t("COMPARACIÓN DE JUGADORES")} · {tf("Percentiles posicionales · {src}", { src: t(payload.sourceName) })}</small></div>
-      <div className="duel-header-player right" style={{ "--player-color": candidate.color } as CSSProperties}><span>{t("JUGADOR COMPARABLE")}</span><b>{candidate.name}</b></div>
+      <HeaderPlayer player={candidate} label={t("JUGADOR COMPARABLE")} side="right" />
     </header>
     <div className="similarity-report-body">
-      <div className="similarity-showdown">
-        <ComparisonPlayer player={target} label={t("JUGADOR OBJETIVO")} />
+      <div className="similarity-showdown radar-only">
         <div className="similarity-radar-column">
           <ComparisonRadar metrics={metrics} metricCohort={payload.metricCohort} targetName={target.name} candidateName={candidate.name} targetColor={target.color} candidateColor={candidate.color} targetLabelColor={target.labelColor} candidateLabelColor={candidate.labelColor} targetLabelTransparency={target.labelTransparency} candidateLabelTransparency={candidate.labelTransparency} />
           <MetricGroupLegend metrics={metrics} cohort={payload.metricCohort} />
         </div>
-        <ComparisonPlayer player={candidate} label={t("JUGADOR COMPARABLE")} />
       </div>
       <div className="similarity-metric-section">
         <div className="similarity-metric-head"><span style={{ color: target.color }}>{target.name}</span><b>{t("COMPARATIVA MÉTRICA A MÉTRICA")}</b><span style={{ color: candidate.color }}>{candidate.name}</span></div>

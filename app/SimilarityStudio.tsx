@@ -588,6 +588,8 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
   const [exportBusy, setExportBusy] = useState(false);
   const [exportStatus, setExportStatus] = useState("");
   const [comparisonNote, setComparisonNote] = useState("");
+  const [targetPhotoFit, setTargetPhotoFit] = useState<"auto" | "contain" | "cover">("auto");
+  const [candidatePhotoFit, setCandidatePhotoFit] = useState<"auto" | "contain" | "cover">("auto");
   const reportSheetRef = useRef<HTMLElement>(null);
   const options = useMemo(() => similarityOptions(rows), [rows]);
   const secondaryOptions = useMemo(() => secondaryRoleOptions(rows, position), [rows, position]);
@@ -637,6 +639,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
         labelColor: targetLabelColor,
         labelTransparency: targetLabelTransparency,
         photoScale: targetPhotoScale,
+        photoFit: targetPhotoFit,
       },
       candidate: {
         profile: candidateProfile,
@@ -649,6 +652,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
         labelColor: candidateLabelColor,
         labelTransparency: candidateLabelTransparency,
         photoScale: candidatePhotoScale,
+        photoFit: candidatePhotoFit,
       },
       metrics: selectedCandidate.metrics,
     };
@@ -1017,8 +1021,8 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
 
             <section className="similarity-color-panel">
               <div className="similarity-color-heading"><span>{t("PALETA DE COMPARACIÓN")}</span><b>{t("Personaliza jugadores y labels")}</b><small>{t("Define el color del jugador, el color del label de percentil y la transparencia de su fondo.")}</small></div>
-              <PalettePicker label={t("Jugador objetivo")} player={search.target.player} color={targetColor} labelColor={targetLabelColor} labelTransparency={targetLabelTransparency} photoScale={targetPhotoScale} colors={paletteColors} onChange={setTargetColorChoice} onLabelColorChange={setTargetLabelColorChoice} onLabelTransparencyChange={setTargetLabelTransparency} onPhotoScaleChange={setTargetPhotoScale} />
-              <PalettePicker label={t("Jugador comparable")} player={selectedCandidate.name} color={candidateColor} labelColor={candidateLabelColor} labelTransparency={candidateLabelTransparency} photoScale={candidatePhotoScale} colors={paletteColors} onChange={setCandidateColorChoice} onLabelColorChange={setCandidateLabelColorChoice} onLabelTransparencyChange={setCandidateLabelTransparency} onPhotoScaleChange={setCandidatePhotoScale} />
+              <PalettePicker label={t("Jugador objetivo")} player={search.target.player} color={targetColor} labelColor={targetLabelColor} labelTransparency={targetLabelTransparency} photoScale={targetPhotoScale} photoFit={targetPhotoFit} onPhotoFitChange={setTargetPhotoFit} colors={paletteColors} onChange={setTargetColorChoice} onLabelColorChange={setTargetLabelColorChoice} onLabelTransparencyChange={setTargetLabelTransparency} onPhotoScaleChange={setTargetPhotoScale} />
+              <PalettePicker label={t("Jugador comparable")} player={selectedCandidate.name} color={candidateColor} labelColor={candidateLabelColor} labelTransparency={candidateLabelTransparency} photoScale={candidatePhotoScale} photoFit={candidatePhotoFit} onPhotoFitChange={setCandidatePhotoFit} colors={paletteColors} onChange={setCandidateColorChoice} onLabelColorChange={setCandidateLabelColorChoice} onLabelTransparencyChange={setCandidateLabelTransparency} onPhotoScaleChange={setCandidatePhotoScale} />
             </section>
 
             <section ref={reportSheetRef} className="similarity-report-sheet">
@@ -1076,7 +1080,7 @@ function ProfileEnrichment({ side, label, player, color, profile, busy, backgrou
   </article>;
 }
 
-function PalettePicker({ label, player, color, labelColor, labelTransparency, photoScale = 100, colors, onChange, onLabelColorChange, onLabelTransparencyChange, onPhotoScaleChange }: { label: string; player: string; color: string; labelColor: string; labelTransparency: number; photoScale?: number; colors: string[]; onChange: (color: string) => void; onLabelColorChange: (color: string) => void; onLabelTransparencyChange: (value: number) => void; onPhotoScaleChange?: (value: number) => void }) {
+function PalettePicker({ label, player, color, labelColor, labelTransparency, photoScale = 100, photoFit = "auto", colors, onChange, onLabelColorChange, onLabelTransparencyChange, onPhotoScaleChange, onPhotoFitChange }: { label: string; player: string; color: string; labelColor: string; labelTransparency: number; photoScale?: number; photoFit?: "auto" | "contain" | "cover"; colors: string[]; onChange: (color: string) => void; onLabelColorChange: (color: string) => void; onLabelTransparencyChange: (value: number) => void; onPhotoScaleChange?: (value: number) => void; onPhotoFitChange?: (value: "auto" | "contain" | "cover") => void }) {
   const labelOpacity = `${100 - labelTransparency}%`;
   return <div className="similarity-palette-picker">
     <div><span>{label}</span><b><i style={{ backgroundColor: color }} />{player}</b></div>
@@ -1087,6 +1091,14 @@ function PalettePicker({ label, player, color, labelColor, labelTransparency, ph
       <label className="label-color-control"><span>{t("Color")}</span><input type="color" value={labelColor} onChange={(event) => onLabelColorChange(event.target.value)} aria-label={tf("Color del label de percentil de {p}", { p: player })} /></label>
       <label className="label-transparency-control"><span>{t("Transparencia del fondo")} <b>{labelTransparency}%</b></span><input type="range" min="0" max="100" step="1" value={labelTransparency} onChange={(event) => onLabelTransparencyChange(Number(event.target.value))} aria-label={tf("Transparencia del label de percentil de {p}", { p: player })} /></label>
     </div>
+    {onPhotoFitChange && <div className="photo-fit-control" role="group" aria-label={tf("Ajuste de la foto de {p}", { p: player })}>
+      <span>{t("Ajuste de la foto")}</span>
+      <div>
+        {([["auto", t("Automático")], ["contain", t("Completa")], ["cover", t("Rellenar")]] as Array<["auto" | "contain" | "cover", string]>).map(([mode, texto]) => (
+          <button key={mode} type="button" className={photoFit === mode ? "active" : ""} onClick={() => onPhotoFitChange(mode)}>{texto}</button>
+        ))}
+      </div>
+    </div>}
     {onPhotoScaleChange && <label className="photo-scale-control"><span>{t("Tamaño de la foto")} <b>{photoScale}%</b></span><input type="range" min="60" max="140" step="5" value={photoScale} onChange={(event) => onPhotoScaleChange(Number(event.target.value))} aria-label={tf("Tamaño de la foto de {p}", { p: player })} /></label>}
   </div>;
 }

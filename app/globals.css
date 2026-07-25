@@ -1319,3 +1319,81 @@ body.print-layout-check .similarity-star-visual > svg { transform: none !importa
 .comparison-player-photo-frame.is-framed > .comparison-player-image {
   width: auto; height: auto; max-width: none; object-fit: fill; object-position: initial;
 }
+
+/* ---- Jugadores dentro de la cinta azul de la Página 2 ----
+   Las fichas grandes desaparecieron del cuerpo: foto, identidad y valor viven
+   en el encabezado para que toda la página entre en una hoja legal. */
+.similarity-report-header.duel-header { align-items: stretch; gap: 18px; padding: 14px 30px 16px; }
+.duel-header-player { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: end; }
+.duel-header-player.right { grid-template-columns: minmax(0, 1fr) auto; }
+.duel-header-player.right .duel-header-photo { order: 2; }
+.duel-header-player.right .duel-header-copy { order: 1; text-align: right; }
+
+/* La foto conserva la proporción del retrato de Transfermarkt (139×181). */
+.duel-header-photo {
+  position: relative; width: 78px; aspect-ratio: 139 / 181; flex: none;
+  overflow: hidden; border-radius: 10px;
+  background: linear-gradient(165deg, color-mix(in srgb, var(--player-color) 52%, transparent), color-mix(in srgb, var(--player-color) 16%, transparent));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--player-color) 70%, transparent);
+}
+.duel-header-photo .comparison-player-photo-frame { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.duel-header-photo .comparison-player-image { width: 100%; height: 100%; filter: none; }
+.duel-header-initials {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  color: rgba(255, 255, 255, .9); font-family: var(--font-oswald), sans-serif; font-size: 26px;
+}
+.duel-header-crest { position: absolute; right: 3px; bottom: 3px; width: 21px; height: 21px; object-fit: contain; border-radius: 5px; background: rgba(255, 255, 255, .94); padding: 2px; }
+
+.duel-header-copy { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.duel-header-role {
+  align-self: start; margin-bottom: 3px; padding: 2px 8px; border-radius: 99px;
+  background: var(--player-color); color: #fff;
+  font-size: 6px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+}
+.duel-header-player.right .duel-header-role { align-self: end; }
+.duel-header-copy > b {
+  overflow: hidden; color: #fff; font-family: var(--font-oswald), sans-serif;
+  font-size: 18px; line-height: 1.05; text-overflow: ellipsis; white-space: nowrap; text-transform: uppercase;
+}
+.duel-header-copy > em { color: color-mix(in srgb, var(--player-color) 55%, #fff); font-size: 9px; font-style: normal; font-weight: 700; }
+.duel-header-copy > small { overflow: hidden; color: rgba(255, 255, 255, .62); font-size: 7.5px; text-overflow: ellipsis; white-space: nowrap; }
+.duel-header-value {
+  margin-top: 3px; display: flex; align-items: center; gap: 6px;
+  color: #fff; font-family: var(--font-oswald), sans-serif; font-size: 14px;
+}
+.duel-header-player.right .duel-header-value { justify-content: flex-end; }
+.duel-header-tm { width: 54px; height: 15px; flex: none; padding: 1px; border-radius: 3px; background: #fff; object-fit: contain; }
+
+/* El cuerpo queda solo con el radar, que ahora ocupa todo el ancho. */
+.similarity-showdown.radar-only { display: block; margin-top: 0; }
+.similarity-showdown.radar-only .similarity-radar-column { width: 100%; max-width: 780px; margin: 0 auto; padding-top: 4px; }
+
+/* Modos de encuadre elegibles cuando la foto no encaja sola. */
+.comparison-player-photo-frame.fit-contain > .comparison-player-image { object-fit: contain; object-position: center; }
+.comparison-player-photo-frame.fit-cover > .comparison-player-image { object-fit: cover; object-position: center top; }
+
+/* ---- Selector de encuadre de la foto ---- */
+.photo-fit-control { margin-top: 8px; display: flex; flex-direction: column; gap: 5px; }
+.photo-fit-control > span { color: var(--report-muted); font-size: 7px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.photo-fit-control > div { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.photo-fit-control button {
+  padding: 5px 6px; border: 1px solid var(--report-line); border-radius: 7px;
+  background: transparent; color: var(--report-muted);
+  font-size: 9px; font-weight: 700; cursor: pointer;
+  transition: border-color .15s ease, color .15s ease, background .15s ease;
+}
+.photo-fit-control button.active { border-color: var(--report-accent); color: var(--report-accent); background: color-mix(in srgb, var(--report-accent) 10%, transparent); }
+
+/* ---- La Página 2 debe caber en UNA hoja legal ----
+   Con las fichas ya en la cinta, el espacio se reparte entre un radar más
+   contenido y la comparativa métrica a dos columnas. */
+.similarity-showdown.radar-only .similarity-radar-column { max-width: 560px; }
+.similarity-report-sheet .similarity-metric-section { margin-top: 12px; padding-top: 10px; }
+.similarity-report-sheet .metric-comparison-list {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 26px; align-content: start;
+}
+.similarity-report-sheet .metric-duel { padding: 5px 0 6px; }
+.similarity-report-sheet .metric-duel-head { margin-bottom: 4px; }
+/* Con muchas métricas el bloque se aprieta un poco más para no desbordar. */
+.similarity-report-main[data-metric-density="compact"] .metric-duel { padding: 3px 0 4px; }
+.similarity-report-main[data-metric-density="compact"] .metric-duel-bar { height: 11px; }
