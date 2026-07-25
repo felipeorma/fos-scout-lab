@@ -291,7 +291,23 @@ body.is-resizing-report-block, body.is-resizing-report-block * { cursor: nwse-re
 .similarity-comparison-block .visual-image-slot { background: var(--report-paper); }
 .similarity-native-block { height: auto !important; overflow: hidden; background: var(--report-paper); }
 .similarity-native-content { width: 100%; overflow: hidden; }
-.similarity-native-content > .similarity-report-main { width: 100%; border-radius: 0; }
+.similarity-native-content > .similarity-report-main,
+.similarity-native-content .similarity-report-body,
+.similarity-native-content .similarity-showdown { width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; }
+.similarity-native-content > .similarity-report-main { border-radius: 0; }
+.similarity-native-content .similarity-report-header { min-height: 122px; padding: 16px 28px 32px; display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr); }
+.similarity-native-content .duel-header-player { min-width: 0; }
+.similarity-native-content .duel-header-player.right { justify-self: end; text-align: right; }
+.similarity-native-content .duel-header-center { justify-self: center; }
+.similarity-native-content .similarity-report-body { padding: 0 18px 12px; }
+.similarity-native-content .similarity-showdown { margin-top: -18px; grid-template-columns: minmax(0,1fr) minmax(0,2.15fr) minmax(0,1fr); gap: 14px; }
+.similarity-native-content .comparison-player-card,
+.similarity-native-content .similarity-radar-column,
+.similarity-native-content .comparison-radar-wrap { width: 100%; max-width: 100%; min-width: 0; }
+.similarity-native-content .similarity-radar-column { padding-top: 18px; }
+.similarity-native-content .comparison-player-copy { min-width: 0; }
+.similarity-native-content .comparison-player-copy p,
+.similarity-native-content .comparison-player-copy small { overflow-wrap: anywhere; }
 .native-similarity-note { margin: 0; padding: 11px; border: 1px solid color-mix(in srgb,var(--designer-accent) 24%,transparent); border-radius: 8px; color: var(--designer-text); background: color-mix(in srgb,var(--designer-accent) 8%,transparent); }
 .native-similarity-note b, .native-similarity-note span { display: block; }.native-similarity-note b { font-size: 9px; }.native-similarity-note span { margin-top: 4px; color: color-mix(in srgb,var(--designer-text) 68%,transparent); font-size: 8px; line-height: 1.45; }
 .visual-text-content { height: calc(100% - 34px); padding: clamp(18px, 3vw, 34px); display: flex; align-items: center; overflow: hidden; line-height: 1.55; white-space: pre-wrap; }
@@ -809,6 +825,10 @@ body::before { position: fixed; inset: 0; z-index: -1; pointer-events: none; bac
   .similarity-enrichment-card { grid-template-columns: 104px minmax(0,1fr); }.enrichment-profile-preview { min-height: 190px; }.enrichment-profile-copy form { grid-template-columns: 1fr; }.enrichment-profile-copy form button { justify-content: center; }
   .similarity-color-panel { grid-template-columns: 1fr; gap: 13px; }.similarity-color-heading { grid-column: 1; }.similarity-palette-picker, .similarity-palette-picker:first-of-type { padding: 12px 0 0; border-top: 1px solid var(--report-line); border-left: 0; }
   .similarity-report-header { padding: 20px 18px; }.similarity-report-header > div > b { font-size: 20px; }.similarity-report-body { padding: 18px 14px 10px; }.similarity-showdown { grid-template-columns: 1fr; }.similarity-radar-column { grid-column: 1; grid-row: auto; }.comparison-player-card:first-child, .comparison-player-card:last-child { grid-column: 1; }.comparison-player-card { display: grid; grid-template-columns: 105px minmax(0,1fr); }.comparison-player-card > header { grid-column: 1 / -1; }.comparison-player-portrait { height: 150px; }.similarity-metric-head { grid-template-columns: 1fr 1fr; }.similarity-metric-head b { grid-column: 1 / -1; grid-row: 1; }.similarity-metric-head span:last-child { text-align: right; }.similarity-report-sheet .metric-comparison-row { grid-template-columns: 1fr 82px 1fr; gap: 7px; }.similarity-report-sheet .metric-player-bar > span { display: none; }.similarity-report-footer { padding-right: 14px; padding-left: 14px; }.comparison-radar-label { font-size: 9px; }.comparison-radar-percentile text { font-size: 8px; }
+  .similarity-native-content .similarity-report-header { min-height: 128px; padding: 20px 18px; display: flex; }
+  .similarity-native-content .similarity-report-body { padding: 18px 14px 10px; }
+  .similarity-native-content .similarity-showdown { margin-top: 0; grid-template-columns: 1fr; gap: 18px; }
+  .similarity-native-content .similarity-radar-column { padding-top: 0; }
   .report-page-tabs { overflow-x: auto; }
   .report-page-tabs button { min-width: 160px; }
   .report-page-tabs > em { display: none; }
