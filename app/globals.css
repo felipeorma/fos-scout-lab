@@ -1397,3 +1397,30 @@ body.print-layout-check .similarity-star-visual > svg { transform: none !importa
 /* Con muchas métricas el bloque se aprieta un poco más para no desbordar. */
 .similarity-report-main[data-metric-density="compact"] .metric-duel { padding: 3px 0 4px; }
 .similarity-report-main[data-metric-density="compact"] .metric-duel-bar { height: 11px; }
+
+/* ---- Retrato de la cinta con el tratamiento de la Página 1 ----
+   Sin caja de color: la foto recortada flota sobre la cinta con un halo
+   suave del color del jugador y sombra, igual que en la ficha. */
+.duel-header-photo {
+  background: none;
+  border-radius: 0;
+  overflow: visible;
+  box-shadow: none;
+}
+.duel-header-photo::before {
+  content: "";
+  position: absolute; left: 50%; bottom: 6%;
+  width: 128%; height: 96%;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--player-color) 46%, transparent) 0%, transparent 68%);
+  pointer-events: none;
+}
+.duel-header-photo .comparison-player-photo-frame { z-index: 1; }
+.duel-header-photo .comparison-player-image {
+  object-fit: contain;
+  object-position: center bottom;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, .42));
+}
+/* El escudo se mantiene legible sobre la cinta, ya sin la caja de la foto. */
+.duel-header-crest { z-index: 2; box-shadow: 0 2px 6px rgba(0, 0, 0, .35); }
