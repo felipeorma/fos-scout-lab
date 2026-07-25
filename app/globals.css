@@ -1626,3 +1626,31 @@ body.print-layout-check .similarity-star-visual > svg { transform: none !importa
 .duel-header-number { top: 1px; right: 4px; color: rgba(255, 255, 255, .5); }
 /* El halo antiguo queda desactivado: la tarjeta ya aporta el fondo. */
 .duel-header-photo > .duel-header-glow { display: none !important; }
+
+/* ---- Origen del "óvalo feo": una regla genérica heredada ----
+   `.duel-header-player span` pintaba la píldora del color del jugador sobre
+   CUALQUIER span del bloque, incluidos el marco de la foto y el halo, que se
+   veían como un óvalo de 99 px de radio detrás del retrato. La píldora se
+   restringe al chip de rol. */
+.duel-header-player span:not(.duel-header-role) {
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font-size: inherit;
+  letter-spacing: normal;
+  text-transform: none;
+  margin-bottom: 0;
+}
+.duel-header-photo .comparison-player-photo-frame,
+.duel-header-glow,
+.duel-header-initials {
+  background: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+}
+.duel-header-initials {
+  display: grid; place-items: center;
+  color: color-mix(in srgb, var(--player-color) 60%, #7b8a90) !important;
+  font-family: var(--font-oswald), sans-serif; font-size: 24px !important;
+}
