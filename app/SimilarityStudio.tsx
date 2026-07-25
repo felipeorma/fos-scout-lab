@@ -588,6 +588,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
   const [exportBusy, setExportBusy] = useState(false);
   const [exportStatus, setExportStatus] = useState("");
   const reportSheetRef = useRef<HTMLElement>(null);
+  const reportContentRef = useRef<HTMLDivElement>(null);
   const options = useMemo(() => similarityOptions(rows), [rows]);
   const secondaryOptions = useMemo(() => secondaryRoleOptions(rows, position), [rows, position]);
   const targetTeams = useMemo(() => [...new Set(targets.map((target) => target.team))].sort(alphabeticCollator.compare), [targets]);
@@ -827,9 +828,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     return false;
   }
 
-  async function captureVisibleReport() {
-    const reportSheet = reportSheetRef.current;
-    if (!reportSheet) throw new Error("report-not-ready");
+  async function captureReportNode(reportSheet: HTMLElement, scale: number) {
     await document.fonts?.ready;
     await Promise.all(Array.from(reportSheet.querySelectorAll("img")).map(async (image) => {
       try {
@@ -841,13 +840,19 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     }));
     const { domToPng } = await import("modern-screenshot");
     return domToPng(reportSheet, {
-      scale: 2,
+      scale,
       backgroundColor: theme.paper,
       timeout: 30_000,
       fetchFn: exportAssetDataUrl,
       fetch: { bypassingCache: true },
       features: { restoreScrollPosition: true },
     });
+  }
+
+  async function captureVisibleReport() {
+    const reportSheet = reportSheetRef.current;
+    if (!reportSheet) throw new Error("report-not-ready");
+    return captureReportNode(reportSheet, 2);
   }
 
   async function downloadComparison() {
@@ -897,10 +902,12 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
   async function addComparisonToReport() {
     setExportBusy(true);
     try {
-      const image = await createImage(true);
+      const image = reportContentRef.current
+        ? await captureReportNode(reportContentRef.current, 1).catch(() => createImage(true))
+        : await createImage(true);
       if (!image || !selectedCandidate || !search?.target) return;
       window.localStorage.setItem("fos-scout-similarity-comparison-v1", JSON.stringify({ image, title: tf("Similitud · {a} vs. {b}", { a: search.target.player, b: selectedCandidate.name }), createdAt: Date.now() }));
-      setExportStatus(t("✓ Comparación agregada a la Página 2 con formato completo y alineado."));
+      setExportStatus(t("✓ Reporte exacto agregado a la Página 2 con un espacio editable para comentarios."));
       onOpenReports();
     } catch {
       setExportStatus(t("No se pudo guardar la comparación. Descárgala como PNG y súbela manualmente."));
@@ -982,18 +989,20 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
             </section>
 
             <section ref={reportSheetRef} className="similarity-report-sheet">
-              <header className="similarity-report-header duel-header">
-                <div className="duel-header-player left" style={{ "--player-color": targetColor } as CSSProperties}><span>{t("JUGADOR OBJETIVO")}</span><b>{search.target.player}</b></div>
-                <div className="duel-header-center"><SimilarityStarScore similarity={selectedCandidate.similarity} /><small><span className="report-lupa"><Search size={9} /></span> {t("COMPARACIÓN DE JUGADORES")} · {tf("Percentiles posicionales · {src}", { src: t(sourceName) })}</small></div>
-                <div className="duel-header-player right" style={{ "--player-color": candidateColor } as CSSProperties}><span>{t("JUGADOR COMPARABLE")}</span><b>{selectedCandidate.name}</b></div>
-              </header>
-              <div className="similarity-report-body">
-                <div className="similarity-showdown">
-                  <ComparisonPlayer profile={targetProfile} name={search.target.player} team={search.target.team} position={search.target.position} age={search.target.age} passport={search.target.passport} label={t("JUGADOR OBJETIVO")} color={targetColor} photoScale={targetPhotoScale} />
-                  <div className="similarity-radar-column"><ComparisonRadar metrics={selectedCandidate.metrics} metricCohort={search.target.cohort} targetName={search.target.player} candidateName={selectedCandidate.name} targetColor={targetColor} candidateColor={candidateColor} targetLabelColor={targetLabelColor} candidateLabelColor={candidateLabelColor} targetLabelTransparency={targetLabelTransparency} candidateLabelTransparency={candidateLabelTransparency} /><MetricGroupLegend metrics={selectedCandidate.metrics} cohort={search.target.cohort} /></div>
-                  <ComparisonPlayer profile={candidateProfile} name={selectedCandidate.name} team={selectedCandidate.team} position={selectedCandidate.position} age={selectedCandidate.age === null ? "—" : String(selectedCandidate.age)} passport={selectedCandidate.passport} label={t("JUGADOR COMPARABLE")} color={candidateColor} photoScale={candidatePhotoScale} />
+              <div ref={reportContentRef} className="similarity-report-main">
+                <header className="similarity-report-header duel-header">
+                  <div className="duel-header-player left" style={{ "--player-color": targetColor } as CSSProperties}><span>{t("JUGADOR OBJETIVO")}</span><b>{search.target.player}</b></div>
+                  <div className="duel-header-center"><SimilarityStarScore similarity={selectedCandidate.similarity} /><small><span className="report-lupa"><Search size={9} /></span> {t("COMPARACIÓN DE JUGADORES")} · {tf("Percentiles posicionales · {src}", { src: t(sourceName) })}</small></div>
+                  <div className="duel-header-player right" style={{ "--player-color": candidateColor } as CSSProperties}><span>{t("JUGADOR COMPARABLE")}</span><b>{selectedCandidate.name}</b></div>
+                </header>
+                <div className="similarity-report-body">
+                  <div className="similarity-showdown">
+                    <ComparisonPlayer profile={targetProfile} name={search.target.player} team={search.target.team} position={search.target.position} age={search.target.age} passport={search.target.passport} label={t("JUGADOR OBJETIVO")} color={targetColor} photoScale={targetPhotoScale} />
+                    <div className="similarity-radar-column"><ComparisonRadar metrics={selectedCandidate.metrics} metricCohort={search.target.cohort} targetName={search.target.player} candidateName={selectedCandidate.name} targetColor={targetColor} candidateColor={candidateColor} targetLabelColor={targetLabelColor} candidateLabelColor={candidateLabelColor} targetLabelTransparency={targetLabelTransparency} candidateLabelTransparency={candidateLabelTransparency} /><MetricGroupLegend metrics={selectedCandidate.metrics} cohort={search.target.cohort} /></div>
+                    <ComparisonPlayer profile={candidateProfile} name={selectedCandidate.name} team={selectedCandidate.team} position={selectedCandidate.position} age={selectedCandidate.age === null ? "—" : String(selectedCandidate.age)} passport={selectedCandidate.passport} label={t("JUGADOR COMPARABLE")} color={candidateColor} photoScale={candidatePhotoScale} />
+                  </div>
+                  <div className="similarity-metric-section"><div className="similarity-metric-head"><span style={{ color: targetColor }}>{search.target.player}</span><b>{t("COMPARATIVA MÉTRICA A MÉTRICA")}</b><span style={{ color: candidateColor }}>{selectedCandidate.name}</span></div><div className="metric-comparison-list">{selectedCandidate.metrics.map((metric) => <MetricComparison key={metric.key} metric={metric} targetName={search.target.player} candidateName={selectedCandidate.name} targetColor={targetColor} candidateColor={candidateColor} />)}</div></div>
                 </div>
-                <div className="similarity-metric-section"><div className="similarity-metric-head"><span style={{ color: targetColor }}>{search.target.player}</span><b>{t("COMPARATIVA MÉTRICA A MÉTRICA")}</b><span style={{ color: candidateColor }}>{selectedCandidate.name}</span></div><div className="metric-comparison-list">{selectedCandidate.metrics.map((metric) => <MetricComparison key={metric.key} metric={metric} targetName={search.target.player} candidateName={selectedCandidate.name} targetColor={targetColor} candidateColor={candidateColor} />)}</div></div>
               </div>
               <footer className="dossier-footer similarity-report-footer"><p>{tf("Percentiles P0–P100 · métricas comunes {n}% · {w}.", { n: selectedCandidate.coverage, w: activeMetricWeights ? tf("{n} ponderaciones personalizadas activas", { n: activeMetricWeights }) : t("pesos métricos uniformes") })}</p><div className="report-signatures"><div className="report-author"><span>{t("ELABORADO POR")}</span><b>FELIPE ORMAZABAL</b><small>SCOUTING REPORT</small></div><div className="report-recipient">{recipientLogoReady ? <ReportImage src={recipientLogoUrl.trim()} alt={reportRecipient} className="dossier-footer-club-logo" /> : <span className="dossier-footer-club-fallback">{reportRecipient.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span>}<div><span>{t("REPORTE GENERADO PARA")}</span><b>{reportRecipient}</b></div></div></div></footer>
             </section>

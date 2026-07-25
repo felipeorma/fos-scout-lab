@@ -62,7 +62,8 @@ type ResizeSession = {
 const MIN_BLOCK_HEIGHT = 140;
 const MAX_BLOCK_HEIGHT = 900;
 const SIMILARITY_BLOCK_ID = "p2-similarity-comparison";
-const SIMILARITY_BLOCK_HEIGHT = 790;
+const SIMILARITY_NOTES_BLOCK_ID = "p2-similarity-notes";
+const SIMILARITY_BLOCK_HEIGHT = 900;
 
 const SHARED_TEXT_COLORS = new Set([
   ...REPORT_THEMES.map((theme) => theme.ink.toLowerCase()),
@@ -135,19 +136,6 @@ function updateBlock(config: PageConfig, id: string, patch: Partial<PageBlock>) 
   return { ...config, blocks: config.blocks.map((block) => block.id === id ? { ...block, ...patch } : block) };
 }
 
-function isEmptyDefaultVisualLayout(config: PageConfig) {
-  const defaultBlocks = defaultPages()[2].blocks;
-  const blocksWithoutComparison = config.blocks.filter((block) => block.id !== SIMILARITY_BLOCK_ID);
-  return blocksWithoutComparison.length === 0 || (
-    blocksWithoutComparison.length === defaultBlocks.length
-    && blocksWithoutComparison.every((block, index) => (
-      block.id === defaultBlocks[index].id
-      && block.type === "image"
-      && !block.image
-    ))
-  );
-}
-
 function normalizeSimilarityBlock(config: PageConfig) {
   return {
     ...config,
@@ -206,14 +194,25 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
               height: SIMILARITY_BLOCK_HEIGHT,
               fit: "contain" as const,
             };
-            const replaceEmptyTemplate = isEmptyDefaultVisualLayout(page);
-            const remainingBlocks = page.blocks.filter((block) => block.id !== SIMILARITY_BLOCK_ID);
+            const existingNotes = page.blocks.find((block) => block.id === SIMILARITY_NOTES_BLOCK_ID && block.type === "text");
+            const notes = {
+              ...(existingNotes ?? textBlock(
+                SIMILARITY_NOTES_BLOCK_ID,
+                t("Comentario del scout"),
+                t("Agrega aquí tu lectura, contexto o recomendación sobre la comparación."),
+                page.columns,
+                160,
+              )),
+              span: page.columns,
+              height: 160,
+              color: existingNotes?.color ?? DEFAULT_REPORT_THEME.ink,
+            };
             nextPages = {
               ...nextPages,
               2: {
                 ...page,
-                title: replaceEmptyTemplate ? t("Comparación de similitud") : page.title,
-                blocks: replaceEmptyTemplate ? [comparison] : [comparison, ...remainingBlocks],
+                title: t("Comparación de similitud"),
+                blocks: [comparison, notes],
               },
             };
             if (pageNumber === 2) setSelectedId(SIMILARITY_BLOCK_ID);

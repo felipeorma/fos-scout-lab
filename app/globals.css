@@ -718,6 +718,7 @@ body::before { position: fixed; inset: 0; z-index: -1; pointer-events: none; bac
 .enrichment-background-note { display: block; margin-top: 5px; color: var(--report-muted); font-size: 6.5px; line-height: 1.35; }
 .enrichment-downloads { margin-top: 8px; display: flex; gap: 6px; }.enrichment-downloads button { padding: 4px 7px; border: 1px solid var(--report-line); border-radius: 6px; color: var(--report-ink); background: var(--report-surface); font-size: 7px; cursor: pointer; }.enrichment-downloads button:disabled { cursor: not-allowed; opacity: .38; }
 .similarity-report-sheet { overflow: hidden; border-radius: 14px; color: var(--report-ink); background: var(--report-paper); box-shadow: 0 25px 70px rgba(0,0,0,.25); }
+.similarity-report-main { overflow: hidden; border-radius: 14px 14px 0 0; background: var(--report-paper); }
 .similarity-report-header { min-height: 128px; padding: 18px 28px; display: flex; align-items: center; justify-content: space-between; gap: 20px; color: #fff; background: linear-gradient(112deg,var(--report-dark),color-mix(in srgb,var(--report-dark) 82%,var(--report-accent))); box-shadow: inset 0 -4px var(--report-accent); }.similarity-report-header > div > span, .similarity-report-header > div > b, .similarity-report-header > div > small { display: block; }.similarity-report-header > div > span { color: color-mix(in srgb,var(--report-accent) 55%,white); font-size: 8px; font-weight: 750; letter-spacing: .15em; }.similarity-report-header > div > b { margin-top: 5px; font-family: var(--font-oswald),sans-serif; font-size: 25px; letter-spacing: .02em; }.similarity-report-header > div > small { margin-top: 4px; color: rgba(255,255,255,.62); font-size: 8px; }
 .similarity-star-score { min-width: 94px; display: grid; justify-items: center; flex: none; }.similarity-star-visual { position: relative; width: 72px; height: 72px; }.similarity-star-visual > svg { width: 100%; height: 100%; display: block; overflow: visible; transform-origin: center; }.similarity-star-number { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-family: var(--font-space-grotesk),sans-serif; line-height: 1; text-shadow: 0 1px 5px rgba(0,0,0,.8); pointer-events: none; }.similarity-star-number > b { font-size: 16px; }.similarity-star-number > small { margin-top: 2px; font-size: 8px; font-weight: 800; }.similarity-star-label { margin-top: 2px; color: rgba(255,255,255,.68); font-size: 7px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
 .similarity-report-body { padding: 24px 24px 12px; }
@@ -898,9 +899,10 @@ body::before { position: fixed; inset: 0; z-index: -1; pointer-events: none; bac
   .visual-report-page { width: 100% !important; max-width: none !important; height: 339mm !important; min-height: 0 !important; margin: 0 !important; box-sizing: border-box; box-shadow: none !important; overflow: hidden; break-after: page; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   .visual-block { break-inside: avoid; cursor: default !important; }
   .visual-block.selected { border-color: color-mix(in srgb, var(--designer-text) 14%, transparent) !important; box-shadow: 0 7px 18px color-mix(in srgb, var(--designer-text) 5%, transparent) !important; }
-  .similarity-comparison-block { height: 530px !important; }
+  .similarity-comparison-block { height: 900px !important; border: 0 !important; box-shadow: none !important; }
   .block-resize-handle { display: none !important; }
-  .block-chrome .ui-icon, .block-chrome small { display: none !important; }
+  .block-chrome { display: none !important; }
+  .visual-image-slot, .visual-text-content { height: 100% !important; }
   .print-dialog-overlay { display: none !important; }
   .designer-workspace { break-inside: avoid; }
   @page { size: legal portrait; margin: 8mm; }
