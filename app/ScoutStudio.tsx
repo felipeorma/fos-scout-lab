@@ -40,6 +40,7 @@ import type { TransfermarktProfile } from "@/lib/transfermarkt";
 import { formatPlayerPositions, selectedCohortPosition } from "@/lib/positions";
 import { removePlayerImageBackground } from "@/lib/playerImageBackground";
 import { fetchTransfermarktProfile } from "@/lib/remoteData";
+import { reportExportBaseName } from "@/lib/reportExportName";
 import { SIMILARITY_METRIC_GROUPS, similarityMetricGroup } from "@/lib/similarityMetricGroups";
 import { numberLocale, setActiveLang, t, tf, type Lang } from "@/lib/i18n";
 
@@ -252,6 +253,7 @@ export default function ScoutStudio() {
   const singleReportInputRef = useRef<HTMLInputElement>(null);
   const combinedReportInputRef = useRef<HTMLInputElement>(null);
   const reportInputRef = useRef<HTMLInputElement>(null);
+  const printFileNameRef = useRef("");
 
   // El idioma activo alimenta t()/tf() en todo el árbol; debe fijarse antes
   // de calcular cualquier texto del render.
@@ -273,6 +275,11 @@ export default function ScoutStudio() {
   const profileReady = Boolean(profile.sourceUrl || profile.playerImage || profile.clubLogo || profile.leagueLogo);
   const recipientName = reportRecipientName.trim() || t("Club destinatario");
   const recipientLogoReady = /^https?:\/\/\S+$/i.test(reportRecipientLogoUrl.trim());
+  const reportExportName = reportExportBaseName({
+    recipient: recipientName,
+    player: report?.player ?? "",
+    position: formatPlayerPositions(profile.position || report?.position || ""),
+  });
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -347,7 +354,23 @@ export default function ScoutStudio() {
           setPrintDialogOpen(true);
           return;
         }
-        window.print();
+        const previousTitle = document.title;
+        const exportTitle = printFileNameRef.current;
+        const restoreTitle = () => {
+          window.removeEventListener("afterprint", restoreTitle);
+          if (document.title === exportTitle) document.title = previousTitle;
+        };
+        if (exportTitle) {
+          document.title = exportTitle;
+          window.addEventListener("afterprint", restoreTitle, { once: true });
+        }
+        try {
+          window.print();
+        } finally {
+          // `afterprint` restaura el título al cerrar el diálogo. El respaldo
+          // conserva el nombre el tiempo suficiente en navegadores no bloqueantes.
+          window.setTimeout(restoreTitle, 60_000);
+        }
         document.body.classList.remove("print-layout-check");
         setPrintRun(null);
       })();
@@ -379,6 +402,11 @@ export default function ScoutStudio() {
 
   function startPrint() {
     if (!printPages.length) return;
+    printFileNameRef.current = reportExportBaseName({
+      recipient: recipientName,
+      player: report?.player ?? "",
+      position: formatPlayerPositions(profile.position || report?.position || ""),
+    });
     setPrintLayoutError("");
     setPrintDialogOpen(false);
     setPrintRun([...printPages].sort((a, b) => a - b));
@@ -831,6 +859,10 @@ export default function ScoutStudio() {
                 <div className="print-dialog" onClick={(event) => event.stopPropagation()}>
                   <h3>{t("¿Qué páginas quieres incluir en el PDF?")}</h3>
                   <p>{t("Cada página seleccionada sale en su propia hoja tamaño legal.")}</p>
+                  <div className="print-dialog-file-name">
+                    <span>{t("Nombre sugerido")}</span>
+                    <b>{reportExportName}.pdf</b>
+                  </div>
                   {([
                     [1, t("Ficha y radar"), t("Estilo Jordhy Thompson")],
                     [2, t("Visuales"), t("Mapas e imágenes")],

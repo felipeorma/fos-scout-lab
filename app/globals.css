@@ -1061,6 +1061,29 @@ body.print-layout-check .similarity-star-visual > svg { transform: none !importa
 }
 .print-dialog h3 { margin: 0 0 6px; font-size: 16px; }
 .print-dialog > p { margin: 0 0 14px; color: rgba(231, 236, 245, .62); font-size: 12px; }
+.print-dialog-file-name {
+  margin: -2px 0 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(94, 141, 255, .28);
+  border-radius: 10px;
+  background: rgba(94, 141, 255, .07);
+}
+.print-dialog-file-name span {
+  display: block;
+  margin-bottom: 3px;
+  color: rgba(231, 236, 245, .56);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.print-dialog-file-name b {
+  display: block;
+  color: #f4f7fc;
+  font-size: 11px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
 .print-dialog label {
   margin-bottom: 8px;
   padding: 10px 12px;

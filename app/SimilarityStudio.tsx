@@ -19,6 +19,7 @@ import { SIMILARITY_METRIC_GROUPS, similarityMetricGroup } from "@/lib/similarit
 import { createEmptyTransfermarktProfile, type TransfermarktProfile } from "@/lib/transfermarkt";
 import { removePlayerImageBackground } from "@/lib/playerImageBackground";
 import { canvasImageCandidates, fetchTransfermarktProfile, proxiedImageUrl } from "@/lib/remoteData";
+import { reportExportBaseName } from "@/lib/reportExportName";
 import { t, tf, numberLocale, type Lang } from "@/lib/i18n";
 
 type TargetOption = { index: number; player: string; team: string };
@@ -906,9 +907,14 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     try {
       const image = await captureVisibleReport();
       if (!image || !selectedCandidate || !search?.target) return;
+      const exportName = reportExportBaseName({
+        recipient: reportRecipient,
+        player: search.target.player,
+        position: formatPlayerPositions(targetProfile.position || search.target.position),
+      });
       const link = document.createElement("a");
       link.href = image;
-      link.download = `${safeFileName(`${t("similitud")}-${search.target.player}-${selectedCandidate.name}`)}.png`;
+      link.download = `${exportName}.png`;
       link.click();
       setExportStatus(t("✓ PNG exportado exactamente como aparece en el reporte."));
     } catch {
@@ -936,7 +942,12 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
       pdf.addImage(image, "PNG", 0, 0, pageWidth, pageHeight, undefined, "FAST");
-      pdf.save(`${safeFileName(`${t("similitud")}-${search.target.player}-${selectedCandidate.name}`)}.pdf`);
+      const exportName = reportExportBaseName({
+        recipient: reportRecipient,
+        player: search.target.player,
+        position: formatPlayerPositions(targetProfile.position || search.target.position),
+      });
+      pdf.save(`${exportName}.pdf`);
       setExportStatus(t("✓ PDF exportado exactamente como aparece en el reporte."));
     } catch {
       setExportStatus(t("No se pudo exportar el reporte. Revisa que las imágenes estén disponibles."));
