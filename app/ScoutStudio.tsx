@@ -36,6 +36,7 @@ import { formatPlayerPositions, selectedCohortPosition } from "@/lib/positions";
 import { removePlayerImageBackground } from "@/lib/playerImageBackground";
 import { fetchTransfermarktProfile } from "@/lib/remoteData";
 import { reportExportBaseName } from "@/lib/reportExportName";
+import { canonicalizeRow } from "@/lib/wyscoutHeaders";
 import { SIMILARITY_METRIC_GROUPS, similarityMetricGroup } from "@/lib/similarityMetricGroups";
 import { numberLocale, setActiveLang, t, tf, type Lang } from "@/lib/i18n";
 
@@ -63,7 +64,11 @@ function readWorkbook(file: File): Promise<SourceDataset> {
     const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
     const sheetName = workbook.SheetNames[0];
     if (!sheetName) throw new Error(tf("El archivo {name} no contiene hojas.", { name: file.name }));
-    const rows = XLSX.utils.sheet_to_json<DataRow>(workbook.Sheets[sheetName], { defval: "", raw: true });
+    // Wyscout exporta la misma plantilla en varios idiomas: las cabeceras se
+    // llevan al nombre inglés canónico para que un archivo en español y otro
+    // en inglés se lean igual y puedan combinarse entre sí.
+    const rawRows = XLSX.utils.sheet_to_json<DataRow>(workbook.Sheets[sheetName], { defval: "", raw: true });
+    const rows = rawRows.map((row) => canonicalizeRow(row) as DataRow);
     const headers = rows.length ? Object.keys(rows[0]) : [];
     if (!rows.length || !headers.length) throw new Error(tf("El archivo {name} está vacío.", { name: file.name }));
     return { fileName: file.name, season: extractSeason(file.name), headers, rows };
