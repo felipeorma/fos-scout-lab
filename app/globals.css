@@ -306,9 +306,12 @@ body.is-resizing-report-block, body.is-resizing-report-block * { cursor: nwse-re
 .similarity-native-content .similarity-radar-column,
 .similarity-native-content .comparison-radar-wrap { width: 100%; max-width: 100%; min-width: 0; }
 .similarity-native-content .similarity-radar-column { padding-top: 18px; }
-.similarity-native-content .comparison-player-copy { min-width: 0; }
+.similarity-native-content .comparison-player-portrait { height: 150px; }
+.similarity-native-content .comparison-player-copy { min-width: 0; padding: 10px 11px 11px; }
 .similarity-native-content .comparison-player-copy p,
 .similarity-native-content .comparison-player-copy small { overflow-wrap: anywhere; }
+.similarity-native-content .similarity-metric-section { margin-top: 14px; padding-top: 11px; }
+.similarity-native-content.similarity-report-sheet .metric-comparison-row { padding: 6px 0; gap: 10px; }
 .native-similarity-note { margin: 0; padding: 11px; border: 1px solid color-mix(in srgb,var(--designer-accent) 24%,transparent); border-radius: 8px; color: var(--designer-text); background: color-mix(in srgb,var(--designer-accent) 8%,transparent); }
 .native-similarity-note b, .native-similarity-note span { display: block; }.native-similarity-note b { font-size: 9px; }.native-similarity-note span { margin-top: 4px; color: color-mix(in srgb,var(--designer-text) 68%,transparent); font-size: 8px; line-height: 1.45; }
 .visual-text-content { height: calc(100% - 34px); padding: clamp(18px, 3vw, 34px); display: flex; align-items: center; overflow: hidden; line-height: 1.55; white-space: pre-wrap; }

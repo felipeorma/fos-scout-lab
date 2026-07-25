@@ -157,15 +157,31 @@ function sanitizeSimilarityMarkup(value: string) {
 }
 
 function normalizeSimilarityBlock(config: PageConfig) {
+  const comparison = config.blocks.find((block) => block.id === SIMILARITY_BLOCK_ID);
+  if (!comparison) return config;
+  const existingNotes = config.blocks.find((block) => block.id === SIMILARITY_NOTES_BLOCK_ID && block.type === "text");
+  const notes = {
+    ...(existingNotes ?? textBlock(
+      SIMILARITY_NOTES_BLOCK_ID,
+      t("Comentario del scout"),
+      t("Agrega aquí tu lectura, contexto o recomendación sobre la comparación."),
+      config.columns,
+      160,
+    )),
+    span: config.columns,
+    height: 160,
+    color: existingNotes?.color ?? DEFAULT_REPORT_THEME.ink,
+  };
   return {
     ...config,
-    blocks: config.blocks.map((block) => block.id === SIMILARITY_BLOCK_ID ? {
-      ...block,
-      html: sanitizeSimilarityMarkup(block.html ?? ""),
+    title: t("Comparación de similitud"),
+    blocks: [{
+      ...comparison,
+      html: sanitizeSimilarityMarkup(comparison.html ?? ""),
       span: config.columns,
       height: SIMILARITY_BLOCK_HEIGHT,
       fit: "contain" as const,
-    } : block),
+    }, notes],
   };
 }
 
