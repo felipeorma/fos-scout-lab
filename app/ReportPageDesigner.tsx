@@ -465,11 +465,13 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
       <section className="designer-stage" style={{ background: theme.canvas }}>
         <div className="preview-toolbar designer-toolbar"><div><span className="live-dot" /> {tf("Página {n} · Editor visual", { n: pageNumber })}</div><span><Grip size={14} /> {t("Arrastra para ordenar · esquina ↘ para tamaño")}</span></div>
         <article className="visual-report-page unified-report-page" style={canvasStyle}>
-          <header className="visual-page-header">
-            <div className="visual-page-folio"><span>FOS</span><small>{t("PÁGINA")}</small><b>0{pageNumber}</b><em>{pageNumber === 2 ? t("VISUALES") : t("OBSERVACIONES")}</em></div>
-            <div className="visual-page-identity"><span className="visual-identity-lupa"><Search size={11} /> {t("INFORME DE SCOUTING")}</span><h2>{player}</h2><p>{team} · {position}</p></div>
-          </header>
-          <div className="visual-page-title"><span>{t("ANÁLISIS COMPLEMENTARIO")}</span><h3>{t(config.title)}</h3></div>
+          {pageNumber === 3 && <>
+            <header className="visual-page-header">
+              <div className="visual-page-folio"><span>FOS</span><small>{t("PÁGINA")}</small><b>03</b><em>{t("OBSERVACIONES")}</em></div>
+              <div className="visual-page-identity"><span className="visual-identity-lupa"><Search size={11} /> {t("INFORME DE SCOUTING")}</span><h2>{player}</h2><p>{team} · {position}</p></div>
+            </header>
+            <div className="visual-page-title"><span>{t("ANÁLISIS COMPLEMENTARIO")}</span><h3>{t(config.title)}</h3></div>
+          </>}
           <div ref={gridRef} className="visual-block-grid" style={{ gridTemplateColumns: `repeat(${config.columns}, minmax(0, 1fr))`, gap: config.gap }} onDragOver={(event) => event.preventDefault()}>
             {config.blocks.map((block) => {
               const span = clampSpan(block.span, config.columns);
