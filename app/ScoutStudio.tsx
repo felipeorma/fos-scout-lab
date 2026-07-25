@@ -9,7 +9,6 @@ import {
   FileSpreadsheet,
   Files,
   ImageIcon,
-  LayoutDashboard,
   LockKeyhole,
   Merge,
   Printer,

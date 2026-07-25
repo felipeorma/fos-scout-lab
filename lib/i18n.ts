@@ -579,7 +579,7 @@ const EN: Record<string, string> = {
   "Descargar PDF": "Download PDF",
   "Agregar a Página 2": "Add to Page 2",
   "Usar como Página 2 · calidad nativa": "Use as Page 2 · native quality",
-  "Comentario del scout": "Scout comment",
+  "Comentarios": "Scout comment",
   "Agrega aquí tu lectura, contexto o recomendación sobre la comparación.": "Add your reading, context, or recommendation about the comparison here.",
   "Calidad nativa activa": "Native quality active",
   "El texto y el radar se exportan como elementos vectoriales, no como una captura.": "Text and radar export as vector elements, not as a screenshot.",

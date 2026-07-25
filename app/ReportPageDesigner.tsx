@@ -16,7 +16,7 @@ import {
   Upload,
 } from "./Icons";
 import { DEFAULT_REPORT_THEME, REPORT_THEMES, reportThemeStyle, type ReportTheme } from "./reportTheme";
-import { SimilarityReportMain, isSimilarityReportPayload, type SimilarityReportPayload } from "./SimilarityReport";
+import { SimilarityReportMain, type SimilarityReportPayload } from "./SimilarityReport";
 import { t, tf } from "@/lib/i18n";
 import {
   clampReportBlockHeight,
@@ -24,7 +24,6 @@ import {
   reportBlockHeightBounds,
   resizeReportBlock,
   similarityGridRows,
-  similarityMetricDensity,
   type ReportBlockResizeMode,
 } from "@/lib/reportPageLayout";
 
@@ -77,8 +76,6 @@ type ResizeSession = {
 const FIRST_VISUAL_PAGE = 3;
 const SIMILARITY_BLOCK_ID = "p2-similarity-comparison";
 const SIMILARITY_NOTES_BLOCK_ID = "p2-similarity-notes";
-const SIMILARITY_BLOCK_HEIGHT = 900;
-const SIMILARITY_NOTES_HEIGHT = 180;
 
 const SHARED_TEXT_COLORS = new Set([
   ...REPORT_THEMES.map((theme) => theme.ink.toLowerCase()),
@@ -153,55 +150,7 @@ function updateBlock(config: PageConfig, id: string, patch: Partial<PageBlock>) 
   return { ...config, blocks: config.blocks.map((block) => block.id === id ? { ...block, ...patch } : block) };
 }
 
-function sanitizeSimilarityMarkup(value: string) {
-  if (typeof document === "undefined" || !value.trim()) return "";
-  const template = document.createElement("template");
-  template.innerHTML = value;
-  const report = template.content.querySelector<HTMLElement>(".similarity-report-main");
-  if (!report) return "";
-  report.querySelectorAll("script, iframe, object, embed, link, meta, base, form").forEach((element) => element.remove());
-  report.querySelectorAll("*").forEach((element) => {
-    Array.from(element.attributes).forEach((attribute) => {
-      const name = attribute.name.toLowerCase();
-      const content = attribute.value.trim().toLowerCase();
-      if (name.startsWith("on") || name === "srcdoc" || ((name === "src" || name === "href") && content.startsWith("javascript:"))) {
-        element.removeAttribute(attribute.name);
-      }
-    });
-  });
-  report.dataset.metricDensity = similarityMetricDensity(report.querySelectorAll(".metric-duel").length);
-  return report.outerHTML;
-}
 
-function similarityNotesBlock(config: PageConfig) {
-  const existingNotes = config.blocks.find((block) => block.id === SIMILARITY_NOTES_BLOCK_ID && block.type === "text");
-  const additionalNotes = config.blocks.filter((block) => block.type === "text" && block.id !== SIMILARITY_NOTES_BLOCK_ID);
-  const source = existingNotes ?? additionalNotes[0];
-  const defaultContentSource = "Agrega aquí tu lectura, contexto o recomendación sobre la comparación.";
-  const defaultContent = t(defaultContentSource);
-  const contentParts = [existingNotes, ...additionalNotes]
-    .map((block) => block?.content.trim() ?? "")
-    .filter(Boolean);
-  const meaningfulParts = contentParts.filter((content) => content !== defaultContent && content !== defaultContentSource);
-  const content = [...new Set(meaningfulParts)].join("\n\n") || defaultContent;
-
-  return {
-    ...(source ?? textBlock(
-      SIMILARITY_NOTES_BLOCK_ID,
-      t("Comentario del scout"),
-      defaultContent,
-      config.columns,
-      SIMILARITY_NOTES_HEIGHT,
-    )),
-    id: SIMILARITY_NOTES_BLOCK_ID,
-    type: "text" as const,
-    title: source?.title || t("Comentario del scout"),
-    content,
-    span: config.columns,
-    height: clampReportBlockHeight(source?.height ?? SIMILARITY_NOTES_HEIGHT, "text", true),
-    color: source?.color ?? DEFAULT_REPORT_THEME.ink,
-  };
-}
 
 export function ReportPageDesigner({ pageNumber, player, team, position, theme, onThemeChange, recipientName = "", recipientLogoUrl = "" }: { pageNumber: number; player: string; team: string; position: string; theme: ReportTheme; onThemeChange: (theme: ReportTheme) => void; recipientName?: string; recipientLogoUrl?: string }) {
   const [pages, setPages] = useState<DesignerState>(() => defaultPages(pageNumber));

@@ -1292,3 +1292,30 @@ body.print-layout-check .similarity-star-visual > svg { transform: none !importa
 .similarity-note-editor textarea:focus { outline: none; border-color: rgba(94, 141, 255, .6); }
 .similarity-note-editor small { color: rgba(148, 163, 184, .75); font-size: 11px; }
 @media print { .similarity-note-editor, .comparison-actions, .similarity-export-status { display: none !important; } }
+
+/* ---- Impresión de la Página 2: solo la lámina del reporte ----
+   La página de similitud es también el taller de trabajo (filtros, ranking,
+   pesos, paleta). Al imprimir debe quedar únicamente la hoja: jugadores,
+   comparación, métrica a métrica y comentarios. */
+@media print {
+  .similarity-target-bar,
+  .similarity-weight-panel,
+  .similarity-filter-panel,
+  .similarity-ranking-card,
+  .similarity-enrichment-grid,
+  .similarity-color-panel,
+  .similarity-empty,
+  .similarity-note-editor,
+  .comparison-actions,
+  .similarity-export-status { display: none !important; }
+
+  .similarity-page .similarity-workspace { display: block !important; margin: 0 !important; padding: 0 !important; }
+  .similarity-page .similarity-results { display: block !important; margin: 0 !important; padding: 0 !important; }
+  .similarity-page.page-content { margin: 0 !important; padding: 0 !important; max-width: none !important; }
+}
+
+/* ---- Foto del jugador encuadrada sobre su silueta real ---- */
+.comparison-player-photo-frame.is-framed { transform: none; overflow: hidden; }
+.comparison-player-photo-frame.is-framed > .comparison-player-image {
+  width: auto; height: auto; max-width: none; object-fit: fill; object-position: initial;
+}

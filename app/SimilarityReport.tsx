@@ -1,10 +1,11 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import { type CSSProperties, useId } from "react";
+import { type CSSProperties, useEffect, useId, useRef, useState } from "react";
 import { ComparisonRadar } from "./ComparisonRadar";
 import { Search } from "./Icons";
 import { formatPlayerPositions } from "@/lib/positions";
+import { framePhotoTransform, opaqueBounds } from "@/lib/photoFraming";
 import { similarityMetricDensity } from "@/lib/reportPageLayout";
 import { formatCell } from "@/lib/scouting";
 import { type SimilarityMetricComparison } from "@/lib/similarity";
@@ -84,10 +85,10 @@ function formatMetricValue(value: number, key: string) {
   return `${formatCell(value)}${key.includes("%") ? "%" : ""}`;
 }
 
-function ReportImage({ src, alt, className }: { src: string; alt: string; className: string }) {
+function ReportImage({ src, alt, className, style }: { src: string; alt: string; className: string; style?: CSSProperties }) {
   // Images come from Transfermarkt or from a source selected by the user.
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src={src} alt={alt} className={className} />;
+  return <img src={src} alt={alt} className={className} style={style} />;
 }
 
 function SimilarityStarScore({ similarity }: { similarity: number }) {
@@ -149,6 +150,54 @@ function SimilarityStarScore({ similarity }: { similarity: number }) {
   </div>;
 }
 
+/**
+ * Encuadra la foto midiendo dónde está realmente el jugador dentro del lienzo.
+ * Si la imagen no se puede leer (otro origen sin CORS), se deja el encuadre
+ * clásico y la foto sigue viéndose.
+ */
+function PlayerPortrait({ src, alt, photoScale }: { src: string; alt: string; photoScale: number }) {
+  const frameRef = useRef<HTMLSpanElement>(null);
+  const [style, setStyle] = useState<CSSProperties | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const frame = frameRef.current;
+    if (!src || !frame) return;
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+    image.onload = () => {
+      if (cancelled) return;
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = image.naturalWidth;
+        canvas.height = image.naturalHeight;
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        if (!ctx) return;
+        ctx.drawImage(image, 0, 0);
+        const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const box = opaqueBounds(data, canvas.width, canvas.height);
+        if (!box) return;
+        const rect = frame.getBoundingClientRect();
+        if (!rect.width || !rect.height) return;
+        const { scale, translateX, translateY } = framePhotoTransform(box, rect.width, rect.height, photoScale / 100);
+        if (cancelled) return;
+        setStyle({
+          width: canvas.width,
+          height: canvas.height,
+          transform: `translate(${translateX}px, ${translateY}px) scale(${scale})`,
+          transformOrigin: "0 0",
+        });
+      } catch { /* imagen de otro origen: encuadre clásico */ }
+    };
+    image.src = src;
+    return () => { cancelled = true; };
+  }, [src, photoScale]);
+
+  return <span ref={frameRef} className={`comparison-player-photo-frame ${style ? "is-framed" : ""}`} style={style ? undefined : { "--photo-scale": photoScale / 100 } as CSSProperties}>
+    <ReportImage src={src} alt={alt} className="comparison-player-image" style={style ?? undefined} />
+  </span>;
+}
+
 function ComparisonPlayer({ player, label }: { player: SimilarityReportPlayer; label: string }) {
   const { profile, name, team, position, age, passport, color, photoScale } = player;
   return <article className="comparison-player-card" style={{ "--player-color": color } as CSSProperties}>
@@ -160,7 +209,7 @@ function ComparisonPlayer({ player, label }: { player: SimilarityReportPlayer; l
     </header>
     <div className="comparison-player-portrait">
       {profile.playerImage
-        ? <span className="comparison-player-photo-frame" style={{ "--photo-scale": photoScale / 100 } as CSSProperties}><ReportImage src={profile.playerImage} alt={name} className="comparison-player-image" /></span>
+        ? <PlayerPortrait key={`${profile.playerImage.slice(-40)}-${photoScale}`} src={profile.playerImage} alt={name} photoScale={photoScale} />
         : <span>{name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("")}</span>}
     </div>
     <div className="comparison-player-copy">

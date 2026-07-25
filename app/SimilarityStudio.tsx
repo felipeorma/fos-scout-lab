@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
-import { ArrowDownToLine, ImageIcon, Printer, RotateCcw, Search, Sparkles, Upload } from "./Icons";
+import { ArrowDownToLine, Printer, RotateCcw, Search, Sparkles, Upload } from "./Icons";
 import { reportThemeStyle, type ReportTheme } from "./reportTheme";
 import { SimilarityReportMain, similarityStarColor, similarityStarGlow, type SimilarityReportPayload } from "./SimilarityReport";
 import {
@@ -848,10 +848,6 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     }
   }
 
-  async function createImage(forReport = false) {
-    if (!search?.target || !selectedCandidate) return "";
-    return comparisonImage(search.target, selectedCandidate, sourceName, theme, targetProfile, candidateProfile, reportRecipient, recipientLogoUrl.trim(), targetColor, candidateColor, targetLabelColor, candidateLabelColor, targetLabelTransparency, candidateLabelTransparency, forReport, targetPhotoScale, candidatePhotoScale);
-  }
 
   async function exportAssetDataUrl(url: string) {
     if (url.startsWith("data:image/")) return url;
@@ -957,26 +953,6 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     }
   }
 
-  async function addComparisonToReport() {
-    setExportBusy(true);
-    try {
-      const fallbackImage = similarityReportPayload ? "" : await createImage(true);
-      if ((!similarityReportPayload && !fallbackImage) || !selectedCandidate || !search?.target) return;
-      window.localStorage.setItem("fos-scout-similarity-comparison-v1", JSON.stringify({
-        data: similarityReportPayload ?? undefined,
-        image: fallbackImage,
-        format: similarityReportPayload ? "native-data-v2" : "legacy-image",
-        title: tf("Similitud · {a} vs. {b}", { a: search.target.player, b: selectedCandidate.name }),
-        createdAt: Date.now(),
-      }));
-      setExportStatus(t("✓ Página 2 creada en calidad nativa, con texto y radar vectoriales."));
-      onOpenReports();
-    } catch {
-      setExportStatus(t("No se pudo guardar la comparación. Descárgala como PNG y súbela manualmente."));
-    } finally {
-      setExportBusy(false);
-    }
-  }
 
   return <div className="page-content similarity-page similarity-report-theme" style={reportThemeStyle(theme)}>
     {!rows.length || !search ? <section className="dataset-onboarding similarity-empty"><span className="dataset-step">{t("SECCIÓN DE SIMILITUD")}</span><span className="dataset-icon"><Search size={30} /></span><h2>{t("Primero carga una base de datos")}</h2><p>{t("La comparación usa la base activa, ya sea una liga, temporada o combinación.")}</p><button className="button primary" onClick={onOpenReports}>{t("Ir a cargar datos")}</button></section> : <>
@@ -1047,19 +1023,19 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
 
             <section ref={reportSheetRef} className="similarity-report-sheet">
               {similarityReportPayload && <SimilarityReportMain payload={similarityReportPayload} />}
-              {comparisonNote.trim() && <div className="similarity-note-block"><span>{t("Comentario del scout")}</span><p>{comparisonNote}</p></div>}
+              {comparisonNote.trim() && <div className="similarity-note-block"><span>{t("Comentarios")}</span><p>{comparisonNote}</p></div>}
               <footer className="dossier-footer similarity-report-footer"><p>{tf("Percentiles P0–P100 · métricas comunes {n}% · {w}.", { n: selectedCandidate.coverage, w: activeMetricWeights ? tf("{n} ponderaciones personalizadas activas", { n: activeMetricWeights }) : t("pesos métricos uniformes") })}</p><div className="report-signatures"><div className="report-author"><span>{t("ELABORADO POR")}</span><b>FELIPE ORMAZABAL</b><small>SCOUTING REPORT</small></div><div className="report-recipient">{recipientLogoReady ? <ReportImage src={recipientLogoUrl.trim()} alt={reportRecipient} className="dossier-footer-club-logo" /> : <span className="dossier-footer-club-fallback">{reportRecipient.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span>}<div><span>{t("REPORTE GENERADO PARA")}</span><b>{reportRecipient}</b></div></div></div></footer>
             </section>
 
             <div className="similarity-note-editor">
               <label>
-                <span>{t("Comentario del scout")}</span>
+                <span>{t("Comentarios")}</span>
                 <textarea value={comparisonNote} rows={3} placeholder={t("Escribe tu lectura de la comparación: contexto, rol y recomendación.")} onChange={(event) => setComparisonNote(event.target.value)} />
               </label>
               <small>{t("Aparece dentro de la hoja, debajo de la comparación, respetando los márgenes de la página.")}</small>
             </div>
 
-            <div className="comparison-actions"><button className="button secondary" onClick={() => void downloadComparison()} disabled={exportBusy}><ArrowDownToLine size={16} /> {exportBusy ? t("Preparando…") : t("Descargar PNG")}</button><button className="button secondary" onClick={() => void downloadComparisonPdf()} disabled={exportBusy}><Printer size={16} /> {exportBusy ? t("Preparando…") : t("Descargar PDF")}</button><button className="button primary" onClick={() => void addComparisonToReport()} disabled={exportBusy}><ImageIcon size={16} /> {t("Usar como Página 2 · calidad nativa")}</button></div>
+            <div className="comparison-actions"><button className="button secondary" onClick={() => void downloadComparison()} disabled={exportBusy}><ArrowDownToLine size={16} /> {exportBusy ? t("Preparando…") : t("Descargar PNG")}</button><button className="button secondary" onClick={() => void downloadComparisonPdf()} disabled={exportBusy}><Printer size={16} /> {exportBusy ? t("Preparando…") : t("Descargar PDF")}</button></div>
             {exportStatus && <p className="similarity-export-status" aria-live="polite">{exportStatus}</p>}
           </>}
         </main>
