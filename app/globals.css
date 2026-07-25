@@ -1484,3 +1484,26 @@ body.print-layout-check .similarity-star-visual > svg { transform: none !importa
   width: 82%; height: 82%;
   background: radial-gradient(circle, color-mix(in srgb, var(--player-color) 20%, transparent) 0%, transparent 66%);
 }
+
+/* ---- Foto de la cinta sin caja de color y escudo junto al club ----
+   El degradado tintado se leía como un bloque sólido y el escudo dentro del
+   marco chocaba con la cara: la foto queda limpia y el escudo acompaña al
+   nombre del club, donde sí tiene sitio. */
+.duel-header-photo {
+  background: none;
+  box-shadow: none;
+  border-radius: 0;
+}
+.duel-header-glow {
+  top: auto; bottom: -6%; right: 50%;
+  width: 108%; height: 58%;
+  transform: translateX(50%);
+  background: radial-gradient(ellipse at center, color-mix(in srgb, var(--player-color) 26%, transparent) 0%, transparent 70%);
+}
+.duel-header-club { display: flex; align-items: center; gap: 6px; }
+.duel-header-player.right .duel-header-club { justify-content: flex-end; }
+.duel-header-club .duel-header-crest {
+  position: static; width: 15px; height: 15px; flex: none;
+  object-fit: contain; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .45));
+}
+.duel-header-number { color: rgba(255, 255, 255, .42); }
