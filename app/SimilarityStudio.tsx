@@ -164,32 +164,51 @@ function drawCanvasSimilarityStar(ctx: CanvasRenderingContext2D, similarity: num
   const percentage = Math.min(Math.max(Math.round(similarity), 0), 100);
   const glow = similarityStarGlow(percentage);
   const innerRadius = radius * .46;
+  const fillTop = cy + radius - radius * 2 * percentage / 100;
 
+  // Silueta pendiente: permite leer de inmediato cuánto falta para el 100%.
   ctx.save();
-  ctx.shadowColor = `rgba(250,204,21,${Math.min(1, glow * 1.1)})`;
-  ctx.shadowBlur = 3 + glow * 34;
   drawStarPath(ctx, cx, cy, radius, innerRadius);
-  ctx.fillStyle = similarityStarColor(percentage);
+  ctx.fillStyle = canvasColorWithAlpha(theme.dark, "b8");
   ctx.fill();
-  if (glow > .3) {
-    // Pasadas extra: cerca del 100% la estrella queda incandescente.
-    ctx.shadowBlur = 12 + glow * 44;
-    ctx.fill();
-  }
-  if (glow > .7) {
-    ctx.shadowColor = `rgba(255,240,158,${glow})`;
-    ctx.shadowBlur = 20 + glow * 55;
-    ctx.fill();
-  }
+  ctx.strokeStyle = "rgba(255,246,196,.55)";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.restore();
+
+  // El relleno sube desde la base de la estrella según el porcentaje real.
+  ctx.save();
+  drawStarPath(ctx, cx, cy, radius, innerRadius);
+  ctx.clip();
+  ctx.beginPath();
+  ctx.rect(cx - radius - 3, fillTop, radius * 2 + 6, cy + radius - fillTop + 2);
+  ctx.clip();
+  const fill = ctx.createLinearGradient(0, cy + radius, 0, cy - radius);
+  const starColor = similarityStarColor(percentage);
+  fill.addColorStop(0, starColor);
+  fill.addColorStop(.68, starColor);
+  fill.addColorStop(1, percentage >= 90 ? "#fffbe4" : "#fde68a");
+  ctx.fillStyle = fill;
+  ctx.fillRect(cx - radius - 3, cy - radius - 3, radius * 2 + 6, radius * 2 + 6);
+  ctx.restore();
+
+  // El halo es deliberadamente no lineal: los scores cercanos al 100% brillan más.
+  ctx.save();
+  ctx.shadowColor = `rgba(250,204,21,${Math.min(.95, .12 + glow * .82)})`;
+  ctx.shadowBlur = 2 + glow * 44;
+  drawStarPath(ctx, cx, cy, radius, innerRadius);
+  ctx.strokeStyle = `rgba(255,246,196,${.35 + glow * .6})`;
+  ctx.lineWidth = 1.4 + glow;
+  ctx.stroke();
   ctx.restore();
 
   ctx.save();
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.font = "800 18px Arial";
-  ctx.lineWidth = 5;
+  ctx.lineWidth = 3.2;
   ctx.lineJoin = "round";
-  ctx.strokeStyle = canvasColorWithAlpha(theme.dark, "cc");
+  ctx.strokeStyle = canvasColorWithAlpha(theme.dark, "ed");
   ctx.strokeText(`${percentage}%`, cx, cy + 1);
   ctx.fillStyle = "#ffffff";
   ctx.fillText(`${percentage}%`, cx, cy + 1);

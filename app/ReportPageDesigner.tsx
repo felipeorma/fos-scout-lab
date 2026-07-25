@@ -67,7 +67,7 @@ const MAX_BLOCK_HEIGHT = 900;
 const SIMILARITY_BLOCK_ID = "p2-similarity-comparison";
 const SIMILARITY_NOTES_BLOCK_ID = "p2-similarity-notes";
 const SIMILARITY_BLOCK_HEIGHT = 900;
-const SIMILARITY_NOTES_HEIGHT = 144;
+const SIMILARITY_NOTES_HEIGHT = 180;
 
 const SHARED_TEXT_COLORS = new Set([
   ...REPORT_THEMES.map((theme) => theme.ink.toLowerCase()),

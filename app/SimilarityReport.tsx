@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import { type CSSProperties } from "react";
+import { type CSSProperties, useId } from "react";
 import { ComparisonRadar } from "./ComparisonRadar";
 import { Search } from "./Icons";
 import { formatPlayerPositions } from "@/lib/positions";
@@ -76,7 +76,7 @@ export function similarityStarColor(percentage: number) {
 }
 
 export function similarityStarGlow(percentage: number) {
-  return Math.pow(percentage / 100, 1.8);
+  return Math.pow(percentage / 100, 2.4);
 }
 
 function formatMetricValue(value: number, key: string) {
@@ -94,15 +94,28 @@ function SimilarityStarScore({ similarity }: { similarity: number }) {
   const glow = similarityStarGlow(percentage);
   const isNearHundred = percentage >= 95;
   const reduceMotion = useReducedMotion();
+  const id = useId().replace(/:/g, "");
+  const starTop = 1.75;
+  const starHeight = 19.5;
+  const fillHeight = starHeight * percentage / 100;
+  const fillTop = starTop + starHeight - fillHeight;
+  const starColor = similarityStarColor(percentage);
 
-  return <div className="similarity-star-score" role="img" aria-label={tf("{p}% de similitud", { p: percentage })}>
+  return <div
+    className="similarity-star-score"
+    role="img"
+    aria-label={tf("{p}% de similitud", { p: percentage })}
+    style={{
+      "--similarity-glow": glow,
+    } as CSSProperties}
+  >
     <div className="similarity-star-visual">
       <motion.svg
-        viewBox="-2 -2 28 28"
+        viewBox="-3 -3 30 30"
         aria-hidden="true"
         initial={false}
         animate={{
-          filter: `drop-shadow(0 0 ${2 + glow * 22}px rgba(250,204,21,${Math.min(1, glow * 1.1)})) drop-shadow(0 0 ${1 + glow * 8}px rgba(255,240,158,${glow * .85}))`,
+          filter: `drop-shadow(0 0 ${1 + glow * 18}px rgba(250,204,21,${Math.min(.94, .14 + glow * .8)})) drop-shadow(0 0 ${glow * 7}px rgba(255,248,202,${glow * .72}))`,
           scale: !reduceMotion && isNearHundred ? [1, 1.07, 1] : 1,
         }}
         transition={{
@@ -110,14 +123,24 @@ function SimilarityStarScore({ similarity }: { similarity: number }) {
           scale: { duration: 1.25, repeat: !reduceMotion && isNearHundred ? Infinity : 0, ease: "easeInOut" },
         }}
       >
-        <motion.path
+        <defs>
+          <linearGradient id={`${id}-star-fill`} x1="0" y1="1" x2="0" y2="0">
+            <stop offset="0%" stopColor={starColor} />
+            <stop offset="68%" stopColor={starColor} />
+            <stop offset="100%" stopColor={percentage >= 90 ? "#fffbe4" : "#fde68a"} />
+          </linearGradient>
+          <clipPath id={`${id}-star-progress`}>
+            <rect x="0" y={fillTop} width="24" height={fillHeight} />
+          </clipPath>
+        </defs>
+        <path className="similarity-star-track" d={STAR_PATH} />
+        <path
+          className="similarity-star-fill"
           d={STAR_PATH}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          initial={false}
-          animate={{ fill: similarityStarColor(percentage) }}
-          transition={{ duration: .55, ease: "easeOut" }}
+          fill={`url(#${id}-star-fill)`}
+          clipPath={`url(#${id}-star-progress)`}
         />
+        <path className="similarity-star-outline" d={STAR_PATH} />
       </motion.svg>
       <span className="similarity-star-number"><b>{percentage}</b><small>%</small></span>
     </div>
