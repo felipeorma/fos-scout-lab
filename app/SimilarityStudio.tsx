@@ -14,7 +14,7 @@ import {
   type SimilarityPlayer,
 } from "@/lib/similarity";
 import { formatCell, type DataRow, type PlayerReport } from "@/lib/scouting";
-import { formatPlayerPositions, type PlayerPosition } from "@/lib/positions";
+import { formatPlayerPositions, selectedCohortPosition, type PlayerPosition } from "@/lib/positions";
 import { SIMILARITY_METRIC_GROUPS, similarityMetricGroup } from "@/lib/similarityMetricGroups";
 import { createEmptyTransfermarktProfile, type TransfermarktProfile } from "@/lib/transfermarkt";
 import { removePlayerImageBackground } from "@/lib/playerImageBackground";
@@ -30,6 +30,8 @@ type SimilarityStudioProps = {
   selectedIndex: number;
   sourceName: string;
   lang?: Lang;
+  /** Conjunto de métricas asignado en la ficha de la Página 1 */
+  reportCohort?: string;
   targets: TargetOption[];
   theme: ReportTheme;
   targetProfile: TransfermarktProfile;
@@ -560,7 +562,7 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
   return canvas.toDataURL("image/png");
 }
 
-export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es", targets, theme, targetProfile, recipientName, recipientLogoUrl, onSelectTarget, onTargetProfileChange, onRecipientNameChange, onRecipientLogoChange, onOpenReports }: SimilarityStudioProps) {
+export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es", reportCohort = "AUTO", targets, theme, targetProfile, recipientName, recipientLogoUrl, onSelectTarget, onTargetProfileChange, onRecipientNameChange, onRecipientLogoChange, onOpenReports }: SimilarityStudioProps) {
   const [query, setQuery] = useState("");
   const [ageMin, setAgeMin] = useState("");
   const [ageMax, setAgeMax] = useState("");
@@ -608,7 +610,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     side,
   }), [ageMax, ageMin, minimumMinutes, passport, position, query, secondaryRole, side]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const search = useMemo(() => buildSimilaritySearch(rows, selectedIndex, filters, metricWeights), [filters, metricWeights, rows, selectedIndex, lang]);
+  const search = useMemo(() => buildSimilaritySearch(rows, selectedIndex, filters, metricWeights, reportCohort), [filters, metricWeights, rows, selectedIndex, lang, reportCohort]);
   const candidates = search?.candidates ?? [];
   const activeMetricWeights = search?.target.metrics.filter((metric) => (metricWeights[metric.key] ?? 1) !== 1).length ?? 0;
   const selectedCandidate = candidates.find((candidate) => candidate.index === selectedCandidateIndex) ?? candidates[0] ?? null;
@@ -632,7 +634,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
         profile: targetProfile,
         name: search.target.player,
         team: search.target.team,
-        position: search.target.position,
+        position: selectedCohortPosition(search.target.cohort, search.target.position),
         age: search.target.age,
         passport: search.target.passport,
         color: targetColor,
@@ -645,7 +647,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
         profile: candidateProfile,
         name: selectedCandidate.name,
         team: selectedCandidate.team,
-        position: selectedCandidate.position,
+        position: selectedCohortPosition(search.target.cohort, selectedCandidate.position),
         age: selectedCandidate.age === null ? "—" : String(selectedCandidate.age),
         passport: selectedCandidate.passport,
         color: candidateColor,

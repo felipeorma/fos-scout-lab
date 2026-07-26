@@ -158,12 +158,15 @@ function metricWeight(key: string, weights: SimilarityMetricWeights) {
   return Number.isFinite(value) ? Math.max(0, Math.min(3, value)) : 1;
 }
 
-export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filters: SimilarityFilters, metricWeights: SimilarityMetricWeights = {}): SimilaritySearchResult | null {
+export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filters: SimilarityFilters, metricWeights: SimilarityMetricWeights = {}, reportCohort = "AUTO"): SimilaritySearchResult | null {
   // Si el usuario filtra por un rol, la comparación usa el set de métricas de
   // ese rol (p. ej. filtrar por Delanteros compara con métricas de CF aunque
   // el jugador objetivo sea extremo). Sin filtro, se usa su cohorte natural.
+  // El filtro de rol manda; si no hay, se respeta el conjunto de métricas que
+  // el usuario asignó en la ficha de la Página 1 para que ambas páginas
+  // describan al jugador con el mismo rol.
   const filteredRole = POSITION_ROLES.find((role) => role === filters.position) ?? null;
-  const forcedCohort = filteredRole ? roleCohort(filteredRole) : "AUTO";
+  const forcedCohort = filteredRole ? roleCohort(filteredRole) : reportCohort;
   const target = buildPlayerReport(rows, targetIndex, 0, forcedCohort);
   const targetRow = rows[targetIndex];
   if (!target || !targetRow || !target.metrics.length) return null;

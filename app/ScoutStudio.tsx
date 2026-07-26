@@ -806,6 +806,7 @@ export default function ScoutStudio() {
                   selectedIndex={selectedPlayer}
                   sourceName={reportFileName}
                   lang={lang}
+                  reportCohort={cohort}
                   targets={players}
                   theme={reportTheme}
                   targetProfile={profile}
