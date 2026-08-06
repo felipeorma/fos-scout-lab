@@ -309,6 +309,7 @@ const METRICS: Record<string, MetricDefinition[]> = {
     { label: "Salidas /90", aliases: ["exits per 90", "salidas 90"], group: 1, colorGroup: "goalkeeper" },
   ],
   CB: [
+    { label: "xG /90", aliases: ["xg per 90", "xg 90"], group: 0, colorGroup: "finishing" },
     { label: "Pases precisos, %", aliases: ["accurate passes %", "precision pases %", "pases precisos %"], group: 2, colorGroup: "passing" },
     { label: "Pases largos precisos, %", aliases: ["accurate long passes %", "precision pases largos %", "pases largos precisos %"], group: 2, colorGroup: "passing" },
     { label: "Pases /90", aliases: ["passes per 90", "pases 90"], group: 2, colorGroup: "passing" },
@@ -336,6 +337,7 @@ const METRICS: Record<string, MetricDefinition[]> = {
     { label: "Intercepciones /90", aliases: ["interceptions per 90", "interceptaciones 90", "intercepciones 90"], group: 0, colorGroup: "defending" },
   ],
   DMF: [
+    { label: "xG /90", aliases: ["xg per 90", "xg 90"], group: 0, colorGroup: "finishing" },
     { label: "Pases precisos, %", aliases: ["accurate passes %", "precision pases %", "pases precisos %"], group: 1, colorGroup: "passing" },
     { label: "Pases /90", aliases: ["passes per 90", "pases 90"], group: 1, colorGroup: "passing" },
     { label: "Pases recibidos /90", aliases: ["received passes per 90", "pases recibidos 90"], group: 1, colorGroup: "passing" },
