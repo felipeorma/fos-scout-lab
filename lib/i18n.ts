@@ -23,6 +23,43 @@ export function t(text: string): string {
   return EN[text] ?? text;
 }
 
+// Valores por defecto que la app escribe en campos editables por el usuario.
+// Solo estos se traducen al mostrar; cualquier otro texto del usuario (nombres
+// de archivo, etiquetas propias, un club llamado "Pase") se muestra tal cual.
+const DEFAULT_VALUE_KEYS = new Set([
+  "Sin datos cargados",
+  "Combinación temporal",
+  "Combinación temporal 01",
+  "BASE ANALIZADA",
+  "BASES ANALIZADAS",
+  "Equipo no disponible",
+  "Club destinatario",
+  "Mapa visual del rendimiento",
+  "Mapa de remates",
+  "Mapa de calor",
+  "Acciones con balón",
+  "Acciones defensivas",
+  "Observaciones y contexto",
+  "Resumen del scout",
+  "Secuencia destacada",
+  "Comportamiento táctico",
+  "Conclusión",
+  "Comparación de similitud",
+  "Nueva visualización",
+  "Nuevo bloque de texto",
+  "Imagen",
+  "Agrega aquí tu lectura del jugador: contexto competitivo, rol ideal, fortalezas transferibles y riesgos observados.",
+  "Recomendación final y próximos pasos de seguimiento.",
+  "Escribe aquí tu análisis…",
+  "Escribe aquí la observación o el contexto de esta imagen…",
+  "Escribe tu lectura de la comparación: contexto, rol y recomendación.",
+]);
+
+/** Traduce solo si el valor es un texto por defecto de la app; los textos del usuario pasan intactos. */
+export function tDefault(value: string): string {
+  return DEFAULT_VALUE_KEYS.has(value) ? t(value) : value;
+}
+
 /** t() con variables: tf("Peso {p}%", { p: 80 }) */
 export function tf(template: string, vars: Record<string, string | number>): string {
   let text = t(template);
@@ -328,6 +365,9 @@ const EN: Record<string, string> = {
   "Interiores (box-to-box)": "Box-to-box midfielders",
   "Otros perfiles": "Other profiles",
   "No hay jugadores de esta posición con el mínimo de minutos: baja el mínimo o carga más datos.": "No players of this position clear the minutes minimum: lower it or load more data.",
+  "Una página excede el área Legal. Reduce el texto o ajusta su contenido antes de exportar.": "One page exceeds the Legal page area. Reduce the text or adjust its content before exporting.",
+  "Cohorte de 1 jugador: percentiles poco fiables. Baja el mínimo de minutos o carga más datos.": "Cohort of 1 player: unreliable percentiles. Lower the minutes minimum or load more data.",
+  "Cohorte de {n} jugadores: percentiles poco fiables. Baja el mínimo de minutos o carga más datos.": "Cohort of {n} players: unreliable percentiles. Lower the minutes minimum or load more data.",
   "Cohorte de {n} jugador{s}: percentiles poco fiables. Baja el mínimo de minutos o carga más datos.": "Cohort of {n} player{s}: percentiles are unreliable. Lower the minutes minimum or load more data.",
 
   // ---- Métricas del radar ----
@@ -614,7 +654,7 @@ const EN: Record<string, string> = {
   "Acciones defensivas del jugador": "Defensive actions",
   "Observaciones y contexto": "Observations & context",
   "Resumen del scout": "Scout summary",
-  "Agrega aquí tu lectura del jugador: contexto competitivo, rol ideal, fortalezas transferibles y riesgos observados en vídeo.": "Add your read on the player here: competitive context, ideal role, transferable strengths and risks observed on video.",
+  "Agrega aquí tu lectura del jugador: contexto competitivo, rol ideal, fortalezas transferibles y riesgos observados.": "Add your read on the player here: competitive context, ideal role, transferable strengths and observed risks.",
   "Secuencia destacada": "Highlighted sequence",
   "Comportamiento táctico": "Tactical behaviour",
   "Conclusión": "Conclusion",

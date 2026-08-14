@@ -17,7 +17,7 @@ import {
 } from "./Icons";
 import { DEFAULT_REPORT_THEME, REPORT_THEMES, reportThemeStyle, type ReportTheme } from "./reportTheme";
 import { SimilarityReportMain, type SimilarityReportPayload } from "./SimilarityReport";
-import { t, tf } from "@/lib/i18n";
+import { t, tDefault, tf } from "@/lib/i18n";
 import {
   clampReportBlockHeight,
   clampReportBlockSpan,
@@ -136,6 +136,18 @@ const FONT_OPTIONS = [
   { value: "mono", label: "Mono", family: "'SFMono-Regular', Consolas, monospace" },
 ];
 
+const COMMENT_PREFIX = "Comentario · ";
+
+// Traduce títulos/contenidos SOLO cuando siguen siendo los textos por defecto
+// de la app; lo escrito por el usuario se muestra tal cual. Los títulos
+// compuestos "Comentario · X" traducen prefijo y, si aplica, el título X.
+function displayText(value: string) {
+  if (value.startsWith(COMMENT_PREFIX)) {
+    return tf("Comentario · {t}", { t: tDefault(value.slice(COMMENT_PREFIX.length)) });
+  }
+  return tDefault(value);
+}
+
 function fontFamily(font: string) {
   return FONT_OPTIONS.find((option) => option.value === font)?.family ?? FONT_OPTIONS[0].family;
 }
@@ -152,7 +164,7 @@ function updateBlock(config: PageConfig, id: string, patch: Partial<PageBlock>) 
 
 
 
-export function ReportPageDesigner({ pageNumber, player, team, position, theme, onThemeChange, recipientName = "", recipientLogoUrl = "" }: { pageNumber: number; player: string; team: string; position: string; theme: ReportTheme; onThemeChange: (theme: ReportTheme) => void; recipientName?: string; recipientLogoUrl?: string }) {
+export function ReportPageDesigner({ pageNumber, player, team, position, theme, onThemeChange, recipientName = "", recipientLogoUrl = "", persist = true }: { pageNumber: number; player: string; team: string; position: string; theme: ReportTheme; onThemeChange: (theme: ReportTheme) => void; recipientName?: string; recipientLogoUrl?: string; persist?: boolean }) {
   const [pages, setPages] = useState<DesignerState>(() => defaultPages(pageNumber));
   const [selectedId, setSelectedId] = useState(() => defaultPage(pageNumber).blocks[0].id);
   const [draggedId, setDraggedId] = useState("");
@@ -181,9 +193,11 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
   }, [pageNumber]);
 
   useEffect(() => {
-    if (!loaded) return;
+    // Las instancias montadas solo para imprimir no escriben: varias páginas
+    // simultáneas se pisarían la clave compartida con snapshots desfasados.
+    if (!loaded || !persist) return;
     try { window.localStorage.setItem("fos-scout-page-designer-v1", JSON.stringify(pages)); } catch { /* Sin persistencia si el navegador la bloquea. */ }
-  }, [loaded, pages]);
+  }, [loaded, pages, persist]);
 
   useEffect(() => {
     if (!loaded || !selectedId || selected?.type !== "text") return;
@@ -267,9 +281,11 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
       return;
     }
     const id = `p${pageNumber}-${type}-${Date.now()}`;
+    // Se guarda la clave en español; la traducción ocurre al mostrar, así el
+    // bloque no queda congelado en el idioma activo al crearlo.
     const block = type === "image"
-      ? imageBlock(id, t("Nueva visualización"), 1, 260)
-      : { ...textBlock(id, t("Nuevo bloque de texto"), t("Escribe aquí tu análisis…"), Math.min(2, config.columns), 180), color: theme.ink };
+      ? imageBlock(id, "Nueva visualización", 1, 260)
+      : { ...textBlock(id, "Nuevo bloque de texto", "Escribe aquí tu análisis…", Math.min(2, config.columns), 180), color: theme.ink };
     setConfig((current) => ({ ...current, blocks: [...current.blocks, block] }));
     setSelectedId(id);
   }
@@ -286,11 +302,16 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
       const imageSpan = placement === "side" ? Math.max(1, columns - 1) : columns;
       const commentSpan = placement === "side" ? 1 : columns;
       const sourceIndex = current.blocks.findIndex((block) => block.id === selected.id);
-      const blocks = current.blocks.map((block) => block.id === selected.id ? { ...block, span: imageSpan } : block);
+      // Si la página era de 1 columna, el resto de bloques ocupaba el ancho
+      // completo: se escalan a las columnas nuevas para que no queden a mitad.
+      const blocks = current.blocks.map((block) => {
+        if (block.id === selected.id) return { ...block, span: imageSpan };
+        return block.span >= current.columns && columns > current.columns ? { ...block, span: columns } : block;
+      });
       const comment = { ...textBlock(
         id,
-        tf("Comentario · {t}", { t: selected.title || t("Imagen") }),
-        t("Escribe aquí la observación o el contexto de esta imagen…"),
+        `Comentario · ${selected.title || "Imagen"}`,
+        "Escribe aquí la observación o el contexto de esta imagen…",
         commentSpan,
         placement === "side" ? selected.height : 150,
       ), color: theme.ink };
@@ -468,7 +489,7 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
 
         {selected && <div className="designer-section selected-editor">
           <div className="designer-section-title"><span>{t("Bloque seleccionado")}</span><div className="order-buttons"><button disabled={hasSimilarityComparison} onClick={() => moveSelected(-1)} title={t("Mover antes")}><MoveUp size={14} /></button><button disabled={hasSimilarityComparison} onClick={() => moveSelected(1)} title={t("Mover después")}><MoveDown size={14} /></button><button disabled={hasSimilarityComparison && selected.id === SIMILARITY_NOTES_BLOCK_ID} className="delete-block" onClick={removeSelected} title={t("Eliminar bloque")}><Trash size={14} /></button></div></div>
-          <label className="field-group"><span className="field-label">{t("Etiqueta")}</span><input className="text-input" value={selected.title} onChange={(event) => patchSelected({ title: event.target.value })} /></label>
+          <label className="field-group"><span className="field-label">{t("Etiqueta")}</span><input className="text-input" value={displayText(selected.title)} onChange={(event) => patchSelected({ title: event.target.value })} /></label>
           {selected.id !== SIMILARITY_BLOCK_ID && <>
             {!hasSimilarityComparison && <div className="span-buttons"><span className="field-label">{t("Ancho")}</span><div>{Array.from({ length: config.columns }, (_, index) => index + 1).map((span) => <button key={span} className={clampReportBlockSpan(selected.span, config.columns) === span ? "active" : ""} onClick={() => patchSelected({ span })}>{span === config.columns ? t("Completo") : `${span}/${config.columns}`}</button>)}</div></div>}
             <label className="range-row block-height"><span>{t("Alto del espacio")} <b>{selected.height}px</b></span><input type="range" min={selectedHeightBounds.min} max={selectedHeightBounds.max} step="10" value={clampReportBlockHeight(selected.height, selected.type, selected.id === SIMILARITY_NOTES_BLOCK_ID)} onChange={(event) => patchSelected({ height: Number(event.target.value) })} /></label>
@@ -486,7 +507,7 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
               : <><span className="field-label">{t("Ajuste de imagen")}</span><div className="segmented"><button className={selected.fit === "contain" ? "active" : ""} onClick={() => patchSelected({ fit: "contain" })}>{t("Completa")}</button><button className={selected.fit === "cover" ? "active" : ""} onClick={() => patchSelected({ fit: "cover" })}>{t("Recorta")}</button></div>
                 <div className="image-comment-tools"><span className="field-label">{t("Agregar comentario a esta imagen")}</span><div><button onClick={() => addImageComment("below")}><TextIcon size={15} /><span><b>{t("Debajo")}</b><small>{t("Imagen arriba, texto abajo")}</small></span></button><button onClick={() => addImageComment("side")}><Columns size={15} /><span><b>{t("Al lado")}</b><small>{t("Imagen y texto en columnas")}</small></span></button></div><p>{t("Se crea un bloque de texto independiente que puedes editar, mover y redimensionar.")}</p></div></>}
           </div> : <>
-            <label className="field-group"><span className="field-label">{t("Contenido")}</span><textarea className="designer-textarea" value={selected.content} onChange={(event) => patchSelected({ content: event.target.value })} /></label>
+            <label className="field-group"><span className="field-label">{t("Contenido")}</span><textarea className="designer-textarea" value={displayText(selected.content)} onChange={(event) => patchSelected({ content: event.target.value })} /></label>
             <div className="text-toolbar"><button className={selected.bold ? "active" : ""} onClick={() => patchSelected({ bold: !selected.bold })}><b>B</b></button><button className={selected.italic ? "active" : ""} onClick={() => patchSelected({ italic: !selected.italic })}><i>I</i></button><select value={selected.font} onChange={(event) => patchSelected({ font: event.target.value })}>{FONT_OPTIONS.map((font) => <option key={font.value} value={font.value}>{font.label}</option>)}</select><input type="color" value={usesSharedTextColor(selected.color, theme.ink) ? theme.ink : selected.color} onChange={(event) => patchSelected({ color: event.target.value })} title={t("Color de texto")} /></div>
             <label className="range-row"><span>{t("Tamaño de letra")} <b>{selected.fontSize}px</b></span><input type="range" min="11" max="42" value={selected.fontSize} onChange={(event) => patchSelected({ fontSize: Number(event.target.value) })} /></label>
             <div className="segmented align-buttons"><button className={selected.align === "left" ? "active" : ""} onClick={() => patchSelected({ align: "left" })}>{t("Izq.")}</button><button className={selected.align === "center" ? "active" : ""} onClick={() => patchSelected({ align: "center" })}>{t("Centro")}</button><button className={selected.align === "right" ? "active" : ""} onClick={() => patchSelected({ align: "right" })}>{t("Der.")}</button></div>
@@ -505,7 +526,7 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
               <div className="visual-page-folio"><span>FOS</span><small>{t("PÁGINA")}</small><b>{String(pageNumber).padStart(2, "0")}</b><em>{t("VISUALES")}</em></div>
               <div className="visual-page-identity"><span className="visual-identity-lupa"><Search size={11} /> {t("INFORME DE SCOUTING")}</span><h2>{player}</h2><p>{team} · {position}</p></div>
             </header>
-            <div className="visual-page-title"><span>{t("ANÁLISIS COMPLEMENTARIO")}</span><h3>{t(config.title)}</h3></div>
+            <div className="visual-page-title"><span>{t("ANÁLISIS COMPLEMENTARIO")}</span><h3>{displayText(config.title)}</h3></div>
           </>}
           <div ref={gridRef} className="visual-block-grid" style={gridStyle} onDragOver={(event) => event.preventDefault()}>
             {config.blocks.map((block) => {
@@ -515,17 +536,17 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
               const blockHeight = clampReportBlockHeight(block.height, block.type, block.id === SIMILARITY_NOTES_BLOCK_ID);
               const textStyle = { color: usesSharedTextColor(block.color, theme.ink) ? theme.ink : block.color, fontFamily: fontFamily(block.font), fontSize: block.fontSize, fontWeight: block.bold ? 700 : 400, fontStyle: block.italic ? "italic" : "normal", textAlign: block.align } as CSSProperties;
               return <div key={block.id} data-block-id={block.id} draggable={!resizeSession && !nativeSimilarity && !hasSimilarityComparison} className={`visual-block visual-${block.type} ${block.id === SIMILARITY_BLOCK_ID ? "similarity-comparison-block" : ""} ${nativeSimilarity ? "similarity-native-block" : ""} ${fixedSimilarityNotes ? "similarity-notes-block" : ""} ${selected?.id === block.id ? "selected" : ""} ${draggedId === block.id ? "dragging" : ""} ${resizeSession?.id === block.id ? "resizing" : ""}`} style={{ gridColumn: `span ${span}`, height: blockHeight }} onClick={() => setSelectedId(block.id)} onDragStart={() => { if (!nativeSimilarity && !hasSimilarityComparison) { setDraggedId(block.id); setSelectedId(block.id); } }} onDragEnd={() => setDraggedId("")} onDragOver={(event) => event.preventDefault()} onDrop={(event) => onDropBlock(event, block.id)} role="button" tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedId(block.id); } }}>
-                <div className="block-chrome"><span><Grip size={13} /> {t(block.title) || (block.type === "image" ? t("Imagen") : t("Texto"))}</span><small>{span}/{config.columns}</small></div>
+                <div className="block-chrome"><span><Grip size={13} /> {displayText(block.title) || (block.type === "image" ? t("Imagen") : t("Texto"))}</span><small>{span}/{config.columns}</small></div>
                 {block.type === "image" ? nativeSimilarity
                   ? block.similarity
                     ? <div className="similarity-native-content similarity-report-sheet" aria-label={t("Reporte de similitud en calidad nativa")}><SimilarityReportMain payload={block.similarity} /></div>
                     : <div className="similarity-native-content similarity-report-sheet" aria-label={t("Reporte de similitud en calidad nativa")} dangerouslySetInnerHTML={{ __html: block.html ?? "" }} />
                   : <label className={`visual-image-slot ${block.image ? "has-image" : ""}`} onClick={(event) => event.stopPropagation()}>
-                    {block.image ? <LocalPreviewImage src={block.image} alt={t(block.title)} fit={block.fit} /> : <span><span className="image-placeholder-icon"><ImageIcon size={27} /></span><b>{t("Agregar imagen")}</b><small>{t("PNG, JPG o WEBP")}</small><em><Upload size={13} /> {t("Elegir archivo")}</em></span>}
+                    {block.image ? <LocalPreviewImage src={block.image} alt={displayText(block.title)} fit={block.fit} /> : <span><span className="image-placeholder-icon"><ImageIcon size={27} /></span><b>{t("Agregar imagen")}</b><small>{t("PNG, JPG o WEBP")}</small><em><Upload size={13} /> {t("Elegir archivo")}</em></span>}
                     <input type="file" accept="image/*" hidden onChange={(event) => onImage(event.target.files?.[0], block.id)} />
-                  </label> : <div className="visual-text-content" style={textStyle}><p>{t(block.content) || t("Escribe tu análisis desde el panel lateral.")}</p></div>}
-                {!nativeSimilarity && !fixedSimilarityNotes && <button type="button" className="block-resize-handle" draggable={false} aria-label={tf("Redimensionar {t}", { t: t(block.title) || t("bloque") })} title={t("Arrastra para ajustar ancho y alto")} onPointerDown={(event) => startBlockResize(event, block, "both")} onKeyDown={(event) => resizeBlockWithKeyboard(event, block, "both")} onClick={(event) => event.stopPropagation()} onDragStart={(event) => { event.preventDefault(); event.stopPropagation(); }}>↘</button>}
-                {block.type === "text" && <button type="button" className="block-height-resize-handle" draggable={false} aria-label={tf("Ajustar solo la altura de {t}", { t: t(block.title) || t("bloque") })} title={t("Arrastra para ajustar solo el alto")} onPointerDown={(event) => startBlockResize(event, block, "height")} onKeyDown={(event) => resizeBlockWithKeyboard(event, block, "height")} onClick={(event) => event.stopPropagation()} onDragStart={(event) => { event.preventDefault(); event.stopPropagation(); }}>↕</button>}
+                  </label> : <div className="visual-text-content" style={textStyle}><p>{displayText(block.content) || t("Escribe tu análisis desde el panel lateral.")}</p></div>}
+                {!nativeSimilarity && !fixedSimilarityNotes && <button type="button" className="block-resize-handle" draggable={false} aria-label={tf("Redimensionar {t}", { t: displayText(block.title) || t("bloque") })} title={t("Arrastra para ajustar ancho y alto")} onPointerDown={(event) => startBlockResize(event, block, "both")} onKeyDown={(event) => resizeBlockWithKeyboard(event, block, "both")} onClick={(event) => event.stopPropagation()} onDragStart={(event) => { event.preventDefault(); event.stopPropagation(); }}>↘</button>}
+                {block.type === "text" && <button type="button" className="block-height-resize-handle" draggable={false} aria-label={tf("Ajustar solo la altura de {t}", { t: displayText(block.title) || t("bloque") })} title={t("Arrastra para ajustar solo el alto")} onPointerDown={(event) => startBlockResize(event, block, "height")} onKeyDown={(event) => resizeBlockWithKeyboard(event, block, "height")} onClick={(event) => event.stopPropagation()} onDragStart={(event) => { event.preventDefault(); event.stopPropagation(); }}>↕</button>}
               </div>;
             })}
             {!config.blocks.length && <button className="empty-designer-page" onClick={() => addBlock("image")}><Sparkles size={26} /><b>{t("Tu página está vacía")}</b><span>{t("Agrega una imagen o un texto desde el panel.")}</span></button>}

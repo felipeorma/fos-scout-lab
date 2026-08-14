@@ -101,7 +101,9 @@ async function composeWithRefinedMask(image: Blob, mask: Blob): Promise<Blob> {
   ctx.drawImage(maskBitmap, 0, 0, width, height);
   const maskPixels = ctx.getImageData(0, 0, width, height).data;
   let alpha = new Uint8ClampedArray(width * height);
-  for (let i = 0; i < alpha.length; i += 1) alpha[i] = maskPixels[i * 4];
+  // La máscara de segmentForeground vive en el canal ALFA del PNG (el canal
+  // rojo llega corrido un píxel y premultiplicado): se lee alfa, sin pérdidas.
+  for (let i = 0; i < alpha.length; i += 1) alpha[i] = maskPixels[i * 4 + 3];
 
   alpha = dilateMask(alpha, width, height, MASK_DILATE_RADIUS);
   applyAlphaCurve(alpha, MASK_ALPHA_LOW, MASK_ALPHA_HIGH);

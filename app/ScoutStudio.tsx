@@ -31,14 +31,14 @@ import {
   type PlayerReport,
   type SourceDataset,
 } from "@/lib/scouting";
-import type { TransfermarktProfile } from "@/lib/transfermarkt";
+import { profileStorageKey, readStoredJson, type TransfermarktProfile } from "@/lib/transfermarkt";
 import { formatPlayerPositions, selectedCohortPosition } from "@/lib/positions";
 import { removePlayerImageBackground } from "@/lib/playerImageBackground";
 import { fetchTransfermarktProfile } from "@/lib/remoteData";
 import { reportExportBaseName } from "@/lib/reportExportName";
 import { canonicalizeRow } from "@/lib/wyscoutHeaders";
 import { SIMILARITY_METRIC_GROUPS, similarityMetricGroup } from "@/lib/similarityMetricGroups";
-import { numberLocale, setActiveLang, t, tf, type Lang } from "@/lib/i18n";
+import { numberLocale, setActiveLang, t, tDefault, tf, type Lang } from "@/lib/i18n";
 
 // Página 1 = ficha del jugador · Página 2 = comparación de similitud ·
 // Página 3 en adelante = páginas libres de visualizaciones que el usuario agrega.
@@ -115,7 +115,9 @@ function playerOptionsFor(rows: DataRow[]): PlayerOption[] {
   return rows.map((row, index) => ({
     index,
     player: String(row[core.player] ?? tf("Jugador {n}", { n: index + 1 })).trim(),
-    team: String(row[teamColumn] ?? "").trim() || t("Equipo no disponible"),
+    // Sin fallback traducido aquí: el valor "" es estable entre idiomas y la
+    // etiqueta visible se traduce recién en el <option>.
+    team: String(row[teamColumn] ?? "").trim(),
   })).sort((a, b) => alphabeticCollator.compare(a.team, b.team) || alphabeticCollator.compare(a.player, b.player));
 }
 
@@ -280,7 +282,7 @@ export default function ScoutStudio() {
     const timer = window.setTimeout(() => {
       void (async () => {
         await document.fonts?.ready;
-        const images = Array.from(document.querySelectorAll<HTMLImageElement>(".scout-report img, .visual-report-page img"));
+        const images = Array.from(document.querySelectorAll<HTMLImageElement>(".legal-page-shell img, .scout-report img, .visual-report-page img"));
         await Promise.all(images.map(async (image) => {
           if (!image.complete) {
             await Promise.race([
@@ -345,17 +347,21 @@ export default function ScoutStudio() {
 
   useEffect(() => {
     // Cada jugador recuerda su lectura rápida editada a mano (si existe).
+    // La clave incluye el club para no cruzar homónimos ("S. Dewaele").
     if (!report?.player) { setReadingOverride(""); return; }
     try {
-      setReadingOverride(window.localStorage.getItem(`fos-scout-reading:${report.player.toLocaleLowerCase("es")}`) ?? "");
+      const key = `fos-scout-reading:${report.player.toLocaleLowerCase("es")}|${report.team.toLocaleLowerCase("es")}`;
+      const legacy = `fos-scout-reading:${report.player.toLocaleLowerCase("es")}`;
+      setReadingOverride(window.localStorage.getItem(key) ?? window.localStorage.getItem(legacy) ?? "");
     } catch { setReadingOverride(""); }
-  }, [report?.player]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [report?.player, report?.team]);
 
   function updateReadingOverride(value: string) {
     setReadingOverride(value);
     if (!report?.player) return;
     try {
-      const key = `fos-scout-reading:${report.player.toLocaleLowerCase("es")}`;
+      const key = `fos-scout-reading:${report.player.toLocaleLowerCase("es")}|${report.team.toLocaleLowerCase("es")}`;
       if (value.trim()) window.localStorage.setItem(key, value);
       else window.localStorage.removeItem(key);
     } catch { /* Sin persistencia la edición vive durante la sesión. */ }
@@ -375,6 +381,16 @@ export default function ScoutStudio() {
     setVisualPages(remaining);
     setPrintPages((pages) => pages.filter((item) => item !== page));
     setReportPage(remaining.at(-1) ?? SIMILARITY_PAGE);
+    // Purga el diseño guardado de esa página: si se agrega una página nueva
+    // con el mismo número, arranca con la plantilla y no con contenido viejo.
+    try {
+      const stored = window.localStorage.getItem("fos-scout-page-designer-v1");
+      if (stored) {
+        const saved = JSON.parse(stored) as Record<string, unknown>;
+        delete saved[String(page)];
+        window.localStorage.setItem("fos-scout-page-designer-v1", JSON.stringify(saved));
+      }
+    } catch { /* Sin persistencia no hay nada que purgar. */ }
   }
 
   function startPrint() {
@@ -401,21 +417,20 @@ export default function ScoutStudio() {
   function restoreProfile(nextReport: PlayerReport | null) {
     const base = profileFromReport(nextReport);
     if (!nextReport?.player) return { profile: base, url: "" };
-    try {
-      const saved = window.localStorage.getItem(`fos-transfermarkt:${nextReport.player.toLocaleLowerCase("es")}`);
-      const stored = saved ? JSON.parse(saved) as Partial<TransfermarktProfile> : {};
-      return { profile: { ...base, ...stored }, url: String(stored.sourceUrl ?? "") };
-    } catch {
-      return { profile: base, url: "" };
-    }
+    const stored = readStoredJson<Partial<TransfermarktProfile>>(
+      profileStorageKey(nextReport.player, nextReport.team),
+      profileStorageKey(nextReport.player),
+    ) ?? {};
+    return { profile: { ...base, ...stored }, url: String(stored.sourceUrl ?? "") };
   }
 
   useEffect(() => {
     if (!report?.player || !profileReady) return;
     try {
-      window.localStorage.setItem(`fos-transfermarkt:${report.player.toLocaleLowerCase("es")}`, JSON.stringify(profile));
+      window.localStorage.setItem(profileStorageKey(report.player, report.team), JSON.stringify(profile));
     } catch { /* Los recursos grandes pueden superar la cuota local; la sesión sigue funcionando. */ }
-  }, [profile, profileReady, report?.player]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile, profileReady, report?.player, report?.team]);
 
   async function onReportFiles(files?: FileList | File[], mode: ReportFileMode = "replace") {
     if (!files) return;
@@ -587,7 +602,7 @@ export default function ScoutStudio() {
           </div>
 
           <ol className="studio-flow" aria-label={t("Flujo del reporte")}>
-            <li className={dataReady ? "done" : "current"}><span>{dataReady ? <Check size={13} /> : "1"}</span><div><b>{t("Cargar datos")}</b><small>{dataReady ? t(reportFileName) : t("Excel o CSV")}</small></div></li>
+            <li className={dataReady ? "done" : "current"}><span>{dataReady ? <Check size={13} /> : "1"}</span><div><b>{t("Cargar datos")}</b><small>{dataReady ? tDefault(reportFileName) : t("Excel o CSV")}</small></div></li>
             <li className={report ? "done" : dataReady ? "current" : ""}><span>{report ? <Check size={13} /> : "2"}</span><div><b>{t("Elegir jugador")}</b><small>{report ? report.player : t("Equipo y jugador")}</small></div></li>
             <li className={reportPage !== CARD_PAGE ? "done" : report ? "current" : ""}><span>3</span><div><b>{t("Construir reporte")}</b><small>{t("Ficha, similitud y visuales")}</small></div></li>
           </ol>
@@ -649,7 +664,7 @@ export default function ScoutStudio() {
 
               {(printRun ? printRun.includes(1) : reportPage === 1) ? <div className="report-workspace">
                 <section className="control-panel enrichment-controls">
-                  <div className="panel-title"><div><span className="mini-icon"><FileSpreadsheet size={17} /></span><div><h2>{t("1. Base de datos activa")}</h2><p>{t(reportFileName)}</p></div></div><span className="tiny-state">{t("LISTO")}</span></div>
+                  <div className="panel-title"><div><span className="mini-icon"><FileSpreadsheet size={17} /></span><div><h2>{t("1. Base de datos activa")}</h2><p>{tDefault(reportFileName)}</p></div></div><span className="tiny-state">{t("LISTO")}</span></div>
                   <button className="upload-box compact" onClick={() => reportInputRef.current?.click()} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); onReportFiles(event.dataTransfer.files); }}>
                     <span className="upload-icon"><Upload size={18} /></span><span><b>{reportLoading ? t("Leyendo bases…") : t("Reemplazar archivos")}</b><small>{tf("{n} base{s} · {m} jugadores", { n: reportSourceCount, s: reportSourceCount === 1 ? "" : "s", m: reportRows.length })}</small></span>
                   </button>
@@ -657,7 +672,7 @@ export default function ScoutStudio() {
                   <div className="control-divider" />
                   <div className="panel-title player-section-title"><div><span className="mini-icon"><Search size={17} /></span><div><h2>{t("2. Equipo y jugador")}</h2><p>{t("Selecciona en orden")}</p></div></div><span className="tiny-state">{t("PASO 02")}</span></div>
                   <div className="player-selector-flow">
-                    <label className="field-group selection-step"><span className="selection-step-title"><i>A</i><FieldLabel>{t("Equipo")}</FieldLabel></span><span className="select-wrap"><Files size={16} /><select value={selectedTeam} disabled={backgroundRemoving} onChange={(event) => selectTeam(event.target.value)}>{teams.map((team) => <option key={team} value={team}>{team}</option>)}</select><ChevronDown size={16} /></span></label>
+                    <label className="field-group selection-step"><span className="selection-step-title"><i>A</i><FieldLabel>{t("Equipo")}</FieldLabel></span><span className="select-wrap"><Files size={16} /><select value={selectedTeam} disabled={backgroundRemoving} onChange={(event) => selectTeam(event.target.value)}>{teams.map((team) => <option key={team || "__sin_equipo__"} value={team}>{team || t("Equipo no disponible")}</option>)}</select><ChevronDown size={16} /></span></label>
                     <span className="selection-flow-line" aria-hidden="true" />
                     <label className="field-group selection-step"><span className="selection-step-title"><i>B</i><FieldLabel>{t("Jugador")}</FieldLabel></span><span className="select-wrap"><Search size={16} /><select value={selectedPlayer} disabled={backgroundRemoving || !teamPlayers.length} onChange={(event) => selectPlayer(Number(event.target.value))}>{teamPlayers.map((player) => <option key={`${player.player}-${player.index}`} value={player.index}>{player.player}</option>)}</select><ChevronDown size={16} /></span></label>
                   </div>
@@ -666,7 +681,7 @@ export default function ScoutStudio() {
                     <label className="field-group"><FieldLabel>{t("Mín. minutos")}</FieldLabel><input className="text-input" type="number" min="0" step="100" value={minimumMinutes} onChange={(event) => setMinimumMinutes(Number(event.target.value))} /></label>
                   </div>
                   <div className="data-summary"><div><span>{t("Bases")}</span><b>{reportSourceCount}</b></div><div><span>{t("Jugadores")}</span><b>{numberFormat(reportRows.length)}</b></div><div><span>{t("Cohorte")}</span><b>{report?.cohortSize ?? 0}</b></div></div>
-                  {report && report.cohortSize < 5 && <div className="inline-error">{report.cohortSize === 0 ? t("No hay jugadores de esta posición con el mínimo de minutos: baja el mínimo o carga más datos.") : tf("Cohorte de {n} jugador{s}: percentiles poco fiables. Baja el mínimo de minutos o carga más datos.", { n: report.cohortSize, s: report.cohortSize === 1 ? "" : "es" })}</div>}
+                  {report && report.cohortSize < 5 && <div className="inline-error">{report.cohortSize === 0 ? t("No hay jugadores de esta posición con el mínimo de minutos: baja el mínimo o carga más datos.") : (report.cohortSize === 1 ? t("Cohorte de 1 jugador: percentiles poco fiables. Baja el mínimo de minutos o carga más datos.") : tf("Cohorte de {n} jugadores: percentiles poco fiables. Baja el mínimo de minutos o carga más datos.", { n: report.cohortSize }))}</div>}
                   <div className="report-copy-editor"><span className="field-label">{t("Texto de la base en el informe")}</span><label><small>{t("Etiqueta")}</small><input value={analysisLabel} placeholder={t("BASE ANALIZADA")} onChange={(event) => setAnalysisLabel(event.target.value)} /></label><label><small>{reportSourceCount > 1 ? t("Nombre temporal de la combinación") : t("Nombre de liga o temporada")}</small><input value={analysisSourceTitle} placeholder={reportSourceCount > 1 ? t("Ej. MLS Next Pro · 2025–2026") : t("Ej. MLS Next Pro 2026")} onChange={(event) => updateAnalysisSourceName(event.target.value)} /></label></div>
                   <div className="report-recipient-editor">
                     <div className="recipient-editor-head"><span className="field-label">{t("Reporte generado para")}</span><small>{t("Independiente del club del jugador")}</small></div>
@@ -760,7 +775,7 @@ export default function ScoutStudio() {
                     </header>
 
                     <section className="dossier-season-strip">
-                      <div className="season-source"><span>{t(analysisLabel) || (reportSourceCount > 1 ? t("BASES ANALIZADAS") : t("BASE ANALIZADA"))}</span><b>{t(analysisSourceTitle || reportFileName)}</b><small>{tf("Cohorte {c} · mín. {m}′", { c: cohortLabel(report.cohort), m: minimumMinutes })}</small></div>
+                      <div className="season-source"><span>{tDefault(analysisLabel) || (reportSourceCount > 1 ? t("BASES ANALIZADAS") : t("BASE ANALIZADA"))}</span><b>{tDefault(analysisSourceTitle || reportFileName)}</b><small>{tf("Cohorte {c} · mín. {m}′", { c: cohortLabel(report.cohort), m: minimumMinutes })}</small></div>
                       <div className="dossier-stat"><strong>{numberFormat(report.matches)}</strong><span>{t("Partidos")}</span></div>
                       <div className="dossier-stat"><strong>{numberFormat(report.minutes)}</strong><span>{t("Minutos")}</span></div>
                       <div className="dossier-stat goals"><strong>{numberFormat(report.goals)}</strong><span>{t("Goles")}</span></div>
@@ -823,7 +838,7 @@ export default function ScoutStudio() {
               </div>
 
               {report ? visualPages.filter((page) => printRun ? printRun.includes(page) : reportPage === page).map((page) => (
-                <ReportPageDesigner key={page} pageNumber={page} player={report.player} team={profile.club || report.team} position={formatPlayerPositions(profile.position || report.position)} theme={reportTheme} onThemeChange={setReportTheme} recipientName={recipientName} recipientLogoUrl={reportRecipientLogoUrl} />
+                <ReportPageDesigner key={page} pageNumber={page} persist={!printRun || reportPage === page} player={report.player} team={profile.club || report.team} position={formatPlayerPositions(profile.position || report.position)} theme={reportTheme} onThemeChange={setReportTheme} recipientName={recipientName} recipientLogoUrl={reportRecipientLogoUrl} />
               )) : !printRun && reportPage >= FIRST_VISUAL_PAGE ? <div className="empty-preview">{t("Selecciona un jugador para diseñar las páginas.")}</div> : null}
 
               {printDialogOpen && <div className="print-dialog-overlay" role="dialog" aria-modal="true" aria-label={t("¿Qué páginas quieres incluir en el PDF?")} onClick={() => setPrintDialogOpen(false)}>

@@ -24,6 +24,11 @@ export function similarityMetricGroup(metric: { key: string; label: string; grou
     if (explicit) return explicit;
   }
   const semanticName = `${metric.label} ${metric.key}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("es");
+  // Payloads antiguos (sin colorGroup) de porteros: las métricas de arquero
+  // pertenecen al grupo Portero, no al defensivo genérico.
+  if (cohort.toUpperCase() === "GK" && /save|parada|atajada|conceded|gol(es)? concedido|gol(es)? recibido|prevented|evitado|xg against|xg en contra|exit|salida/.test(semanticName)) {
+    return SIMILARITY_METRIC_GROUPS[4];
+  }
   if (AERIAL_METRIC.test(semanticName)) {
     return ATTACKING_AERIAL_COHORTS.has(cohort.toUpperCase())
       ? SIMILARITY_METRIC_GROUPS[0]

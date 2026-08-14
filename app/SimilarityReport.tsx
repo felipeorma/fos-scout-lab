@@ -10,7 +10,7 @@ import { similarityMetricDensity } from "@/lib/reportPageLayout";
 import { formatCell } from "@/lib/scouting";
 import { type SimilarityMetricComparison } from "@/lib/similarity";
 import { SIMILARITY_METRIC_GROUPS, similarityMetricGroup } from "@/lib/similarityMetricGroups";
-import { t, tf } from "@/lib/i18n";
+import { t, tDefault, tf } from "@/lib/i18n";
 import { type TransfermarktProfile } from "@/lib/transfermarkt";
 
 const TRANSFERMARKT_LOGO = process.env.NEXT_PUBLIC_GITHUB_PAGES === "true"
@@ -250,7 +250,7 @@ export function SimilarityReportMain({ payload }: { payload: SimilarityReportPay
   return <div className="similarity-report-main" data-metric-density={similarityMetricDensity(metrics.length)}>
     <header className="similarity-report-header duel-header">
       <HeaderPlayer player={target} label={t("JUGADOR OBJETIVO")} side="left" />
-      <div className="duel-header-center"><SimilarityStarScore similarity={payload.similarity} /><small><span className="report-lupa"><Search size={9} /></span> {t("COMPARACIÓN DE JUGADORES")} · {tf("Percentiles posicionales · {src}", { src: t(payload.sourceName) })}</small></div>
+      <div className="duel-header-center"><SimilarityStarScore similarity={payload.similarity} /><small><span className="report-lupa"><Search size={9} /></span> {t("COMPARACIÓN DE JUGADORES")} · {tf("Percentiles posicionales · {src}", { src: tDefault(payload.sourceName) })}</small></div>
       <HeaderPlayer player={candidate} label={t("JUGADOR COMPARABLE")} side="right" />
     </header>
     <div className="similarity-report-body">

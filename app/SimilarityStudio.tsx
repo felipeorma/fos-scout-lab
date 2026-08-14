@@ -16,11 +16,11 @@ import {
 import { formatCell, type DataRow, type PlayerReport } from "@/lib/scouting";
 import { formatPlayerPositions, selectedCohortPosition, type PlayerPosition } from "@/lib/positions";
 import { SIMILARITY_METRIC_GROUPS, similarityMetricGroup } from "@/lib/similarityMetricGroups";
-import { createEmptyTransfermarktProfile, type TransfermarktProfile } from "@/lib/transfermarkt";
+import { createEmptyTransfermarktProfile, profileStorageKey, readStoredJson, type TransfermarktProfile } from "@/lib/transfermarkt";
 import { removePlayerImageBackground } from "@/lib/playerImageBackground";
 import { canvasImageCandidates, fetchTransfermarktProfile, proxiedImageUrl } from "@/lib/remoteData";
 import { reportExportBaseName } from "@/lib/reportExportName";
-import { t, tf, numberLocale, type Lang } from "@/lib/i18n";
+import { t, tDefault, tf, numberLocale, type Lang } from "@/lib/i18n";
 
 type TargetOption = { index: number; player: string; team: string };
 type ProfileSide = "target" | "candidate";
@@ -64,10 +64,6 @@ function formatMetricValue(value: number, key: string) {
   return `${formatCell(value)}${key.includes("%") ? "%" : ""}`;
 }
 
-function profileStorageKey(player: string) {
-  return `fos-transfermarkt:${player.toLocaleLowerCase("es")}`;
-}
-
 function candidateProfileSeed(candidate: SimilarityPlayer | null) {
   return createEmptyTransfermarktProfile({
     name: candidate?.name ?? "",
@@ -80,12 +76,11 @@ function candidateProfileSeed(candidate: SimilarityPlayer | null) {
 
 function loadStoredProfile(candidate: SimilarityPlayer) {
   const base = candidateProfileSeed(candidate);
-  try {
-    const saved = window.localStorage.getItem(profileStorageKey(candidate.name));
-    return saved ? { ...base, ...JSON.parse(saved) } as TransfermarktProfile : base;
-  } catch {
-    return base;
-  }
+  const saved = readStoredJson<Partial<TransfermarktProfile>>(
+    profileStorageKey(candidate.name, candidate.team),
+    profileStorageKey(candidate.name),
+  );
+  return saved ? { ...base, ...saved } as TransfermarktProfile : base;
 }
 
 function drawRoundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
@@ -464,7 +459,7 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
   ctx.font = "700 12px Arial";
   ctx.fillText(t("SIMILITUD"), 800, 160);
   ctx.font = "600 11px Arial";
-  const headerLine = fitText(ctx, `${t("COMPARACIÓN DE JUGADORES")} · ${t("Percentiles posicionales").toUpperCase()} · ${t(sourceName).toUpperCase()}`, 560);
+  const headerLine = fitText(ctx, `${t("COMPARACIÓN DE JUGADORES")} · ${t("Percentiles posicionales").toUpperCase()} · ${tDefault(sourceName).toUpperCase()}`, 560);
   ctx.fillText(headerLine, 812, 200);
   drawMagnifier(ctx, 812 - ctx.measureText(headerLine).width / 2 - 22, 196, 8, "rgba(255,255,255,.68)");
   ctx.textAlign = "left";
@@ -614,8 +609,12 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
   const candidates = search?.candidates ?? [];
   const activeMetricWeights = search?.target.metrics.filter((metric) => (metricWeights[metric.key] ?? 1) !== 1).length ?? 0;
   const selectedCandidate = candidates.find((candidate) => candidate.index === selectedCandidateIndex) ?? candidates[0] ?? null;
-  const activeCandidateKey = selectedCandidate ? profileStorageKey(selectedCandidate.name) : "";
-  const candidateProfile = candidateProfileKey === activeCandidateKey ? candidateProfileState : candidateProfileSeed(selectedCandidate);
+  const activeCandidateKey = selectedCandidate ? profileStorageKey(selectedCandidate.name, selectedCandidate.team) : "";
+  // El fallback (candidato auto-seleccionado sin pulsar "Comparar") también
+  // recupera el perfil Transfermarkt guardado, no solo la semilla vacía.
+  const candidateProfile = candidateProfileKey === activeCandidateKey
+    ? candidateProfileState
+    : (selectedCandidate && typeof window !== "undefined" ? loadStoredProfile(selectedCandidate) : candidateProfileSeed(selectedCandidate));
   const targetColor = targetColorChoice || theme.accent;
   const candidateColor = candidateColorChoice || "#e95b3f";
   const targetLabelColor = targetLabelColorChoice || targetColor;
@@ -664,14 +663,18 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     candidateColor,
     candidateLabelColor,
     candidateLabelTransparency,
+    candidatePhotoFit,
     candidatePhotoScale,
     candidateProfile,
+    position,
+    reportCohort,
     search,
     selectedCandidate,
     sourceName,
     targetColor,
     targetLabelColor,
     targetLabelTransparency,
+    targetPhotoFit,
     targetPhotoScale,
     targetProfile,
   ]);
@@ -679,7 +682,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
   function chooseCandidate(candidate: SimilarityPlayer) {
     setSelectedCandidateIndex(candidate.index);
     setCandidateProfileState(loadStoredProfile(candidate));
-    setCandidateProfileKey(profileStorageKey(candidate.name));
+    setCandidateProfileKey(profileStorageKey(candidate.name, candidate.team));
     setProfileStatus((current) => ({ ...current, candidate: "" }));
   }
 
@@ -722,18 +725,24 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     setMetricWeights({});
   }
 
+  function sideStorageKey(side: ProfileSide) {
+    return side === "target"
+      ? profileStorageKey(search?.target.player ?? "", search?.target.team ?? "")
+      : profileStorageKey(selectedCandidate?.name ?? "", selectedCandidate?.team ?? "");
+  }
+
   function saveProfile(side: ProfileSide, playerName: string, next: TransfermarktProfile) {
     if (side === "target") onTargetProfileChange(next);
     else {
       setCandidateProfileState(next);
-      setCandidateProfileKey(profileStorageKey(playerName));
+      setCandidateProfileKey(sideStorageKey(side));
     }
-    try { window.localStorage.setItem(profileStorageKey(playerName), JSON.stringify(next)); } catch { /* La comparación continúa aunque no haya persistencia. */ }
+    try { window.localStorage.setItem(sideStorageKey(side), JSON.stringify(next)); } catch { /* La comparación continúa aunque no haya persistencia. */ }
   }
 
-  function clearBackgroundOriginal(playerName: string) {
+  function clearBackgroundOriginal(side: ProfileSide) {
     setBackgroundOriginals((originals) => {
-      const key = profileStorageKey(playerName);
+      const key = sideStorageKey(side);
       if (!(key in originals)) return originals;
       const nextOriginals = { ...originals };
       delete nextOriginals[key];
@@ -752,7 +761,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
       const populated = Object.fromEntries(Object.entries(result).filter(([, value]) => value !== "" && value !== undefined));
       const next = { ...current, ...populated, sourceUrl: url } as TransfermarktProfile;
       saveProfile(side, playerName, next);
-      clearBackgroundOriginal(playerName);
+      clearBackgroundOriginal(side);
       setProfileStatus((status) => ({ ...status, [side]: t("✓ Foto, escudo y datos cargados.") }));
     } catch (error) {
       setProfileStatus((status) => ({ ...status, [side]: error instanceof Error ? error.message : t("No se pudo extraer el perfil.") }));
@@ -769,7 +778,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
       const url = new URL(value.trim());
       if (!/^https?:$/.test(url.protocol)) throw new Error();
       saveProfile(side, playerName, { ...current, playerImage: url.href });
-      clearBackgroundOriginal(playerName);
+      clearBackgroundOriginal(side);
       setProfileStatus((status) => ({ ...status, [side]: t("✓ Foto aplicada desde el enlace. Puedes quitarle el fondo con IA.") }));
     } catch {
       setProfileStatus((status) => ({ ...status, [side]: t("Ingresa un enlace de imagen válido que comience con http:// o https://.") }));
@@ -787,7 +796,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     try {
       const dataUrl = await blobToDataUrl(file);
       saveProfile(side, playerName, { ...current, playerImage: dataUrl });
-      clearBackgroundOriginal(playerName);
+      clearBackgroundOriginal(side);
       setProfileStatus((status) => ({ ...status, [side]: t("✓ Foto cargada desde el ordenador. Puedes quitarle el fondo con IA.") }));
     } catch {
       setProfileStatus((status) => ({ ...status, [side]: t("No se pudo leer la imagen seleccionada.") }));
@@ -813,7 +822,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
         },
       });
       const dataUrl = await blobToDataUrl(result);
-      const storageKey = profileStorageKey(playerName);
+      const storageKey = sideStorageKey(side);
       setBackgroundOriginals((originals) => originals[storageKey] ? originals : { ...originals, [storageKey]: source });
       saveProfile(side, playerName, { ...current, playerImage: dataUrl });
       setProfileStatus((status) => ({ ...status, [side]: t("✓ Fondo eliminado. La foto transparente ya está aplicada al reporte.") }));
@@ -827,7 +836,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
   function restorePlayerBackground(side: ProfileSide) {
     const current = side === "target" ? targetProfile : candidateProfile;
     const playerName = side === "target" ? search?.target.player ?? "" : selectedCandidate?.name ?? "";
-    const storageKey = profileStorageKey(playerName);
+    const storageKey = sideStorageKey(side);
     const original = backgroundOriginals[storageKey];
     if (!playerName || !original) return;
     saveProfile(side, playerName, { ...current, playerImage: original });
@@ -967,7 +976,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
       <section className="similarity-target-bar">
         <div className="similarity-target-copy"><span>{t("JUGADOR OBJETIVO")}</span><b>{search.target.player}</b><small>{tf("{team} · {pos} · {age} años", { team: search.target.team, pos: search.target.position, age: search.target.age })}</small></div>
         <div className="similarity-target-selectors">
-          <label><span>{t("1 · Club")}</span><select value={selectedTargetTeam} onChange={(event) => chooseTargetTeam(event.target.value)}>{targetTeams.map((team) => <option key={team} value={team}>{team}</option>)}</select></label>
+          <label><span>{t("1 · Club")}</span><select value={selectedTargetTeam} onChange={(event) => chooseTargetTeam(event.target.value)}>{targetTeams.map((team) => <option key={team || "__sin_equipo__"} value={team}>{team || t("Equipo no disponible")}</option>)}</select></label>
           <label><span>{t("2 · Jugador")}</span><select value={selectedIndex} onChange={(event) => chooseTarget(Number(event.target.value))}>{targetPlayers.map((target) => <option key={`${target.index}-${target.player}`} value={target.index}>{target.player}</option>)}</select></label>
         </div>
         <div className="similarity-model-badge"><Sparkles size={16} /><span><b>{t("BASELINE ESTADÍSTICO")}</b><small>{t("Percentiles + contexto de edad y rol")}</small></span></div>
@@ -1019,8 +1028,8 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
 
           {selectedCandidate && <>
             <section className="similarity-enrichment-grid">
-              <ProfileEnrichment side="target" label={t("Jugador objetivo")} player={search.target.player} color={targetColor} profile={targetProfile} busy={profileBusy === "target"} backgroundBusy={backgroundBusy === "target"} locked={profileBusy !== null || backgroundBusy !== null} canRestore={Boolean(backgroundOriginals[profileStorageKey(search.target.player)])} status={profileStatus.target} onExtract={(url) => extractProfile("target", url)} onImageUrl={(url) => applyPlayerImageUrl("target", url)} onImageFile={(file) => loadPlayerImage("target", file)} onRemoveBackground={() => removePlayerBackground("target")} onRestoreBackground={() => restorePlayerBackground("target")} onDownload={downloadAsset} />
-              <ProfileEnrichment side="candidate" label={t("Jugador comparable")} player={selectedCandidate.name} color={candidateColor} profile={candidateProfile} busy={profileBusy === "candidate"} backgroundBusy={backgroundBusy === "candidate"} locked={profileBusy !== null || backgroundBusy !== null} canRestore={Boolean(backgroundOriginals[profileStorageKey(selectedCandidate.name)])} status={profileStatus.candidate} onExtract={(url) => extractProfile("candidate", url)} onImageUrl={(url) => applyPlayerImageUrl("candidate", url)} onImageFile={(file) => loadPlayerImage("candidate", file)} onRemoveBackground={() => removePlayerBackground("candidate")} onRestoreBackground={() => restorePlayerBackground("candidate")} onDownload={downloadAsset} />
+              <ProfileEnrichment side="target" label={t("Jugador objetivo")} player={search.target.player} color={targetColor} profile={targetProfile} busy={profileBusy === "target"} backgroundBusy={backgroundBusy === "target"} locked={profileBusy !== null || backgroundBusy !== null} canRestore={Boolean(backgroundOriginals[profileStorageKey(search.target.player, search.target.team)])} status={profileStatus.target} onExtract={(url) => extractProfile("target", url)} onImageUrl={(url) => applyPlayerImageUrl("target", url)} onImageFile={(file) => loadPlayerImage("target", file)} onRemoveBackground={() => removePlayerBackground("target")} onRestoreBackground={() => restorePlayerBackground("target")} onDownload={downloadAsset} />
+              <ProfileEnrichment side="candidate" label={t("Jugador comparable")} player={selectedCandidate.name} color={candidateColor} profile={candidateProfile} busy={profileBusy === "candidate"} backgroundBusy={backgroundBusy === "candidate"} locked={profileBusy !== null || backgroundBusy !== null} canRestore={Boolean(backgroundOriginals[profileStorageKey(selectedCandidate.name, selectedCandidate.team)])} status={profileStatus.candidate} onExtract={(url) => extractProfile("candidate", url)} onImageUrl={(url) => applyPlayerImageUrl("candidate", url)} onImageFile={(file) => loadPlayerImage("candidate", file)} onRemoveBackground={() => removePlayerBackground("candidate")} onRestoreBackground={() => restorePlayerBackground("candidate")} onDownload={downloadAsset} />
             </section>
 
             <section className="similarity-color-panel">

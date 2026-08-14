@@ -59,7 +59,8 @@ function decode(value: string) {
     .replace(/&quot;/gi, '"')
     .replace(/&#39;|&apos;/gi, "'")
     .replace(/&euro;/gi, "€")
-    .replace(/&#(d+);/g, (_, code: string) => String.fromCharCode(Number(code)));
+    .replace(/&#x([0-9a-f]+);/gi, (_, code: string) => String.fromCodePoint(parseInt(code, 16)))
+    .replace(/&#(\d+);/g, (_, code: string) => String.fromCodePoint(Number(code)));
 }
 
 function text(value = "") {
@@ -147,4 +148,27 @@ export function parseTransfermarktProfile(html: string, sourceUrl: string): Tran
     joined,
     lastUpdate,
   };
+}
+
+// Claves de almacenamiento por jugador. El nombre solo no basta: Wyscout
+// abrevia ("S. Dewaele" puede ser Sebbe o Siebe), así que la clave incluye el
+// club. Las lecturas aceptan la clave antigua (solo nombre) como fallback para
+// no perder perfiles ya guardados.
+function normalizeStorageToken(value: string) {
+  return value.trim().toLocaleLowerCase("es");
+}
+
+export function profileStorageKey(player: string, team = "") {
+  const teamToken = normalizeStorageToken(team);
+  const base = `fos-transfermarkt:${normalizeStorageToken(player)}`;
+  return teamToken ? `${base}|${teamToken}` : base;
+}
+
+export function readStoredJson<T>(newKey: string, legacyKey: string): T | null {
+  try {
+    const raw = window.localStorage.getItem(newKey) ?? window.localStorage.getItem(legacyKey);
+    return raw ? JSON.parse(raw) as T : null;
+  } catch {
+    return null;
+  }
 }

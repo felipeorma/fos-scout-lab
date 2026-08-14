@@ -93,7 +93,10 @@ async def remove_background(
         if (ratio < 0.05 or ratio > 0.98) and chosen != RESCUE_MODEL:
             rescued = remove(payload, session=session_for(RESCUE_MODEL), post_process_mask=post_process)
             rescued_ratio = foreground_ratio(rescued)
-            if 0.05 <= rescued_ratio <= 0.98 or abs(rescued_ratio - 0.4) < abs(ratio - 0.4):
+            # Solo se reemplaza si el rescate cae en la banda plausible; si
+            # ambos fallan se conserva el original (una imagen intacta al 99%
+            # es mejor que una casi vacía al 1%).
+            if 0.05 <= rescued_ratio <= 0.98:
                 result = rescued
                 engine = f"{RESCUE_MODEL} (rescate)"
     except Exception:

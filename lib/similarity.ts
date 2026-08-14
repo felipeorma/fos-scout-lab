@@ -221,6 +221,10 @@ export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filt
     return rank === null ? [] : [[metric.key, rank] as const];
   }));
   const normalizedQuery = normalizeSearch(filters.query);
+  // Si la configuración global de pesos deja alguna métrica con peso > 0, un
+  // candidato sin datos en NINGUNA de esas métricas queda fuera del ranking:
+  // antes heredaba la similitud de contexto y podía aparecer al 100%.
+  const anyWeightConfigured = target.metrics.some((metric) => metricWeight(metric.key, metricWeights) > 0);
   const targetAge = optionalNumber(ageColumn ? targetRow[ageColumn] : null);
   const targetPosition = text(targetRow, positionColumn, target.position);
   const targetRoles = positionRoles(targetPosition);
@@ -271,6 +275,7 @@ export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filt
     const candidateVector = metrics.map((metric) => (metric.candidatePercentile - 50) / 50);
     const configuredWeights = metrics.map((metric) => metric.weight);
     const hasWeightedMetrics = configuredWeights.some((weight) => weight > 0);
+    if (anyWeightConfigured && !hasWeightedMetrics) return [];
     const effectiveWeights = hasWeightedMetrics ? configuredWeights : configuredWeights.map(() => 1);
     const totalWeight = effectiveWeights.reduce((sum, weight) => sum + weight, 0);
     const dot = targetVector.reduce((sum, value, metricIndex) => sum + effectiveWeights[metricIndex] * value * candidateVector[metricIndex], 0);

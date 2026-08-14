@@ -72,16 +72,24 @@ export function normalizeHeader(value: unknown) {
 }
 
 export function extractSeason(fileName: string) {
-  const match = fileName.match(/(?:19|20)?\d{2}/);
-  if (!match) return 0;
-  const year = Number(match[0]);
-  return year < 100 ? 2000 + year : year;
+  // Preferir siempre el último año de 4 dígitos ("U23 2026.xlsx" → 2026, no
+  // 2023); solo si no existe, aceptar un número de 2 dígitos aislado.
+  const fullYears = fileName.match(/\b(?:19|20)\d{2}\b/g);
+  if (fullYears?.length) return Number(fullYears[fullYears.length - 1]);
+  const shortYears = fileName.match(/\b\d{2}\b/g);
+  if (shortYears?.length) return 2000 + Number(shortYears[shortYears.length - 1]);
+  return 0;
 }
 
 export function numeric(value: CellValue): number {
   if (typeof value === "number") return Number.isFinite(value) ? value : Number.NaN;
   if (value === null || value === undefined || value === "") return Number.NaN;
   const raw = String(value).trim().replace(/%$/, "").replace(/\s/g, "");
+  // "2,340" / "2.340" / "1,234,567" son números con separador de miles, no
+  // decimales: grupos de exactamente 3 dígitos tras el primer separador.
+  if (/^[+-]?\d{1,3}([.,]\d{3})+$/.test(raw)) {
+    return Number(raw.replace(/[.,]/g, ""));
+  }
   const normalized = raw.includes(",") && raw.includes(".")
     ? raw.replace(/\./g, "").replace(",", ".")
     : raw.replace(",", ".");
@@ -227,8 +235,47 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
     grouped.set(key, [...(grouped.get(key) ?? []), entry]);
   }
 
+  // Fusión entre temporadas: la clave nombre+edad+club separa al mismo jugador
+  // cuando cumple años o cambia de club entre archivos. Se fusionan grupos con
+  // el mismo nombre cuya edad difiere en ≤1 (o falta), salvo que compartan
+  // archivo de origen — dos filas del mismo archivo son homónimos reales.
+  const byName = new Map<string, Array<typeof combined>>();
+  for (const entries of grouped.values()) {
+    const name = normalizeIdentityText(entries[0].player);
+    byName.set(name, [...(byName.get(name) ?? []), entries]);
+  }
+  const mergedGroups: Array<typeof combined> = [];
+  for (const groups of byName.values()) {
+    const clusters: Array<typeof combined> = [];
+    for (const group of groups) {
+      const groupSources = new Set(group.map((entry) => entry.sourceIndex));
+      const groupAges = group.map((entry) => Number(entry.ageIdentity)).filter(Number.isFinite);
+      const target = clusters.find((cluster) => {
+        if (cluster.some((entry) => groupSources.has(entry.sourceIndex))) return false;
+        const clusterAges = cluster.map((entry) => Number(entry.ageIdentity)).filter(Number.isFinite);
+        if (!groupAges.length || !clusterAges.length) return true;
+        return groupAges.some((a) => clusterAges.some((b) => Math.abs(a - b) <= 1));
+      });
+      if (target) target.push(...group);
+      else clusters.push([...group]);
+    }
+    mergedGroups.push(...clusters);
+  }
+
+  const positionColumn = findColumn(allHeaders, ["position", "posicion", "posicion especifica"]);
+  const passportColumn = findColumn(allHeaders, ["passport country", "pais de pasaporte", "nacionalidad"]);
+  const currentTeamColumn = findColumn(allHeaders, ["current team", "equipo actual"]);
+  const contractColumn = findColumn(allHeaders, ["contract expires", "vencimiento contrato"]);
+  const idColumn = findColumn(allHeaders, ["id", "player id", "wyid"]);
+
   const excluded = new Set([core.minutes, core.matches]);
   if (ageColumn) excluded.add(ageColumn);
+  // Las columnas de metadatos (contrato, club, posición, id…) nunca deben
+  // entrar al bucle numérico: "Contract expires" = 2027 y 2020 se convertía
+  // en 2023.5 al promediarse.
+  for (const column of [positionColumn, passportColumn, currentTeamColumn, contractColumn, idColumn, ...teamColumns]) {
+    if (column) excluded.add(column);
+  }
   const numericHeaders = allHeaders.filter((header) => {
     if (!header || header === core.player || excluded.has(header)) return false;
     // Basta con que exista algún valor: las columnas específicas de rol
@@ -240,14 +287,23 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
   const per90Headers = numericHeaders.filter(isPer90);
   const percentHeaders = numericHeaders.filter((header) => !per90Headers.includes(header) && isPercentage(header));
   const totalHeaders = numericHeaders.filter((header) => !per90Headers.includes(header) && !percentHeaders.includes(header));
+  // Conteos acumulativos (goles, asistencias, tarjetas…) se SUMAN entre
+  // archivos, igual que partidos y minutos; el resto de totales (altura,
+  // peso, valor de mercado…) se promedia.
+  const CUMULATIVE_HEADERS = new Set([
+    "goals", "non penalty goals", "assists", "xg", "xa", "shots", "shots against",
+    "head goals", "conceded goals", "prevented goals", "clean sheets",
+    "yellow cards", "red cards", "penalties taken", "xg against",
+    "second assists", "third assists",
+  ]);
+  const cumulativeHeaders = totalHeaders.filter((header) => CUMULATIVE_HEADERS.has(normalizeHeader(header)));
+  const averagedHeaders = totalHeaders.filter((header) => !cumulativeHeaders.includes(header));
 
-  const positionColumn = findColumn(allHeaders, ["position", "posicion", "posicion especifica"]);
-  const passportColumn = findColumn(allHeaders, ["passport country", "pais de pasaporte", "nacionalidad"]);
-  const currentTeamColumn = findColumn(allHeaders, ["current team", "equipo actual"]);
-  const contractColumn = findColumn(allHeaders, ["contract expires", "vencimiento contrato"]);
-
-  const rows = [...grouped.values()].map((entries) => {
-    const sorted = [...entries].sort((a, b) => (a.season - b.season) || (a.sourceIndex - b.sourceIndex));
+  const rows = mergedGroups.map((entries) => {
+    // Un archivo sin año en el nombre (season 0) es un export actual, no el
+    // más antiguo: se ordena como el más reciente.
+    const seasonOrder = (season: number) => season || Number.MAX_SAFE_INTEGER;
+    const sorted = [...entries].sort((a, b) => (seasonOrder(a.season) - seasonOrder(b.season)) || (a.sourceIndex - b.sourceIndex));
     const latest = sorted.at(-1)!;
     const seasons = uniqueText(sorted.map(({ season }) => season || ""));
     const output: DataRow = {
@@ -265,7 +321,11 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
     if (contractColumn) output["Contract expires"] = latest.row[contractColumn] ?? "";
     if (ageColumn) output.Age = latest.row[ageColumn] ?? "";
 
-    for (const header of totalHeaders) output[header] = average(sorted.map(({ row }) => numeric(row[header])));
+    for (const header of cumulativeHeaders) {
+      const values = sorted.map(({ row }) => numeric(row[header])).filter(Number.isFinite);
+      output[header] = values.length ? values.reduce((sum, value) => sum + value, 0) : Number.NaN;
+    }
+    for (const header of averagedHeaders) output[header] = average(sorted.map(({ row }) => numeric(row[header])));
     for (const header of per90Headers) {
       output[header] = weightedAverage(sorted.map(({ row }) => ({
         value: numeric(row[header]),

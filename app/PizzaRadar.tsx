@@ -154,9 +154,26 @@ export function PizzaRadar({ metrics, score, cohort, lang = "es" }: { metrics: R
       ctx.fillText(t("ÍNDICE"), cx, cy + size * 0.032);
     };
     draw();
+    // Al mover la ventana entre monitores con distinta densidad (1x ↔ Retina)
+    // el tamaño CSS no cambia y ResizeObserver no dispara: se escucha el
+    // cambio de devicePixelRatio con matchMedia y se re-registra tras cada uno.
+    let dprMedia: MediaQueryList | null = null;
+    const watchDpr = () => {
+      dprMedia?.removeEventListener("change", onDprChange);
+      dprMedia = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+      dprMedia.addEventListener("change", onDprChange);
+    };
+    function onDprChange() {
+      draw();
+      watchDpr();
+    }
+    watchDpr();
     const observer = new ResizeObserver(draw);
     observer.observe(canvas);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      dprMedia?.removeEventListener("change", onDprChange);
+    };
   }, [cohort, metrics, score, lang]);
 
   return (
