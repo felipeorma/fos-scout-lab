@@ -552,10 +552,14 @@ export function buildPlayerReport(rows: DataRow[], selectedIndex: number, minimu
   const sourceCohort = cohortOf(positionColumn ? row[positionColumn] : "");
   const cohort = forcedCohort === "AUTO" ? sourceCohort : forcedCohort;
   const definitions = METRICS[cohort] ?? METRICS.OTHER;
-  const peers = rows.filter((candidate) => {
-    const sameCohort = forcedCohort !== "AUTO" || cohortOf(positionColumn ? candidate[positionColumn] : "") === cohort;
-    return sameCohort && numeric(candidate[core.minutes]) >= minimumMinutes;
-  });
+  // La cohorte siempre son los jugadores de esa misma posición dentro de la
+  // base cargada. Al forzar una cohorte se comparan las métricas de ese rol,
+  // pero el grupo de referencia sigue siendo el de la posición seleccionada:
+  // nunca todos los jugadores de la base.
+  const peers = rows.filter((candidate) => (
+    cohortOf(positionColumn ? candidate[positionColumn] : "") === cohort
+    && numeric(candidate[core.minutes]) >= minimumMinutes
+  ));
   const metrics = definitions.flatMap((definition) => {
     const key = findColumn(headers, definition.aliases);
     if (!key) return [];
