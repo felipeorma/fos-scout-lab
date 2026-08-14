@@ -129,6 +129,30 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
   return <span className="field-label">{children}</span>;
 }
 
+// Texto del informe editable con clic directo sobre la vista previa.
+// No controlado a propósito: el estado se confirma al salir del campo (blur)
+// para que el cursor no salte mientras se escribe.
+function InlineText({ value, fallback, onCommit, multiline = false, editKey }: { value: string; fallback: string; onCommit: (next: string) => void; multiline?: boolean; editKey: string }) {
+  return <span
+    key={editKey}
+    className="inline-editable"
+    contentEditable
+    suppressContentEditableWarning
+    role="textbox"
+    aria-multiline={multiline}
+    spellCheck={false}
+    title={t("Haz clic para editar")}
+    onKeyDown={(event) => {
+      if (!multiline && event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); }
+      if (event.key === "Escape") { event.currentTarget.textContent = value || fallback; event.currentTarget.blur(); }
+    }}
+    onBlur={(event) => {
+      const next = (event.currentTarget.innerText ?? "").replace(/\n{3,}/g, "\n\n").trim();
+      onCommit(next === fallback.trim() ? "" : next);
+    }}
+  >{value || fallback}</span>;
+}
+
 function profileFromReport(report: PlayerReport | null): TransfermarktProfile {
   return {
     sourceUrl: "",
@@ -682,13 +706,13 @@ export default function ScoutStudio() {
                   </div>
                   <div className="data-summary"><div><span>{t("Bases")}</span><b>{reportSourceCount}</b></div><div><span>{t("Jugadores")}</span><b>{numberFormat(reportRows.length)}</b></div><div><span>{t("Cohorte")}</span><b>{report?.cohortSize ?? 0}</b></div></div>
                   {report && report.cohortSize < 5 && <div className="inline-error">{report.cohortSize === 0 ? t("No hay jugadores de esta posición con el mínimo de minutos: baja el mínimo o carga más datos.") : (report.cohortSize === 1 ? t("Cohorte de 1 jugador: percentiles poco fiables. Baja el mínimo de minutos o carga más datos.") : tf("Cohorte de {n} jugadores: percentiles poco fiables. Baja el mínimo de minutos o carga más datos.", { n: report.cohortSize }))}</div>}
-                  <div className="report-copy-editor"><span className="field-label">{t("Texto de la base en el informe")}</span><label><small>{t("Etiqueta")}</small><input value={analysisLabel} placeholder={t("BASE ANALIZADA")} onChange={(event) => setAnalysisLabel(event.target.value)} /></label><label><small>{reportSourceCount > 1 ? t("Nombre temporal de la combinación") : t("Nombre de liga o temporada")}</small><input value={analysisSourceTitle} placeholder={reportSourceCount > 1 ? t("Ej. MLS Next Pro · 2025–2026") : t("Ej. MLS Next Pro 2026")} onChange={(event) => updateAnalysisSourceName(event.target.value)} /></label></div>
-                  <div className="report-recipient-editor">
-                    <div className="recipient-editor-head"><span className="field-label">{t("Reporte generado para")}</span><small>{t("Independiente del club del jugador")}</small></div>
+                  <p className="inline-edit-hint">{t("Los textos del informe (etiqueta de la base, lectura rápida, club destinatario) se editan con un clic directamente sobre la vista previa.")}</p>
+                  <details className="profile-details report-recipient-editor">
+                    <summary>{t("Reporte generado para")}</summary>
                     <label><small>{t("Nombre del club destinatario")}</small><input value={reportRecipientName} maxLength={80} placeholder={t("Ej. Club Deportivo…")} onChange={(event) => setReportRecipientName(event.target.value)} /></label>
                     <label><small>{t("Link del logo destinatario")}</small><input type="url" inputMode="url" value={reportRecipientLogoUrl} placeholder="https://sitio.com/logo.png" aria-invalid={Boolean(reportRecipientLogoUrl) && !recipientLogoReady} onChange={(event) => setReportRecipientLogoUrl(event.target.value)} /></label>
                     <p className={reportRecipientLogoUrl && !recipientLogoReady ? "recipient-link-status invalid" : "recipient-link-status"}>{recipientLogoReady ? t("✓ Logo destinatario aplicado al pie del reporte.") : t("Pega un link directo http:// o https://. No se utilizará el escudo del jugador.")}</p>
-                  </div>
+                  </details>
 
                   <div className="control-divider" />
                   <div className="panel-title enrichment-title"><div><span className="mini-icon transfermarkt-panel-logo"><ReportImage src={TRANSFERMARKT_LOGO} alt="Transfermarkt" className="transfermarkt-logo-image" /></span><div><h2>{t("3. Transfermarkt e imágenes")}</h2><p>{t("Datos biográficos, logos y retrato")}</p></div></div><span className={profileReady ? "tiny-state ready-state" : "tiny-state"}>{profileReady ? t("CARGADO") : t("PENDIENTE")}</span></div>
@@ -731,18 +755,10 @@ export default function ScoutStudio() {
                     </div>
                   </details>
 
-                  <details className="profile-details">
-                    <summary>{t("Editar lectura rápida")}</summary>
-                    <div className="reading-editor">
-                      <textarea value={readingOverride} placeholder={report?.reading ?? ""} onChange={(event) => updateReadingOverride(event.target.value)} rows={5} />
-                      <small>{t("Escribe tu propia lectura; si la dejas vacía se usa la generada por datos.")}</small>
-                      {readingOverride.trim() !== "" && <button type="button" onClick={() => updateReadingOverride("")}>{t("Usar texto automático")}</button>}
-                    </div>
-                  </details>
                 </section>
 
                 <section className="report-preview-wrap">
-                  <div className="preview-toolbar"><div><span className="live-dot" /> {t("Página 01 · Ficha de scouting")}</div><span>{t("Basada en Radar Jordhy Thompson v2")}</span></div>
+                  <div className="preview-toolbar"><div><span className="live-dot" /> {t("Página 01 · Ficha de scouting")}</div><span>{t("Haz clic en los textos del informe para editarlos")}</span></div>
                   {report ? <div className="legal-page-shell"><article className="scout-report jordhy-report" style={reportThemeStyle(reportTheme)}>
                     <header className="dossier-header">
                       <div className="dossier-portrait">
@@ -775,7 +791,7 @@ export default function ScoutStudio() {
                     </header>
 
                     <section className="dossier-season-strip">
-                      <div className="season-source"><span>{tDefault(analysisLabel) || (reportSourceCount > 1 ? t("BASES ANALIZADAS") : t("BASE ANALIZADA"))}</span><b>{tDefault(analysisSourceTitle || reportFileName)}</b><small>{tf("Cohorte {c} · mín. {m}′", { c: cohortLabel(report.cohort), m: minimumMinutes })}</small></div>
+                      <div className="season-source"><span><InlineText editKey={`label-${report.player}`} value={tDefault(analysisLabel)} fallback={reportSourceCount > 1 ? t("BASES ANALIZADAS") : t("BASE ANALIZADA")} onCommit={setAnalysisLabel} /></span><b><InlineText editKey={`source-${report.player}`} value={tDefault(analysisSourceTitle)} fallback={tDefault(reportFileName)} onCommit={updateAnalysisSourceName} /></b><small>{tf("Cohorte {c} · mín. {m}′", { c: cohortLabel(report.cohort), m: minimumMinutes })}</small></div>
                       <div className="dossier-stat"><strong>{numberFormat(report.matches)}</strong><span>{t("Partidos")}</span></div>
                       <div className="dossier-stat"><strong>{numberFormat(report.minutes)}</strong><span>{t("Minutos")}</span></div>
                       <div className="dossier-stat goals"><strong>{numberFormat(report.goals)}</strong><span>{t("Goles")}</span></div>
@@ -788,7 +804,7 @@ export default function ScoutStudio() {
                       <aside className="dossier-reading">
                         <div className="average-percentile"><strong>{report.score}</strong><small>{t("percentil")}<br />{t("medio")}</small></div>
                         <div className="dossier-legend">{SIMILARITY_METRIC_GROUPS.filter((group) => report.metrics.some((metric) => similarityMetricGroup(metric, report.cohort).id === group.id)).map((group) => <span key={group.id}><i style={{ background: group.color }} />{t(group.label)}</span>)}</div>
-                        <div className="quick-reading"><b>{t("LECTURA RÁPIDA")}</b><p>{readingOverride.trim() || report.reading}</p></div>
+                        <div className="quick-reading"><b>{t("LECTURA RÁPIDA")}{readingOverride.trim() !== "" && <button type="button" className="reading-restore" onClick={() => updateReadingOverride("")}>{t("Usar texto automático")}</button>}</b><p><InlineText editKey={`reading-${report.player}`} value={readingOverride} fallback={report.reading} onCommit={updateReadingOverride} multiline /></p></div>
                       </aside>
                     </section>
 
@@ -808,7 +824,7 @@ export default function ScoutStudio() {
                         <div className="report-author"><span>{t("ELABORADO POR")}</span><b>FELIPE ORMAZABAL</b><small>SCOUTING REPORT</small></div>
                         <div className="report-recipient">
                           {recipientLogoReady ? <ReportImage src={reportRecipientLogoUrl.trim()} alt={recipientName} className="dossier-footer-club-logo" /> : <span className="dossier-footer-club-fallback">{recipientName.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span>}
-                          <div><span>{t("REPORTE GENERADO PARA")}</span><b>{recipientName}</b></div>
+                          <div><span>{t("REPORTE GENERADO PARA")}</span><b><InlineText editKey="recipient" value={reportRecipientName} fallback={t("Club destinatario")} onCommit={setReportRecipientName} /></b></div>
                         </div>
                       </div>
                     </footer>

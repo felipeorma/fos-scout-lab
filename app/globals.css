@@ -1665,3 +1665,49 @@ body.print-layout-check .similarity-star-visual > svg { transform: none !importa
   paint-order: stroke fill;
   text-shadow: 0 1px 2px rgba(0, 0, 0, .45);
 }
+
+/* ---- Edición en línea sobre la vista previa del informe ---- */
+.inline-editable {
+  cursor: text;
+  border-radius: 4px;
+  outline: none;
+  transition: box-shadow .15s ease, background .15s ease;
+}
+.inline-editable:hover {
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--report-accent, #6b7f92) 55%, transparent);
+  background: color-mix(in srgb, var(--report-accent, #6b7f92) 8%, transparent);
+}
+.inline-editable:focus {
+  box-shadow: 0 0 0 2px var(--report-accent, #4a90d9);
+  background: color-mix(in srgb, var(--report-accent, #4a90d9) 6%, #ffffff 12%);
+}
+.quick-reading .reading-restore {
+  margin-left: 8px;
+  padding: 2px 8px;
+  border: 1px solid color-mix(in srgb, var(--report-accent, #6b7f92) 45%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.quick-reading .reading-restore:hover { background: color-mix(in srgb, var(--report-accent, #6b7f92) 12%, transparent); }
+.inline-edit-hint {
+  margin: 10px 0 2px;
+  padding: 8px 11px;
+  border: 1px dashed rgba(148, 163, 184, .35);
+  border-radius: 9px;
+  color: rgba(148, 163, 184, .95);
+  font-size: 11px;
+  line-height: 1.4;
+}
+details.report-recipient-editor > label { display: block; margin: 8px 0; }
+details.report-recipient-editor > label > small { display: block; margin-bottom: 3px; }
+
+@media print {
+  .inline-editable, .inline-editable:hover, .inline-editable:focus { box-shadow: none !important; background: transparent !important; }
+  .reading-restore, .inline-edit-hint { display: none !important; }
+}
