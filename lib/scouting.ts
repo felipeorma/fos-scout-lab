@@ -31,6 +31,8 @@ export type RadarMetric = {
   group: number;
   colorGroup?: MetricColorGroup;
   inverse?: boolean;
+  /** Nº de valores reales de la cohorte contra los que se calculó el percentil */
+  sample?: number;
 };
 
 export type PlayerReport = {
@@ -566,8 +568,11 @@ export function buildPlayerReport(rows: DataRow[], selectedIndex: number, minimu
     if (!key) return [];
     const value = numeric(row[key]);
     if (!Number.isFinite(value)) return [];
-    const peerValues = peers.map((candidate) => numeric(candidate[key]));
-    return [{ key, label: definition.label, value, percentile: percentile(value, peerValues, definition.inverse), group: definition.group, colorGroup: definition.colorGroup, inverse: definition.inverse }];
+    // Sin muestra real en la cohorte, el percentil no significa nada: la
+    // métrica se omite en lugar de dibujarse contra un grupo vacío.
+    const peerValues = peers.map((candidate) => numeric(candidate[key])).filter(Number.isFinite);
+    if (!peerValues.length) return [];
+    return [{ key, label: definition.label, value, percentile: percentile(value, peerValues, definition.inverse), group: definition.group, colorGroup: definition.colorGroup, inverse: definition.inverse, sample: peerValues.length }];
   });
   const score = metrics.length ? Math.round(average(metrics.map((metric) => metric.percentile))) : 0;
   const text = (aliases: string[]) => String(field(row, headers, aliases) ?? "").trim();
