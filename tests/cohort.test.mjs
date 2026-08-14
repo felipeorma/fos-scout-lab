@@ -60,3 +60,11 @@ test("el tamaño de cohorte describe el grupo usado para los percentiles", () =>
   assert.equal(report.cohort, "CF");
   assert.equal(report.cohortSize, 30);
 });
+
+test("una cohorte vacía no genera radar en P0: devuelve sin métricas", () => {
+  const rows = squad();
+  const report = buildPlayerReport(rows, 0, 99999, "GK");
+  assert.equal(report.cohortSize, 0);
+  assert.equal(report.metrics.length, 0);
+  assert.equal(report.reading, "");
+});

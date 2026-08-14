@@ -92,11 +92,37 @@ function optionalNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function percentileRank(value: number, population: number[]) {
-  if (!Number.isFinite(value) || !population.length) return null;
-  const below = population.filter((candidate) => candidate < value).length;
-  const equal = population.filter((candidate) => candidate === value).length;
-  return Math.round(((below + equal * 0.5) / population.length) * 100);
+// La población llega ORDENADA ascendente: dos búsquedas binarias reemplazan
+// los dos recorridos completos y el rank respeta las métricas invertidas
+// (goles concedidos, xG en contra), igual que la ficha de la Página 1.
+function lowerBound(sorted: number[], value: number) {
+  let low = 0;
+  let high = sorted.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (sorted[middle] < value) low = middle + 1;
+    else high = middle;
+  }
+  return low;
+}
+
+function upperBound(sorted: number[], value: number) {
+  let low = 0;
+  let high = sorted.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (sorted[middle] <= value) low = middle + 1;
+    else high = middle;
+  }
+  return low;
+}
+
+function percentileRank(value: number, sortedPopulation: number[], inverse = false) {
+  if (!Number.isFinite(value) || !sortedPopulation.length) return null;
+  const below = lowerBound(sortedPopulation, value);
+  const equal = upperBound(sortedPopulation, value) - below;
+  const rank = Math.round(((below + equal * 0.5) / sortedPopulation.length) * 100);
+  return inverse ? 100 - rank : rank;
 }
 
 function clamp01(value: number) {
@@ -167,7 +193,7 @@ export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filt
   // describan al jugador con el mismo rol.
   const filteredRole = POSITION_ROLES.find((role) => role === filters.position) ?? null;
   const forcedCohort = filteredRole ? roleCohort(filteredRole) : reportCohort;
-  const target = buildPlayerReport(rows, targetIndex, 0, forcedCohort);
+  const target = buildPlayerReport(rows, targetIndex, filters.minimumMinutes, forcedCohort);
   const targetRow = rows[targetIndex];
   if (!target || !targetRow || !target.metrics.length) return null;
 
@@ -178,12 +204,20 @@ export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filt
   const positionColumn = findColumn(headers, POSITION_ALIASES);
   const passportColumn = findColumn(headers, PASSPORT_ALIASES);
   const ageColumn = findColumn(headers, AGE_ALIASES);
+  // El grupo de referencia de los percentiles es el mismo que usa la ficha:
+  // los jugadores de la cohorte del reporte con el piso de minutos del filtro.
+  // Nunca toda la base — un portero no se mide contra jugadores de campo.
+  const cohortPeers = rows.filter((row) => (
+    cohortOf(positionColumn ? row[positionColumn] : "") === target.cohort
+    && (filters.minimumMinutes <= 0 || numeric(row[core.minutes]) >= filters.minimumMinutes)
+  ));
+  const metricInverse = new Map(target.metrics.map((metric) => [metric.key, Boolean(metric.inverse)] as const));
   const metricPopulations = new Map(target.metrics.map((metric) => [
     metric.key,
-    rows.map((row) => numeric(row[metric.key])).filter(Number.isFinite),
+    cohortPeers.map((row) => numeric(row[metric.key])).filter(Number.isFinite).sort((a, b) => a - b),
   ]));
   const targetRanks = new Map(target.metrics.flatMap((metric) => {
-    const rank = percentileRank(numeric(targetRow[metric.key]), metricPopulations.get(metric.key) ?? []);
+    const rank = percentileRank(numeric(targetRow[metric.key]), metricPopulations.get(metric.key) ?? [], metricInverse.get(metric.key));
     return rank === null ? [] : [[metric.key, rank] as const];
   }));
   const normalizedQuery = normalizeSearch(filters.query);
@@ -216,7 +250,7 @@ export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filt
     const metrics = target.metrics.flatMap((metric) => {
       const candidateValue = numeric(row[metric.key]);
       const targetPercentile = targetRanks.get(metric.key);
-      const candidatePercentile = percentileRank(candidateValue, metricPopulations.get(metric.key) ?? []);
+      const candidatePercentile = percentileRank(candidateValue, metricPopulations.get(metric.key) ?? [], metricInverse.get(metric.key));
       if (targetPercentile === undefined || candidatePercentile === null) return [];
       return [{
         key: metric.key,

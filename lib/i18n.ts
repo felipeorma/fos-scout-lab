@@ -326,6 +326,9 @@ const EN: Record<string, string> = {
   "Salidas /90": "Exits per 90",
   "Pivotes / mediocentros": "Defensive midfielders",
   "Interiores (box-to-box)": "Box-to-box midfielders",
+  "Otros perfiles": "Other profiles",
+  "No hay jugadores de esta posición con el mínimo de minutos: baja el mínimo o carga más datos.": "No players of this position clear the minutes minimum: lower it or load more data.",
+  "Cohorte de {n} jugador{s}: percentiles poco fiables. Baja el mínimo de minutos o carga más datos.": "Cohort of {n} player{s}: percentiles are unreliable. Lower the minutes minimum or load more data.",
 
   // ---- Métricas del radar ----
   "Paradas %": "Saves %",

@@ -30,6 +30,7 @@ export type RadarMetric = {
   percentile: number;
   group: number;
   colorGroup?: MetricColorGroup;
+  inverse?: boolean;
 };
 
 export type PlayerReport = {
@@ -558,15 +559,15 @@ export function buildPlayerReport(rows: DataRow[], selectedIndex: number, minimu
   // nunca todos los jugadores de la base.
   const peers = rows.filter((candidate) => (
     cohortOf(positionColumn ? candidate[positionColumn] : "") === cohort
-    && numeric(candidate[core.minutes]) >= minimumMinutes
+    && (minimumMinutes <= 0 || numeric(candidate[core.minutes]) >= minimumMinutes)
   ));
-  const metrics = definitions.flatMap((definition) => {
+  const metrics = !peers.length ? [] : definitions.flatMap((definition) => {
     const key = findColumn(headers, definition.aliases);
     if (!key) return [];
     const value = numeric(row[key]);
     if (!Number.isFinite(value)) return [];
     const peerValues = peers.map((candidate) => numeric(candidate[key]));
-    return [{ key, label: definition.label, value, percentile: percentile(value, peerValues, definition.inverse), group: definition.group, colorGroup: definition.colorGroup }];
+    return [{ key, label: definition.label, value, percentile: percentile(value, peerValues, definition.inverse), group: definition.group, colorGroup: definition.colorGroup, inverse: definition.inverse }];
   });
   const score = metrics.length ? Math.round(average(metrics.map((metric) => metric.percentile))) : 0;
   const text = (aliases: string[]) => String(field(row, headers, aliases) ?? "").trim();

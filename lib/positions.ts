@@ -24,12 +24,14 @@ const POSITION_MAP: Record<string, PositionRole> = {
   LB: "Fullback", LWB: "Fullback", RB: "Fullback", RWB: "Fullback",
   "LEFT-BACK": "Fullback", "RIGHT-BACK": "Fullback", "WING-BACK": "Fullback", FULLBACK: "Fullback",
   LCB: "Defender", CB: "Defender", RCB: "Defender", D: "Defender", DC: "Defender",
+  LCB3: "Defender", RCB3: "Defender", CB3: "Defender",
   DEFENDER: "Defender", "CENTRE-BACK": "Defender", "CENTER-BACK": "Defender",
   CM: "Defensive Midfielder", CMF: "Defensive Midfielder", DMF: "Defensive Midfielder",
   CDM: "Defensive Midfielder", DM: "Defensive Midfielder", LDMF: "Defensive Midfielder",
   RDMF: "Defensive Midfielder", M: "Defensive Midfielder", MIDFIELDER: "Defensive Midfielder",
   "CENTRAL MIDFIELDER": "Defensive Midfielder", "DEFENSIVE MIDFIELDER": "Defensive Midfielder",
   LCMF: "Box2Box Midfielder", RCMF: "Box2Box Midfielder",
+  LCMF3: "Box2Box Midfielder", RCMF3: "Box2Box Midfielder",
   AMF: "Attack Midfielder", CAM: "Attack Midfielder", AM: "Attack Midfielder",
   "ATTACKING MIDFIELDER": "Attack Midfielder", "ATTACK MIDFIELDER": "Attack Midfielder",
   LM: "Wingers", RM: "Wingers", "LEFT MIDFIELDER": "Wingers", "RIGHT MIDFIELDER": "Wingers",
@@ -37,6 +39,7 @@ const POSITION_MAP: Record<string, PositionRole> = {
   WINGER: "Wingers", "LEFT WINGER": "Wingers", "RIGHT WINGER": "Wingers", WING: "Wingers",
   LAMF: "Wingers", RAMF: "Wingers",
   CF: "Forward", ST: "Forward", F: "Forward", S: "Forward", FORWARD: "Forward",
+  LCF: "Forward", RCF: "Forward",
   STRIKER: "Forward", "CENTRE-FORWARD": "Forward", "CENTER-FORWARD": "Forward",
 };
 

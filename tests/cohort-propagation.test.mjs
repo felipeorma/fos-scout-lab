@@ -14,7 +14,7 @@ const filtros = { query: "", ageMin: null, ageMax: null, minimumMinutes: 0, pass
 
 test("la cohorte asignada en la ficha manda también en la comparación", () => {
   const data = base();
-  for (const cohorte of ["CF", "AM", "WING"]) {
+  for (const cohorte of ["CF", "WING"]) {
     const ficha = buildPlayerReport(data.rows, 0, 0, cohorte);
     const comparacion = buildSimilaritySearch(data.rows, 0, filtros, {}, cohorte);
     assert.equal(comparacion.target.cohort, ficha.cohort, `cohorte ${cohorte}`);
@@ -24,6 +24,16 @@ test("la cohorte asignada en la ficha manda también en la comparación", () => 
       `las métricas de ${cohorte} deben coincidir entre páginas`,
     );
   }
+});
+
+test("una cohorte forzada sin jugadores no inventa percentiles", () => {
+  const data = base();
+  // No hay mediapuntas en la base: la ficha queda sin métricas (estado vacío
+  // honesto en la UI) y la comparación no puede construirse.
+  const ficha = buildPlayerReport(data.rows, 0, 0, "AM");
+  assert.equal(ficha.cohortSize, 0);
+  assert.equal(ficha.metrics.length, 0);
+  assert.equal(buildSimilaritySearch(data.rows, 0, filtros, {}, "AM"), null);
 });
 
 test("el filtro de rol de la comparación sigue teniendo prioridad", () => {

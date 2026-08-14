@@ -89,6 +89,7 @@ const COHORT_LABELS: Record<string, string> = {
   WING: "Extremos",
   AM: "Mediapuntas",
   CF: "Delanteros",
+  OTHER: "Otros perfiles",
 };
 
 function cohortLabel(cohort: string) {
@@ -665,6 +666,7 @@ export default function ScoutStudio() {
                     <label className="field-group"><FieldLabel>{t("Mín. minutos")}</FieldLabel><input className="text-input" type="number" min="0" step="100" value={minimumMinutes} onChange={(event) => setMinimumMinutes(Number(event.target.value))} /></label>
                   </div>
                   <div className="data-summary"><div><span>{t("Bases")}</span><b>{reportSourceCount}</b></div><div><span>{t("Jugadores")}</span><b>{numberFormat(reportRows.length)}</b></div><div><span>{t("Cohorte")}</span><b>{report?.cohortSize ?? 0}</b></div></div>
+                  {report && report.cohortSize < 5 && <div className="inline-error">{report.cohortSize === 0 ? t("No hay jugadores de esta posición con el mínimo de minutos: baja el mínimo o carga más datos.") : tf("Cohorte de {n} jugador{s}: percentiles poco fiables. Baja el mínimo de minutos o carga más datos.", { n: report.cohortSize, s: report.cohortSize === 1 ? "" : "es" })}</div>}
                   <div className="report-copy-editor"><span className="field-label">{t("Texto de la base en el informe")}</span><label><small>{t("Etiqueta")}</small><input value={analysisLabel} placeholder={t("BASE ANALIZADA")} onChange={(event) => setAnalysisLabel(event.target.value)} /></label><label><small>{reportSourceCount > 1 ? t("Nombre temporal de la combinación") : t("Nombre de liga o temporada")}</small><input value={analysisSourceTitle} placeholder={reportSourceCount > 1 ? t("Ej. MLS Next Pro · 2025–2026") : t("Ej. MLS Next Pro 2026")} onChange={(event) => updateAnalysisSourceName(event.target.value)} /></label></div>
                   <div className="report-recipient-editor">
                     <div className="recipient-editor-head"><span className="field-label">{t("Reporte generado para")}</span><small>{t("Independiente del club del jugador")}</small></div>
