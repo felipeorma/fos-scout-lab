@@ -140,6 +140,7 @@ const COHORT_POSITION_LABELS: Record<string, PositionRole> = {
   DMF: "Defensive Midfielder",
   B2B: "Box2Box Midfielder",
   WING: "Wingers",
+  DWING: "Wingers",
   AM: "Attack Midfielder",
   CF: "Forward",
 };

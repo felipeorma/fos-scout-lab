@@ -223,6 +223,7 @@ const EN: Record<string, string> = {
   "Laterales": "Fullbacks",
   "Mediocampistas": "Midfielders",
   "Extremos": "Wingers",
+  "Extremos directos": "Direct wingers",
   "Mediapuntas": "Attacking midfielders",
   "Delanteros": "Forwards",
   "Mín. minutos": "Min. minutes",

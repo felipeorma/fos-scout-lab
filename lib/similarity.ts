@@ -1,6 +1,7 @@
 import {
   buildPlayerReport,
   cohortOf,
+  peerCohort,
   detectCoreColumns,
   findColumn,
   numeric,
@@ -208,7 +209,7 @@ export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filt
   // los jugadores de la cohorte del reporte con el piso de minutos del filtro.
   // Nunca toda la base — un portero no se mide contra jugadores de campo.
   const cohortPeers = rows.filter((row) => (
-    cohortOf(positionColumn ? row[positionColumn] : "") === target.cohort
+    cohortOf(positionColumn ? row[positionColumn] : "") === peerCohort(target.cohort)
     && (filters.minimumMinutes <= 0 || numeric(row[core.minutes]) >= filters.minimumMinutes)
   ));
   const metricInverse = new Map(target.metrics.map((metric) => [metric.key, Boolean(metric.inverse)] as const));

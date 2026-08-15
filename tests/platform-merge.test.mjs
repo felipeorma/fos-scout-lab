@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { METRICS, aggregateDatasets } from "../lib/scouting.ts";
+import { METRICS, aggregateDatasets, peerCohort } from "../lib/scouting.ts";
 
 const HEADERS = ["Player", "Team", "Age", "Birth date", "Minutes played", "Matches played", "Goals", "Assists"];
 
@@ -76,11 +76,26 @@ test("la fecha de nacimiento fusiona nombres escritos distinto entre plataformas
 });
 
 test("cada cohorte trae métricas de StatsBomb y de SkillCorner", () => {
-  for (const cohort of ["GK", "CB", "FB", "DMF", "B2B", "AM", "CF", "WING"]) {
+  for (const cohort of ["GK", "CB", "FB", "DMF", "B2B", "AM", "CF", "WING", "DWING"]) {
     const metrics = METRICS[cohort];
     assert.ok(metrics.some((metric) => metric.source === "statsbomb"), `${cohort} sin métricas StatsBomb`);
     assert.ok(metrics.some((metric) => metric.source === "skillcorner"), `${cohort} sin métricas SkillCorner`);
   }
+});
+
+test("el extremo directo tiene su propio set y se compara contra los extremos", () => {
+  const wing = METRICS.WING.map((metric) => metric.label);
+  const direct = METRICS.DWING.map((metric) => metric.label);
+  assert.notDeepEqual(wing, direct);
+  assert.equal(peerCohort("DWING"), "WING");
+  assert.equal(peerCohort("WING"), "WING");
+  // El extremo directo mide ruptura y velocidad; el asociativo, amplitud y retención.
+  assert.ok(direct.includes("Rupturas al espacio P30 (SC)"));
+  assert.ok(direct.includes("Reacción a sprint post-giro (SC)"));
+  assert.ok(direct.includes("Centros al área % (SB)"));
+  assert.ok(wing.includes("Opciones en banda P30 (SC)"));
+  assert.ok(wing.includes("Retención bajo presión % (SC)"));
+  assert.ok(!wing.includes("Rupturas al espacio P30 (SC)"));
 });
 
 test("las métricas de SkillCorner son siempre del grupo físico y las inversas están marcadas", () => {

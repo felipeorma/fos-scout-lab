@@ -172,6 +172,12 @@ tarjeta del paso 01, o desde el panel de datos con un informe abierto).
   normalizan a 30 minutos de posesión efectiva (`campo / minutes_tip * 30`) y
   las métricas donde menos es mejor ("Superado en duelo %", "Reacción a sprint
   post-giro") se invierten al calcular el percentil.
+- Los extremos tienen **dos cohortes**, como en la hoja de perfiles:
+  *Extremos* (asociativo: amplitud, opciones en banda, pases a desmarques,
+  retención bajo presión) y *Extremos directos* (ruptura al espacio,
+  conducciones largas, centros al área, PSV-99 y reacción al sprint). Ambas
+  comparan contra el mismo grupo de referencia —los extremos de la base—, así
+  que solo cambia la lente de métricas, no la población.
 - Las métricas de API llevan sufijo `(SB)` o `(SC)` y el radar suma el toggle
   **Color del radar**: "Por grupo" (bloques tácticos) o "Por plataforma"
   (naranja Wyscout, carmesí StatsBomb, verde SkillCorner).

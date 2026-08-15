@@ -607,6 +607,16 @@ export const METRICS: Record<string, MetricDefinition[]> = {
 
 METRICS.MID = METRICS.DMF;
 METRICS.OTHER = METRICS.WING;
+// La hoja de perfiles separa el extremo asociativo del extremo directo: misma
+// base Wyscout (copia, no alias) y distinto bloque de plataforma más abajo.
+METRICS.DWING = [...METRICS.WING];
+
+// Cohortes que comparten grupo de referencia: "Extremos directos" es otra
+// lente de métricas sobre los mismos extremos, no otra población.
+const PEER_COHORTS: Record<string, string> = { DWING: "WING" };
+export function peerCohort(cohort: string) {
+  return PEER_COHORTS[cohort] ?? cohort;
+}
 
 // ---- Métricas de plataformas conectadas por API ----
 // Solo aparecen en el radar cuando la base cargada trae sus columnas (es
@@ -726,14 +736,17 @@ METRICS.CF.push(
   SB.aerialWinsAtt, SB.foulsWon, SB.penaltyWins, SB.obvDribbleCarry, SB.counterpressures,
   SC.runsInBehind, SC.dangerousRuns, SC.runsReceived, SC.boxOptions,
 );
-// Extremo: la hoja de perfiles separa "Winger creativo" y "Winger directo",
-// pero la plataforma tiene una sola cohorte WING, así que el radar reúne
-// ambos — creación y asociación (creativo) más ataque al espacio, centro y
-// velocidad pura (directo).
+// Extremo asociativo: recibe entre líneas, asocia y habilita al que rompe.
 METRICS.WING.push(
   SB.shots, SB.xg, SB.opXa, SB.opKeyPasses, SB.throughBalls, SB.dribbles, SB.carries, SB.deepProg,
-  SB.deepCompletions, SB.obvPass, SB.obvDribbleCarry, SB.obvDefensive, SB.boxCross,
+  SB.deepCompletions, SB.obvPass, SB.obvDribbleCarry, SB.obvDefensive,
   SC.pullingWideRuns, SC.wideOptions, SC.passesToRuns, SC.retention,
+);
+// Extremo directo: ataca el espacio, conduce y centra; se mide contra los
+// mismos extremos de la base, pero con la lente de la velocidad pura.
+METRICS.DWING.push(
+  SB.boxCross, SB.carries, SB.deepProg, SB.touchesBox, SB.obvDribbleCarry, SB.ballRecoveries,
+  SB.counterpressures, SB.opKeyPasses, SB.opPassesIntoBox, SB.opXa, SB.shots, SB.xg, SB.dribbles,
   SC.runsInBehind, SC.forwardCarries, SC.psv99, SC.timeToSprint,
 );
 
@@ -807,7 +820,7 @@ TACTICAL_PROFILES.OTHER = TACTICAL_PROFILES.WING;
 
 function tacticalNote(cohort: string, metrics: RadarMetric[]): TacticalRule | null {
   const percentileOf = (label: string) => metrics.find((metric) => metric.label === label)?.percentile;
-  const rules = TACTICAL_PROFILES[cohort] ?? TACTICAL_PROFILES.OTHER;
+  const rules = TACTICAL_PROFILES[cohort] ?? TACTICAL_PROFILES[peerCohort(cohort)] ?? TACTICAL_PROFILES.OTHER;
   let best: TacticalRule | null = null;
   let bestScore = 0;
   for (const rule of rules) {
@@ -871,8 +884,9 @@ export function buildPlayerReport(rows: DataRow[], selectedIndex: number, minimu
   // base cargada. Al forzar una cohorte se comparan las métricas de ese rol,
   // pero el grupo de referencia sigue siendo el de la posición seleccionada:
   // nunca todos los jugadores de la base.
+  const peerGroup = peerCohort(cohort);
   const peers = rows.filter((candidate) => (
-    cohortOf(positionColumn ? candidate[positionColumn] : "") === cohort
+    cohortOf(positionColumn ? candidate[positionColumn] : "") === peerGroup
     && (minimumMinutes <= 0 || numeric(candidate[core.minutes]) >= minimumMinutes)
   ));
   const metrics = !peers.length ? [] : definitions.flatMap((definition) => {
