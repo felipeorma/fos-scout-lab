@@ -29,6 +29,8 @@ const POSITION_MAP: Record<string, PositionRole> = {
   CM: "Defensive Midfielder", CMF: "Defensive Midfielder", DMF: "Defensive Midfielder",
   CDM: "Defensive Midfielder", DM: "Defensive Midfielder", LDMF: "Defensive Midfielder",
   RDMF: "Defensive Midfielder", M: "Defensive Midfielder", MIDFIELDER: "Defensive Midfielder",
+  // Códigos de SkillCorner que Wyscout no usa
+  LDM: "Defensive Midfielder", RDM: "Defensive Midfielder",
   "CENTRAL MIDFIELDER": "Defensive Midfielder", "DEFENSIVE MIDFIELDER": "Defensive Midfielder",
   LCMF: "Box2Box Midfielder", RCMF: "Box2Box Midfielder",
   LCMF3: "Box2Box Midfielder", RCMF3: "Box2Box Midfielder",
@@ -37,7 +39,7 @@ const POSITION_MAP: Record<string, PositionRole> = {
   LM: "Wingers", RM: "Wingers", "LEFT MIDFIELDER": "Wingers", "RIGHT MIDFIELDER": "Wingers",
   LW: "Wingers", LWF: "Wingers", RW: "Wingers", RWF: "Wingers", W: "Wingers",
   WINGER: "Wingers", "LEFT WINGER": "Wingers", "RIGHT WINGER": "Wingers", WING: "Wingers",
-  LAMF: "Wingers", RAMF: "Wingers",
+  LAMF: "Wingers", RAMF: "Wingers", LF: "Wingers", RF: "Wingers",
   CF: "Forward", ST: "Forward", F: "Forward", S: "Forward", FORWARD: "Forward",
   LCF: "Forward", RCF: "Forward",
   STRIKER: "Forward", "CENTRE-FORWARD": "Forward", "CENTER-FORWARD": "Forward",

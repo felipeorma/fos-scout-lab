@@ -270,13 +270,15 @@ async def statsbomb_player_stats(competition_id: int, season_id: int):
 
 
 # columna normalizada → claves candidatas en la respuesta física de SkillCorner
+# (nombres confirmados contra /api/physical/ con group_by=player,team,season,
+# average_per=p90 y data_version=3, agosto 2026)
 _SC_METRICS = {
-    "Distance per 90 (SC)": ["total_distance_per_90", "total_distance_full_normalized", "distance_per_90"],
-    "HSR distance per 90 (SC)": ["hsr_distance_per_90", "hsr_distance_full_normalized"],
-    "Sprint distance per 90 (SC)": ["sprint_distance_per_90", "sprint_distance_full_normalized"],
-    "Sprints per 90 (SC)": ["sprint_count_per_90", "count_sprint_per_90", "sprint_count_full_normalized"],
-    "High accelerations per 90 (SC)": ["highaccel_count_per_90", "count_high_acceleration_per_90", "highaccel_count_full_normalized"],
-    "PSV-99 (SC)": ["psv99", "psv_99", "max_speed_percentile_99"],
+    "Distance per 90 (SC)": ["total_distance_full_all_p90", "total_distance_per_90"],
+    "HSR distance per 90 (SC)": ["hsr_distance_full_all_p90", "hsr_distance_per_90"],
+    "Sprint distance per 90 (SC)": ["sprint_distance_full_all_p90", "sprint_distance_per_90"],
+    "Sprints per 90 (SC)": ["sprint_count_full_all_p90", "sprint_count_per_90"],
+    "High accelerations per 90 (SC)": ["highaccel_count_full_all_p90", "highaccel_count_per_90"],
+    "PSV-99 (SC)": ["psv99", "psv_99"],
 }
 
 
@@ -305,29 +307,48 @@ async def skillcorner_player_stats(competition_edition_id: int):
     auth = _skillcorner_auth()
     if not auth:
         return Response('{"error": "sin credenciales"}', status_code=503, media_type="application/json", headers=cors_headers())
+    base_params = {
+        "competition_edition": competition_edition_id,
+        "possession": "all",
+        "playing_time__gte": 60,
+        "data_version": "3",
+        "page_size": 2000,
+        "average_per": "p90",
+    }
     data = _cached_get(
         f"sc:{competition_edition_id}",
         "https://skillcorner.com/api/physical/",
         auth,
-        params={
-            "competition_edition": competition_edition_id,
-            "group_by": "player,team,competition,season,group",
-            "possession": "all",
-            "playing_time__gte": 60,
-            "data_version": "3",
-            "limit": 2000,
-        },
+        params={**base_params, "group_by": "player,team,season"},
     )
+    # Agrupar por posición parte a cada jugador en varias filas, así que la
+    # posición principal (más minutos totales) sale de una segunda consulta.
+    by_position = _cached_get(
+        f"sc:{competition_edition_id}:pos",
+        "https://skillcorner.com/api/physical/",
+        auth,
+        params={**base_params, "group_by": "player,team,season,position"},
+    )
+    primary_position = {}
+    for p in by_position.get("results", []):
+        pid = p.get("player_id")
+        total = (p.get("minutes_full_all") or 0) * (p.get("count_match") or 0)
+        if pid is not None and total >= primary_position.get(pid, (0, ""))[0]:
+            primary_position[pid] = (total, p.get("position") or p.get("position_group") or "")
     results = data.get("results", data if isinstance(data, list) else [])
     rows = []
     for p in results:
+        # En el agregado por temporada, minutes_full_all es el promedio por
+        # partido; el total se reconstruye con el número de partidos.
+        matches = p.get("count_match") or 0
         row = {
-            "Player": p.get("player_name") or p.get("short_name") or "",
+            "Player": p.get("player_name") or p.get("player_short_name") or "",
             "Team": p.get("team_name") or "",
-            "Position": p.get("position") or p.get("position_group") or "",
-            "Age": p.get("age") or "",
-            "Minutes played": round(p.get("minutes_full_all") or p.get("minutes_played") or 0),
-            "Matches played": p.get("count_match", p.get("matches", "")),
+            "Position": primary_position.get(p.get("player_id"), (0, ""))[1],
+            "Age": _age_from_birth(p.get("player_birthdate") or ""),
+            "Birth date": p.get("player_birthdate") or "",
+            "Minutes played": round((p.get("minutes_full_all") or 0) * matches),
+            "Matches played": matches,
         }
         for column, fields in _SC_METRICS.items():
             value = next((p.get(f) for f in fields if isinstance(p.get(f), (int, float))), "")
