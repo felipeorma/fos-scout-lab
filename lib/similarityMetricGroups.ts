@@ -7,7 +7,9 @@ export type SimilarityMetricGroup = {
 export const SIMILARITY_METRIC_GROUPS: SimilarityMetricGroup[] = [
   { id: "finishing", label: "Finalización", color: "#e95b3f" },
   { id: "creating", label: "Creación", color: "#d7a62c" },
-  { id: "passing", label: "Pase", color: "#43a8a0" },
+  // El verde azulado anterior (#43a8a0) se confundía con el verde de
+  // SkillCorner en los radares que mezclan plataformas.
+  { id: "passing", label: "Pase", color: "#b5577f" },
   { id: "defending", label: "Defensa", color: "#3f72d9" },
   { id: "goalkeeper", label: "Portero", color: "#8b5cf6" },
   { id: "physical", label: "Físico", color: "#12c48b" },
