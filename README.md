@@ -108,6 +108,37 @@ Los datos extraídos y las personalizaciones del perfil se guardan localmente po
 jugador en el navegador. Transfermarkt solo se consulta cuando el usuario pega
 una URL y presiona el botón de extracción.
 
+## Plataformas por API (StatsBomb / SkillCorner)
+
+Además de los Excel de Wyscout, la app puede cargar temporadas completas desde
+las APIs de StatsBomb y SkillCorner con el botón **Conectar API** (tercera
+tarjeta del paso 01, o desde el panel de datos con un informe abierto).
+
+- Los datos llegan a través del mismo servidor local del recorte de fondos
+  (`npm run bg:server`, puerto 7001). Las credenciales viven **solo en esta
+  máquina**: nunca se suben al repositorio ni viajan al navegador de terceros.
+- Credenciales por variables de entorno (`SB_USERNAME` / `SB_PASSWORD` para
+  StatsBomb, `SKILLCORNER_USERNAME` / `SKILLCORNER_PASSWORD` para SkillCorner)
+  o en el archivo `~/.fos-scouting/credentials.json`:
+
+  ```json
+  {
+    "statsbomb": { "username": "...", "password": "..." },
+    "skillcorner": { "username": "...", "password": "..." }
+  }
+  ```
+
+- Cada competición puede **usarse como base** o **añadirse a la base actual**;
+  al mezclar plataformas, el mismo jugador se consolida por nombre (incluye
+  nombres abreviados tipo "T. Campbell" si coinciden club y edad) y los minutos
+  no se duplican entre proveedores que describen la misma temporada.
+- Las métricas de API llevan sufijo `(SB)` o `(SC)` y el radar suma el toggle
+  **Color del radar**: "Por grupo" (bloques tácticos) o "Por plataforma"
+  (naranja Wyscout, carmesí StatsBomb, verde SkillCorner).
+- En la versión publicada (GitHub Pages) el navegador consulta
+  `http://127.0.0.1:7001` directamente, así que basta con tener el servidor
+  local corriendo en el equipo desde el que se abre la web.
+
 ## Reglas para combinar bases
 
 - no existe un límite fijo de archivos; la combinación requiere al menos dos;

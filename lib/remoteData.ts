@@ -110,3 +110,68 @@ async function fetchHtmlThroughCorsProxy(url: string) {
     `${t("No se pudo leer Transfermarkt desde la versión publicada.")} ${lastError?.message ?? ""}`.trim(),
   );
 }
+
+// ---- Puente local de plataformas (StatsBomb / SkillCorner) ----
+// El mismo servidor local del recorte de fondos expone los datos de las APIs
+// con las credenciales guardadas SOLO en esta máquina.
+import { extractSeason, type DataRow, type SourceDataset } from "./scouting";
+
+const LOCAL_BRIDGE = "http://127.0.0.1:7001";
+
+export type SourcesStatus = { statsbomb: boolean; skillcorner: boolean };
+
+export type ApiCompetition = {
+  competition_id?: number;
+  season_id?: number;
+  id?: number;
+  name: string;
+  season: string;
+  country?: string;
+};
+
+async function bridgeJson<T>(path: string, timeoutMs = 60_000): Promise<T> {
+  const response = await fetch(`${LOCAL_BRIDGE}${path}`, { signal: AbortSignal.timeout(timeoutMs) });
+  if (!response.ok) throw new Error(tf("El servidor local respondió {code}.", { code: response.status }));
+  return response.json() as Promise<T>;
+}
+
+export async function fetchSourcesStatus(): Promise<SourcesStatus | null> {
+  try {
+    return await bridgeJson<SourcesStatus>("/api/sources/status", 2_500);
+  } catch {
+    return null;
+  }
+}
+
+export function fetchStatsbombCompetitions() {
+  return bridgeJson<ApiCompetition[]>("/api/statsbomb/competitions");
+}
+
+export function fetchSkillcornerCompetitions() {
+  return bridgeJson<ApiCompetition[]>("/api/skillcorner/competitions");
+}
+
+function toDataset(fileName: string, season: string, rows: DataRow[], provider: SourceDataset["provider"]): SourceDataset {
+  if (!rows.length) throw new Error(t("La plataforma no devolvió jugadores para esa competición."));
+  return {
+    fileName,
+    season: extractSeason(season),
+    headers: Object.keys(rows[0]),
+    rows,
+    provider,
+  };
+}
+
+export async function fetchStatsbombDataset(competition: ApiCompetition): Promise<SourceDataset> {
+  const payload = await bridgeJson<{ rows: DataRow[] }>(
+    `/api/statsbomb/player-stats?competition_id=${competition.competition_id}&season_id=${competition.season_id}`,
+  );
+  return toDataset(`StatsBomb · ${competition.name} ${competition.season}`, competition.season, payload.rows, "statsbomb");
+}
+
+export async function fetchSkillcornerDataset(competition: ApiCompetition): Promise<SourceDataset> {
+  const payload = await bridgeJson<{ rows: DataRow[] }>(
+    `/api/skillcorner/player-stats?competition_edition_id=${competition.id}`,
+  );
+  return toDataset(`SkillCorner · ${competition.name} ${competition.season}`, competition.season, payload.rows, "skillcorner");
+}

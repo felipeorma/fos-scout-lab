@@ -1711,3 +1711,56 @@ details.report-recipient-editor > label > small { display: block; margin-bottom:
   .inline-editable, .inline-editable:hover, .inline-editable:focus { box-shadow: none !important; background: transparent !important; }
   .reading-restore, .inline-edit-hint { display: none !important; }
 }
+
+/* ---- Conectar plataformas por API ---- */
+.api-connect-button {
+  width: 100%;
+  margin-top: 8px;
+  padding: 9px 12px;
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  border: 1px dashed rgba(148, 163, 184, .35);
+  border-radius: 10px;
+  background: rgba(148, 163, 184, .05);
+  color: inherit;
+  font-size: 12px; font-weight: 600;
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease;
+}
+.api-connect-button:hover { border-color: rgba(94, 141, 255, .6); background: rgba(94, 141, 255, .08); }
+.api-dialog { width: min(480px, calc(100vw - 32px)); }
+.api-platform-row {
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--platform-color) 35%, transparent);
+  border-left: 4px solid var(--platform-color);
+  border-radius: 11px;
+}
+.api-platform-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.api-platform-head i { width: 10px; height: 10px; border-radius: 3px; background: var(--platform-color); }
+.api-platform-head b { font-size: 13.5px; }
+.api-platform-head small { margin-left: auto; color: rgba(231, 236, 245, .6); font-size: 11px; }
+.api-platform-row select {
+  width: 100%;
+  margin-bottom: 9px;
+  padding: 8px 10px;
+  border: 1px solid rgba(148, 163, 184, .3);
+  border-radius: 9px;
+  background: rgba(13, 18, 28, .9);
+  color: inherit;
+  font-size: 12.5px;
+}
+.api-platform-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.api-platform-actions .button { font-size: 12px; padding: 7px 12px; }
+.api-credentials-hint { margin: 0; color: rgba(231, 236, 245, .6); font-size: 11.5px; line-height: 1.45; }
+.radar-color-toggle { margin-top: 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.radar-color-toggle .segmented { display: flex; gap: 4px; }
+.radar-color-toggle .segmented button {
+  padding: 5px 10px;
+  border: 1px solid rgba(148, 163, 184, .3);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font-size: 11px; font-weight: 600;
+  cursor: pointer;
+}
+.radar-color-toggle .segmented button.active { border-color: rgba(94, 141, 255, .65); background: rgba(94, 141, 255, .14); }

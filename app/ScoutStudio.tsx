@@ -34,10 +34,10 @@ import {
 import { profileStorageKey, readStoredJson, type TransfermarktProfile } from "@/lib/transfermarkt";
 import { formatPlayerPositions, selectedCohortPosition } from "@/lib/positions";
 import { removePlayerImageBackground } from "@/lib/playerImageBackground";
-import { fetchTransfermarktProfile } from "@/lib/remoteData";
+import { fetchSkillcornerCompetitions, fetchSkillcornerDataset, fetchSourcesStatus, fetchStatsbombCompetitions, fetchStatsbombDataset, fetchTransfermarktProfile, type ApiCompetition, type SourcesStatus } from "@/lib/remoteData";
 import { reportExportBaseName } from "@/lib/reportExportName";
 import { canonicalizeRow } from "@/lib/wyscoutHeaders";
-import { SIMILARITY_METRIC_GROUPS, similarityMetricGroup } from "@/lib/similarityMetricGroups";
+import { METRIC_SOURCE_COLORS, SIMILARITY_METRIC_GROUPS, similarityMetricGroup } from "@/lib/similarityMetricGroups";
 import { numberLocale, setActiveLang, t, tDefault, tf, type Lang } from "@/lib/i18n";
 
 // Página 1 = ficha del jugador · Página 2 = comparación de similitud ·
@@ -203,6 +203,14 @@ export default function ScoutStudio() {
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const [printPages, setPrintPages] = useState<ReportPage[]>([CARD_PAGE, SIMILARITY_PAGE, FIRST_VISUAL_PAGE]);
   const [printRun, setPrintRun] = useState<ReportPage[] | null>(null);
+  const [sourceDatasets, setSourceDatasets] = useState<SourceDataset[]>([]);
+  const [apiDialogOpen, setApiDialogOpen] = useState(false);
+  const [apiStatus, setApiStatus] = useState<SourcesStatus | null | "offline">(null);
+  const [apiCompetitions, setApiCompetitions] = useState<{ statsbomb: ApiCompetition[]; skillcorner: ApiCompetition[] }>({ statsbomb: [], skillcorner: [] });
+  const [apiSelection, setApiSelection] = useState<{ statsbomb: string; skillcorner: string }>({ statsbomb: "", skillcorner: "" });
+  const [apiLoading, setApiLoading] = useState(false);
+  const [apiError, setApiError] = useState("");
+  const [radarColorMode, setRadarColorMode] = useState<"groups" | "platform">("groups");
   const [printLayoutError, setPrintLayoutError] = useState("");
   const [readingOverride, setReadingOverride] = useState("");
   const [reportRows, setReportRows] = useState<DataRow[]>([]);
@@ -456,6 +464,64 @@ export default function ScoutStudio() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile, profileReady, report?.player, report?.team]);
 
+  function applyDatasets(datasets: SourceDataset[]) {
+    const result = aggregateDatasets(datasets);
+    const sourceTitle = datasets.map((dataset) => dataset.fileName.replace(/\.(xlsx|xls|csv)$/i, "")).join(" + ");
+    const displayName = datasets.length > 1 ? combinedBaseName.trim() || "Combinación temporal" : sourceTitle;
+    setSourceDatasets(datasets);
+    setReportRows(result.rows);
+    setReportFileName(displayName);
+    setReportSourceCount(datasets.length);
+    setAnalysisLabel(datasets.length > 1 ? "BASES ANALIZADAS" : "BASE ANALIZADA");
+    setAnalysisSourceTitle(displayName);
+    if (datasets.length > 1) setCombinedBaseName(displayName);
+    const initialSelection = firstPlayerSelection(result.rows);
+    setSelectedTeam(initialSelection.team);
+    setSelectedPlayer(initialSelection.index);
+    const restored = restoreProfile(buildPlayerReport(result.rows, initialSelection.index, minimumMinutes, cohort));
+    setProfile(restored.profile);
+    setTransfermarktUrl(restored.url);
+    setBackgroundRemovalStatus("");
+    setAssetSourceStatus("");
+  }
+
+  async function openApiDialog() {
+    setApiDialogOpen(true);
+    setApiError("");
+    setApiStatus(null);
+    const status = await fetchSourcesStatus();
+    if (!status) { setApiStatus("offline"); return; }
+    setApiStatus(status);
+    try {
+      const [statsbomb, skillcorner] = await Promise.all([
+        status.statsbomb ? fetchStatsbombCompetitions() : Promise.resolve([]),
+        status.skillcorner ? fetchSkillcornerCompetitions() : Promise.resolve([]),
+      ]);
+      setApiCompetitions({ statsbomb, skillcorner });
+    } catch (error) {
+      setApiError(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function loadApiDataset(platform: "statsbomb" | "skillcorner", mode: "replace" | "append") {
+    const selection = apiSelection[platform];
+    if (!selection) return;
+    setApiLoading(true);
+    setApiError("");
+    try {
+      const competition = apiCompetitions[platform][Number(selection)];
+      const dataset = platform === "statsbomb"
+        ? await fetchStatsbombDataset(competition)
+        : await fetchSkillcornerDataset(competition);
+      applyDatasets(mode === "append" ? [...sourceDatasets, dataset] : [dataset]);
+      setApiDialogOpen(false);
+    } catch (error) {
+      setApiError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setApiLoading(false);
+    }
+  }
+
   async function onReportFiles(files?: FileList | File[], mode: ReportFileMode = "replace") {
     if (!files) return;
     const list = [...files].filter((file) => /\.(xlsx|xls|csv)$/i.test(file.name));
@@ -466,23 +532,7 @@ export default function ScoutStudio() {
       if (mode === "single" && list.length !== 1) throw new Error(t("Para usar una base, selecciona solamente un archivo Excel."));
       if (mode === "combine" && list.length < 2) throw new Error(t("Para combinar bases, selecciona dos o más archivos Excel."));
       const datasets = await Promise.all(list.map(readWorkbook));
-      const result = aggregateDatasets(datasets);
-      const sourceTitle = datasets.map((dataset) => dataset.fileName.replace(/\.(xlsx|xls|csv)$/i, "")).join(" + ");
-      const displayName = datasets.length > 1 ? combinedBaseName.trim() || "Combinación temporal" : sourceTitle;
-      setReportRows(result.rows);
-      setReportFileName(displayName);
-      setReportSourceCount(datasets.length);
-      setAnalysisLabel(datasets.length > 1 ? "BASES ANALIZADAS" : "BASE ANALIZADA");
-      setAnalysisSourceTitle(displayName);
-      if (datasets.length > 1) setCombinedBaseName(displayName);
-      const initialSelection = firstPlayerSelection(result.rows);
-      setSelectedTeam(initialSelection.team);
-      setSelectedPlayer(initialSelection.index);
-      const restored = restoreProfile(buildPlayerReport(result.rows, initialSelection.index, minimumMinutes, cohort));
-      setProfile(restored.profile);
-      setTransfermarktUrl(restored.url);
-      setBackgroundRemovalStatus("");
-      setAssetSourceStatus("");
+      applyDatasets(datasets);
     } catch (error) {
       setReportError(error instanceof Error ? error.message : t("No se pudieron leer los archivos."));
     } finally {
@@ -647,6 +697,29 @@ export default function ScoutStudio() {
             <input ref={combinedReportInputRef} type="file" accept=".xlsx,.xls,.csv" multiple hidden onChange={(event) => { if (event.target.files) void onReportFiles(event.target.files, "combine"); event.target.value = ""; }} />
             <input ref={reportInputRef} type="file" accept=".xlsx,.xls,.csv" multiple hidden onChange={(event) => { if (event.target.files) void onReportFiles(event.target.files, "replace"); event.target.value = ""; }} />
 
+            {apiDialogOpen && <div className="print-dialog-overlay" role="dialog" aria-modal="true" aria-label={t("Conectar plataformas de datos")} onClick={() => setApiDialogOpen(false)}>
+                <div className="print-dialog api-dialog" onClick={(event) => event.stopPropagation()}>
+                  <h3>{t("Conectar plataformas de datos")}</h3>
+                  {apiStatus === null && <p>{t("Comprobando el servidor local…")}</p>}
+                  {apiStatus === "offline" && <p className="inline-error">{t("El servidor local no está corriendo. Arranca npm run bg:server y reintenta.")}</p>}
+                  {apiStatus && apiStatus !== "offline" && (["statsbomb", "skillcorner"] as const).map((platform) => <div key={platform} className="api-platform-row" style={{ "--platform-color": METRIC_SOURCE_COLORS[platform].color } as React.CSSProperties}>
+                    <div className="api-platform-head"><i /><b>{METRIC_SOURCE_COLORS[platform].label}</b><small>{apiStatus[platform] ? `${apiCompetitions[platform].length} ${t("competiciones disponibles")}` : t("Sin credenciales")}</small></div>
+                    {apiStatus[platform] ? <>
+                      <select value={apiSelection[platform]} onChange={(event) => setApiSelection((current) => ({ ...current, [platform]: event.target.value }))}>
+                        <option value="">{t("Elegir competición")}…</option>
+                        {apiCompetitions[platform].map((competition, index) => <option key={index} value={index}>{competition.name} · {competition.season}</option>)}
+                      </select>
+                      <div className="api-platform-actions">
+                        <button className="button primary" disabled={apiLoading || !apiSelection[platform]} onClick={() => void loadApiDataset(platform, "replace")}>{apiLoading ? t("Cargando datos de la plataforma…") : t("Usar como base")}</button>
+                        {dataReady && <button className="button secondary" disabled={apiLoading || !apiSelection[platform]} onClick={() => void loadApiDataset(platform, "append")}>{t("Añadir a la base actual")}</button>}
+                      </div>
+                    </> : <p className="api-credentials-hint">{t("Sin credenciales: agrega las llaves en ~/.fos-scouting/credentials.json (o variables de entorno) y reinicia el servidor local.")}</p>}
+                  </div>)}
+                  {apiError && <p className="inline-error">{apiError}</p>}
+                  <div className="print-dialog-actions"><button className="button secondary" onClick={() => setApiDialogOpen(false)}>{t("Cancelar")}</button></div>
+                </div>
+              </div>}
+
             {!dataReady ? (
               <section className="dataset-onboarding database-gate">
                 <span className="dataset-step">{t("PASO 01 · FUENTE DEL INFORME")}</span>
@@ -663,6 +736,9 @@ export default function ScoutStudio() {
                   </button>
                   <button className="database-choice featured" onClick={() => combinedReportInputRef.current?.click()} disabled={reportLoading}>
                     <span className="database-choice-tag">{t("2+ ARCHIVOS")}</span><span className="database-choice-icon"><Merge size={25} /></span><b>{t("Combinar bases")}</b><small>{t("Une todas las ligas o temporadas seleccionadas y usa el resultado directamente.")}</small><em>{reportLoading ? t("Combinando datos…") : t("Elegir archivos")}<Files size={14} /></em>
+                  </button>
+                  <button className="database-choice" onClick={() => void openApiDialog()} disabled={reportLoading}>
+                    <span className="database-choice-tag">API</span><span className="database-choice-icon"><Sparkles size={25} /></span><b>{t("Conectar API")}</b><small>{t("StatsBomb y SkillCorner con tus credenciales, vía el servidor local.")}</small><em>{t("Elegir competición")}<Search size={14} /></em>
                   </button>
                 </div>
                 <small>{t(".XLSX, .XLS o .CSV · primera hoja · clave: nombre + edad + club · procesamiento local")}</small>
@@ -692,6 +768,7 @@ export default function ScoutStudio() {
                   <button className="upload-box compact" onClick={() => reportInputRef.current?.click()} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); onReportFiles(event.dataTransfer.files); }}>
                     <span className="upload-icon"><Upload size={18} /></span><span><b>{reportLoading ? t("Leyendo bases…") : t("Reemplazar archivos")}</b><small>{tf("{n} base{s} · {m} jugadores", { n: reportSourceCount, s: reportSourceCount === 1 ? "" : "s", m: reportRows.length })}</small></span>
                   </button>
+                  <button className="api-connect-button" onClick={() => void openApiDialog()}><Sparkles size={14} /> {t("Conectar API")} · StatsBomb / SkillCorner</button>
                   {reportError && <div className="inline-error">{reportError}</div>}
                   <div className="control-divider" />
                   <div className="panel-title player-section-title"><div><span className="mini-icon"><Search size={17} /></span><div><h2>{t("2. Equipo y jugador")}</h2><p>{t("Selecciona en orden")}</p></div></div><span className="tiny-state">{t("PASO 02")}</span></div>
@@ -706,6 +783,7 @@ export default function ScoutStudio() {
                   </div>
                   <div className="data-summary"><div><span>{t("Bases")}</span><b>{reportSourceCount}</b></div><div><span>{t("Jugadores")}</span><b>{numberFormat(reportRows.length)}</b></div><div><span>{t("Cohorte")}</span><b>{report?.cohortSize ?? 0}</b></div></div>
                   {report && report.cohortSize < 5 && <div className="inline-error">{report.cohortSize === 0 ? t("No hay jugadores de esta posición con el mínimo de minutos: baja el mínimo o carga más datos.") : (report.cohortSize === 1 ? t("Cohorte de 1 jugador: percentiles poco fiables. Baja el mínimo de minutos o carga más datos.") : tf("Cohorte de {n} jugadores: percentiles poco fiables. Baja el mínimo de minutos o carga más datos.", { n: report.cohortSize }))}</div>}
+                  {report && report.metrics.some((metric) => metric.source && metric.source !== "wyscout") && <div className="radar-color-toggle"><span className="field-label">{t("Color del radar")}</span><div className="segmented"><button className={radarColorMode === "groups" ? "active" : ""} onClick={() => setRadarColorMode("groups")}>{t("Por grupo")}</button><button className={radarColorMode === "platform" ? "active" : ""} onClick={() => setRadarColorMode("platform")}>{t("Por plataforma")}</button></div></div>}
                   <p className="inline-edit-hint">{t("Los textos del informe (etiqueta de la base, lectura rápida, club destinatario) se editan con un clic directamente sobre la vista previa.")}</p>
                   <details className="profile-details report-recipient-editor">
                     <summary>{t("Reporte generado para")}</summary>
@@ -800,10 +878,12 @@ export default function ScoutStudio() {
                     </section>
 
                     <section className="dossier-radar-row">
-                      <div className="dossier-radar">{report.metrics.length ? <PizzaRadar metrics={report.metrics} score={report.score} cohort={report.cohort} lang={lang} /> : <div className="empty-radar"><BarChart3 size={34} /><b>{t("No encontramos métricas para esta cohorte")}</b></div>}</div>
+                      <div className="dossier-radar">{report.metrics.length ? <PizzaRadar metrics={report.metrics} score={report.score} cohort={report.cohort} lang={lang} colorMode={radarColorMode} /> : <div className="empty-radar"><BarChart3 size={34} /><b>{t("No encontramos métricas para esta cohorte")}</b></div>}</div>
                       <aside className="dossier-reading">
                         <div className="average-percentile"><strong>{report.score}</strong><small>{t("percentil")}<br />{t("medio")}</small></div>
-                        <div className="dossier-legend">{SIMILARITY_METRIC_GROUPS.filter((group) => report.metrics.some((metric) => similarityMetricGroup(metric, report.cohort).id === group.id)).map((group) => <span key={group.id}><i style={{ background: group.color }} />{t(group.label)}</span>)}</div>
+                        <div className="dossier-legend">{radarColorMode === "platform"
+                          ? [...new Set(report.metrics.map((metric) => metric.source ?? "wyscout"))].map((source) => <span key={source}><i style={{ background: METRIC_SOURCE_COLORS[source]?.color }} />{METRIC_SOURCE_COLORS[source]?.label ?? source}</span>)
+                          : SIMILARITY_METRIC_GROUPS.filter((group) => report.metrics.some((metric) => similarityMetricGroup(metric, report.cohort).id === group.id)).map((group) => <span key={group.id}><i style={{ background: group.color }} />{t(group.label)}</span>)}</div>
                         <div className="quick-reading"><b>{t("LECTURA RÁPIDA")}{readingOverride.trim() !== "" && <button type="button" className="reading-restore" onClick={() => updateReadingOverride("")}>{t("Usar texto automático")}</button>}</b><p><InlineText editKey={`reading-${report.player}`} value={readingOverride} fallback={report.reading} onCommit={updateReadingOverride} multiline /></p></div>
                       </aside>
                     </section>

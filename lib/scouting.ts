@@ -10,6 +10,8 @@ export type SourceDataset = {
   season: number;
   headers: string[];
   rows: DataRow[];
+  /** Plataforma de origen; los minutos no se suman entre proveedores distintos. */
+  provider?: MetricSource;
 };
 
 export type AggregationResult = {
@@ -21,7 +23,9 @@ export type AggregationResult = {
   warnings: string[];
 };
 
-export type MetricColorGroup = "finishing" | "creating" | "passing" | "defending" | "goalkeeper";
+export type MetricColorGroup = "finishing" | "creating" | "passing" | "defending" | "goalkeeper" | "physical";
+
+export type MetricSource = "wyscout" | "statsbomb" | "skillcorner";
 
 export type RadarMetric = {
   key: string;
@@ -31,6 +35,7 @@ export type RadarMetric = {
   group: number;
   colorGroup?: MetricColorGroup;
   inverse?: boolean;
+  source?: MetricSource;
   /** Nº de valores reales de la cohorte contra los que se calculó el percentil */
   sample?: number;
 };
@@ -194,6 +199,14 @@ function weightedAverage(entries: Array<{ value: number; weight: number }>) {
   return weight ? valid.reduce((sum, entry) => sum + entry.value * entry.weight, 0) / weight : Number.NaN;
 }
 
+function maxPerProvider(entries: Array<{ row: DataRow; provider: MetricSource }>, pick: (row: DataRow) => number) {
+  const perProvider = new Map<string, number>();
+  for (const entry of entries) {
+    perProvider.set(entry.provider, (perProvider.get(entry.provider) ?? 0) + pick(entry.row));
+  }
+  return Math.max(0, ...perProvider.values());
+}
+
 export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult {
   if (datasets.length < 1) throw new Error(t("Selecciona al menos un archivo de datos."));
   const allHeaders = [...new Set(datasets.flatMap((dataset) => dataset.headers))];
@@ -220,6 +233,7 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
     season: dataset.season,
     sourceIndex,
     source: dataset.fileName.replace(/\.(xlsx|xls|csv)$/i, ""),
+    provider: dataset.provider ?? "wyscout" as MetricSource,
     player: String(row[core.player] ?? "").trim(),
     ageIdentity: normalizeIdentityAge(ageColumn ? row[ageColumn] : ""),
     clubIdentity: normalizeIdentityText(rowTeam(row)),
@@ -260,6 +274,38 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
       else clusters.push([...group]);
     }
     mergedGroups.push(...clusters);
+  }
+
+  // Fusión de nombres abreviados entre plataformas: "S. Dewaele" (Wyscout) y
+  // "Sébastien Dewaele" (StatsBomb) son el mismo jugador si comparten club,
+  // apellido e inicial, con edad compatible. Solo se fusiona cuando el
+  // candidato es único, para no mezclar homónimos.
+  const nameTokens = (value: string) => normalizeIdentityText(value).split(" ").filter(Boolean);
+  const isAbbreviated = (value: string) => {
+    const tokens = nameTokens(value);
+    return tokens.length >= 2 && tokens[0].length === 1;
+  };
+  const compatible = (a: typeof combined, b: typeof combined) => {
+    const ta = nameTokens(a[0].player);
+    const tb = nameTokens(b[0].player);
+    if (!ta.length || !tb.length) return false;
+    if (ta[ta.length - 1] !== tb[tb.length - 1]) return false;
+    if (ta[0][0] !== tb[0][0]) return false;
+    const clubsA = new Set(a.map((entry) => entry.clubIdentity).filter(Boolean));
+    if (![...new Set(b.map((entry) => entry.clubIdentity).filter(Boolean))].some((club) => clubsA.has(club))) return false;
+    const agesA = a.map((entry) => Number(entry.ageIdentity)).filter(Number.isFinite);
+    const agesB = b.map((entry) => Number(entry.ageIdentity)).filter(Number.isFinite);
+    if (!agesA.length || !agesB.length) return true;
+    return agesA.some((x) => agesB.some((y) => Math.abs(x - y) <= 1));
+  };
+  for (let shortIndex = mergedGroups.length - 1; shortIndex >= 0; shortIndex -= 1) {
+    const group = mergedGroups[shortIndex];
+    if (!isAbbreviated(group[0].player)) continue;
+    const candidates = mergedGroups.filter((other) => other !== group && !isAbbreviated(other[0].player) && compatible(group, other));
+    if (candidates.length === 1) {
+      candidates[0].push(...group);
+      mergedGroups.splice(shortIndex, 1);
+    }
   }
 
   const positionColumn = findColumn(allHeaders, ["position", "posicion", "posicion especifica"]);
@@ -309,8 +355,10 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
     const output: DataRow = {
       Player: latest.player,
       "Data sources": uniqueText(sorted.map(({ source }) => source)),
-      [core.matches]: sorted.reduce((sum, { row }) => sum + (numeric(row[core.matches]) || 0), 0),
-      [core.minutes]: sorted.reduce((sum, { row }) => sum + (numeric(row[core.minutes]) || 0), 0),
+      // Dentro de un proveedor las temporadas se suman; entre proveedores se
+      // toma el máximo (Wyscout y StatsBomb describen los mismos minutos).
+      [core.matches]: maxPerProvider(sorted, (row) => numeric(row[core.matches]) || 0),
+      [core.minutes]: maxPerProvider(sorted, (row) => numeric(row[core.minutes]) || 0),
     };
     if (seasons) output.Seasons = seasons;
 
@@ -355,7 +403,7 @@ export function cohortOf(value: CellValue) {
   return roleCohort(primaryPositionRole(value));
 }
 
-type MetricDefinition = { label: string; aliases: string[]; group: number; colorGroup: MetricColorGroup; inverse?: boolean };
+type MetricDefinition = { label: string; aliases: string[]; group: number; colorGroup: MetricColorGroup; inverse?: boolean; source?: MetricSource };
 
 // Sets de métricas por rol según la especificación del cuaderno de análisis.
 // `colorGroup` fija el color del anillo del radar; para Wingers, Forwards y
@@ -485,6 +533,55 @@ const METRICS: Record<string, MetricDefinition[]> = {
 
 METRICS.MID = METRICS.DMF;
 METRICS.OTHER = METRICS.WING;
+
+// ---- Métricas de plataformas conectadas por API ----
+// Solo aparecen en el radar cuando la base cargada trae sus columnas (es
+// decir, cuando se añadió StatsBomb o SkillCorner desde "Conectar API").
+function sbMetric(label: string, aliases: string[], group: number, colorGroup: MetricColorGroup, inverse = false): MetricDefinition {
+  return { label, aliases, group, colorGroup, inverse, source: "statsbomb" };
+}
+
+const SB_COMMON = {
+  npxg: sbMetric("npxG /90 (SB)", ["npxg per 90 sb"], 0, "finishing"),
+  npxgShot: sbMetric("npxG por remate (SB)", ["npxg per shot sb"], 0, "finishing"),
+  xa: sbMetric("xA /90 (SB)", ["xa per 90 sb"], 1, "creating"),
+  keyPasses: sbMetric("Pases clave /90 (SB)", ["key passes per 90 sb"], 1, "creating"),
+  obv: sbMetric("OBV /90 (SB)", ["obv per 90 sb"], 1, "creating"),
+  deepProg: sbMetric("Progresiones profundas /90 (SB)", ["deep progressions per 90 sb"], 1, "creating"),
+  dribbles: sbMetric("Regates /90 (SB)", ["dribbles per 90 sb"], 2, "creating"),
+  touchesBox: sbMetric("Toques en el área /90 (SB)", ["touches in box per 90 sb"], 0, "finishing"),
+  pressures: sbMetric("Presiones /90 (SB)", ["pressures per 90 sb"], 0, "defending"),
+  counterpressures: sbMetric("Contrapresiones /90 (SB)", ["counterpressures per 90 sb"], 0, "defending"),
+  padjTackles: sbMetric("Entradas PAdj (SB)", ["padj tackles sb"], 0, "defending"),
+  padjInterceptions: sbMetric("Intercepciones PAdj (SB)", ["padj interceptions sb"], 0, "defending"),
+  aerialWin: sbMetric("Aéreos ganados % (SB)", ["aerial win % sb"], 1, "finishing"),
+  aerialWinDef: sbMetric("Aéreos ganados % (SB)", ["aerial win % sb"], 0, "defending"),
+  crossPct: sbMetric("Precisión de centro % (SB)", ["crossing % sb"], 1, "creating"),
+};
+
+const SC_PHYSICAL: MetricDefinition[] = [
+  { label: "Distancia /90 (SC)", aliases: ["distance per 90 sc"], group: 2, colorGroup: "physical", source: "skillcorner" },
+  { label: "Alta intensidad /90 (SC)", aliases: ["hsr distance per 90 sc"], group: 2, colorGroup: "physical", source: "skillcorner" },
+  { label: "Distancia sprint /90 (SC)", aliases: ["sprint distance per 90 sc"], group: 2, colorGroup: "physical", source: "skillcorner" },
+  { label: "Sprints /90 (SC)", aliases: ["sprints per 90 sc"], group: 2, colorGroup: "physical", source: "skillcorner" },
+  { label: "Aceleraciones altas /90 (SC)", aliases: ["high accelerations per 90 sc"], group: 2, colorGroup: "physical", source: "skillcorner" },
+  { label: "PSV-99 km/h (SC)", aliases: ["psv 99 sc", "psv99 sc"], group: 2, colorGroup: "physical", source: "skillcorner" },
+];
+
+METRICS.GK.push(
+  sbMetric("GSAA /90 (SB)", ["gsaa per 90 sb"], 0, "goalkeeper"),
+  sbMetric("xG en contra /90 (SB)", ["xg faced per 90 sb"], 0, "goalkeeper", true),
+  sbMetric("Atajadas % (SB)", ["save % sb"], 0, "goalkeeper"),
+  sbMetric("OBV portero /90 (SB)", ["obv gk per 90 sb"], 0, "goalkeeper"),
+);
+METRICS.CB.push(SB_COMMON.padjTackles, SB_COMMON.padjInterceptions, SB_COMMON.pressures, SB_COMMON.aerialWinDef, SB_COMMON.obv, ...SC_PHYSICAL);
+METRICS.FB.push(SB_COMMON.deepProg, SB_COMMON.pressures, SB_COMMON.crossPct, SB_COMMON.obv, ...SC_PHYSICAL);
+METRICS.DMF.push(SB_COMMON.pressures, SB_COMMON.counterpressures, SB_COMMON.padjTackles, SB_COMMON.padjInterceptions, SB_COMMON.obv, ...SC_PHYSICAL);
+METRICS.B2B.push(SB_COMMON.deepProg, SB_COMMON.pressures, SB_COMMON.xa, SB_COMMON.obv, ...SC_PHYSICAL);
+METRICS.AM.push(SB_COMMON.npxg, SB_COMMON.xa, SB_COMMON.keyPasses, SB_COMMON.deepProg, SB_COMMON.obv, ...SC_PHYSICAL);
+METRICS.WING.push(SB_COMMON.npxg, SB_COMMON.xa, SB_COMMON.dribbles, SB_COMMON.touchesBox, SB_COMMON.obv, ...SC_PHYSICAL);
+METRICS.CF.push(SB_COMMON.npxg, SB_COMMON.npxgShot, SB_COMMON.xa, SB_COMMON.touchesBox, SB_COMMON.aerialWin, SB_COMMON.obv, ...SC_PHYSICAL);
+
 
 function percentile(value: number, values: number[], inverse = false) {
   const valid = values.filter(Number.isFinite).sort((a, b) => a - b);
@@ -632,7 +729,7 @@ export function buildPlayerReport(rows: DataRow[], selectedIndex: number, minimu
     // métrica se omite en lugar de dibujarse contra un grupo vacío.
     const peerValues = peers.map((candidate) => numeric(candidate[key])).filter(Number.isFinite);
     if (!peerValues.length) return [];
-    return [{ key, label: definition.label, value, percentile: percentile(value, peerValues, definition.inverse), group: definition.group, colorGroup: definition.colorGroup, inverse: definition.inverse, sample: peerValues.length }];
+    return [{ key, label: definition.label, value, percentile: percentile(value, peerValues, definition.inverse), group: definition.group, colorGroup: definition.colorGroup, inverse: definition.inverse, source: definition.source ?? "wyscout", sample: peerValues.length }];
   });
   const score = metrics.length ? Math.round(average(metrics.map((metric) => metric.percentile))) : 0;
   const text = (aliases: string[]) => String(field(row, headers, aliases) ?? "").trim();

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { RadarMetric } from "@/lib/scouting";
-import { similarityMetricGroup } from "@/lib/similarityMetricGroups";
+import { METRIC_SOURCE_COLORS, similarityMetricGroup } from "@/lib/similarityMetricGroups";
 import { t, tf, type Lang } from "@/lib/i18n";
 
 function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
@@ -16,7 +16,7 @@ function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, width:
   ctx.closePath();
 }
 
-export function PizzaRadar({ metrics, score, cohort, lang = "es" }: { metrics: RadarMetric[]; score: number; cohort: string; lang?: Lang }) {
+export function PizzaRadar({ metrics, score, cohort, lang = "es", colorMode = "groups" }: { metrics: RadarMetric[]; score: number; cohort: string; lang?: Lang; colorMode?: "groups" | "platform" }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -39,7 +39,16 @@ export function PizzaRadar({ metrics, score, cohort, lang = "es" }: { metrics: R
       const inner = size * 0.085;
       const gap = 0.025;
       const step = Math.PI * 2 / metrics.length;
-      const metricGroups = metrics.map((metric) => similarityMetricGroup(metric, cohort));
+      // En modo plataforma cada métrica toma el color de su fuente de datos
+      // (Wyscout / StatsBomb / SkillCorner); en modo grupo, el de su bloque.
+      const metricGroups = metrics.map((metric) => {
+        if (colorMode === "platform") {
+          const source = metric.source ?? "wyscout";
+          const brand = METRIC_SOURCE_COLORS[source] ?? METRIC_SOURCE_COLORS.wyscout;
+          return { id: source, color: brand.color };
+        }
+        return similarityMetricGroup(metric, cohort);
+      });
 
       ctx.strokeStyle = "rgba(26, 43, 56, .1)";
       ctx.lineWidth = 1;
@@ -174,7 +183,7 @@ export function PizzaRadar({ metrics, score, cohort, lang = "es" }: { metrics: R
       observer.disconnect();
       dprMedia?.removeEventListener("change", onDprChange);
     };
-  }, [cohort, metrics, score, lang]);
+  }, [cohort, metrics, score, lang, colorMode]);
 
   return (
     <canvas

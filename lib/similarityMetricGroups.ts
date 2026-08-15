@@ -1,5 +1,5 @@
 export type SimilarityMetricGroup = {
-  id: "finishing" | "creating" | "passing" | "defending" | "goalkeeper";
+  id: "finishing" | "creating" | "passing" | "defending" | "goalkeeper" | "physical";
   label: string;
   color: string;
 };
@@ -10,6 +10,7 @@ export const SIMILARITY_METRIC_GROUPS: SimilarityMetricGroup[] = [
   { id: "passing", label: "Pase", color: "#43a8a0" },
   { id: "defending", label: "Defensa", color: "#3f72d9" },
   { id: "goalkeeper", label: "Portero", color: "#8b5cf6" },
+  { id: "physical", label: "Físico", color: "#12c48b" },
 ];
 
 const AERIAL_METRIC = /aerial|aereo|cabece|header/;
@@ -39,3 +40,11 @@ export function similarityMetricGroup(metric: { key: string; label: string; grou
   if (metric.group === 2) return SIMILARITY_METRIC_GROUPS[2];
   return SIMILARITY_METRIC_GROUPS[0];
 }
+
+// Colores de marca por plataforma de datos, para el modo "color por
+// plataforma" del radar.
+export const METRIC_SOURCE_COLORS: Record<string, { label: string; color: string }> = {
+  wyscout: { label: "Wyscout", color: "#e07a2f" },
+  statsbomb: { label: "StatsBomb", color: "#b0243a" },
+  skillcorner: { label: "SkillCorner", color: "#12c48b" },
+};
