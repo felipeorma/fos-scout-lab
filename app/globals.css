@@ -1728,6 +1728,7 @@ details.report-recipient-editor > label > small { display: block; margin-bottom:
 }
 .api-connect-button:hover { border-color: rgba(94, 141, 255, .6); background: rgba(94, 141, 255, .08); }
 .api-dialog { width: min(480px, calc(100vw - 32px)); }
+.sc-link-dialog { width: min(430px, calc(100vw - 32px)); }
 .api-platform-row {
   margin-bottom: 12px;
   padding: 12px;

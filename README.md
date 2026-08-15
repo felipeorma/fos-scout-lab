@@ -117,9 +117,29 @@ tarjeta del paso 01, o desde el panel de datos con un informe abierto).
 - Los datos llegan a través del mismo servidor local del recorte de fondos
   (`npm run bg:server`, puerto 7001). Las credenciales viven **solo en esta
   máquina**: nunca se suben al repositorio ni viajan al navegador de terceros.
-- Credenciales por variables de entorno (`SB_USERNAME` / `SB_PASSWORD` para
-  StatsBomb, `SKILLCORNER_USERNAME` / `SKILLCORNER_PASSWORD` para SkillCorner)
-  o en el archivo `~/.fos-scouting/credentials.json`:
+- **Enlace automático con SkillCorner:** al cargar cualquier base (Excel de
+  Wyscout o StatsBomb por API), si hay credenciales de SkillCorner la app
+  ofrece cruzar los datos físicos. Propone la competición más probable (por
+  nombre, acrónimo tipo "CPL" y temporada del archivo), cruza los jugadores por
+  nombre, club y edad, e informa cuántos quedaron enlazados. Las métricas
+  físicas entran al radar como **porciones verdes ligeramente salidas del
+  círculo**, para distinguir la fuente sin alterar el diseño del resto.
+- Credenciales, en orden de prioridad: variables de entorno (`SB_USERNAME` /
+  `SB_PASSWORD` para StatsBomb, `SKILLCORNER_USERNAME` / `SKILLCORNER_PASSWORD`
+  para SkillCorner), **Llavero de macOS** (cifrado, recomendado) o el archivo
+  `~/.fos-scouting/credentials.json`.
+
+  Guardarlas en el Llavero (una sola vez, formato `usuario:contraseña`):
+
+  ```bash
+  security add-generic-password -U -s fos-scouting -a statsbomb -w 'usuario:contraseña'
+  ```
+
+  ```bash
+  security add-generic-password -U -s fos-scouting -a skillcorner -w 'usuario:contraseña'
+  ```
+
+  Formato del archivo JSON (alternativa sin cifrar):
 
   ```json
   {
@@ -128,10 +148,30 @@ tarjeta del paso 01, o desde el panel de datos con un informe abierto).
   }
   ```
 
-- Cada competición puede **usarse como base** o **añadirse a la base actual**;
-  al mezclar plataformas, el mismo jugador se consolida por nombre (incluye
-  nombres abreviados tipo "T. Campbell" si coinciden club y edad) y los minutos
-  no se duplican entre proveedores que describen la misma temporada.
+- **La base siempre es Wyscout o StatsBomb.** SkillCorner no puede usarse como
+  base: solo se añade encima como capa de *game intelligence* y físico, y nunca
+  impone la identidad del jugador (club, posición y edad salen de la base, así
+  que un club renombrado se muestra con su nombre vigente).
+- Al mezclar plataformas el mismo jugador se consolida por nombre —incluye
+  nombres abreviados tipo "T. Campbell" y variantes con segundo nombre, que se
+  resuelven por fecha de nacimiento— exigiendo siempre club compatible. Los
+  clubes se comparan tolerando las diferencias de escritura entre plataformas
+  ("Vancouver FC" ≡ "Vancouver Football Club", "FC Supra" ≡ "FC Supra du
+  Québec") y los rebrandings conocidos, sin confundir clubes distintos de una
+  misma ciudad ("Inter Toronto FC" ≠ "Toronto FC").
+- Minutos, partidos, goles y asistencias **no se duplican** entre proveedores
+  que describen la misma temporada: se suman dentro de cada plataforma y se
+  toma el máximo entre plataformas.
+- Los listados de competiciones salen ordenados alfabéticamente por liga y, en
+  cada liga, por temporada ascendente, en ambas plataformas.
+- Los conjuntos de métricas por posición siguen la hoja de perfiles de la
+  dirección de scouting: StatsBomb aporta el bloque técnico-táctico (OBV,
+  progresiones, duelos, xG/xA de juego abierto…) y SkillCorner el de
+  inteligencia de juego y físico (desmarques P30, retención bajo presión,
+  recuperación directa en duelo, PSV-99…). Los volúmenes de SkillCorner se
+  normalizan a 30 minutos de posesión efectiva (`campo / minutes_tip * 30`) y
+  las métricas donde menos es mejor ("Superado en duelo %", "Reacción a sprint
+  post-giro") se invierten al calcular el percentil.
 - Las métricas de API llevan sufijo `(SB)` o `(SC)` y el radar suma el toggle
   **Color del radar**: "Por grupo" (bloques tácticos) o "Por plataforma"
   (naranja Wyscout, carmesí StatsBomb, verde SkillCorner).
@@ -144,7 +184,8 @@ tarjeta del paso 01, o desde el panel de datos con un informe abierto).
 - no existe un límite fijo de archivos; la combinación requiere al menos dos;
 - cada jugador se identifica con la clave normalizada `nombre + edad + club`
   para consolidar duplicados sin mezclar homónimos;
-- partidos y minutos: suma;
+- partidos, minutos, goles y asistencias: suma entre temporadas de una misma
+  plataforma, máximo entre plataformas que describen la misma temporada;
 - métricas totales: promedio entre los archivos cargados;
 - métricas por 90: promedio ponderado por minutos;
 - porcentajes: ponderados por intentos cuando se puede inferir el denominador,

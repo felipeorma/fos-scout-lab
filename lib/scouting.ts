@@ -228,6 +228,13 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
     return "";
   };
 
+  const birthColumn = findColumn(allHeaders, ["birth date", "fecha de nacimiento", "date of birth", "birthday"]);
+  const birthIdentity = (row: DataRow) => {
+    if (!birthColumn) return "";
+    const match = String(row[birthColumn] ?? "").match(/\d{4}-\d{2}-\d{2}/);
+    return match ? match[0] : "";
+  };
+
   const combined = datasets.flatMap((dataset, sourceIndex) => dataset.rows.map((row) => ({
     row,
     season: dataset.season,
@@ -237,6 +244,7 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
     player: String(row[core.player] ?? "").trim(),
     ageIdentity: normalizeIdentityAge(ageColumn ? row[ageColumn] : ""),
     clubIdentity: normalizeIdentityText(rowTeam(row)),
+    birthIdentity: birthIdentity(row),
   }))).filter((entry) => entry.player);
 
   const grouped = new Map<string, typeof combined>();
@@ -285,14 +293,40 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
     const tokens = nameTokens(value);
     return tokens.length >= 2 && tokens[0].length === 1;
   };
+  // Los clubes no se escriben igual entre plataformas ("Vancouver FC" vs
+  // "Vancouver Football Club", "FC Supra" vs "FC Supra du Québec"): se
+  // comparan por tokens significativos (subconjunto) más alias explícitos
+  // para rebrandings ("York United" pasó a ser "Inter Toronto" en 2026).
+  const CLUB_STOPWORDS = new Set(["fc", "cf", "sc", "afc", "cd", "ac", "fk", "sk", "club", "football", "futbol", "soccer", "de", "du", "des", "the"]);
+  const CLUB_ALIAS_GROUPS = [["york united", "inter toronto"]];
+  const clubTokens = (value: string) => value.split(" ").filter((token) => token && !CLUB_STOPWORDS.has(token));
+  const clubsMatch = (a: string, b: string) => {
+    if (!a || !b) return false;
+    if (a === b) return true;
+    const listA = clubTokens(a);
+    const listB = clubTokens(b);
+    const ta = new Set(listA);
+    const tb = new Set(listB);
+    // El token distintivo va primero ("Inter Toronto" ≠ "Toronto FC"), así que
+    // un subconjunto solo vale si ambos nombres arrancan por la misma palabra:
+    // "Vancouver FC" ≡ "Vancouver Football Club", "FC Supra" ≡ "FC Supra du
+    // Québec", pero clubes distintos de la misma ciudad no se confunden.
+    if (listA[0] === listB[0] && ([...ta].every((token) => tb.has(token)) || [...tb].every((token) => ta.has(token)))) return true;
+    return CLUB_ALIAS_GROUPS.some((group) => {
+      const inA = group.find((alias) => a.includes(alias));
+      const inB = group.find((alias) => b.includes(alias));
+      return Boolean(inA && inB && inA !== inB);
+    });
+  };
   const compatible = (a: typeof combined, b: typeof combined) => {
     const ta = nameTokens(a[0].player);
     const tb = nameTokens(b[0].player);
     if (!ta.length || !tb.length) return false;
     if (ta[ta.length - 1] !== tb[tb.length - 1]) return false;
     if (ta[0][0] !== tb[0][0]) return false;
-    const clubsA = new Set(a.map((entry) => entry.clubIdentity).filter(Boolean));
-    if (![...new Set(b.map((entry) => entry.clubIdentity).filter(Boolean))].some((club) => clubsA.has(club))) return false;
+    const clubsA = [...new Set(a.map((entry) => entry.clubIdentity).filter(Boolean))];
+    const clubsB = [...new Set(b.map((entry) => entry.clubIdentity).filter(Boolean))];
+    if (!clubsA.some((clubA) => clubsB.some((clubB) => clubsMatch(clubA, clubB)))) return false;
     const agesA = a.map((entry) => Number(entry.ageIdentity)).filter(Number.isFinite);
     const agesB = b.map((entry) => Number(entry.ageIdentity)).filter(Number.isFinite);
     if (!agesA.length || !agesB.length) return true;
@@ -305,6 +339,39 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
     if (candidates.length === 1) {
       candidates[0].push(...group);
       mergedGroups.splice(shortIndex, 1);
+    }
+  }
+
+  // Fusión por fecha de nacimiento: "Ballou Tabla" (SkillCorner) y "Ballou
+  // Jean-Yves Tabla" (StatsBomb) comparten cumpleaños exacto, apellido e
+  // inicial aunque el nombre y el club no coincidan textualmente. Solo se
+  // fusiona con candidato único y nunca dentro del mismo archivo.
+  for (let index = mergedGroups.length - 1; index >= 0; index -= 1) {
+    const group = mergedGroups[index];
+    const births = new Set(group.map((entry) => entry.birthIdentity).filter(Boolean));
+    if (!births.size) continue;
+    const tokens = nameTokens(group[0].player);
+    if (!tokens.length) continue;
+    const surname = tokens[tokens.length - 1];
+    const initial = tokens[0][0];
+    const sources = new Set(group.map((entry) => entry.sourceIndex));
+    const clubs = [...new Set(group.map((entry) => entry.clubIdentity).filter(Boolean))];
+    const candidates = mergedGroups.filter((other) => {
+      if (other === group) return false;
+      if (other.some((entry) => sources.has(entry.sourceIndex))) return false;
+      const otherTokens = nameTokens(other[0].player);
+      if (!otherTokens.length || otherTokens[otherTokens.length - 1] !== surname) return false;
+      if (otherTokens[0][0] !== initial) return false;
+      if (!other.some((entry) => births.has(entry.birthIdentity))) return false;
+      // El cumpleaños exacto es una señal fuerte, pero no basta sola: dos
+      // jugadores distintos pueden compartir apellido, inicial y fecha.
+      const otherClubs = [...new Set(other.map((entry) => entry.clubIdentity).filter(Boolean))];
+      if (!clubs.length || !otherClubs.length) return true;
+      return clubs.some((club) => otherClubs.some((otherClub) => clubsMatch(club, otherClub)));
+    });
+    if (candidates.length === 1) {
+      candidates[0].push(...group);
+      mergedGroups.splice(index, 1);
     }
   }
 
@@ -350,7 +417,11 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
     // más antiguo: se ordena como el más reciente.
     const seasonOrder = (season: number) => season || Number.MAX_SAFE_INTEGER;
     const sorted = [...entries].sort((a, b) => (seasonOrder(a.season) - seasonOrder(b.season)) || (a.sourceIndex - b.sourceIndex));
-    const latest = sorted.at(-1)!;
+    // SkillCorner es una capa física sobre la base, nunca la fuente de la
+    // identidad: nombre, club, posición y edad salen de Wyscout/StatsBomb
+    // (su club puede estar desactualizado — "York United" por "Inter Toronto").
+    const identitySorted = sorted.filter((entry) => entry.provider !== "skillcorner");
+    const latest = (identitySorted.length ? identitySorted : sorted).at(-1)!;
     const seasons = uniqueText(sorted.map(({ season }) => season || ""));
     const output: DataRow = {
       Player: latest.player,
@@ -363,7 +434,7 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
     if (seasons) output.Seasons = seasons;
 
     if (teamColumn) output.Team = rowTeam(latest.row);
-    if (positionColumn) output.Position = mergePlayerPositions([...sorted].reverse().map(({ row }) => row[positionColumn]));
+    if (positionColumn) output.Position = mergePlayerPositions([...(identitySorted.length ? identitySorted : sorted)].reverse().map(({ row }) => row[positionColumn]));
     if (passportColumn) output["Passport country"] = uniqueText(sorted.map(({ row }) => row[passportColumn]));
     if (currentTeamColumn) output["Current Team"] = latest.row[currentTeamColumn] ?? "";
     if (contractColumn) output["Contract expires"] = latest.row[contractColumn] ?? "";
@@ -371,7 +442,10 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
 
     for (const header of cumulativeHeaders) {
       const values = sorted.map(({ row }) => numeric(row[header])).filter(Number.isFinite);
-      output[header] = values.length ? values.reduce((sum, value) => sum + value, 0) : Number.NaN;
+      // Igual que minutos y partidos: se suman las temporadas dentro de un
+      // proveedor, pero entre proveedores se toma el máximo — Wyscout y
+      // StatsBomb describen los mismos goles de la misma temporada.
+      output[header] = values.length ? maxPerProvider(sorted, (row) => numeric(row[header]) || 0) : Number.NaN;
     }
     for (const header of averagedHeaders) output[header] = average(sorted.map(({ row }) => numeric(row[header])));
     for (const header of per90Headers) {
@@ -408,7 +482,7 @@ type MetricDefinition = { label: string; aliases: string[]; group: number; color
 // Sets de métricas por rol según la especificación del cuaderno de análisis.
 // `colorGroup` fija el color del anillo del radar; para Wingers, Forwards y
 // Attack Midfielders los duelos aéreos cuentan como señal ofensiva.
-const METRICS: Record<string, MetricDefinition[]> = {
+export const METRICS: Record<string, MetricDefinition[]> = {
   GK: [
     { label: "Pases precisos, %", aliases: ["accurate passes %", "precision pases %", "pases precisos %"], group: 2, colorGroup: "passing" },
     { label: "Pases largos precisos, %", aliases: ["accurate long passes %", "precision pases largos %", "pases largos precisos %"], group: 2, colorGroup: "passing" },
@@ -537,50 +611,131 @@ METRICS.OTHER = METRICS.WING;
 // ---- Métricas de plataformas conectadas por API ----
 // Solo aparecen en el radar cuando la base cargada trae sus columnas (es
 // decir, cuando se añadió StatsBomb o SkillCorner desde "Conectar API").
+// Perfiles posicionales definidos por dirección de scouting (agosto 2026):
+// StatsBomb aporta el bloque técnico-táctico y SkillCorner el bloque de
+// game intelligence + físico (siempre en verde y como porción "salida").
 function sbMetric(label: string, aliases: string[], group: number, colorGroup: MetricColorGroup, inverse = false): MetricDefinition {
   return { label, aliases, group, colorGroup, inverse, source: "statsbomb" };
 }
+function scMetric(label: string, aliases: string[], inverse = false): MetricDefinition {
+  return { label, aliases, group: 2, colorGroup: "physical", inverse, source: "skillcorner" };
+}
 
-const SB_COMMON = {
-  npxg: sbMetric("npxG /90 (SB)", ["npxg per 90 sb"], 0, "finishing"),
-  npxgShot: sbMetric("npxG por remate (SB)", ["npxg per shot sb"], 0, "finishing"),
-  xa: sbMetric("xA /90 (SB)", ["xa per 90 sb"], 1, "creating"),
-  keyPasses: sbMetric("Pases clave /90 (SB)", ["key passes per 90 sb"], 1, "creating"),
-  obv: sbMetric("OBV /90 (SB)", ["obv per 90 sb"], 1, "creating"),
-  deepProg: sbMetric("Progresiones profundas /90 (SB)", ["deep progressions per 90 sb"], 1, "creating"),
-  dribbles: sbMetric("Regates /90 (SB)", ["dribbles per 90 sb"], 2, "creating"),
-  touchesBox: sbMetric("Toques en el área /90 (SB)", ["touches in box per 90 sb"], 0, "finishing"),
-  pressures: sbMetric("Presiones /90 (SB)", ["pressures per 90 sb"], 0, "defending"),
-  counterpressures: sbMetric("Contrapresiones /90 (SB)", ["counterpressures per 90 sb"], 0, "defending"),
-  padjTackles: sbMetric("Entradas PAdj (SB)", ["padj tackles sb"], 0, "defending"),
-  padjInterceptions: sbMetric("Intercepciones PAdj (SB)", ["padj interceptions sb"], 0, "defending"),
-  aerialWin: sbMetric("Aéreos ganados % (SB)", ["aerial win % sb"], 1, "finishing"),
-  aerialWinDef: sbMetric("Aéreos ganados % (SB)", ["aerial win % sb"], 0, "defending"),
-  crossPct: sbMetric("Precisión de centro % (SB)", ["crossing % sb"], 1, "creating"),
+const SB = {
+  carries: sbMetric("Conducciones (SB)", ["carries sb"], 1, "creating"),
+  deepProg: sbMetric("Progresiones profundas (SB)", ["deep progressions sb"], 2, "passing"),
+  obvDribbleCarry: sbMetric("OBV regate y conducción (SB)", ["dribble carry obv sb"], 1, "creating"),
+  obvDefensive: sbMetric("OBV defensivo (SB)", ["defensive action obv sb"], 0, "defending"),
+  obvPass: sbMetric("OBV pase (SB)", ["pass obv sb"], 2, "passing"),
+  ballRecoveries: sbMetric("Recuperaciones (SB)", ["ball recoveries sb"], 0, "defending"),
+  counterpressures: sbMetric("Contrapresiones (SB)", ["counterpressures sb"], 0, "defending"),
+  challenge: sbMetric("Entradas ganadas % (SB)", ["tackle dribbled past % sb"], 0, "defending"),
+  deepCompletions: sbMetric("Pases profundos completados (SB)", ["deep completions sb"], 2, "passing"),
+  tacklesInterceptions: sbMetric("Entradas + intercepciones (SB)", ["tackles interceptions sb"], 0, "defending"),
+  opKeyPasses: sbMetric("Pases clave JA (SB)", ["op key passes sb"], 1, "creating"),
+  opPassesIntoBox: sbMetric("Pases al área JA (SB)", ["op passes into box sb"], 1, "creating"),
+  opXa: sbMetric("xG asistido JA (SB)", ["op xg assisted sb"], 1, "creating"),
+  passingPct: sbMetric("Precisión de pase % (SB)", ["passing % sb"], 2, "passing"),
+  longBallPct: sbMetric("Precisión balón largo % (SB)", ["long ball % sb"], 2, "passing"),
+  longBalls: sbMetric("Balones largos (SB)", ["long balls sb"], 2, "passing"),
+  aerialWinPct: sbMetric("Aéreos ganados % (SB)", ["aerial win % sb"], 0, "defending"),
+  aerialWinPctAtt: sbMetric("Aéreos ganados % (SB)", ["aerial win % sb"], 0, "finishing"),
+  aerialWins: sbMetric("Aéreos ganados (SB)", ["aerial wins sb"], 0, "defending"),
+  aerialWinsAtt: sbMetric("Aéreos ganados (SB)", ["aerial wins sb"], 0, "finishing"),
+  tackles: sbMetric("Entradas (SB)", ["tackles sb"], 0, "defending"),
+  interceptions: sbMetric("Intercepciones (SB)", ["interceptions sb"], 0, "defending"),
+  blocksPerShot: sbMetric("Bloqueos por remate (SB)", ["blocks per shot sb"], 0, "defending"),
+  pressuredPassPct: sbMetric("Precisión bajo presión % (SB)", ["pressured pass % sb"], 2, "passing"),
+  opPasses: sbMetric("Pases JA (SB)", ["op passes sb"], 2, "passing"),
+  shots: sbMetric("Remates (SB)", ["np shots sb"], 0, "finishing"),
+  xg: sbMetric("xG (SB)", ["xg sb"], 0, "finishing"),
+  throughBalls: sbMetric("Pases filtrados (SB)", ["through balls sb"], 1, "creating"),
+  dribbles: sbMetric("Regates exitosos (SB)", ["successful dribbles sb"], 1, "creating"),
+  touchesBox: sbMetric("Toques en el área (SB)", ["touches in box sb"], 0, "finishing"),
+  goalConversion: sbMetric("Conversión de gol % (SB)", ["goal conversion % sb"], 0, "finishing"),
+  goals: sbMetric("Goles /90 (SB)", ["goals per 90 sb"], 0, "finishing"),
+  npPsxg: sbMetric("PSxG sin penales (SB)", ["np psxg sb"], 0, "finishing"),
+  foulsWon: sbMetric("Faltas recibidas (SB)", ["fouls won sb"], 1, "creating"),
+  penaltyWins: sbMetric("Penales ganados (SB)", ["penalty wins sb"], 1, "creating"),
+  boxCross: sbMetric("Centros al área % (SB)", ["box cross % sb"], 1, "creating"),
 };
 
-const SC_PHYSICAL: MetricDefinition[] = [
-  { label: "Distancia /90 (SC)", aliases: ["distance per 90 sc"], group: 2, colorGroup: "physical", source: "skillcorner" },
-  { label: "Alta intensidad /90 (SC)", aliases: ["hsr distance per 90 sc"], group: 2, colorGroup: "physical", source: "skillcorner" },
-  { label: "Distancia sprint /90 (SC)", aliases: ["sprint distance per 90 sc"], group: 2, colorGroup: "physical", source: "skillcorner" },
-  { label: "Sprints /90 (SC)", aliases: ["sprints per 90 sc"], group: 2, colorGroup: "physical", source: "skillcorner" },
-  { label: "Aceleraciones altas /90 (SC)", aliases: ["high accelerations per 90 sc"], group: 2, colorGroup: "physical", source: "skillcorner" },
-  { label: "PSV-99 km/h (SC)", aliases: ["psv 99 sc", "psv99 sc"], group: 2, colorGroup: "physical", source: "skillcorner" },
-];
+const SC = {
+  passCompletion: scMetric("Pases completados % (SC)", ["pass completion % sc"]),
+  linebreakPasses: scMetric("Pases rompe-líneas P30 (SC)", ["linebreak passes p30 sc"]),
+  avgXPass: scMetric("Riesgo de pase xPass (SC)", ["avg xpass attempted sc"]),
+  passesToRuns: scMetric("Pases a desmarques P30 (SC)", ["passes to runs p30 sc"]),
+  wideOptions: scMetric("Opciones en banda P30 (SC)", ["wide options p30 sc"]),
+  linebreakOptions: scMetric("Opciones rompe-líneas P30 (SC)", ["linebreak options p30 sc"]),
+  boxOptions: scMetric("Opciones en el área P30 (SC)", ["box options p30 sc"]),
+  retention: scMetric("Retención bajo presión % (SC)", ["retention under pressure % sc"]),
+  forwardCarries: scMetric("Conducciones largas al frente P30 (SC)", ["forward long carries p30 sc"]),
+  directRegain: scMetric("Recuperación directa en duelo % (SC)", ["direct regain % sc"]),
+  beaten: scMetric("Superado en duelo % (SC)", ["beaten in duel % sc"], true),
+  overlapRuns: scMetric("Desmarques overlap+underlap P30 (SC)", ["overlap underlap runs p30 sc"]),
+  offBallRuns: scMetric("Desmarques P30 (SC)", ["off ball runs p30 sc"]),
+  pullingWideRuns: scMetric("Desmarques en amplitud P30 (SC)", ["pulling wide runs p30 sc"]),
+  runsInBehind: scMetric("Rupturas al espacio P30 (SC)", ["runs in behind p30 sc"]),
+  dangerousRuns: scMetric("Rupturas peligrosas P30 (SC)", ["dangerous runs behind p30 sc"]),
+  runsReceived: scMetric("Desmarques recibidos P30 (SC)", ["runs received p30 sc"]),
+  psv99: scMetric("PSV-99 km/h (SC)", ["psv 99 sc", "psv99 sc"]),
+  hsr: scMetric("Distancia HSR (SC)", ["hsr distance sc"]),
+  metersPerMinute: scMetric("Metros por minuto (SC)", ["meters per minute sc"]),
+  timeToSprint: scMetric("Reacción a sprint post-giro (SC)", ["time to sprint post cod sc"], true),
+};
 
 METRICS.GK.push(
-  sbMetric("GSAA /90 (SB)", ["gsaa per 90 sb"], 0, "goalkeeper"),
-  sbMetric("xG en contra /90 (SB)", ["xg faced per 90 sb"], 0, "goalkeeper", true),
-  sbMetric("Atajadas % (SB)", ["save % sb"], 0, "goalkeeper"),
-  sbMetric("OBV portero /90 (SB)", ["obv gk per 90 sb"], 0, "goalkeeper"),
+  sbMetric("OBV portero (SB)", ["gk obv sb"], 0, "goalkeeper"),
+  sbMetric("Precisión balón largo % (SB)", ["long ball % sb"], 0, "goalkeeper"),
+  sbMetric("Atajadas % (SB)", ["shot stopping % sb"], 0, "goalkeeper"),
+  sbMetric("PSxG en contra (SB)", ["opp np psxg faced sb"], 0, "goalkeeper", true),
+  sbMetric("OBV pase (SB)", ["pass obv sb"], 0, "goalkeeper"),
+  sbMetric("Distancia de intervención (SB)", ["gk aggressive distance sb"], 0, "goalkeeper"),
+  sbMetric("Longitud de pase (SB)", ["pass length sb"], 0, "goalkeeper"),
+  SC.passCompletion, SC.linebreakPasses, SC.avgXPass,
 );
-METRICS.CB.push(SB_COMMON.padjTackles, SB_COMMON.padjInterceptions, SB_COMMON.pressures, SB_COMMON.aerialWinDef, SB_COMMON.obv, ...SC_PHYSICAL);
-METRICS.FB.push(SB_COMMON.deepProg, SB_COMMON.pressures, SB_COMMON.crossPct, SB_COMMON.obv, ...SC_PHYSICAL);
-METRICS.DMF.push(SB_COMMON.pressures, SB_COMMON.counterpressures, SB_COMMON.padjTackles, SB_COMMON.padjInterceptions, SB_COMMON.obv, ...SC_PHYSICAL);
-METRICS.B2B.push(SB_COMMON.deepProg, SB_COMMON.pressures, SB_COMMON.xa, SB_COMMON.obv, ...SC_PHYSICAL);
-METRICS.AM.push(SB_COMMON.npxg, SB_COMMON.xa, SB_COMMON.keyPasses, SB_COMMON.deepProg, SB_COMMON.obv, ...SC_PHYSICAL);
-METRICS.WING.push(SB_COMMON.npxg, SB_COMMON.xa, SB_COMMON.dribbles, SB_COMMON.touchesBox, SB_COMMON.obv, ...SC_PHYSICAL);
-METRICS.CF.push(SB_COMMON.npxg, SB_COMMON.npxgShot, SB_COMMON.xa, SB_COMMON.touchesBox, SB_COMMON.aerialWin, SB_COMMON.obv, ...SC_PHYSICAL);
+METRICS.CB.push(
+  SB.passingPct, SB.obvPass, SB.deepProg, SB.longBallPct, SB.longBalls, SB.obvDribbleCarry,
+  SB.aerialWinPct, SB.aerialWins, SB.obvDefensive, SB.tackles, SB.interceptions, SB.blocksPerShot, SB.challenge,
+  SC.directRegain, SC.beaten, SC.linebreakPasses, SC.psv99,
+);
+METRICS.FB.push(
+  SB.carries, SB.deepProg, SB.obvDribbleCarry, SB.obvDefensive, SB.obvPass, SB.ballRecoveries,
+  SB.counterpressures, SB.challenge, SB.deepCompletions, SB.tacklesInterceptions, SB.opKeyPasses,
+  SB.opPassesIntoBox, SB.opXa,
+  SC.overlapRuns, SC.directRegain, SC.hsr, SC.psv99,
+);
+METRICS.DMF.push(
+  SB.passingPct, SB.pressuredPassPct, SB.opPasses, SB.longBallPct, SB.longBalls, SB.deepProg,
+  SB.obvPass, SB.obvDribbleCarry, SB.obvDefensive, SB.tacklesInterceptions, SB.ballRecoveries,
+  SB.counterpressures, SB.challenge,
+  SC.retention, SC.linebreakPasses, SC.directRegain,
+);
+METRICS.B2B.push(
+  SB.shots, SB.xg, SB.opXa, SB.opKeyPasses, SB.obvPass, SB.deepProg, SB.opPasses, SB.longBalls,
+  SB.carries, SB.obvDribbleCarry, SB.obvDefensive, SB.tacklesInterceptions, SB.counterpressures,
+  SC.offBallRuns, SC.passesToRuns, SC.retention, SC.metersPerMinute,
+);
+METRICS.AM.push(
+  SB.xg, SB.opXa, SB.touchesBox, SB.obvDribbleCarry, SB.throughBalls, SB.opKeyPasses, SB.dribbles,
+  SB.carries, SB.opPassesIntoBox, SB.deepProg, SB.deepCompletions, SB.obvPass,
+  SC.linebreakOptions, SC.passesToRuns, SC.retention,
+);
+METRICS.CF.push(
+  SB.goalConversion, SB.shots, SB.goals, SB.xg, SB.npPsxg, SB.touchesBox, SB.aerialWinPctAtt,
+  SB.aerialWinsAtt, SB.foulsWon, SB.penaltyWins, SB.obvDribbleCarry, SB.counterpressures,
+  SC.runsInBehind, SC.dangerousRuns, SC.runsReceived, SC.boxOptions,
+);
+// Extremo: la hoja de perfiles separa "Winger creativo" y "Winger directo",
+// pero la plataforma tiene una sola cohorte WING, así que el radar reúne
+// ambos — creación y asociación (creativo) más ataque al espacio, centro y
+// velocidad pura (directo).
+METRICS.WING.push(
+  SB.shots, SB.xg, SB.opXa, SB.opKeyPasses, SB.throughBalls, SB.dribbles, SB.carries, SB.deepProg,
+  SB.deepCompletions, SB.obvPass, SB.obvDribbleCarry, SB.obvDefensive, SB.boxCross,
+  SC.pullingWideRuns, SC.wideOptions, SC.passesToRuns, SC.retention,
+  SC.runsInBehind, SC.forwardCarries, SC.psv99, SC.timeToSprint,
+);
 
 
 function percentile(value: number, values: number[], inverse = false) {

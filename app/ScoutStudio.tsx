@@ -210,6 +210,9 @@ export default function ScoutStudio() {
   const [apiSelection, setApiSelection] = useState<{ statsbomb: string; skillcorner: string }>({ statsbomb: "", skillcorner: "" });
   const [apiLoading, setApiLoading] = useState(false);
   const [apiError, setApiError] = useState("");
+  // Oferta automática de enlace con SkillCorner tras cargar una base
+  // Wyscout o StatsBomb: elegir competición física, cargando, o resumen.
+  const [scLink, setScLink] = useState<null | { stage: "offer" | "loading" | "done"; candidates: ApiCompetition[]; selection: string; linked?: number; total?: number; error?: string }>(null);
   const [radarColorMode, setRadarColorMode] = useState<"groups" | "platform">("groups");
   const [printLayoutError, setPrintLayoutError] = useState("");
   const [readingOverride, setReadingOverride] = useState("");
@@ -466,6 +469,10 @@ export default function ScoutStudio() {
 
   function applyDatasets(datasets: SourceDataset[]) {
     const result = aggregateDatasets(datasets);
+    // Toda base sin datos físicos dispara la oferta de enlace con SkillCorner;
+    // corre en segundo plano y no bloquea la carga del reporte.
+    if (datasets.every((dataset) => dataset.provider !== "skillcorner")) void offerSkillcornerLink(datasets);
+    else setScLink(null);
     const sourceTitle = datasets.map((dataset) => dataset.fileName.replace(/\.(xlsx|xls|csv)$/i, "")).join(" + ");
     const displayName = datasets.length > 1 ? combinedBaseName.trim() || "Combinación temporal" : sourceTitle;
     setSourceDatasets(datasets);
@@ -504,6 +511,9 @@ export default function ScoutStudio() {
   }
 
   async function loadApiDataset(platform: "statsbomb" | "skillcorner", mode: "replace" | "append") {
+    // Regla de la base: el informe siempre se funda en Wyscout o StatsBomb;
+    // SkillCorner solo se enlaza encima como capa física/game intelligence.
+    if (platform === "skillcorner" && mode === "replace") return;
     const selection = apiSelection[platform];
     if (!selection) return;
     setApiLoading(true);
@@ -519,6 +529,62 @@ export default function ScoutStudio() {
       setApiError(error instanceof Error ? error.message : String(error));
     } finally {
       setApiLoading(false);
+    }
+  }
+
+  async function offerSkillcornerLink(datasets: SourceDataset[]) {
+    try {
+      const status = await fetchSourcesStatus();
+      if (!status?.skillcorner) return;
+      const candidates = await fetchSkillcornerCompetitions();
+      if (!candidates.length) return;
+      // La mejor candidata comparte temporada y nombre con la base. El nombre
+      // se compara completo, por palabras y por acrónimo ("CPL 2026.xlsx"
+      // debe apuntar a Canadian Premier League); el año exacto pesa más que
+      // una temporada que solo lo contiene (2026 vs 2025/2026).
+      const baseYears = new Set(datasets.flatMap((dataset) => String(dataset.season ?? "").match(/\d{4}/g) ?? []));
+      const baseNames = datasets.map((dataset) => dataset.fileName.toLowerCase());
+      let best = 0;
+      let bestScore = -1;
+      candidates.forEach((competition, index) => {
+        let score = 0;
+        const seasonText = String(competition.season ?? "").trim();
+        const years = seasonText.match(/\d{4}/g) ?? [];
+        if (years.some((year) => baseYears.has(year))) score += /^\d{4}$/.test(seasonText) ? 3 : 1;
+        const competitionName = (competition.name ?? "").toLowerCase();
+        if (competitionName) {
+          const words = competitionName.split(/\s+/).filter((word) => word.length >= 4);
+          const acronym = competitionName.split(/\s+/).map((word) => word[0] ?? "").join("");
+          if (baseNames.some((name) => name.includes(competitionName))) score += 3;
+          if (acronym.length >= 3 && baseNames.some((name) => name.includes(acronym))) score += 3;
+          score += words.filter((word) => baseNames.some((name) => name.includes(word))).length * 2;
+        }
+        if (score > bestScore) { bestScore = score; best = index; }
+      });
+      setScLink({ stage: "offer", candidates, selection: String(best) });
+    } catch { /* Sin puente local no se ofrece el enlace. */ }
+  }
+
+  async function confirmSkillcornerLink() {
+    if (!scLink || scLink.stage === "loading") return;
+    const competition = scLink.candidates[Number(scLink.selection)];
+    if (!competition) return;
+    const baseCount = reportRows.length;
+    setScLink({ ...scLink, stage: "loading", error: "" });
+    try {
+      const dataset = await fetchSkillcornerDataset(competition);
+      const combined = [...sourceDatasets, dataset];
+      const scName = dataset.fileName.replace(/\.(xlsx|xls|csv)$/i, "");
+      // Un jugador queda "enlazado" cuando sus fuentes incluyen SkillCorner y
+      // al menos otra plataforma o archivo.
+      const linked = aggregateDatasets(combined).rows.filter((row) => {
+        const sources = String(row["Data sources"] ?? "");
+        return sources.includes(scName) && sources.replace(scName, "").replace(/[,\s]/g, "").length > 0;
+      }).length;
+      applyDatasets(combined);
+      setScLink({ stage: "done", candidates: scLink.candidates, selection: scLink.selection, linked, total: baseCount });
+    } catch (error) {
+      setScLink({ ...scLink, stage: "offer", error: error instanceof Error ? error.message : String(error) });
     }
   }
 
@@ -710,13 +776,38 @@ export default function ScoutStudio() {
                         {apiCompetitions[platform].map((competition, index) => <option key={index} value={index}>{competition.name} · {competition.season}</option>)}
                       </select>
                       <div className="api-platform-actions">
-                        <button className="button primary" disabled={apiLoading || !apiSelection[platform]} onClick={() => void loadApiDataset(platform, "replace")}>{apiLoading ? t("Cargando datos de la plataforma…") : t("Usar como base")}</button>
-                        {dataReady && <button className="button secondary" disabled={apiLoading || !apiSelection[platform]} onClick={() => void loadApiDataset(platform, "append")}>{t("Añadir a la base actual")}</button>}
+                        {platform === "statsbomb" && <button className="button primary" disabled={apiLoading || !apiSelection[platform]} onClick={() => void loadApiDataset(platform, "replace")}>{apiLoading ? t("Cargando datos de la plataforma…") : t("Usar como base")}</button>}
+                        {dataReady && <button className={platform === "statsbomb" ? "button secondary" : "button primary"} disabled={apiLoading || !apiSelection[platform]} onClick={() => void loadApiDataset(platform, "append")}>{apiLoading ? t("Cargando datos de la plataforma…") : t("Añadir a la base actual")}</button>}
+                        {platform === "skillcorner" && !dataReady && <p className="api-credentials-hint">{t("SkillCorner no se usa como base: carga primero Wyscout o StatsBomb y la capa física se enlaza encima.")}</p>}
                       </div>
                     </> : <p className="api-credentials-hint">{t("Sin credenciales: agrega las llaves en ~/.fos-scouting/credentials.json (o variables de entorno) y reinicia el servidor local.")}</p>}
                   </div>)}
                   {apiError && <p className="inline-error">{apiError}</p>}
                   <div className="print-dialog-actions"><button className="button secondary" onClick={() => setApiDialogOpen(false)}>{t("Cancelar")}</button></div>
+                </div>
+              </div>}
+
+            {scLink && <div className="print-dialog-overlay" role="dialog" aria-modal="true" aria-label={t("¿Enlazar datos físicos de SkillCorner?")} onClick={() => { if (scLink.stage !== "loading") setScLink(null); }}>
+                <div className="print-dialog api-dialog sc-link-dialog" onClick={(event) => event.stopPropagation()}>
+                  {scLink.stage === "done" ? <>
+                    <h3>{t("Datos físicos enlazados")}</h3>
+                    <p>{tf("{n} de {m} jugadores de la base quedaron enlazados con SkillCorner.", { n: scLink.linked ?? 0, m: scLink.total ?? 0 })}</p>
+                    <div className="print-dialog-actions"><button className="button primary" onClick={() => setScLink(null)}>{t("Entendido")}</button></div>
+                  </> : <>
+                    <h3>{t("¿Enlazar datos físicos de SkillCorner?")}</h3>
+                    <p>{t("Cruzamos los jugadores por nombre, club y edad; los que coincidan suman sus métricas físicas al radar como porciones verdes.")}</p>
+                    <div className="api-platform-row" style={{ "--platform-color": METRIC_SOURCE_COLORS.skillcorner.color } as React.CSSProperties}>
+                      <div className="api-platform-head"><i /><b>{METRIC_SOURCE_COLORS.skillcorner.label}</b><small>{`${scLink.candidates.length} ${t("competiciones disponibles")}`}</small></div>
+                      <select value={scLink.selection} onChange={(event) => setScLink({ ...scLink, selection: event.target.value })} disabled={scLink.stage === "loading"}>
+                        {scLink.candidates.map((competition, index) => <option key={index} value={index}>{competition.name} · {competition.season}</option>)}
+                      </select>
+                    </div>
+                    {scLink.error && <p className="inline-error">{scLink.error}</p>}
+                    <div className="print-dialog-actions">
+                      <button className="button secondary" disabled={scLink.stage === "loading"} onClick={() => setScLink(null)}>{t("Ahora no")}</button>
+                      <button className="button primary" disabled={scLink.stage === "loading"} onClick={() => void confirmSkillcornerLink()}>{scLink.stage === "loading" ? t("Enlazando datos físicos…") : t("Enlazar")}</button>
+                    </div>
+                  </>}
                 </div>
               </div>}
 

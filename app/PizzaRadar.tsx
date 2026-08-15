@@ -35,13 +35,21 @@ export function PizzaRadar({ metrics, score, cohort, lang = "es", colorMode = "g
       const cy = size / 2;
       // Con sets de 14-16 métricas el radio se reduce para dejar aire a las
       // etiquetas, que se envuelven en dos líneas y pierden el sufijo "/90".
-      const outer = size * (metrics.length > 10 ? 0.27 : 0.31);
+      // Con Wyscout + StatsBomb + SkillCorner combinados el set puede superar
+      // las 25 porciones: tercer nivel de densidad con tipografía más chica.
+      const density = metrics.length > 18 ? 2 : metrics.length > 10 ? 1 : 0;
+      const outer = size * [0.31, 0.27, 0.25][density];
       const inner = size * 0.085;
       const gap = 0.025;
       const step = Math.PI * 2 / metrics.length;
       // En modo plataforma cada métrica toma el color de su fuente de datos
       // (Wyscout / StatsBomb / SkillCorner); en modo grupo, el de su bloque.
+      // Las de SkillCorner siempre llevan el verde de la marca, en ambos
+      // modos, para que se lean como una fuente aparte.
       const metricGroups = metrics.map((metric) => {
+        if (metric.source === "skillcorner") {
+          return { id: "skillcorner", color: METRIC_SOURCE_COLORS.skillcorner.color };
+        }
         if (colorMode === "platform") {
           const source = metric.source ?? "wyscout";
           const brand = METRIC_SOURCE_COLORS[source] ?? METRIC_SOURCE_COLORS.wyscout;
@@ -69,13 +77,18 @@ export function PizzaRadar({ metrics, score, cohort, lang = "es", colorMode = "g
       ctx.lineWidth = groupRingWidth + Math.max(3, size * 0.005);
       ctx.stroke();
 
+      // Las métricas de SkillCorner se dibujan como porciones "salidas" del
+      // radar (desplazadas hacia afuera sobre su bisectriz) para marcar que
+      // vienen de otra fuente de datos; el resto del radar no cambia.
+      const explodeOffset = (metric: RadarMetric) => (metric.source === "skillcorner" ? size * 0.03 : 0);
+
       let groupStart = 0;
       for (let index = 1; index <= metrics.length; index += 1) {
         if (index < metrics.length && metricGroups[index].id === metricGroups[groupStart].id) continue;
         const startAngle = -Math.PI / 2 + groupStart * step + groupGap;
         const endAngle = -Math.PI / 2 + index * step - groupGap;
         ctx.beginPath();
-        ctx.arc(cx, cy, groupRingRadius, startAngle, endAngle);
+        ctx.arc(cx, cy, groupRingRadius + explodeOffset(metrics[groupStart]), startAngle, endAngle);
         ctx.strokeStyle = metricGroups[groupStart].color;
         ctx.lineWidth = groupRingWidth;
         ctx.stroke();
@@ -86,24 +99,27 @@ export function PizzaRadar({ metrics, score, cohort, lang = "es", colorMode = "g
       metrics.forEach((metric, index) => {
         const start = -Math.PI / 2 + index * step + gap;
         const end = -Math.PI / 2 + (index + 1) * step - gap;
+        const middle = start + step / 2 - gap;
+        const explode = explodeOffset(metric);
+        const ex = cx + Math.cos(middle) * explode;
+        const ey = cy + Math.sin(middle) * explode;
         const radius = Math.max(inner + 8, outer * Math.max(0.08, metric.percentile / 100));
         ctx.beginPath();
-        ctx.moveTo(cx + Math.cos(start) * inner, cy + Math.sin(start) * inner);
-        ctx.arc(cx, cy, radius, start, end);
-        ctx.lineTo(cx + Math.cos(end) * inner, cy + Math.sin(end) * inner);
-        ctx.arc(cx, cy, inner, end, start, true);
+        ctx.moveTo(ex + Math.cos(start) * inner, ey + Math.sin(start) * inner);
+        ctx.arc(ex, ey, radius, start, end);
+        ctx.lineTo(ex + Math.cos(end) * inner, ey + Math.sin(end) * inner);
+        ctx.arc(ex, ey, inner, end, start, true);
         ctx.closePath();
         ctx.fillStyle = metricGroups[index].color;
         ctx.globalAlpha = 0.94;
         ctx.fill();
         ctx.globalAlpha = 1;
 
-        const middle = start + step / 2 - gap;
         const valueRadius = Math.max(inner + 18, radius - 18);
         const value = String(metric.percentile);
-        const valueFontSize = Math.max(10, size * (metrics.length > 10 ? 0.016 : 0.019));
-        const valueX = cx + Math.cos(middle) * valueRadius;
-        const valueY = cy + Math.sin(middle) * valueRadius;
+        const valueFontSize = Math.max(9, size * [0.019, 0.016, 0.0135][density]);
+        const valueX = ex + Math.cos(middle) * valueRadius;
+        const valueY = ey + Math.sin(middle) * valueRadius;
         ctx.font = `800 ${valueFontSize}px Arial`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
@@ -123,11 +139,13 @@ export function PizzaRadar({ metrics, score, cohort, lang = "es", colorMode = "g
         ctx.fillText(value, valueX, valueY + valueFontSize * 0.02);
         ctx.restore();
 
-        const labelRadius = outer + size * (metrics.length > 10 ? 0.075 : 0.065);
+        // Las etiquetas de porciones salidas se empujan solo una fracción del
+        // desplazamiento para no chocar con el borde del lienzo.
+        const labelRadius = outer + size * [0.065, 0.075, 0.08][density] + explode * 0.4;
         const lx = cx + Math.cos(middle) * labelRadius;
         const ly = cy + Math.sin(middle) * labelRadius;
         ctx.fillStyle = "#445366";
-        const labelFontSize = Math.max(9, size * (metrics.length > 10 ? 0.0145 : 0.017));
+        const labelFontSize = Math.max(8, size * [0.017, 0.0145, 0.012][density]);
         ctx.font = `600 ${labelFontSize}px Arial`;
         ctx.textAlign = Math.cos(middle) > 0.18 ? "left" : Math.cos(middle) < -0.18 ? "right" : "center";
         const label = t(metric.label).replace(/\s*\/90/g, "").replace(/,\s*%$/, " %");
@@ -146,7 +164,15 @@ export function PizzaRadar({ metrics, score, cohort, lang = "es", colorMode = "g
         }
         const lineHeight = labelFontSize * 1.12;
         const labelOffset = -((lines.length - 1) * lineHeight) / 2 + (Math.sin(middle) > 0.4 ? lineHeight * 0.4 : Math.sin(middle) < -0.4 ? -lineHeight * 0.1 : 0);
-        lines.forEach((line, lineIndex) => ctx.fillText(line, lx, ly + labelOffset + lineIndex * lineHeight));
+        // El ancla se sujeta dentro del lienzo según el ancho real del texto,
+        // para que ninguna etiqueta (sobre todo las de porciones salidas)
+        // quede cortada en el borde.
+        const maxLineWidth = Math.max(...lines.map((line) => ctx.measureText(line).width));
+        let anchorX = lx;
+        if (ctx.textAlign === "right") anchorX = Math.max(anchorX, maxLineWidth + 2);
+        else if (ctx.textAlign === "left") anchorX = Math.min(anchorX, size - maxLineWidth - 2);
+        else anchorX = Math.min(Math.max(anchorX, maxLineWidth / 2 + 2), size - maxLineWidth / 2 - 2);
+        lines.forEach((line, lineIndex) => ctx.fillText(line, anchorX, ly + labelOffset + lineIndex * lineHeight));
       });
 
       ctx.beginPath();
