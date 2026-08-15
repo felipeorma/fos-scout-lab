@@ -23,6 +23,9 @@ import {
   clampReportBlockSpan,
   reportBlockHeightBounds,
   resizeReportBlock,
+  migrateReportGrid,
+  REPORT_GRID_COLUMNS,
+  REPORT_SPAN_PRESETS,
   similarityGridRows,
   type ReportBlockResizeMode,
 } from "@/lib/reportPageLayout";
@@ -102,25 +105,25 @@ function defaultPage(pageNumber: number): PageConfig {
   if (pageNumber === FIRST_VISUAL_PAGE) {
     return {
       title: "Mapa visual del rendimiento",
-      columns: 2,
+      columns: REPORT_GRID_COLUMNS,
       gap: 18,
       blocks: [
-        imageBlock(`p${pageNumber}-shotmap`, "Mapa de remates"),
-        imageBlock(`p${pageNumber}-heatmap`, "Mapa de calor"),
-        imageBlock(`p${pageNumber}-actions`, "Acciones con balón"),
-        imageBlock(`p${pageNumber}-defence`, "Acciones defensivas"),
+        imageBlock(`p${pageNumber}-shotmap`, "Mapa de remates", 6),
+        imageBlock(`p${pageNumber}-heatmap`, "Mapa de calor", 6),
+        imageBlock(`p${pageNumber}-actions`, "Acciones con balón", 6),
+        imageBlock(`p${pageNumber}-defence`, "Acciones defensivas", 6),
       ],
     };
   }
   return {
     title: "Observaciones y contexto",
-    columns: 2,
+    columns: REPORT_GRID_COLUMNS,
     gap: 18,
     blocks: [
-      textBlock(`p${pageNumber}-summary`, "Resumen del scout", "Agrega aquí tu lectura del jugador: contexto competitivo, rol ideal, fortalezas transferibles y riesgos observados.", 2, 190),
-      imageBlock(`p${pageNumber}-frame-a`, "Secuencia destacada", 1, 300),
-      imageBlock(`p${pageNumber}-frame-b`, "Comportamiento táctico", 1, 300),
-      textBlock(`p${pageNumber}-decision`, "Conclusión", "Recomendación final y próximos pasos de seguimiento.", 2, 160),
+      textBlock(`p${pageNumber}-summary`, "Resumen del scout", "Agrega aquí tu lectura del jugador: contexto competitivo, rol ideal, fortalezas transferibles y riesgos observados.", 12, 190),
+      imageBlock(`p${pageNumber}-frame-a`, "Secuencia destacada", 6, 300),
+      imageBlock(`p${pageNumber}-frame-b`, "Comportamiento táctico", 6, 300),
+      textBlock(`p${pageNumber}-decision`, "Conclusión", "Recomendación final y próximos pasos de seguimiento.", 12, 160),
     ],
   };
 }
@@ -182,7 +185,11 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
         const saved = stored ? JSON.parse(stored) as DesignerState : {};
         // Cada página se repone con su plantilla si no existe todavía en el
         // diseño guardado; así funcionan las páginas 4, 5, 6… recién creadas.
-        const nextPages: DesignerState = { ...saved };
+        // Los diseños guardados con la rejilla vieja (1-3 columnas) se
+        // convierten a doceavos para conservar sus proporciones.
+        const nextPages: DesignerState = Object.fromEntries(
+          Object.entries(saved).map(([key, page]) => [key, page?.blocks?.length ? migrateReportGrid(page) : page]),
+        ) as DesignerState;
         if (!nextPages[pageNumber]?.blocks?.length) nextPages[pageNumber] = defaultPage(pageNumber);
         setPages(nextPages);
         setSelectedId(nextPages[pageNumber].blocks[0]?.id ?? "");
@@ -355,13 +362,20 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
 
   function applyLayout(layout: "single" | "split" | "feature" | "mosaic") {
     if (hasSimilarityComparison) return;
-    const columns = layout === "single" ? 1 : layout === "mosaic" ? 3 : 2;
+    // Las plantillas reparten la rejilla de 12: una columna (12), mitades (6),
+    // destacado (8 + 4) y mosaico de tercios (4).
+    const spanFor = (index: number) => {
+      if (layout === "single") return 12;
+      if (layout === "split") return 6;
+      if (layout === "feature") return index === 0 ? 8 : 4;
+      return index === 0 ? 8 : 4;
+    };
     setConfig((current) => ({
       ...current,
-      columns,
+      columns: REPORT_GRID_COLUMNS,
       blocks: current.blocks.map((block, index) => ({
         ...block,
-        span: layout === "single" ? 1 : layout === "feature" && index === 0 ? 2 : layout === "mosaic" && index === 0 ? 2 : 1,
+        span: layout === "mosaic" ? 4 : spanFor(index),
       })),
     }));
   }
@@ -459,7 +473,6 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
       <aside className="designer-controls">
         <div className="designer-panel-head"><div><span className="mini-icon"><Columns size={18} /></span><div><h2>{tf("Diseño de página {n}", { n: pageNumber })}</h2><p>{t("Grid, estilo y contenido")}</p></div></div><span className="tiny-state">AUTO SAVE</span></div>
 
-        <label className="field-group designer-title-field"><span className="field-label">{t("Título de la página")}</span><input className="text-input" value={config.title} onChange={(event) => setConfig((current) => ({ ...current, title: event.target.value }))} /></label>
 
         <div className="designer-section">
           <div className="designer-section-title"><span>{t("Plantilla de grid")}</span><small>{tf("{n} columnas", { n: config.columns })}</small></div>
@@ -491,7 +504,7 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
           <div className="designer-section-title"><span>{t("Bloque seleccionado")}</span><div className="order-buttons"><button disabled={hasSimilarityComparison} onClick={() => moveSelected(-1)} title={t("Mover antes")}><MoveUp size={14} /></button><button disabled={hasSimilarityComparison} onClick={() => moveSelected(1)} title={t("Mover después")}><MoveDown size={14} /></button><button disabled={hasSimilarityComparison && selected.id === SIMILARITY_NOTES_BLOCK_ID} className="delete-block" onClick={removeSelected} title={t("Eliminar bloque")}><Trash size={14} /></button></div></div>
           <label className="field-group"><span className="field-label">{t("Etiqueta")}</span><input className="text-input" value={displayText(selected.title)} onChange={(event) => patchSelected({ title: event.target.value })} /></label>
           {selected.id !== SIMILARITY_BLOCK_ID && <>
-            {!hasSimilarityComparison && <div className="span-buttons"><span className="field-label">{t("Ancho")}</span><div>{Array.from({ length: config.columns }, (_, index) => index + 1).map((span) => <button key={span} className={clampReportBlockSpan(selected.span, config.columns) === span ? "active" : ""} onClick={() => patchSelected({ span })}>{span === config.columns ? t("Completo") : `${span}/${config.columns}`}</button>)}</div></div>}
+            {!hasSimilarityComparison && <div className="span-buttons"><span className="field-label">{t("Ancho")}</span><div>{REPORT_SPAN_PRESETS.map((preset) => <button key={preset.span} className={clampReportBlockSpan(selected.span, config.columns) === preset.span ? "active" : ""} onClick={() => patchSelected({ span: preset.span })}>{preset.label === "Completo" ? t("Completo") : preset.label}</button>)}</div></div>}
             <label className="range-row block-height"><span>{t("Alto del espacio")} <b>{selected.height}px</b></span><input type="range" min={selectedHeightBounds.min} max={selectedHeightBounds.max} step="10" value={clampReportBlockHeight(selected.height, selected.type, selected.id === SIMILARITY_NOTES_BLOCK_ID)} onChange={(event) => patchSelected({ height: Number(event.target.value) })} /></label>
             <p className="resize-alignment-note"><b>{selected.type === "text" ? "↕" : "↘"}</b><span>{selected.type === "text" ? t("Arrastra el tirador inferior para cambiar solo el alto. La esquina mantiene el ajuste combinado.") : t("Arrastra la esquina del bloque. El ancho encaja en columnas y el alto en una retícula de 10 px.")}</span></p>
           </>}
@@ -518,7 +531,7 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
       </aside>
 
       <section className="designer-stage" style={{ background: theme.canvas }}>
-        <div className="preview-toolbar designer-toolbar"><div><span className="live-dot" /> {tf("Página {n} · Editor visual", { n: pageNumber })}</div><span><Grip size={14} /> {t("Arrastra para ordenar · ↕ cambia solo el alto · ↘ ajusta ambos")}</span></div>
+        <div className="preview-toolbar designer-toolbar"><div><span className="live-dot" /> {tf("Página {n} · Editor visual", { n: pageNumber })}</div><span><Grip size={14} /> {t("Arrastra para ordenar · ↕ cambia solo el alto · ↘ ajusta ambos · todo encaja en la rejilla")}</span></div>
         <div className="legal-page-shell">
         <article className={`visual-report-page unified-report-page ${hasSimilarityComparison ? "similarity-legal-page" : ""}`} style={canvasStyle}>
           {pageNumber >= FIRST_VISUAL_PAGE && <>
@@ -526,9 +539,9 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
               <div className="visual-page-folio"><span>FOS</span><small>{t("PÁGINA")}</small><b>{String(pageNumber).padStart(2, "0")}</b><em>{t("VISUALES")}</em></div>
               <div className="visual-page-identity"><span className="visual-identity-lupa"><Search size={11} /> {t("INFORME DE SCOUTING")}</span><h2>{player}</h2><p>{team} · {position}</p></div>
             </header>
-            <div className="visual-page-title"><span>{t("ANÁLISIS COMPLEMENTARIO")}</span><h3>{displayText(config.title)}</h3></div>
           </>}
-          <div ref={gridRef} className="visual-block-grid" style={gridStyle} onDragOver={(event) => event.preventDefault()}>
+          <div ref={gridRef} className={`visual-block-grid ${draggedId || resizeSession ? "show-guides" : ""}`} style={gridStyle} onDragOver={(event) => event.preventDefault()}>
+            {(draggedId || resizeSession) && <div className="grid-guides" aria-hidden="true">{Array.from({ length: REPORT_GRID_COLUMNS }, (_, index) => <i key={index} />)}</div>}
             {config.blocks.map((block) => {
               const span = clampReportBlockSpan(block.span, config.columns);
               const nativeSimilarity = block.id === SIMILARITY_BLOCK_ID && Boolean(block.similarity || block.html);

@@ -8,6 +8,37 @@ export const MIN_SIMILARITY_NOTES_HEIGHT = 90;
 export const MAX_SIMILARITY_NOTES_HEIGHT = 360;
 export const COMPACT_SIMILARITY_METRIC_THRESHOLD = 13;
 
+// Rejilla editorial base: 12 columnas admiten mitades, tercios y cuartos, así
+// que los bloques se pueden estirar casi libremente sin salirse nunca de la
+// alineación. Los diseños antiguos (1, 2 o 3 columnas) se convierten a esta
+// base multiplicando el ancho de cada bloque.
+export const REPORT_GRID_COLUMNS = 12;
+
+/** Anchos ofrecidos en el panel, en doceavos. */
+export const REPORT_SPAN_PRESETS = [
+  { span: 3, label: "1/4" },
+  { span: 4, label: "1/3" },
+  { span: 6, label: "1/2" },
+  { span: 8, label: "2/3" },
+  { span: 9, label: "3/4" },
+  { span: 12, label: "Completo" },
+];
+
+/** Convierte un diseño guardado con 1-3 columnas a la rejilla de 12. */
+export function migrateReportGrid<T extends { columns: number; blocks: Array<{ span: number }> }>(page: T): T {
+  const columns = Math.max(1, Math.round(Number.isFinite(page.columns) ? page.columns : 1));
+  if (columns === REPORT_GRID_COLUMNS) return page;
+  const factor = REPORT_GRID_COLUMNS / columns;
+  return {
+    ...page,
+    columns: REPORT_GRID_COLUMNS,
+    blocks: page.blocks.map((block) => ({
+      ...block,
+      span: clampReportBlockSpan(Math.round((Number.isFinite(block.span) ? block.span : 1) * factor), REPORT_GRID_COLUMNS),
+    })),
+  };
+}
+
 export function similarityMetricDensity(metricCount: number) {
   const safeCount = Number.isFinite(metricCount) ? Math.max(0, Math.floor(metricCount)) : 0;
   return safeCount >= COMPACT_SIMILARITY_METRIC_THRESHOLD ? "compact" : "comfortable";

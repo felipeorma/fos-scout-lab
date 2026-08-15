@@ -66,10 +66,14 @@ se aplican al radar, las fichas, las barras de percentiles y el PNG final.
 Las páginas 2 y 3 del reporte incluyen un editor local con:
 
 - el mismo sistema visual de la Página 01: paleta, tipografías, encabezados,
-  numeración, formato de página y pie editorial;
+  numeración, formato de página y pie editorial (sin banda de título, para
+  aprovechar el alto de la hoja);
 - un tema compartido: cualquier cambio de paleta se aplica automáticamente a
   Ficha, Visuales y Observaciones;
-- plantillas de una, dos o tres columnas;
+- una rejilla editorial de 12 columnas: los anchos se eligen por fracciones
+  (1/4, 1/3, 1/2, 2/3, 3/4, completo) o arrastrando, y siempre encajan en la
+  rejilla, con guías visibles mientras se arrastra o se redimensiona;
+- plantillas de una columna, mitades, destacado y mosaico de tercios;
 - bloques de imagen y texto que se pueden agregar, eliminar y reordenar;
 - comentarios independientes debajo o al lado de cualquier imagen cargada;
 - arrastre de bloques y controles alternativos para moverlos;

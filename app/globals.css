@@ -271,7 +271,13 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .visual-page-identity p { margin: 0; color: var(--report-muted); font-size: 10px; font-weight: 600; }
 .visual-page-title { padding: 22px 38px 18px; border-bottom: 1px solid var(--report-line); background: var(--report-surface); }
 .visual-page-title h3 { margin: 4px 0 0; color: var(--report-ink); font-family: var(--font-oswald),var(--font-barlow-condensed),sans-serif; font-size: 23px; }
-.visual-block-grid { margin: 22px 38px 0; display: grid; align-items: start; }
+.visual-block-grid { position: relative; margin: 22px 38px 0; display: grid; align-items: start; }
+/* Guías de la rejilla de 12: solo se ven mientras se arrastra o se redimensiona,
+   para que se note a qué se está alineando el bloque. */
+.grid-guides { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: inherit; pointer-events: none; z-index: 0; }
+.grid-guides i { border-left: 1px dashed color-mix(in srgb, var(--designer-accent) 42%, transparent); }
+.grid-guides i:last-child { border-right: 1px dashed color-mix(in srgb, var(--designer-accent) 42%, transparent); }
+.visual-block-grid.show-guides > .visual-block { position: relative; z-index: 1; }
 .visual-block { position: relative; min-width: 0; overflow: hidden; border: 1px solid color-mix(in srgb, var(--designer-text) 14%, transparent); border-radius: 10px; background: color-mix(in srgb, var(--designer-paper) 94%, var(--designer-text)); box-shadow: 0 7px 18px color-mix(in srgb, var(--designer-text) 5%, transparent); cursor: grab; transition: border-color .16s ease, box-shadow .16s ease, opacity .16s ease, transform .16s ease; }
 .visual-block:hover { border-color: color-mix(in srgb, var(--designer-accent) 55%, transparent); }
 .visual-block.selected { border-color: var(--designer-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--designer-accent) 15%, transparent), 0 10px 24px color-mix(in srgb, var(--designer-text) 7%, transparent); }
