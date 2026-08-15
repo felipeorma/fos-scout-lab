@@ -172,6 +172,11 @@ tarjeta del paso 01, o desde el panel de datos con un informe abierto).
   normalizan a 30 minutos de posesión efectiva (`campo / minutes_tip * 30`) y
   las métricas donde menos es mejor ("Superado en duelo %", "Reacción a sprint
   post-giro") se invierten al calcular el percentil.
+- Las métricas salen **ordenadas por categoría** (finalización → creación →
+  pase → defensa → portero → físico), así que cada color ocupa un solo arco
+  continuo del radar en vez de repartirse por todo el círculo. Al colorear
+  "Por plataforma" el radar reordena por fuente y mantiene la misma lectura
+  por bloques.
 - Los extremos tienen **dos cohortes**, como en la hoja de perfiles:
   *Extremos* (asociativo: amplitud, opciones en banda, pases a desmarques,
   retención bajo presión) y *Extremos directos* (ruptura al espacio,

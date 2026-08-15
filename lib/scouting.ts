@@ -900,6 +900,16 @@ export function buildPlayerReport(rows: DataRow[], selectedIndex: number, minimu
     if (!peerValues.length) return [];
     return [{ key, label: definition.label, value, percentile: percentile(value, peerValues, definition.inverse), group: definition.group, colorGroup: definition.colorGroup, inverse: definition.inverse, source: definition.source ?? "wyscout", sample: peerValues.length }];
   });
+  // El radar se lee por bloques: las métricas salen agrupadas por categoría
+  // (finalización → creación → pase → defensa → portero → físico) para que
+  // cada color forme un solo arco continuo en vez de repartirse por todo el
+  // círculo. Dentro de cada categoría se respeta el orden de la definición.
+  const groupRank = new Map(SIMILARITY_METRIC_GROUPS.map((group, index) => [group.id, index] as const));
+  metrics.sort((a, b) => {
+    const rankA = groupRank.get(similarityMetricGroup(a, cohort).id) ?? SIMILARITY_METRIC_GROUPS.length;
+    const rankB = groupRank.get(similarityMetricGroup(b, cohort).id) ?? SIMILARITY_METRIC_GROUPS.length;
+    return rankA - rankB;
+  });
   const score = metrics.length ? Math.round(average(metrics.map((metric) => metric.percentile))) : 0;
   const text = (aliases: string[]) => String(field(row, headers, aliases) ?? "").trim();
   const value = (aliases: string[]) => numeric(field(row, headers, aliases));

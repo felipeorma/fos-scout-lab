@@ -15,7 +15,7 @@ export const SIMILARITY_METRIC_GROUPS: SimilarityMetricGroup[] = [
 
 const AERIAL_METRIC = /aerial|aereo|cabece|header/;
 const DEFENSIVE_METRIC = /defens|intercep|duelo|parada|save|gol evitado|prevented|gol recibido|conceded|entrada|tackle|recupera|bloqueo|clearance/;
-const ATTACKING_AERIAL_COHORTS = new Set(["WING", "AM", "CF", "OTHER"]);
+const ATTACKING_AERIAL_COHORTS = new Set(["WING", "DWING", "AM", "CF", "OTHER"]);
 
 export function similarityMetricGroup(metric: { key: string; label: string; group: number; colorGroup?: string }, cohort = "") {
   // Las definiciones nuevas traen el grupo de color expl\u00edcito; la inferencia

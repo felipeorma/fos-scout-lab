@@ -41,12 +41,19 @@ export function PizzaRadar({ metrics, score, cohort, lang = "es", colorMode = "g
       const outer = size * [0.31, 0.27, 0.25][density];
       const inner = size * 0.085;
       const gap = 0.025;
-      const step = Math.PI * 2 / metrics.length;
+      // El informe entrega las métricas agrupadas por categoría; al colorear
+      // por plataforma se reordenan por fuente para que cada color siga
+      // ocupando un solo arco continuo.
+      const SOURCE_ORDER = ["wyscout", "statsbomb", "skillcorner"];
+      const ordered = colorMode !== "platform" ? metrics : [...metrics].sort((a, b) => (
+        SOURCE_ORDER.indexOf(a.source ?? "wyscout") - SOURCE_ORDER.indexOf(b.source ?? "wyscout")
+      ));
+      const step = Math.PI * 2 / ordered.length;
       // En modo plataforma cada métrica toma el color de su fuente de datos
       // (Wyscout / StatsBomb / SkillCorner); en modo grupo, el de su bloque.
       // Las de SkillCorner siempre llevan el verde de la marca, en ambos
       // modos, para que se lean como una fuente aparte.
-      const metricGroups = metrics.map((metric) => {
+      const metricGroups = ordered.map((metric) => {
         if (metric.source === "skillcorner") {
           return { id: "skillcorner", color: METRIC_SOURCE_COLORS.skillcorner.color };
         }
@@ -83,12 +90,12 @@ export function PizzaRadar({ metrics, score, cohort, lang = "es", colorMode = "g
       const explodeOffset = (metric: RadarMetric) => (metric.source === "skillcorner" ? size * 0.03 : 0);
 
       let groupStart = 0;
-      for (let index = 1; index <= metrics.length; index += 1) {
-        if (index < metrics.length && metricGroups[index].id === metricGroups[groupStart].id) continue;
+      for (let index = 1; index <= ordered.length; index += 1) {
+        if (index < ordered.length && metricGroups[index].id === metricGroups[groupStart].id) continue;
         const startAngle = -Math.PI / 2 + groupStart * step + groupGap;
         const endAngle = -Math.PI / 2 + index * step - groupGap;
         ctx.beginPath();
-        ctx.arc(cx, cy, groupRingRadius + explodeOffset(metrics[groupStart]), startAngle, endAngle);
+        ctx.arc(cx, cy, groupRingRadius + explodeOffset(ordered[groupStart]), startAngle, endAngle);
         ctx.strokeStyle = metricGroups[groupStart].color;
         ctx.lineWidth = groupRingWidth;
         ctx.stroke();
@@ -96,7 +103,7 @@ export function PizzaRadar({ metrics, score, cohort, lang = "es", colorMode = "g
       }
       ctx.restore();
 
-      metrics.forEach((metric, index) => {
+      ordered.forEach((metric, index) => {
         const start = -Math.PI / 2 + index * step + gap;
         const end = -Math.PI / 2 + (index + 1) * step - gap;
         const middle = start + step / 2 - gap;
