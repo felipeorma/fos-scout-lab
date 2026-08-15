@@ -285,8 +285,8 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .visual-block.resizing { border-color: var(--designer-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--designer-accent) 23%, transparent), 0 14px 28px color-mix(in srgb, var(--designer-text) 10%, transparent); cursor: nwse-resize; }
 .block-resize-handle { position: absolute; right: 5px; bottom: 5px; z-index: 6; width: 27px; height: 27px; padding: 0; display: grid; place-items: center; border: 1px solid color-mix(in srgb, var(--designer-accent) 58%, transparent); border-radius: 7px; color: var(--designer-accent); background: color-mix(in srgb, var(--designer-paper) 90%, transparent); box-shadow: 0 4px 13px color-mix(in srgb, var(--designer-text) 16%, transparent); cursor: nwse-resize; opacity: 0; touch-action: none; transition: opacity .15s ease, transform .15s ease, background .15s ease; }
 .block-resize-handle:hover, .block-resize-handle:focus-visible { outline: 0; background: color-mix(in srgb, var(--designer-accent) 13%, var(--designer-paper)); transform: scale(1.06); }
-.block-height-resize-handle { position: absolute; left: 50%; bottom: 5px; z-index: 7; width: 52px; height: 27px; padding: 0; display: grid; place-items: center; border: 1px solid color-mix(in srgb, var(--designer-accent) 58%, transparent); border-radius: 8px; color: var(--designer-accent); background: color-mix(in srgb, var(--designer-paper) 92%, transparent); box-shadow: 0 4px 13px color-mix(in srgb, var(--designer-text) 16%, transparent); cursor: ns-resize; opacity: 0; touch-action: none; transform: translateX(-50%); transition: opacity .15s ease, transform .15s ease, background .15s ease; }
-.block-height-resize-handle:hover, .block-height-resize-handle:focus-visible { outline: 0; background: color-mix(in srgb, var(--designer-accent) 13%, var(--designer-paper)); transform: translateX(-50%) scale(1.04); }
+.block-height-resize-handle { position: absolute; left: 5px; bottom: 5px; z-index: 7; width: 34px; height: 27px; padding: 0; display: grid; place-items: center; border: 1px solid color-mix(in srgb, var(--designer-accent) 58%, transparent); border-radius: 8px; color: var(--designer-accent); background: color-mix(in srgb, var(--designer-paper) 92%, transparent); box-shadow: 0 4px 13px color-mix(in srgb, var(--designer-text) 16%, transparent); cursor: ns-resize; opacity: 0; touch-action: none; transition: opacity .15s ease, transform .15s ease, background .15s ease; }
+.block-height-resize-handle:hover, .block-height-resize-handle:focus-visible { outline: 0; background: color-mix(in srgb, var(--designer-accent) 13%, var(--designer-paper)); transform: scale(1.04); }
 .visual-block:hover .block-resize-handle, .visual-block.selected .block-resize-handle, .visual-block.resizing .block-resize-handle, .block-resize-handle:focus-visible { opacity: 1; }
 .visual-block:hover .block-height-resize-handle, .visual-block.selected .block-height-resize-handle, .visual-block.resizing .block-height-resize-handle, .block-height-resize-handle:focus-visible { opacity: 1; }
 body.is-resizing-report-block, body.is-resizing-report-block * { cursor: nwse-resize !important; user-select: none !important; }
@@ -1782,3 +1782,16 @@ details.report-recipient-editor > label > small { display: block; margin-bottom:
 .reading-ai:hover:not(:disabled), .designer-ai-button:hover:not(:disabled) { background: color-mix(in srgb, var(--report-accent, #4f6bed) 20%, transparent); }
 .reading-ai:disabled, .designer-ai-button:disabled { opacity: .55; cursor: progress; }
 .quick-reading .inline-error { display: block; margin-top: 4px; font-size: 9px; }
+
+
+/* El botón de IA y su aviso son herramientas de edición, no contenido del
+   informe: se ocultan al imprimir, al exportar y en la comprobación de
+   maquetación, igual que los tiradores del editor. */
+.ai-error { display: inline-flex; align-items: center; gap: 6px; }
+.ai-error button { padding: 0 3px; border: 0; border-radius: 4px; background: none; color: inherit; font-size: 12px; line-height: 1; cursor: pointer; opacity: .75; }
+.ai-error button:hover { opacity: 1; }
+body.print-layout-check .reading-ai,
+body.print-layout-check .ai-error { display: none !important; }
+@media print {
+  .reading-ai, .ai-error, .designer-ai-button { display: none !important; }
+}

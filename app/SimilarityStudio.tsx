@@ -30,6 +30,7 @@ type SimilarityStudioProps = {
   selectedIndex: number;
   sourceName: string;
   lang?: Lang;
+  aiControlsHidden?: boolean;
   /** Conjunto de métricas asignado en la ficha de la Página 1 */
   reportCohort?: string;
   targets: TargetOption[];
@@ -557,7 +558,7 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
   return canvas.toDataURL("image/png");
 }
 
-export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es", reportCohort = "AUTO", targets, theme, targetProfile, recipientName, recipientLogoUrl, onSelectTarget, onTargetProfileChange, onRecipientNameChange, onRecipientLogoChange, onOpenReports }: SimilarityStudioProps) {
+export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es", aiControlsHidden = false, reportCohort = "AUTO", targets, theme, targetProfile, recipientName, recipientLogoUrl, onSelectTarget, onTargetProfileChange, onRecipientNameChange, onRecipientLogoChange, onOpenReports }: SimilarityStudioProps) {
   const [query, setQuery] = useState("");
   const [ageMin, setAgeMin] = useState("");
   const [ageMax, setAgeMax] = useState("");
@@ -1078,9 +1079,9 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
 
             <div className="similarity-note-editor">
               <label>
-                <span>{t("Comentarios")}<button type="button" className="reading-ai" disabled={comparisonAiLoading} onClick={() => void writeComparisonNote()}><Sparkles size={11} /> {comparisonAiLoading ? t("Escribiendo…") : t("Escribir con IA")}</button></span>
+                <span>{t("Comentarios")}{!aiControlsHidden && <button type="button" className="reading-ai" disabled={comparisonAiLoading} onClick={() => void writeComparisonNote()}><Sparkles size={11} /> {comparisonAiLoading ? t("Escribiendo…") : t("Escribir con IA")}</button>}</span>
                 <textarea value={comparisonNote} rows={3} placeholder={t("Escribe tu lectura de la comparación: contexto, rol y recomendación.")} onChange={(event) => setComparisonNote(event.target.value)} />
-                {comparisonAiError && <small className="inline-error">{comparisonAiError}</small>}
+                {comparisonAiError && !aiControlsHidden && <small className="inline-error ai-error"><span>{comparisonAiError}</span><button type="button" onClick={() => setComparisonAiError("")} aria-label={t("Ocultar aviso")}>×</button></small>}
               </label>
               <small>{t("Aparece dentro de la hoja, debajo de la comparación, respetando los márgenes de la página.")}</small>
             </div>

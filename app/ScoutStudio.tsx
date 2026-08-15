@@ -216,6 +216,7 @@ export default function ScoutStudio() {
   const [scLink, setScLink] = useState<null | { stage: "offer" | "loading" | "done"; candidates: ApiCompetition[]; selection: string; linked?: number; total?: number; error?: string }>(null);
   const [radarColorMode, setRadarColorMode] = useState<"groups" | "platform">("groups");
   const [aiLoading, setAiLoading] = useState("");
+  const [aiControlsHidden, setAiControlsHidden] = useState(false);
   const [aiError, setAiError] = useState("");
   const [printLayoutError, setPrintLayoutError] = useState("");
   const [readingOverride, setReadingOverride] = useState("");
@@ -456,6 +457,10 @@ export default function ScoutStudio() {
   function togglePrintPage(page: ReportPage) {
     setPrintPages((current) => current.includes(page) ? current.filter((item) => item !== page) : [...current, page]);
   }
+
+  useEffect(() => {
+    try { setAiControlsHidden(window.localStorage.getItem("fos-scout-ai-controls-hidden") === "1"); } catch { /* preferencia opcional */ }
+  }, []);
 
   useEffect(() => {
     if (!reportThemeLoaded) return;
@@ -923,6 +928,7 @@ export default function ScoutStudio() {
                   <div className="data-summary"><div><span>{t("Bases")}</span><b>{reportSourceCount}</b></div><div><span>{t("Jugadores")}</span><b>{numberFormat(reportRows.length)}</b></div><div><span>{t("Cohorte")}</span><b>{report?.cohortSize ?? 0}</b></div></div>
                   {report && report.cohortSize < 5 && <div className="inline-error">{report.cohortSize === 0 ? t("No hay jugadores de esta posición con el mínimo de minutos: baja el mínimo o carga más datos.") : (report.cohortSize === 1 ? t("Cohorte de 1 jugador: percentiles poco fiables. Baja el mínimo de minutos o carga más datos.") : tf("Cohorte de {n} jugadores: percentiles poco fiables. Baja el mínimo de minutos o carga más datos.", { n: report.cohortSize }))}</div>}
                   {report && report.metrics.some((metric) => metric.source && metric.source !== "wyscout") && <div className="radar-color-toggle"><span className="field-label">{t("Color del radar")}</span><div className="segmented"><button className={radarColorMode === "groups" ? "active" : ""} onClick={() => setRadarColorMode("groups")}>{t("Por grupo")}</button><button className={radarColorMode === "platform" ? "active" : ""} onClick={() => setRadarColorMode("platform")}>{t("Por plataforma")}</button></div></div>}
+                  <div className="radar-color-toggle"><span className="field-label">{t("Textos con IA")}</span><div className="segmented"><button className={!aiControlsHidden ? "active" : ""} onClick={() => { setAiControlsHidden(false); try { window.localStorage.setItem("fos-scout-ai-controls-hidden", "0"); } catch { /* opcional */ } }}>{t("Mostrar")}</button><button className={aiControlsHidden ? "active" : ""} onClick={() => { setAiControlsHidden(true); setAiError(""); try { window.localStorage.setItem("fos-scout-ai-controls-hidden", "1"); } catch { /* opcional */ } }}>{t("Ocultar")}</button></div></div>
                   <p className="inline-edit-hint">{t("Los textos del informe (etiqueta de la base, lectura rápida, club destinatario) se editan con un clic directamente sobre la vista previa.")}</p>
                   <details className="profile-details report-recipient-editor">
                     <summary>{t("Reporte generado para")}</summary>
@@ -1023,7 +1029,7 @@ export default function ScoutStudio() {
                         <div className="dossier-legend">{radarColorMode === "platform"
                           ? [...new Set(report.metrics.map((metric) => metric.source ?? "wyscout"))].map((source) => <span key={source}><i style={{ background: METRIC_SOURCE_COLORS[source]?.color }} />{METRIC_SOURCE_COLORS[source]?.label ?? source}</span>)
                           : SIMILARITY_METRIC_GROUPS.filter((group) => report.metrics.some((metric) => similarityMetricGroup(metric, report.cohort).id === group.id)).map((group) => <span key={group.id}><i style={{ background: group.color }} />{t(group.label)}</span>)}</div>
-                        <div className="quick-reading"><b>{t("LECTURA RÁPIDA")}<button type="button" className="reading-ai" disabled={aiLoading === "quick"} onClick={() => void writeQuickRead()}><Sparkles size={11} /> {aiLoading === "quick" ? t("Escribiendo…") : t("Escribir con IA")}</button>{readingOverride.trim() !== "" && <button type="button" className="reading-restore" onClick={() => updateReadingOverride("")}>{t("Usar texto automático")}</button>}</b>{aiError && <small className="inline-error">{aiError}</small>}<p><InlineText editKey={`reading-${report.player}`} value={readingOverride} fallback={report.reading} onCommit={updateReadingOverride} multiline /></p></div>
+                        <div className="quick-reading"><b>{t("LECTURA RÁPIDA")}{!aiControlsHidden && <button type="button" className="reading-ai" disabled={aiLoading === "quick"} onClick={() => void writeQuickRead()}><Sparkles size={11} /> {aiLoading === "quick" ? t("Escribiendo…") : t("Escribir con IA")}</button>}{readingOverride.trim() !== "" && <button type="button" className="reading-restore" onClick={() => updateReadingOverride("")}>{t("Usar texto automático")}</button>}</b>{aiError && !aiControlsHidden && <small className="inline-error ai-error"><span>{aiError}</span><button type="button" onClick={() => setAiError("")} aria-label={t("Ocultar aviso")}>×</button></small>}<p><InlineText editKey={`reading-${report.player}`} value={readingOverride} fallback={report.reading} onCommit={updateReadingOverride} multiline /></p></div>
                       </aside>
                     </section>
 
@@ -1053,6 +1059,7 @@ export default function ScoutStudio() {
                   sobreviven al cambiar de página del reporte. */}
               <div className={`similarity-page-host ${(printRun ? printRun.includes(SIMILARITY_PAGE) : reportPage === SIMILARITY_PAGE) ? "" : "is-hidden"}`}>
                 <SimilarityStudio
+                  aiControlsHidden={aiControlsHidden}
                   rows={reportRows}
                   selectedIndex={selectedPlayer}
                   sourceName={reportFileName}
@@ -1072,7 +1079,7 @@ export default function ScoutStudio() {
               </div>
 
               {report ? visualPages.filter((page) => printRun ? printRun.includes(page) : reportPage === page).map((page) => (
-                <ReportPageDesigner key={page} pageNumber={page} persist={!printRun || reportPage === page} player={report.player} team={profile.club || report.team} position={formatPlayerPositions(profile.position || report.position)} theme={reportTheme} onThemeChange={setReportTheme} recipientName={recipientName} recipientLogoUrl={reportRecipientLogoUrl} aiFacts={() => ({ lang, player: aiPlayerFacts(report), metrics: aiMetricFacts(report) })} />
+                <ReportPageDesigner key={page} pageNumber={page} persist={!printRun || reportPage === page} player={report.player} team={profile.club || report.team} position={formatPlayerPositions(profile.position || report.position)} theme={reportTheme} onThemeChange={setReportTheme} recipientName={recipientName} recipientLogoUrl={reportRecipientLogoUrl} aiFacts={aiControlsHidden ? undefined : () => ({ lang, player: aiPlayerFacts(report), metrics: aiMetricFacts(report) })} />
               )) : !printRun && reportPage >= FIRST_VISUAL_PAGE ? <div className="empty-preview">{t("Selecciona un jugador para diseñar las páginas.")}</div> : null}
 
               {printDialogOpen && <div className="print-dialog-overlay" role="dialog" aria-modal="true" aria-label={t("¿Qué páginas quieres incluir en el PDF?")} onClick={() => setPrintDialogOpen(false)}>

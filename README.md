@@ -75,6 +75,11 @@ Las páginas 2 y 3 del reporte incluyen un editor local con:
   aprovechar el alto de la hoja);
 - un tema compartido: cualquier cambio de paleta se aplica automáticamente a
   Ficha, Visuales y Observaciones;
+- bloques nuevos que nacen a media hoja (6 de 12 columnas), no en tiras
+  estrechas, y con los dos tiradores separados —el de alto abajo a la
+  izquierda, el de ancho y alto en la esquina— para que ninguno tape al otro
+  en bloques angostos;
+- tamaño de letra por bloque, de 11 a 42 px, desde el panel;
 - una rejilla editorial de 12 columnas: los anchos se eligen por fracciones
   (1/4, 1/3, 1/2, 2/3, 3/4, completo) o arrastrando, y siempre encajan en la
   rejilla, con guías visibles mientras se arrastra o se redimensiona;
@@ -218,7 +223,10 @@ reales que ya calcula la app —nunca plantillas guardadas—:
   objetivo frente al comparado, cerrando con una recomendación.
 
 Cada texto cae en el mismo campo editable de siempre, así que se puede corregir
-antes de exportar y se guarda con el informe.
+antes de exportar y se guarda con el informe. Los botones de IA y sus avisos son
+herramientas de edición: nunca se imprimen ni se exportan, y se pueden apagar
+del todo con el interruptor **Textos con IA** del panel, que recuerda la
+elección entre sesiones.
 
 La petición viaja por el servidor local (`npm run bg:server`): **la clave de
 Anthropic nunca llega al navegador ni al bundle publicado**. Se guarda una sola

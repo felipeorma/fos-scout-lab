@@ -293,9 +293,12 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
     const id = `p${pageNumber}-${type}-${Date.now()}`;
     // Se guarda la clave en español; la traducción ocurre al mostrar, así el
     // bloque no queda congelado en el idioma activo al crearlo.
+    // Media hoja: un bloque recién creado tiene que nacer legible. Con la
+    // rejilla de 12, un span de 1 o 2 dejaba tiras de 40-70 px inservibles.
+    const newSpan = clampReportBlockSpan(Math.round(config.columns / 2), config.columns);
     const block = type === "image"
-      ? imageBlock(id, "Nueva visualización", 1, 260)
-      : { ...textBlock(id, "Nuevo bloque de texto", "Escribe aquí tu análisis…", Math.min(2, config.columns), 180), color: theme.ink };
+      ? imageBlock(id, "Nueva visualización", newSpan, 260)
+      : { ...textBlock(id, "Nuevo bloque de texto", "Escribe aquí tu análisis…", newSpan, 180), color: theme.ink };
     setConfig((current) => ({ ...current, blocks: [...current.blocks, block] }));
     setSelectedId(id);
   }
@@ -308,9 +311,10 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
     }
     const id = `p${pageNumber}-comment-${Date.now()}`;
     setConfig((current) => {
-      const columns = placement === "side" ? Math.max(2, current.columns) : current.columns;
-      const imageSpan = placement === "side" ? Math.max(1, columns - 1) : columns;
-      const commentSpan = placement === "side" ? 1 : columns;
+      const columns = Math.max(2, current.columns);
+      // Al costado: dos tercios para la imagen y un tercio para el comentario.
+      const imageSpan = placement === "side" ? clampReportBlockSpan(Math.round(columns * 2 / 3), columns) : columns;
+      const commentSpan = placement === "side" ? clampReportBlockSpan(columns - imageSpan, columns) : columns;
       const sourceIndex = current.blocks.findIndex((block) => block.id === selected.id);
       // Si la página era de 1 columna, el resto de bloques ocupaba el ancho
       // completo: se escalan a las columnas nuevas para que no queden a mitad.
