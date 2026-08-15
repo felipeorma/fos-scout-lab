@@ -670,28 +670,35 @@ const SB = {
   boxCross: sbMetric("Centros al área % (SB)", ["box cross % sb"], 1, "creating"),
 };
 
+// Los volúmenes van normalizados a 30 minutos con balón del equipo; esa base
+// se explica una vez en el pie del informe en lugar de arrastrar "P30" en cada
+// etiqueta. Los acrónimos de la plataforma (PSV-99, HSR, xPass, COD) se
+// escriben con palabras para que se lean sin diccionario.
 const SC = {
   passCompletion: scMetric("Pases completados % (SC)", ["pass completion % sc"]),
-  linebreakPasses: scMetric("Pases rompe-líneas P30 (SC)", ["linebreak passes p30 sc"]),
-  avgXPass: scMetric("Riesgo de pase xPass (SC)", ["avg xpass attempted sc"]),
-  passesToRuns: scMetric("Pases a desmarques P30 (SC)", ["passes to runs p30 sc"]),
-  wideOptions: scMetric("Opciones en banda P30 (SC)", ["wide options p30 sc"]),
-  linebreakOptions: scMetric("Opciones rompe-líneas P30 (SC)", ["linebreak options p30 sc"]),
-  boxOptions: scMetric("Opciones en el área P30 (SC)", ["box options p30 sc"]),
+  linebreakPasses: scMetric("Pases rompe-líneas (SC)", ["linebreak passes p30 sc"]),
+  // El valor crudo es la probabilidad de completar el pase: cuanto más bajo,
+  // más difícil es lo que intenta. Se invierte para que el percentil alto
+  // signifique "arriesga más", que es la lectura útil para el scout.
+  avgXPass: scMetric("Dificultad de pase (SC)", ["avg xpass attempted sc"], true),
+  passesToRuns: scMetric("Pases a desmarques (SC)", ["passes to runs p30 sc"]),
+  wideOptions: scMetric("Opciones en banda (SC)", ["wide options p30 sc"]),
+  linebreakOptions: scMetric("Opciones rompe-líneas (SC)", ["linebreak options p30 sc"]),
+  boxOptions: scMetric("Opciones en el área (SC)", ["box options p30 sc"]),
   retention: scMetric("Retención bajo presión % (SC)", ["retention under pressure % sc"]),
-  forwardCarries: scMetric("Conducciones largas al frente P30 (SC)", ["forward long carries p30 sc"]),
+  forwardCarries: scMetric("Conducciones que ganan campo (SC)", ["forward long carries p30 sc"]),
   directRegain: scMetric("Recuperación directa en duelo % (SC)", ["direct regain % sc"]),
   beaten: scMetric("Superado en duelo % (SC)", ["beaten in duel % sc"], true),
-  overlapRuns: scMetric("Desmarques overlap+underlap P30 (SC)", ["overlap underlap runs p30 sc"]),
-  offBallRuns: scMetric("Desmarques P30 (SC)", ["off ball runs p30 sc"]),
-  pullingWideRuns: scMetric("Desmarques en amplitud P30 (SC)", ["pulling wide runs p30 sc"]),
-  runsInBehind: scMetric("Rupturas al espacio P30 (SC)", ["runs in behind p30 sc"]),
-  dangerousRuns: scMetric("Rupturas peligrosas P30 (SC)", ["dangerous runs behind p30 sc"]),
-  runsReceived: scMetric("Desmarques recibidos P30 (SC)", ["runs received p30 sc"]),
-  psv99: scMetric("PSV-99 km/h (SC)", ["psv 99 sc", "psv99 sc"]),
-  hsr: scMetric("Distancia HSR (SC)", ["hsr distance sc"]),
+  overlapRuns: scMetric("Desmarques por fuera y por dentro (SC)", ["overlap underlap runs p30 sc"]),
+  offBallRuns: scMetric("Desmarques totales (SC)", ["off ball runs p30 sc"]),
+  pullingWideRuns: scMetric("Desmarques abriendo el campo (SC)", ["pulling wide runs p30 sc"]),
+  runsInBehind: scMetric("Rupturas a la espalda (SC)", ["runs in behind p30 sc"]),
+  dangerousRuns: scMetric("Rupturas peligrosas (SC)", ["dangerous runs behind p30 sc"]),
+  runsReceived: scMetric("Desmarques atendidos (SC)", ["runs received p30 sc"]),
+  psv99: scMetric("Velocidad punta km/h (SC)", ["psv 99 sc", "psv99 sc"]),
+  hsr: scMetric("Distancia a alta velocidad (SC)", ["hsr distance sc"]),
   metersPerMinute: scMetric("Metros por minuto (SC)", ["meters per minute sc"]),
-  timeToSprint: scMetric("Reacción a sprint post-giro (SC)", ["time to sprint post cod sc"], true),
+  timeToSprint: scMetric("Reacción al sprint tras giro (SC)", ["time to sprint post cod sc"], true),
 };
 
 METRICS.GK.push(

@@ -741,7 +741,11 @@ body::before { position: fixed; inset: 0; z-index: -1; pointer-events: none; bac
 .dossier-legend i { width: 10px; height: 10px; display: block; border-radius: 3px; }
 .quick-reading { margin-top: 18px; padding: 13px 14px; border: 1px solid var(--report-line); border-radius: 10px; background: var(--report-surface); }
 .quick-reading b { color: var(--report-accent); font-size: 8px; letter-spacing: .1em; }.quick-reading p { margin: 5px 0 0; color: var(--report-ink); font-size: 9.5px; line-height: 1.5; }
-.metric-breakdown { padding: 5px 30px 18px; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 18px; }
+/* Flex en vez de grid: las columnas salen de --metric-columns (según cuántas
+   categorías traiga el jugador) y la última fila incompleta queda centrada en
+   lugar de dejar un bloque suelto a la izquierda. */
+.metric-breakdown { padding: 5px 30px 18px; display: flex; flex-wrap: wrap; justify-content: center; gap: 18px; --metric-columns: 4; }
+.metric-breakdown > .metric-group { flex: 0 1 calc((100% - (var(--metric-columns) - 1) * 18px) / var(--metric-columns)); min-width: 0; }
 .metric-group h3 { margin: 0 0 10px; padding-bottom: 7px; border-bottom: 2px solid; font-family: var(--font-barlow-condensed),sans-serif; font-size: 10px; letter-spacing: .065em; text-transform: uppercase; }
 .metric-group h3 { border-color: color-mix(in srgb,var(--metric-group-color) 34%,var(--report-line)); color: var(--metric-group-color); }
 .metric-row { margin-top: 9px; }.metric-row > div { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }.metric-row span { color: var(--report-ink); font-size: 8.5px; }.metric-row b { color: var(--report-ink); font-family: var(--font-oswald),var(--font-barlow-condensed),sans-serif; font-size: 10px; white-space: nowrap; }.metric-row b small { color: var(--report-muted); font-size: 8px; }.metric-row > i { height: 4px; margin-top: 3px; display: block; overflow: hidden; border-radius: 4px; background: var(--report-line); }.metric-row > i em { height: 100%; display: block; border-radius: 4px; background: var(--metric-group-color); }
@@ -975,7 +979,7 @@ body::before { position: fixed; inset: 0; z-index: -1; pointer-events: none; bac
   .dossier-stat { padding-left: 8px; }
   .dossier-radar-row { padding: 18px; grid-template-columns: 1fr; }
   .dossier-reading { padding: 0 2px 16px; }
-  .metric-breakdown { padding: 0 18px 18px; grid-template-columns: 1fr; }
+  .metric-breakdown { padding: 0 18px 18px; --metric-columns: 1; }
   .dossier-footer { padding: 15px 18px; align-items: flex-start; flex-direction: column; }.report-signatures { width: 100%; justify-content: flex-start; flex-wrap: wrap; }.report-author { text-align: left; }.report-recipient { padding-left: 14px; }
 }
 

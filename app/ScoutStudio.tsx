@@ -261,6 +261,16 @@ export default function ScoutStudio() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [reportRows, selectedPlayer, minimumMinutes, cohort, lang],
   );
+  // Bloques de métricas del desglose: solo las categorías con datos. El número
+  // de columnas se ajusta al total para no dejar una categoría suelta al final
+  // (5 bloques → 3 arriba y 2 centradas abajo, 6 → 3 y 3).
+  const metricBreakdown = useMemo(() => {
+    if (!report) return [];
+    return SIMILARITY_METRIC_GROUPS
+      .map((group) => ({ group, metrics: report.metrics.filter((metric) => similarityMetricGroup(metric, report.cohort).id === group.id) }))
+      .filter((entry) => entry.metrics.length > 0);
+  }, [report]);
+  const metricBreakdownColumns = metricBreakdown.length <= 4 ? Math.max(1, metricBreakdown.length) : 3;
   const dataReady = reportRows.length > 0;
   const profileReady = Boolean(profile.sourceUrl || profile.playerImage || profile.clubLogo || profile.leagueLogo);
   const recipientName = reportRecipientName.trim() || t("Club destinatario");
@@ -980,18 +990,17 @@ export default function ScoutStudio() {
                       </aside>
                     </section>
 
-                    <section className="metric-breakdown">
-                      {SIMILARITY_METRIC_GROUPS.map((group) => {
-                        const groupMetrics = report.metrics.filter((metric) => similarityMetricGroup(metric, report.cohort).id === group.id);
-                        if (!groupMetrics.length) return null;
-                        return <div className="metric-group" style={{ "--metric-group-color": group.color } as React.CSSProperties} key={group.id}>
+                    <section className="metric-breakdown" style={{ "--metric-columns": metricBreakdownColumns } as React.CSSProperties}>
+                      {metricBreakdown.map(({ group, metrics }) => (
+                        <div className="metric-group" style={{ "--metric-group-color": group.color } as React.CSSProperties} key={group.id}>
                           <h3>{t(group.label)}</h3>
-                          {groupMetrics.slice(0, 4).map((metric) => <div className="metric-row" key={metric.key}><div><span>{t(metric.label)}</span><b>{formatCell(metric.value)} <small>· P{metric.percentile}</small></b></div><i><em style={{ width: `${metric.percentile}%` }} /></i></div>)}
-                        </div>;
-                      })}
+                          {metrics.slice(0, 4).map((metric) => <div className="metric-row" key={metric.key}><div><span>{t(metric.label)}</span><b>{formatCell(metric.value)} <small>· P{metric.percentile}</small></b></div><i><em style={{ width: `${metric.percentile}%` }} /></i></div>)}
+                        </div>
+                      ))}
                     </section>
                     <footer className="dossier-footer">
-                      <p>{tf("Percentiles por posición · mínimo {m}′ · {n} jugadores en la cohorte · datos por 90 minutos.", { m: minimumMinutes, n: report.cohortSize })}</p>
+                      <p>{tf("Percentiles por posición · mínimo {m}′ · {n} jugadores en la cohorte · datos por 90 minutos.", { m: minimumMinutes, n: report.cohortSize })}
+                        {report.metrics.some((metric) => metric.source === "skillcorner") && ` ${t("Los volúmenes de SkillCorner (SC) van por 30 minutos con balón del equipo.")}`}</p>
                       <div className="report-signatures">
                         <div className="report-author"><span>{t("ELABORADO POR")}</span><b>FELIPE ORMAZABAL</b><small>SCOUTING REPORT</small></div>
                         <div className="report-recipient">

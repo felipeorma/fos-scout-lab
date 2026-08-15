@@ -90,17 +90,17 @@ test("el extremo directo tiene su propio set y se compara contra los extremos", 
   assert.equal(peerCohort("DWING"), "WING");
   assert.equal(peerCohort("WING"), "WING");
   // El extremo directo mide ruptura y velocidad; el asociativo, amplitud y retención.
-  assert.ok(direct.includes("Rupturas al espacio P30 (SC)"));
-  assert.ok(direct.includes("Reacción a sprint post-giro (SC)"));
+  assert.ok(direct.includes("Rupturas a la espalda (SC)"));
+  assert.ok(direct.includes("Reacción al sprint tras giro (SC)"));
   assert.ok(direct.includes("Centros al área % (SB)"));
-  assert.ok(wing.includes("Opciones en banda P30 (SC)"));
+  assert.ok(wing.includes("Opciones en banda (SC)"));
   assert.ok(wing.includes("Retención bajo presión % (SC)"));
-  assert.ok(!wing.includes("Rupturas al espacio P30 (SC)"));
+  assert.ok(!wing.includes("Rupturas a la espalda (SC)"));
 });
 
 test("las métricas de SkillCorner son siempre del grupo físico y las inversas están marcadas", () => {
   const platform = [...new Set(Object.values(METRICS).flat())].filter((metric) => metric.source === "skillcorner");
   for (const metric of platform) assert.equal(metric.colorGroup, "physical", `${metric.label} fuera del grupo físico`);
   const inverse = platform.filter((metric) => metric.inverse).map((metric) => metric.label);
-  assert.deepEqual(inverse.sort(), ["Reacción a sprint post-giro (SC)", "Superado en duelo % (SC)"]);
+  assert.deepEqual(inverse.sort(), ["Dificultad de pase (SC)", "Reacción al sprint tras giro (SC)", "Superado en duelo % (SC)"]);
 });

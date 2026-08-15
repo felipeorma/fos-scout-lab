@@ -176,7 +176,14 @@ tarjeta del paso 01, o desde el panel de datos con un informe abierto).
   pase → defensa → portero → físico), así que cada color ocupa un solo arco
   continuo del radar en vez de repartirse por todo el círculo. Al colorear
   "Por plataforma" el radar reordena por fuente y mantiene la misma lectura
-  por bloques.
+  por bloques. El desglose bajo el radar ajusta sus columnas al número de
+  categorías con datos (5 bloques → 3 arriba y 2 centradas abajo; 6 → 3 y 3).
+- Las métricas de SkillCorner se escriben **sin acrónimos** (velocidad punta en
+  vez de PSV-99, distancia a alta velocidad en vez de HSR, reacción al sprint
+  tras giro en vez de COD) y sin arrastrar el sufijo P30: esa normalización —30
+  minutos con balón del equipo— se explica una sola vez en el pie del informe.
+  "Dificultad de pase" invierte el xPass crudo, de modo que un percentil alto
+  significa que el jugador intenta pases más difíciles, no más seguros.
 - Los extremos tienen **dos cohortes**, como en la hoja de perfiles:
   *Extremos* (asociativo: amplitud, opciones en banda, pases a desmarques,
   retención bajo presión) y *Extremos directos* (ruptura al espacio,
