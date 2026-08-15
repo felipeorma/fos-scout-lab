@@ -351,14 +351,14 @@ body.is-resizing-report-block-height, body.is-resizing-report-block-height * { c
 .similarity-legal-page .comparison-radar { min-height: 0; flex: 1; }
 .similarity-legal-page .similarity-metric-section { min-height: 0; margin-top: 10px; padding-top: 9px; overflow: hidden; }
 .similarity-legal-page .metric-comparison-list { min-height: 0; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); grid-auto-flow: row; column-gap: 20px; }
-.similarity-legal-page .metric-duel { min-width: 0; padding: 5px 0 6px; }
+.similarity-legal-page .metric-duel { min-width: 0; padding: 5px 0 6px 7px; }
 .similarity-legal-page .metric-duel-head { margin-bottom: 4px; }
 .similarity-legal-page .metric-duel-row { grid-template-columns: minmax(46px,auto) 1fr minmax(46px,auto); gap: 7px; }
 .similarity-legal-page .metric-duel-bar { height: 10px; }
 .similarity-legal-page .similarity-report-main[data-metric-density="compact"] .similarity-metric-section { margin-top: 6px; padding-top: 6px; }
 .similarity-legal-page .similarity-report-main[data-metric-density="compact"] .similarity-metric-head { font-size: 6.5px; }
 .similarity-legal-page .similarity-report-main[data-metric-density="compact"] .similarity-metric-head b { font-size: 10.5px; }
-.similarity-legal-page .similarity-report-main[data-metric-density="compact"] .metric-duel { padding: 3px 0 4px; }
+.similarity-legal-page .similarity-report-main[data-metric-density="compact"] .metric-duel { padding: 3px 0 4px 7px; }
 .similarity-legal-page .similarity-report-main[data-metric-density="compact"] .metric-duel-head { margin-bottom: 2px; gap: 5px; line-height: 1.05; }
 .similarity-legal-page .similarity-report-main[data-metric-density="compact"] .metric-duel-head span { font-size: 7px; letter-spacing: .035em; }
 .similarity-legal-page .similarity-report-main[data-metric-density="compact"] .metric-duel-head small { font-size: 5.75px; }
@@ -1162,7 +1162,7 @@ body.print-layout-check .similarity-star-visual > svg { transform: none !importa
 .visual-page-signature .dossier-footer-club-logo, .visual-page-signature .dossier-footer-club-fallback { width: 26px; height: 26px; }
 
 /* ---- Duelo métrica a métrica (una barra compartida) ---- */
-.metric-duel { padding: 9px 0 10px; border-bottom: 1px solid var(--report-line); }
+.metric-duel { padding: 9px 0 10px 8px; border-bottom: 1px solid var(--report-line); border-left: 2px solid var(--metric-group-color, transparent); }
 .metric-duel:last-child { border-bottom: 0; }
 .metric-duel-head { margin-bottom: 6px; display: flex; align-items: baseline; justify-content: center; gap: 8px; }
 .metric-duel-head span { color: var(--report-ink); font-size: 8px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
@@ -1402,10 +1402,10 @@ body.print-layout-check .similarity-star-visual > svg { transform: none !importa
 .similarity-report-sheet .metric-comparison-list {
   display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 26px; align-content: start;
 }
-.similarity-report-sheet .metric-duel { padding: 5px 0 6px; }
+.similarity-report-sheet .metric-duel { padding: 5px 0 6px 7px; }
 .similarity-report-sheet .metric-duel-head { margin-bottom: 4px; }
 /* Con muchas métricas el bloque se aprieta un poco más para no desbordar. */
-.similarity-report-main[data-metric-density="compact"] .metric-duel { padding: 3px 0 4px; }
+.similarity-report-main[data-metric-density="compact"] .metric-duel { padding: 3px 0 4px 7px; }
 .similarity-report-main[data-metric-density="compact"] .metric-duel-bar { height: 11px; }
 
 /* ---- Retrato de la cinta con el tratamiento de la Página 1 ----

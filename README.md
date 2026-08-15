@@ -47,6 +47,11 @@ como un bloque editable en la Página 2 del reporte. Esta arquitectura permite
 incorporar después embeddings de vídeo, redes de pases, Transformers o Graph
 Neural Networks cuando existan modelos y fuentes multimodales reales.
 
+La comparación métrica a métrica sigue el mismo orden por categorías que el
+radar —primero finalización, después creación, pase, defensa y físico— y cada
+fila lleva un filete del color de su grupo, así que los bloques se distinguen
+sin ocupar más alto de hoja.
+
 La lámina de similitud comparte automáticamente la paleta activa del reporte e
 incluye un radar superpuesto P0–P100, comparación métrica a métrica, firma de
 Felipe y el nombre/logo del club destinatario. Cada uno de los dos jugadores

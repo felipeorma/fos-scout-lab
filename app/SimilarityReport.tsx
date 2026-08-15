@@ -229,13 +229,17 @@ function MetricGroupLegend({ metrics, cohort }: { metrics: SimilarityMetricCompa
   </div>;
 }
 
-function MetricComparison({ metric, targetName, candidateName, targetColor, candidateColor }: { metric: SimilarityMetricComparison; targetName: string; candidateName: string; targetColor: string; candidateColor: string }) {
+function MetricComparison({ metric, cohort, targetName, candidateName, targetColor, candidateColor }: { metric: SimilarityMetricComparison; cohort: string; targetName: string; candidateName: string; targetColor: string; candidateColor: string }) {
   const targetValue = formatMetricValue(metric.targetValue, metric.key);
   const candidateValue = formatMetricValue(metric.candidateValue, metric.key);
   const total = metric.targetPercentile + metric.candidatePercentile;
   const targetShare = total > 0 ? (metric.targetPercentile / total) * 100 : 50;
   const winner = metric.targetPercentile > metric.candidatePercentile ? "target" : metric.candidatePercentile > metric.targetPercentile ? "candidate" : "tie";
-  return <div className={`metric-duel winner-${winner}`} style={{ "--target-color": targetColor, "--candidate-color": candidateColor, "--target-share": `${targetShare}%` } as CSSProperties} aria-label={`${t(metric.label)} - ${targetName}: ${targetValue}; ${candidateName}: ${candidateValue}`}>
+  // Las métricas llegan agrupadas por categoría; el filete del color de su
+  // grupo hace visible dónde termina una y empieza la siguiente sin gastar
+  // alto de hoja.
+  const group = similarityMetricGroup(metric, cohort);
+  return <div className={`metric-duel winner-${winner}`} style={{ "--target-color": targetColor, "--candidate-color": candidateColor, "--target-share": `${targetShare}%`, "--metric-group-color": group.color } as CSSProperties} aria-label={`${t(metric.label)} - ${targetName}: ${targetValue}; ${candidateName}: ${candidateValue}`}>
     <div className="metric-duel-head"><span>{t(metric.label)}</span>{metric.weight !== 1 && <small>{metric.weight === 0 ? t("Sin influencia") : tf("Peso {p}%", { p: Math.round(metric.weight * 100) })}</small>}</div>
     <div className="metric-duel-row">
       <b className={`duel-value target ${winner === "target" ? "win" : ""}`}>{targetValue}</b>
@@ -262,7 +266,7 @@ export function SimilarityReportMain({ payload }: { payload: SimilarityReportPay
       </div>
       <div className="similarity-metric-section">
         <div className="similarity-metric-head"><span style={{ color: target.color }}>{target.name}</span><b>{t("COMPARATIVA MÉTRICA A MÉTRICA")}</b><span style={{ color: candidate.color }}>{candidate.name}</span></div>
-        <div className="metric-comparison-list">{metrics.map((metric) => <MetricComparison key={metric.key} metric={metric} targetName={target.name} candidateName={candidate.name} targetColor={target.color} candidateColor={candidate.color} />)}</div>
+        <div className="metric-comparison-list">{metrics.map((metric) => <MetricComparison key={metric.key} metric={metric} cohort={payload.metricCohort} targetName={target.name} candidateName={candidate.name} targetColor={target.color} candidateColor={candidate.color} />)}</div>
       </div>
     </div>
   </div>;
