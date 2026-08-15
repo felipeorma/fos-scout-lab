@@ -1775,3 +1775,10 @@ details.report-recipient-editor > label > small { display: block; margin-bottom:
   cursor: pointer;
 }
 .radar-color-toggle .segmented button.active { border-color: rgba(94, 141, 255, .65); background: rgba(94, 141, 255, .14); }
+
+/* Botón para pedirle el texto a Claude, junto al título de cada bloque de
+   lectura. Discreto: la lectura sigue siendo el contenido, no el botón. */
+.reading-ai, .designer-ai-button { margin-left: 8px; padding: 2px 8px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid color-mix(in srgb, var(--report-accent, #4f6bed) 45%, transparent); border-radius: 999px; background: color-mix(in srgb, var(--report-accent, #4f6bed) 10%, transparent); color: var(--report-accent, #4f6bed); font-family: inherit; font-size: 8px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; cursor: pointer; }
+.reading-ai:hover:not(:disabled), .designer-ai-button:hover:not(:disabled) { background: color-mix(in srgb, var(--report-accent, #4f6bed) 20%, transparent); }
+.reading-ai:disabled, .designer-ai-button:disabled { opacity: .55; cursor: progress; }
+.quick-reading .inline-error { display: block; margin-top: 4px; font-size: 9px; }

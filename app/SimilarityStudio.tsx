@@ -18,7 +18,7 @@ import { formatPlayerPositions, selectedCohortPosition, type PlayerPosition } fr
 import { SIMILARITY_METRIC_GROUPS, similarityMetricGroup } from "@/lib/similarityMetricGroups";
 import { createEmptyTransfermarktProfile, profileStorageKey, readStoredJson, type TransfermarktProfile } from "@/lib/transfermarkt";
 import { removePlayerImageBackground } from "@/lib/playerImageBackground";
-import { canvasImageCandidates, fetchTransfermarktProfile, proxiedImageUrl } from "@/lib/remoteData";
+import { canvasImageCandidates, fetchAiSummary, fetchTransfermarktProfile, proxiedImageUrl, type AiMetricFact, type AiPlayerFacts } from "@/lib/remoteData";
 import { reportExportBaseName } from "@/lib/reportExportName";
 import { t, tDefault, tf, numberLocale, type Lang } from "@/lib/i18n";
 
@@ -585,6 +585,8 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
   const [exportBusy, setExportBusy] = useState(false);
   const [exportStatus, setExportStatus] = useState("");
   const [comparisonNote, setComparisonNote] = useState("");
+  const [comparisonAiLoading, setComparisonAiLoading] = useState(false);
+  const [comparisonAiError, setComparisonAiError] = useState("");
   const [targetPhotoFit, setTargetPhotoFit] = useState<"auto" | "contain" | "cover">("auto");
   const [candidatePhotoFit, setCandidatePhotoFit] = useState<"auto" | "contain" | "cover">("auto");
   const reportSheetRef = useRef<HTMLElement>(null);
@@ -609,6 +611,36 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
   const candidates = search?.candidates ?? [];
   const activeMetricWeights = search?.target.metrics.filter((metric) => (metricWeights[metric.key] ?? 1) !== 1).length ?? 0;
   const selectedCandidate = candidates.find((candidate) => candidate.index === selectedCandidateIndex) ?? candidates[0] ?? null;
+
+  // La opinión sobre la comparación se escribe en el mismo campo editable que
+  // ya viaja a la hoja, así que se puede corregir antes de exportar.
+  async function writeComparisonNote() {
+    if (!search?.target || !selectedCandidate) return;
+    setComparisonAiLoading(true);
+    setComparisonAiError("");
+    const facts = (name: string, team: string, position: string, cohortSize: number): AiPlayerFacts => ({
+      name, team, position, cohortLabel: position, age: "", minutes: "", matches: "", cohortSize, sources: sourceName,
+    });
+    const targetMetrics: AiMetricFact[] = selectedCandidate.metrics.map((metric) => ({ label: t(metric.label), value: metric.targetValue, percentile: metric.targetPercentile }));
+    const candidateMetrics: AiMetricFact[] = selectedCandidate.metrics.map((metric) => ({ label: t(metric.label), value: metric.candidateValue, percentile: metric.candidatePercentile }));
+    try {
+      const text = await fetchAiSummary({
+        kind: "comparison",
+        lang,
+        player: facts(search.target.player, search.target.team, search.target.position, search.target.cohortSize),
+        metrics: targetMetrics,
+        candidate: facts(selectedCandidate.name, selectedCandidate.team, selectedCandidate.position, search.target.cohortSize),
+        candidateMetrics,
+        similarity: Math.round(selectedCandidate.similarity * 100),
+      });
+      setComparisonNote(text);
+    } catch (error) {
+      setComparisonAiError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setComparisonAiLoading(false);
+    }
+  }
+
   const activeCandidateKey = selectedCandidate ? profileStorageKey(selectedCandidate.name, selectedCandidate.team) : "";
   // El fallback (candidato auto-seleccionado sin pulsar "Comparar") también
   // recupera el perfil Transfermarkt guardado, no solo la semilla vacía.
@@ -1046,8 +1078,9 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
 
             <div className="similarity-note-editor">
               <label>
-                <span>{t("Comentarios")}</span>
+                <span>{t("Comentarios")}<button type="button" className="reading-ai" disabled={comparisonAiLoading} onClick={() => void writeComparisonNote()}><Sparkles size={11} /> {comparisonAiLoading ? t("Escribiendo…") : t("Escribir con IA")}</button></span>
                 <textarea value={comparisonNote} rows={3} placeholder={t("Escribe tu lectura de la comparación: contexto, rol y recomendación.")} onChange={(event) => setComparisonNote(event.target.value)} />
+                {comparisonAiError && <small className="inline-error">{comparisonAiError}</small>}
               </label>
               <small>{t("Aparece dentro de la hoja, debajo de la comparación, respetando los márgenes de la página.")}</small>
             </div>

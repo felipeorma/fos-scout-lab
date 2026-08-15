@@ -13,7 +13,7 @@ Arranque: npm run bg:server  (o: ~/.rembg-venv/bin/uvicorn bg-server:app)
 
 import io
 
-from fastapi import FastAPI, File, Form, UploadFile
+from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import PlainTextResponse, Response
 from PIL import Image
 from rembg import new_session, remove
@@ -526,3 +526,188 @@ async def skillcorner_player_stats(competition_edition_id: int):
         if row["Player"]:
             rows.append(row)
     return Response(_json.dumps({"rows": rows, "provider": "skillcorner"}), media_type="application/json", headers=cors_headers())
+
+
+# ---- Lecturas de scouting escritas por Claude ----
+# La clave de Anthropic vive solo en esta máquina (entorno o Llavero) y nunca
+# viaja al bundle publicado: el navegador pide el texto a este servidor.
+
+def _keychain_secret(account: str):
+    """Valor crudo del Llavero: las llaves de API son un token único, no
+    el par usuario:contraseña que guardan las plataformas de datos."""
+    try:
+        import subprocess as _sp
+        out = _sp.run(
+            ["/usr/bin/security", "find-generic-password", "-s", "fos-scouting", "-a", account, "-w"],
+            capture_output=True, text=True, timeout=5,
+        )
+        return out.stdout.strip() if out.returncode == 0 else ""
+    except Exception:
+        return ""
+
+
+def _anthropic_key():
+    return os.environ.get("ANTHROPIC_API_KEY") or _keychain_secret("anthropic") or None
+
+
+# Los textos cortos se piden a Sonnet (rápido, se regenera a cada cambio de
+# jugador); los largos y la comparación van a Opus, donde la prosa manda.
+_AI_MODELS = {
+    "quick": os.environ.get("FOS_AI_MODEL_QUICK", "claude-sonnet-5"),
+    "extended": os.environ.get("FOS_AI_MODEL_LONG", "claude-opus-5"),
+    "comparison": os.environ.get("FOS_AI_MODEL_LONG", "claude-opus-5"),
+}
+_AI_MAX_TOKENS = {"quick": 300, "extended": 900, "comparison": 600}
+
+_AI_VOICE = {
+    "es": (
+        "Escribes como el director de scouting de un club de la Premier League: "
+        "lenguaje de scout, directo, sin adornos ni jerga de marketing. Español neutro."
+    ),
+    "en": (
+        "You write as the head of scouting at a Premier League club: scout language, "
+        "direct, no filler, no marketing tone. Simple, clear English."
+    ),
+}
+
+_AI_RULES = {
+    "es": (
+        "Reglas estrictas:\n"
+        "- Usa SOLO los números entregados. No inventes datos, cifras ni contexto de partidos.\n"
+        "- Los percentiles comparan al jugador con futbolistas de su misma posición en la base cargada.\n"
+        "- Nunca escribas la palabra 'cohorte'. Di 'jugadores de su posición'.\n"
+        "- No menciones ver vídeo, imágenes ni seguimiento en directo.\n"
+        "- No menciones que se revisaron otros jugadores.\n"
+        "- No uses viñetas ni títulos salvo que se pidan. No repitas el nombre en cada frase.\n"
+        "- Nombra las métricas por su nombre, sin el sufijo (SB) ni (SC) ni el percentil entre paréntesis.\n"
+    ),
+    "en": (
+        "Strict rules:\n"
+        "- Use ONLY the numbers provided. Never invent data, figures or match context.\n"
+        "- Percentiles compare the player against footballers in the same position within the loaded database.\n"
+        "- Never write the word 'cohort'. Say 'players in his position'.\n"
+        "- Do not mention watching video, clips or live scouting.\n"
+        "- Do not mention that other players were reviewed.\n"
+        "- No bullet points or headings unless asked. Do not repeat the name in every sentence.\n"
+        "- Name metrics plainly, without the (SB)/(SC) suffix or the percentile in brackets.\n"
+    ),
+}
+
+_AI_TASKS = {
+    ("quick", "es"): (
+        "Escribe la LECTURA RÁPIDA de la ficha: 2 o 3 frases, máximo 55 palabras en total. "
+        "Primero lo que mejor hace y en qué se sostiene; después el punto a vigilar; cierra "
+        "con el rol en el que rinde. Un solo párrafo, sin títulos."
+    ),
+    ("quick", "en"): (
+        "Write the QUICK READ for the player card: 2 or 3 sentences, 55 words maximum in total. "
+        "Lead with what he does best and what supports it, then the area to watch, and close with "
+        "the role where he fits. One paragraph, no headings."
+    ),
+    ("extended", "es"): (
+        "Escribe un informe de scouting de unas 200 palabras, en tres bloques separados por un salto "
+        "de línea y encabezados en una línea propia: 'PERFIL', 'FORTALEZAS', 'A REVISAR'. "
+        "PERFIL: dos frases con la posición, el contexto competitivo y el volumen de minutos. "
+        "FORTALEZAS: lo que sostiene su rendimiento, apoyado en las métricas más altas. "
+        "A REVISAR: lo más débil y qué implicaría para el club. Termina con una frase sobre el rol "
+        "en el que rinde y el tipo de equipo que le encaja."
+    ),
+    ("extended", "en"): (
+        "Write a scouting report of about 200 words in three blocks separated by a line break, with "
+        "headings on their own line: 'PROFILE', 'STRENGTHS', 'TO REVIEW'. "
+        "PROFILE: two sentences on position, competitive context and minutes played. "
+        "STRENGTHS: what his performance is built on, backed by the strongest metrics. "
+        "TO REVIEW: the weakest area and what it would mean for the club. Close with one sentence on "
+        "the role where he fits and the kind of side that suits him."
+    ),
+    ("comparison", "es"): (
+        "Escribe tu lectura de la comparación en unas 110 palabras, un solo párrafo, sin títulos. "
+        "Céntrate en el jugador objetivo: en qué le gana al otro, en qué se queda corto, y qué tipo de "
+        "perfil es cada uno. Cierra con una recomendación clara sobre a cuál ficharías y por qué, "
+        "según el rol que se busque."
+    ),
+    ("comparison", "en"): (
+        "Write your read of the comparison in about 110 words, one paragraph, no headings. "
+        "Focus on the target player: where he beats the other, where he falls short, and what type of "
+        "profile each one is. Close with a clear recommendation on which one you would sign and why, "
+        "depending on the role being filled."
+    ),
+}
+
+
+def _ai_metric_lines(metrics, limit=40):
+    lines = []
+    for m in (metrics or [])[:limit]:
+        label = str(m.get("label", "")).strip()
+        if not label:
+            continue
+        percentile = m.get("percentile")
+        value = m.get("value")
+        note = " (menos es mejor)" if m.get("inverse") else ""
+        lines.append(f"- {label}: {value} · percentil {percentile}{note}")
+    return "\n".join(lines)
+
+
+def _ai_player_block(player, metrics):
+    facts = [
+        f"Jugador: {player.get('name', '')}",
+        f"Equipo: {player.get('team', '')}",
+        f"Posición: {player.get('position', '')}",
+        f"Perfil evaluado: {player.get('cohortLabel', '')}",
+        f"Edad: {player.get('age', '')}",
+        f"Minutos: {player.get('minutes', '')} en {player.get('matches', '')} partidos",
+        f"Comparado con {player.get('cohortSize', '')} jugadores de su posición en la base",
+        f"Fuentes de datos: {player.get('sources', '')}",
+    ]
+    return "\n".join(f for f in facts if not f.endswith(": ")) + "\n\nMétricas:\n" + _ai_metric_lines(metrics)
+
+
+@app.post("/api/ai/summary")
+async def ai_summary(request: Request):
+    import json as _json
+    key = _anthropic_key()
+    if not key:
+        return Response('{"error": "sin clave de Anthropic"}', status_code=503, media_type="application/json", headers=cors_headers())
+    body = await request.json()
+    kind = body.get("kind", "quick")
+    lang = "en" if body.get("lang") == "en" else "es"
+    if kind not in _AI_MODELS:
+        return Response('{"error": "tipo desconocido"}', status_code=400, media_type="application/json", headers=cors_headers())
+
+    if kind == "comparison":
+        content = (
+            "JUGADOR OBJETIVO\n" + _ai_player_block(body.get("player", {}), body.get("metrics", []))
+            + "\n\nJUGADOR COMPARADO\n" + _ai_player_block(body.get("candidate", {}), body.get("candidateMetrics", []))
+            + f"\n\nSimilitud calculada: {body.get('similarity', '')}%"
+        )
+    else:
+        content = _ai_player_block(body.get("player", {}), body.get("metrics", []))
+
+    system = f"{_AI_VOICE[lang]}\n\n{_AI_RULES[lang]}\n\n{_AI_TASKS[(kind, lang)]}"
+    try:
+        response = _requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": _AI_MODELS[kind],
+                "max_tokens": _AI_MAX_TOKENS[kind],
+                "system": system,
+                "messages": [{"role": "user", "content": content}],
+            },
+            timeout=120,
+        )
+        if response.status_code != 200:
+            detail = response.text[:300].replace('"', "'")
+            return Response(_json.dumps({"error": f"Anthropic respondió {response.status_code}: {detail}"}),
+                            status_code=502, media_type="application/json", headers=cors_headers())
+        payload = response.json()
+        text = "".join(part.get("text", "") for part in payload.get("content", []) if part.get("type") == "text").strip()
+        if not text:
+            return Response('{"error": "respuesta vacía"}', status_code=502, media_type="application/json", headers=cors_headers())
+        return Response(_json.dumps({"text": text, "model": _AI_MODELS[kind]}), media_type="application/json", headers=cors_headers())
+    except Exception as error:
+        return Response(_json.dumps({"error": str(error)[:300]}), status_code=502, media_type="application/json", headers=cors_headers())

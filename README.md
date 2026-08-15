@@ -206,6 +206,36 @@ tarjeta del paso 01, o desde el panel de datos con un informe abierto).
   `http://127.0.0.1:7001` directamente, así que basta con tener el servidor
   local corriendo en el equipo desde el que se abre la web.
 
+## Lecturas escritas por Claude
+
+Tres textos del informe se pueden redactar con IA, siempre sobre los números
+reales que ya calcula la app —nunca plantillas guardadas—:
+
+- **Lectura rápida** (Página 01): 2-3 frases, 55 palabras como máximo.
+- **Informe extendido** (Páginas de visuales): unas 200 palabras en tres
+  bloques —perfil, fortalezas y a revisar— dentro del bloque de texto elegido.
+- **Opinión de la comparación** (Página 02): unas 110 palabras sobre el jugador
+  objetivo frente al comparado, cerrando con una recomendación.
+
+Cada texto cae en el mismo campo editable de siempre, así que se puede corregir
+antes de exportar y se guarda con el informe.
+
+La petición viaja por el servidor local (`npm run bg:server`): **la clave de
+Anthropic nunca llega al navegador ni al bundle publicado**. Se guarda una sola
+vez en el Llavero:
+
+```bash
+security add-generic-password -U -s fos-scouting -a anthropic -w 'sk-ant-...'
+```
+
+También sirve la variable de entorno `ANTHROPIC_API_KEY`. Los textos cortos usan
+`claude-sonnet-5` y los largos `claude-opus-5`; se pueden cambiar con
+`FOS_AI_MODEL_QUICK` y `FOS_AI_MODEL_LONG`.
+
+El prompt fija las reglas de estilo del departamento: lenguaje de scout, solo los
+números entregados, sin la palabra "cohorte", sin mencionar vídeo y sin aludir a
+que se revisaron otros jugadores.
+
 ## Reglas para combinar bases
 
 - no existe un límite fijo de archivos; la combinación requiere al menos dos;

@@ -16,6 +16,7 @@ import {
   Upload,
 } from "./Icons";
 import { DEFAULT_REPORT_THEME, REPORT_THEMES, reportThemeStyle, type ReportTheme } from "./reportTheme";
+import { fetchAiSummary, type AiMetricFact, type AiPlayerFacts } from "@/lib/remoteData";
 import { SimilarityReportMain, type SimilarityReportPayload } from "./SimilarityReport";
 import { t, tDefault, tf } from "@/lib/i18n";
 import {
@@ -167,12 +168,14 @@ function updateBlock(config: PageConfig, id: string, patch: Partial<PageBlock>) 
 
 
 
-export function ReportPageDesigner({ pageNumber, player, team, position, theme, onThemeChange, recipientName = "", recipientLogoUrl = "", persist = true }: { pageNumber: number; player: string; team: string; position: string; theme: ReportTheme; onThemeChange: (theme: ReportTheme) => void; recipientName?: string; recipientLogoUrl?: string; persist?: boolean }) {
+export function ReportPageDesigner({ pageNumber, player, team, position, theme, onThemeChange, recipientName = "", recipientLogoUrl = "", persist = true, aiFacts }: { pageNumber: number; player: string; team: string; position: string; theme: ReportTheme; onThemeChange: (theme: ReportTheme) => void; recipientName?: string; recipientLogoUrl?: string; persist?: boolean; aiFacts?: () => { lang: string; player: AiPlayerFacts; metrics: AiMetricFact[] } }) {
   const [pages, setPages] = useState<DesignerState>(() => defaultPages(pageNumber));
   const [selectedId, setSelectedId] = useState(() => defaultPage(pageNumber).blocks[0].id);
   const [draggedId, setDraggedId] = useState("");
   const [resizeSession, setResizeSession] = useState<ResizeSession | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState("");
   const gridRef = useRef<HTMLDivElement>(null);
   const config = pages[pageNumber] ?? defaultPage(pageNumber);
   const selected = useMemo(() => config.blocks.find((block) => block.id === selectedId) ?? null, [config.blocks, selectedId]);
@@ -360,6 +363,23 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
     setConfig((current) => ({ ...current, blocks }));
   }
 
+  // Informe extendido dentro del bloque de texto seleccionado: se escribe en
+  // el contenido del bloque, así que después se edita como cualquier otro.
+  async function writeExtendedReport(blockId: string) {
+    if (!aiFacts) return;
+    setAiLoading(true);
+    setAiError("");
+    try {
+      const facts = aiFacts();
+      const text = await fetchAiSummary({ kind: "extended", lang: facts.lang, player: facts.player, metrics: facts.metrics });
+      setPages((current) => ({ ...current, [pageNumber]: updateBlock(current[pageNumber], blockId, { content: text }) }));
+    } catch (error) {
+      setAiError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
   function applyLayout(layout: "single" | "split" | "feature" | "mosaic") {
     if (hasSimilarityComparison) return;
     // Las plantillas reparten la rejilla de 12: una columna (12), mitades (6),
@@ -520,7 +540,8 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
               : <><span className="field-label">{t("Ajuste de imagen")}</span><div className="segmented"><button className={selected.fit === "contain" ? "active" : ""} onClick={() => patchSelected({ fit: "contain" })}>{t("Completa")}</button><button className={selected.fit === "cover" ? "active" : ""} onClick={() => patchSelected({ fit: "cover" })}>{t("Recorta")}</button></div>
                 <div className="image-comment-tools"><span className="field-label">{t("Agregar comentario a esta imagen")}</span><div><button onClick={() => addImageComment("below")}><TextIcon size={15} /><span><b>{t("Debajo")}</b><small>{t("Imagen arriba, texto abajo")}</small></span></button><button onClick={() => addImageComment("side")}><Columns size={15} /><span><b>{t("Al lado")}</b><small>{t("Imagen y texto en columnas")}</small></span></button></div><p>{t("Se crea un bloque de texto independiente que puedes editar, mover y redimensionar.")}</p></div></>}
           </div> : <>
-            <label className="field-group"><span className="field-label">{t("Contenido")}</span><textarea className="designer-textarea" value={displayText(selected.content)} onChange={(event) => patchSelected({ content: event.target.value })} /></label>
+            <label className="field-group"><span className="field-label">{t("Contenido")}{aiFacts && <button type="button" className="designer-ai-button" disabled={aiLoading} onClick={() => void writeExtendedReport(selected.id)}><Sparkles size={11} /> {aiLoading ? t("Escribiendo…") : t("Informe con IA")}</button>}</span><textarea className="designer-textarea" value={displayText(selected.content)} onChange={(event) => patchSelected({ content: event.target.value })} /></label>
+            {aiError && <p className="inline-error">{aiError}</p>}
             <div className="text-toolbar"><button className={selected.bold ? "active" : ""} onClick={() => patchSelected({ bold: !selected.bold })}><b>B</b></button><button className={selected.italic ? "active" : ""} onClick={() => patchSelected({ italic: !selected.italic })}><i>I</i></button><select value={selected.font} onChange={(event) => patchSelected({ font: event.target.value })}>{FONT_OPTIONS.map((font) => <option key={font.value} value={font.value}>{font.label}</option>)}</select><input type="color" value={usesSharedTextColor(selected.color, theme.ink) ? theme.ink : selected.color} onChange={(event) => patchSelected({ color: event.target.value })} title={t("Color de texto")} /></div>
             <label className="range-row"><span>{t("Tamaño de letra")} <b>{selected.fontSize}px</b></span><input type="range" min="11" max="42" value={selected.fontSize} onChange={(event) => patchSelected({ fontSize: Number(event.target.value) })} /></label>
             <div className="segmented align-buttons"><button className={selected.align === "left" ? "active" : ""} onClick={() => patchSelected({ align: "left" })}>{t("Izq.")}</button><button className={selected.align === "center" ? "active" : ""} onClick={() => patchSelected({ align: "center" })}>{t("Centro")}</button><button className={selected.align === "right" ? "active" : ""} onClick={() => patchSelected({ align: "right" })}>{t("Der.")}</button></div>

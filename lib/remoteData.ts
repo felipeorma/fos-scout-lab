@@ -175,3 +175,53 @@ export async function fetchSkillcornerDataset(competition: ApiCompetition): Prom
   );
   return toDataset(`SkillCorner · ${competition.name} ${competition.season}`, competition.season, payload.rows, "skillcorner");
 }
+
+// ---- Lecturas escritas por Claude (vía el puente local) ----
+// La clave de Anthropic nunca llega al navegador: el texto se pide al
+// servidor local, que es quien la guarda.
+
+export type AiSummaryKind = "quick" | "extended" | "comparison";
+
+export type AiPlayerFacts = {
+  name: string;
+  team: string;
+  position: string;
+  cohortLabel: string;
+  age: string | number;
+  minutes: string | number;
+  matches: string | number;
+  cohortSize: number;
+  sources: string;
+};
+
+export type AiMetricFact = { label: string; value: number; percentile: number; inverse?: boolean };
+
+export async function fetchAiSummary(body: {
+  kind: AiSummaryKind;
+  lang: string;
+  player: AiPlayerFacts;
+  metrics: AiMetricFact[];
+  candidate?: AiPlayerFacts;
+  candidateMetrics?: AiMetricFact[];
+  similarity?: number;
+}): Promise<string> {
+  let response: Response;
+  try {
+    response = await fetch(`${LOCAL_BRIDGE}/api/ai/summary`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(150_000),
+    });
+  } catch {
+    throw new Error(t("El servidor local no está corriendo. Arranca npm run bg:server y reintenta."));
+  }
+  const payload = await response.json() as { text?: string; error?: string };
+  if (!response.ok || !payload.text) {
+    const detail = payload.error ?? "";
+    if (/credit balance|billing/i.test(detail)) throw new Error(t("La cuenta de Anthropic no tiene saldo. Recarga créditos y reintenta."));
+    if (/sin clave/i.test(detail)) throw new Error(t("Falta la clave de Anthropic en el servidor local."));
+    throw new Error(detail || t("No se pudo escribir el texto."));
+  }
+  return payload.text.trim();
+}

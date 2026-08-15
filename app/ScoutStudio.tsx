@@ -34,7 +34,7 @@ import {
 import { profileStorageKey, readStoredJson, type TransfermarktProfile } from "@/lib/transfermarkt";
 import { formatPlayerPositions, selectedCohortPosition } from "@/lib/positions";
 import { removePlayerImageBackground } from "@/lib/playerImageBackground";
-import { fetchSkillcornerCompetitions, fetchSkillcornerDataset, fetchSourcesStatus, fetchStatsbombCompetitions, fetchStatsbombDataset, fetchTransfermarktProfile, type ApiCompetition, type SourcesStatus } from "@/lib/remoteData";
+import { fetchAiSummary, type AiMetricFact, type AiPlayerFacts, fetchSkillcornerCompetitions, fetchSkillcornerDataset, fetchSourcesStatus, fetchStatsbombCompetitions, fetchStatsbombDataset, fetchTransfermarktProfile, type ApiCompetition, type SourcesStatus } from "@/lib/remoteData";
 import { reportExportBaseName } from "@/lib/reportExportName";
 import { canonicalizeRow } from "@/lib/wyscoutHeaders";
 import { METRIC_SOURCE_COLORS, SIMILARITY_METRIC_GROUPS, similarityMetricGroup } from "@/lib/similarityMetricGroups";
@@ -215,6 +215,8 @@ export default function ScoutStudio() {
   // Wyscout o StatsBomb: elegir competición física, cargando, o resumen.
   const [scLink, setScLink] = useState<null | { stage: "offer" | "loading" | "done"; candidates: ApiCompetition[]; selection: string; linked?: number; total?: number; error?: string }>(null);
   const [radarColorMode, setRadarColorMode] = useState<"groups" | "platform">("groups");
+  const [aiLoading, setAiLoading] = useState("");
+  const [aiError, setAiError] = useState("");
   const [printLayoutError, setPrintLayoutError] = useState("");
   const [readingOverride, setReadingOverride] = useState("");
   const [reportRows, setReportRows] = useState<DataRow[]>([]);
@@ -540,6 +542,41 @@ export default function ScoutStudio() {
       setApiError(error instanceof Error ? error.message : String(error));
     } finally {
       setApiLoading(false);
+    }
+  }
+
+  // Hechos que se le entregan a Claude: los mismos números que se dibujan en
+  // el radar, para que el texto no pueda inventar nada.
+  function aiPlayerFacts(source: PlayerReport): AiPlayerFacts {
+    const row = reportRows[selectedPlayer] ?? {};
+    return {
+      name: source.player,
+      team: source.team,
+      position: source.position,
+      cohortLabel: t(cohortLabel(source.cohort)),
+      age: String(row.Age ?? ""),
+      minutes: String(row["Minutes played"] ?? ""),
+      matches: String(row["Matches played"] ?? ""),
+      cohortSize: source.cohortSize,
+      sources: String(row["Data sources"] ?? reportFileName),
+    };
+  }
+
+  function aiMetricFacts(source: PlayerReport): AiMetricFact[] {
+    return source.metrics.map((metric) => ({ label: t(metric.label), value: metric.value, percentile: metric.percentile, inverse: metric.inverse }));
+  }
+
+  async function writeQuickRead() {
+    if (!report) return;
+    setAiLoading("quick");
+    setAiError("");
+    try {
+      const text = await fetchAiSummary({ kind: "quick", lang, player: aiPlayerFacts(report), metrics: aiMetricFacts(report) });
+      updateReadingOverride(text);
+    } catch (error) {
+      setAiError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setAiLoading("");
     }
   }
 
@@ -986,7 +1023,7 @@ export default function ScoutStudio() {
                         <div className="dossier-legend">{radarColorMode === "platform"
                           ? [...new Set(report.metrics.map((metric) => metric.source ?? "wyscout"))].map((source) => <span key={source}><i style={{ background: METRIC_SOURCE_COLORS[source]?.color }} />{METRIC_SOURCE_COLORS[source]?.label ?? source}</span>)
                           : SIMILARITY_METRIC_GROUPS.filter((group) => report.metrics.some((metric) => similarityMetricGroup(metric, report.cohort).id === group.id)).map((group) => <span key={group.id}><i style={{ background: group.color }} />{t(group.label)}</span>)}</div>
-                        <div className="quick-reading"><b>{t("LECTURA RÁPIDA")}{readingOverride.trim() !== "" && <button type="button" className="reading-restore" onClick={() => updateReadingOverride("")}>{t("Usar texto automático")}</button>}</b><p><InlineText editKey={`reading-${report.player}`} value={readingOverride} fallback={report.reading} onCommit={updateReadingOverride} multiline /></p></div>
+                        <div className="quick-reading"><b>{t("LECTURA RÁPIDA")}<button type="button" className="reading-ai" disabled={aiLoading === "quick"} onClick={() => void writeQuickRead()}><Sparkles size={11} /> {aiLoading === "quick" ? t("Escribiendo…") : t("Escribir con IA")}</button>{readingOverride.trim() !== "" && <button type="button" className="reading-restore" onClick={() => updateReadingOverride("")}>{t("Usar texto automático")}</button>}</b>{aiError && <small className="inline-error">{aiError}</small>}<p><InlineText editKey={`reading-${report.player}`} value={readingOverride} fallback={report.reading} onCommit={updateReadingOverride} multiline /></p></div>
                       </aside>
                     </section>
 
@@ -1035,7 +1072,7 @@ export default function ScoutStudio() {
               </div>
 
               {report ? visualPages.filter((page) => printRun ? printRun.includes(page) : reportPage === page).map((page) => (
-                <ReportPageDesigner key={page} pageNumber={page} persist={!printRun || reportPage === page} player={report.player} team={profile.club || report.team} position={formatPlayerPositions(profile.position || report.position)} theme={reportTheme} onThemeChange={setReportTheme} recipientName={recipientName} recipientLogoUrl={reportRecipientLogoUrl} />
+                <ReportPageDesigner key={page} pageNumber={page} persist={!printRun || reportPage === page} player={report.player} team={profile.club || report.team} position={formatPlayerPositions(profile.position || report.position)} theme={reportTheme} onThemeChange={setReportTheme} recipientName={recipientName} recipientLogoUrl={reportRecipientLogoUrl} aiFacts={() => ({ lang, player: aiPlayerFacts(report), metrics: aiMetricFacts(report) })} />
               )) : !printRun && reportPage >= FIRST_VISUAL_PAGE ? <div className="empty-preview">{t("Selecciona un jugador para diseñar las páginas.")}</div> : null}
 
               {printDialogOpen && <div className="print-dialog-overlay" role="dialog" aria-modal="true" aria-label={t("¿Qué páginas quieres incluir en el PDF?")} onClick={() => setPrintDialogOpen(false)}>
