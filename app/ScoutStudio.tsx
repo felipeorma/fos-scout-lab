@@ -213,7 +213,7 @@ export default function ScoutStudio() {
   const [apiError, setApiError] = useState("");
   // Oferta automática de enlace con SkillCorner tras cargar una base
   // Wyscout o StatsBomb: elegir competición física, cargando, o resumen.
-  const [scLink, setScLink] = useState<null | { stage: "offer" | "loading" | "done"; candidates: ApiCompetition[]; selection: string; linked?: number; total?: number; error?: string }>(null);
+  const [scLink, setScLink] = useState<null | { stage: "offer" | "loading" | "done"; candidates: ApiCompetition[]; selection: string; linked?: number; total?: number; filled?: number; columns?: number; error?: string }>(null);
   const [radarColorMode, setRadarColorMode] = useState<"groups" | "platform">("groups");
   const [aiLoading, setAiLoading] = useState("");
   const [aiControlsHidden, setAiControlsHidden] = useState(true);
@@ -598,7 +598,7 @@ export default function ScoutStudio() {
       const baseYears = new Set(datasets.flatMap((dataset) => String(dataset.season ?? "").match(/\d{4}/g) ?? []));
       const baseNames = datasets.map((dataset) => dataset.fileName.toLowerCase());
       let best = 0;
-      let bestScore = -1;
+      let bestScore = 0;
       candidates.forEach((competition, index) => {
         let score = 0;
         const seasonText = String(competition.season ?? "").trim();
@@ -614,7 +614,10 @@ export default function ScoutStudio() {
         }
         if (score > bestScore) { bestScore = score; best = index; }
       });
-      setScLink({ stage: "offer", candidates, selection: String(best) });
+      // Sin señal (el archivo no dice liga ni año) no se adivina: preseleccionar
+      // la primera de la lista enlazaba una competición ajena y devolvía cero
+      // cruces sin ninguna pista de dónde venía el fallo.
+      setScLink({ stage: "offer", candidates, selection: bestScore > 0 ? String(best) : "" });
     } catch { /* Sin puente local no se ofrece el enlace. */ }
   }
 
@@ -634,8 +637,13 @@ export default function ScoutStudio() {
         const sources = String(row["Data sources"] ?? "");
         return sources.includes(scName) && sources.replace(scName, "").replace(/[,\s]/g, "").length > 0;
       }).length;
+      // Una competición puede venir solo con el paquete físico: las columnas de
+      // game intelligence llegan vacías. Sin avisar, el jugador queda enlazado
+      // pero su radar no muestra ni una métrica de SkillCorner.
+      const scColumns = dataset.headers.filter((header) => header.includes("(SC)"));
+      const filled = scColumns.filter((header) => dataset.rows.some((row) => row[header] !== "" && row[header] !== null && row[header] !== undefined)).length;
       applyDatasets(combined);
-      setScLink({ stage: "done", candidates: scLink.candidates, selection: scLink.selection, linked, total: baseCount });
+      setScLink({ stage: "done", candidates: scLink.candidates, selection: scLink.selection, linked, total: baseCount, filled, columns: scColumns.length });
     } catch (error) {
       setScLink({ ...scLink, stage: "offer", error: error instanceof Error ? error.message : String(error) });
     }
@@ -843,8 +851,11 @@ export default function ScoutStudio() {
             {scLink && <div className="print-dialog-overlay" role="dialog" aria-modal="true" aria-label={t("¿Enlazar datos físicos de SkillCorner?")} onClick={() => { if (scLink.stage !== "loading") setScLink(null); }}>
                 <div className="print-dialog api-dialog sc-link-dialog" onClick={(event) => event.stopPropagation()}>
                   {scLink.stage === "done" ? <>
-                    <h3>{t("Datos físicos enlazados")}</h3>
-                    <p>{tf("{n} de {m} jugadores de la base quedaron enlazados con SkillCorner.", { n: scLink.linked ?? 0, m: scLink.total ?? 0 })}</p>
+                    <h3>{scLink.linked ? t("Datos físicos enlazados") : t("No coincidió ningún jugador")}</h3>
+                    <p>{scLink.linked
+                      ? tf("{n} de {m} jugadores de la base quedaron enlazados con SkillCorner.", { n: scLink.linked ?? 0, m: scLink.total ?? 0 })
+                      : t("Revisa que la competición elegida sea la misma temporada y liga de la base: se cruzan por nombre, club y edad.")}</p>
+                    {Boolean(scLink.linked) && (scLink.filled ?? 0) < (scLink.columns ?? 0) && <p className="api-credentials-hint">{tf("Esta competición trae {n} de {m} métricas de SkillCorner: el resto no está en tu suscripción para esta liga, así que no aparecerán en el radar.", { n: scLink.filled ?? 0, m: scLink.columns ?? 0 })}</p>}
                     <div className="print-dialog-actions"><button className="button primary" onClick={() => setScLink(null)}>{t("Entendido")}</button></div>
                   </> : <>
                     <h3>{t("¿Enlazar datos físicos de SkillCorner?")}</h3>
