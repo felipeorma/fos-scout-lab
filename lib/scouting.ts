@@ -207,6 +207,68 @@ function maxPerProvider(entries: Array<{ row: DataRow; provider: MetricSource }>
   return Math.max(0, ...perProvider.values());
 }
 
+// ---- Equivalencia y canonización de nombres de club ----
+// Los exports escriben el mismo club de formas distintas ("Cavalry FC",
+// "Cavalry", "Vancouver Football Club"). Se agrupan para que el desplegable
+// de equipos muestre una sola entrada por club.
+const CLUB_STOPWORDS = new Set(["fc", "cf", "sc", "afc", "cd", "ac", "fk", "sk", "club", "football", "futbol", "soccer", "de", "du", "des", "the"]);
+const CLUB_ALIAS_GROUPS = [["york united", "inter toronto"]];
+const clubTokens = (value: string) => value.split(" ").filter((token) => token && !CLUB_STOPWORDS.has(token));
+
+export function clubsMatch(a: string, b: string) {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const listA = clubTokens(a);
+  const listB = clubTokens(b);
+  const ta = new Set(listA);
+  const tb = new Set(listB);
+  // El token distintivo va primero ("Inter Toronto" ≠ "Toronto FC"), así que
+  // un subconjunto solo vale si ambos nombres arrancan por la misma palabra:
+  // "Vancouver FC" ≡ "Vancouver Football Club", "FC Supra" ≡ "FC Supra du
+  // Québec", pero clubes distintos de la misma ciudad no se confunden.
+  if (listA[0] === listB[0] && ([...ta].every((token) => tb.has(token)) || [...tb].every((token) => ta.has(token)))) return true;
+  return CLUB_ALIAS_GROUPS.some((group) => {
+    const inA = group.find((alias) => a.includes(alias));
+    const inB = group.find((alias) => b.includes(alias));
+    return Boolean(inA && inB && inA !== inB);
+  });
+}
+
+/**
+ * Mapa "nombre tal como viene" → "nombre que se muestra". Agrupa las variantes
+ * equivalentes y elige como etiqueta la más frecuente; a igualdad, la más
+ * completa ("Vancouver Football Club" antes que "Vancouver"), y a igualdad de
+ * longitud, la primera por orden alfabético para que el resultado no dependa
+ * del orden en que se cargaron los archivos.
+ */
+export function canonicalTeamNames(counts: Map<string, number>): Map<string, string> {
+  const variants = [...counts.keys()].filter(Boolean).sort((a, b) => a.localeCompare(b, "es"));
+  const clusters: Array<{ identity: string; names: string[] }> = [];
+  for (const name of variants) {
+    const identity = normalizeIdentityText(name);
+    if (!identity) continue;
+    const cluster = clusters.find((candidate) => candidate.names.some((other) => clubsMatch(identity, normalizeIdentityText(other))));
+    if (cluster) cluster.names.push(name);
+    else clusters.push({ identity, names: [name] });
+  }
+  const mapping = new Map<string, string>();
+  for (const cluster of clusters) {
+    const label = [...cluster.names].sort((a, b) => {
+      const byCount = (counts.get(b) ?? 0) - (counts.get(a) ?? 0);
+      if (byCount) return byCount;
+      const byTokens = clubTokens(normalizeIdentityText(b)).length - clubTokens(normalizeIdentityText(a)).length;
+      if (byTokens) return byTokens;
+      // A igualdad, gana la grafía acentuada: "Atlético Ottawa", no "Atletico".
+      const accents = (value: string) => (/[^\u0000-\u007F]/.test(value) ? 1 : 0);
+      const byAccents = accents(b) - accents(a);
+      if (byAccents) return byAccents;
+      return a.localeCompare(b, "es");
+    })[0];
+    for (const name of cluster.names) mapping.set(name, label);
+  }
+  return mapping;
+}
+
 export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult {
   if (datasets.length < 1) throw new Error(t("Selecciona al menos un archivo de datos."));
   const allHeaders = [...new Set(datasets.flatMap((dataset) => dataset.headers))];
@@ -220,12 +282,30 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
   // selected timeframe" o "Team"); se resuelve por fila con fallback para que
   // ninguna base quede con equipo vacío al combinar.
   const teamColumns = TEAM_ALIASES.map((alias) => findColumn(allHeaders, [alias])).filter(Boolean);
-  const rowTeam = (row: DataRow) => {
+  const rawTeam = (row: DataRow) => {
     for (const column of teamColumns) {
-      const value = String(row[column] ?? "").trim();
+      // Los espacios dobles o finales del export no deben abrir una entrada
+      // aparte en el desplegable de equipos.
+      const value = String(row[column] ?? "").trim().replace(/\s+/g, " ");
       if (value && value.toLowerCase() !== "nan") return value;
     }
     return "";
+  };
+  // La etiqueta visible sale de la base (Wyscout/StatsBomb): SkillCorner aporta
+  // sus variantes al grupo pero no las impone, porque puede arrastrar nombres
+  // viejos tras un rebranding.
+  const teamCounts = new Map<string, number>();
+  for (const dataset of datasets) {
+    const weight = dataset.provider === "skillcorner" ? 0 : 1;
+    for (const row of dataset.rows) {
+      const name = rawTeam(row);
+      if (name) teamCounts.set(name, (teamCounts.get(name) ?? 0) + weight);
+    }
+  }
+  const teamLabels = canonicalTeamNames(teamCounts);
+  const rowTeam = (row: DataRow) => {
+    const name = rawTeam(row);
+    return teamLabels.get(name) ?? name;
   };
 
   const birthColumn = findColumn(allHeaders, ["birth date", "fecha de nacimiento", "date of birth", "birthday"]);
@@ -297,27 +377,6 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
   // "Vancouver Football Club", "FC Supra" vs "FC Supra du Québec"): se
   // comparan por tokens significativos (subconjunto) más alias explícitos
   // para rebrandings ("York United" pasó a ser "Inter Toronto" en 2026).
-  const CLUB_STOPWORDS = new Set(["fc", "cf", "sc", "afc", "cd", "ac", "fk", "sk", "club", "football", "futbol", "soccer", "de", "du", "des", "the"]);
-  const CLUB_ALIAS_GROUPS = [["york united", "inter toronto"]];
-  const clubTokens = (value: string) => value.split(" ").filter((token) => token && !CLUB_STOPWORDS.has(token));
-  const clubsMatch = (a: string, b: string) => {
-    if (!a || !b) return false;
-    if (a === b) return true;
-    const listA = clubTokens(a);
-    const listB = clubTokens(b);
-    const ta = new Set(listA);
-    const tb = new Set(listB);
-    // El token distintivo va primero ("Inter Toronto" ≠ "Toronto FC"), así que
-    // un subconjunto solo vale si ambos nombres arrancan por la misma palabra:
-    // "Vancouver FC" ≡ "Vancouver Football Club", "FC Supra" ≡ "FC Supra du
-    // Québec", pero clubes distintos de la misma ciudad no se confunden.
-    if (listA[0] === listB[0] && ([...ta].every((token) => tb.has(token)) || [...tb].every((token) => ta.has(token)))) return true;
-    return CLUB_ALIAS_GROUPS.some((group) => {
-      const inA = group.find((alias) => a.includes(alias));
-      const inB = group.find((alias) => b.includes(alias));
-      return Boolean(inA && inB && inA !== inB);
-    });
-  };
   const compatible = (a: typeof combined, b: typeof combined) => {
     const ta = nameTokens(a[0].player);
     const tb = nameTokens(b[0].player);

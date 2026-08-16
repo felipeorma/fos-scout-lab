@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { METRICS, aggregateDatasets, peerCohort } from "../lib/scouting.ts";
+import { METRICS, aggregateDatasets, canonicalTeamNames, peerCohort } from "../lib/scouting.ts";
 
 const HEADERS = ["Player", "Team", "Age", "Birth date", "Minutes played", "Matches played", "Goals", "Assists"];
 
@@ -103,4 +103,40 @@ test("las métricas de SkillCorner son siempre del grupo físico y las inversas 
   for (const metric of platform) assert.equal(metric.colorGroup, "physical", `${metric.label} fuera del grupo físico`);
   const inverse = platform.filter((metric) => metric.inverse).map((metric) => metric.label);
   assert.deepEqual(inverse.sort(), ["Dificultad de pase (SC)", "Reacción al sprint tras giro (SC)", "Superado en duelo % (SC)"]);
+});
+
+test("las variantes de escritura de un club se unen en una sola entrada", () => {
+  const rows = [
+    player({ Player: "A Uno", Team: "Cavalry FC" }),
+    player({ Player: "B Dos", Team: "Cavalry" }),
+    player({ Player: "C Tres", Team: "Cavalry  FC" }),
+    player({ Player: "D Cuatro", Team: "Vancouver FC" }),
+    player({ Player: "E Cinco", Team: "Vancouver Football Club" }),
+    player({ Player: "F Seis", Team: "Atlético Ottawa" }),
+    player({ Player: "G Siete", Team: "Atletico Ottawa" }),
+  ];
+  const result = aggregateDatasets([dataset("cpl 2026.xlsx", 2026, "wyscout", rows)]);
+  const teams = [...new Set(result.rows.map((row) => row.Team))].sort();
+  assert.deepEqual(teams, ["Atlético Ottawa", "Cavalry FC", "Vancouver FC"]);
+});
+
+test("clubes distintos de una misma ciudad siguen separados en la lista", () => {
+  const rows = [
+    player({ Player: "A Uno", Team: "Inter Toronto FC" }),
+    player({ Player: "B Dos", Team: "Toronto FC" }),
+  ];
+  const result = aggregateDatasets([dataset("mixta.xlsx", 2026, "wyscout", rows)]);
+  assert.equal(new Set(result.rows.map((row) => row.Team)).size, 2);
+});
+
+test("el nombre visible del club sale de la base, no de SkillCorner", () => {
+  const result = aggregateDatasets([
+    dataset("StatsBomb · CPL 2026", 2026, "statsbomb", [player({ Player: "A Uno", Team: "Inter Toronto FC" })]),
+    dataset("SkillCorner · CPL 2026", 2026, "skillcorner", [
+      player({ Player: "A Uno", Team: "York United FC" }),
+      player({ Player: "B Dos", Team: "York United FC" }),
+      player({ Player: "C Tres", Team: "York United FC" }),
+    ]),
+  ]);
+  for (const row of result.rows) assert.equal(row.Team, "Inter Toronto FC");
 });

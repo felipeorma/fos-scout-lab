@@ -247,6 +247,21 @@ El prompt fija las reglas de estilo del departamento: lenguaje de scout, solo lo
 números entregados, sin la palabra "cohorte", sin mencionar vídeo y sin aludir a
 que se revisaron otros jugadores.
 
+## Nombres de club
+
+Cada export escribe los clubes a su manera: con FC y sin FC, con espacios de
+más, con acento y sin acento, o con el nombre largo ("Vancouver Football Club"
+frente a "Vancouver FC"). Al combinar bases esas variantes se agrupan en una
+sola entrada del desplegable de equipos.
+
+La etiqueta visible sale de la base (Wyscout o StatsBomb), nunca de SkillCorner,
+que puede arrastrar el nombre anterior a un rebranding. Entre variantes de la
+base gana la más frecuente; a igualdad, la más completa, y después la acentuada
+—"Atlético Ottawa", no "Atletico".
+
+Clubes distintos de una misma ciudad no se confunden: "Inter Toronto FC" y
+"Toronto FC" siguen separados, porque la palabra distintiva va primero.
+
 ## Reglas para combinar bases
 
 - no existe un límite fijo de archivos; la combinación requiere al menos dos;
