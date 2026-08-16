@@ -216,7 +216,7 @@ export default function ScoutStudio() {
   const [scLink, setScLink] = useState<null | { stage: "offer" | "loading" | "done"; candidates: ApiCompetition[]; selection: string; linked?: number; total?: number; error?: string }>(null);
   const [radarColorMode, setRadarColorMode] = useState<"groups" | "platform">("groups");
   const [aiLoading, setAiLoading] = useState("");
-  const [aiControlsHidden, setAiControlsHidden] = useState(false);
+  const [aiControlsHidden, setAiControlsHidden] = useState(true);
   const [aiError, setAiError] = useState("");
   const [printLayoutError, setPrintLayoutError] = useState("");
   const [readingOverride, setReadingOverride] = useState("");
@@ -459,7 +459,7 @@ export default function ScoutStudio() {
   }
 
   useEffect(() => {
-    try { setAiControlsHidden(window.localStorage.getItem("fos-scout-ai-controls-hidden") === "1"); } catch { /* preferencia opcional */ }
+    try { setAiControlsHidden(window.localStorage.getItem("fos-scout-ai-controls-v2") !== "shown"); } catch { /* preferencia opcional */ }
   }, []);
 
   useEffect(() => {
@@ -928,7 +928,7 @@ export default function ScoutStudio() {
                   <div className="data-summary"><div><span>{t("Bases")}</span><b>{reportSourceCount}</b></div><div><span>{t("Jugadores")}</span><b>{numberFormat(reportRows.length)}</b></div><div><span>{t("Cohorte")}</span><b>{report?.cohortSize ?? 0}</b></div></div>
                   {report && report.cohortSize < 5 && <div className="inline-error">{report.cohortSize === 0 ? t("No hay jugadores de esta posición con el mínimo de minutos: baja el mínimo o carga más datos.") : (report.cohortSize === 1 ? t("Cohorte de 1 jugador: percentiles poco fiables. Baja el mínimo de minutos o carga más datos.") : tf("Cohorte de {n} jugadores: percentiles poco fiables. Baja el mínimo de minutos o carga más datos.", { n: report.cohortSize }))}</div>}
                   {report && report.metrics.some((metric) => metric.source && metric.source !== "wyscout") && <div className="radar-color-toggle"><span className="field-label">{t("Color del radar")}</span><div className="segmented"><button className={radarColorMode === "groups" ? "active" : ""} onClick={() => setRadarColorMode("groups")}>{t("Por grupo")}</button><button className={radarColorMode === "platform" ? "active" : ""} onClick={() => setRadarColorMode("platform")}>{t("Por plataforma")}</button></div></div>}
-                  <div className="radar-color-toggle"><span className="field-label">{t("Textos con IA")}</span><div className="segmented"><button className={!aiControlsHidden ? "active" : ""} onClick={() => { setAiControlsHidden(false); try { window.localStorage.setItem("fos-scout-ai-controls-hidden", "0"); } catch { /* opcional */ } }}>{t("Mostrar")}</button><button className={aiControlsHidden ? "active" : ""} onClick={() => { setAiControlsHidden(true); setAiError(""); try { window.localStorage.setItem("fos-scout-ai-controls-hidden", "1"); } catch { /* opcional */ } }}>{t("Ocultar")}</button></div></div>
+                  <div className="radar-color-toggle"><span className="field-label">{t("Textos con IA")}</span><div className="segmented"><button className={!aiControlsHidden ? "active" : ""} onClick={() => { setAiControlsHidden(false); try { window.localStorage.setItem("fos-scout-ai-controls-v2", "shown"); } catch { /* opcional */ } }}>{t("Mostrar")}</button><button className={aiControlsHidden ? "active" : ""} onClick={() => { setAiControlsHidden(true); setAiError(""); try { window.localStorage.setItem("fos-scout-ai-controls-v2", "hidden"); } catch { /* opcional */ } }}>{t("Ocultar")}</button></div></div>
                   <p className="inline-edit-hint">{t("Los textos del informe (etiqueta de la base, lectura rápida, club destinatario) se editan con un clic directamente sobre la vista previa.")}</p>
                   <details className="profile-details report-recipient-editor">
                     <summary>{t("Reporte generado para")}</summary>

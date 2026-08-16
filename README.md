@@ -223,10 +223,13 @@ reales que ya calcula la app —nunca plantillas guardadas—:
   objetivo frente al comparado, cerrando con una recomendación.
 
 Cada texto cae en el mismo campo editable de siempre, así que se puede corregir
-antes de exportar y se guarda con el informe. Los botones de IA y sus avisos son
-herramientas de edición: nunca se imprimen ni se exportan, y se pueden apagar
-del todo con el interruptor **Textos con IA** del panel, que recuerda la
-elección entre sesiones.
+antes de exportar y se guarda con el informe.
+
+Los botones de IA vienen **apagados de fábrica**: el informe se abre limpio y la
+lectura rápida se edita con un clic, como siempre. Se encienden con el
+interruptor **Textos con IA** del panel, que recuerda la elección entre
+sesiones. Aunque el texto lo escriba la IA, sigue siendo editable; y ni los
+botones ni sus avisos se imprimen o exportan nunca.
 
 La petición viaja por el servidor local (`npm run bg:server`): **la clave de
 Anthropic nunca llega al navegador ni al bundle publicado**. Se guarda una sola
