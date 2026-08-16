@@ -852,8 +852,10 @@ export default function ScoutStudio() {
                     <div className="api-platform-row" style={{ "--platform-color": METRIC_SOURCE_COLORS.skillcorner.color } as React.CSSProperties}>
                       <div className="api-platform-head"><i /><b>{METRIC_SOURCE_COLORS.skillcorner.label}</b><small>{`${scLink.candidates.length} ${t("competiciones disponibles")}`}</small></div>
                       <select value={scLink.selection} onChange={(event) => setScLink({ ...scLink, selection: event.target.value })} disabled={scLink.stage === "loading"}>
+                        <option value="">{t("Elegir competición")}…</option>
                         {scLink.candidates.map((competition, index) => <option key={index} value={index}>{competition.name} · {competition.season}</option>)}
                       </select>
+                      {!scLink.selection && <p className="api-credentials-hint">{t("Elige la competición que corresponde a esta base: el archivo no dice de cuál es.")}</p>}
                     </div>
                     {scLink.error && <p className="inline-error">{scLink.error}</p>}
                     <div className="print-dialog-actions">
