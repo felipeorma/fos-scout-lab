@@ -24,6 +24,8 @@ import { DEFAULT_REPORT_THEME, reportThemeStyle, type ReportTheme } from "./repo
 import {
   aggregateDatasets,
   buildPlayerReport,
+  defaultMetricLabels,
+  metricCatalogue,
   detectCoreColumns,
   extractSeason,
   formatCell,
@@ -217,6 +219,8 @@ export default function ScoutStudio() {
   const [radarColorMode, setRadarColorMode] = useState<"groups" | "platform">("groups");
   const [aiLoading, setAiLoading] = useState("");
   const [aiControlsHidden, setAiControlsHidden] = useState(true);
+  // Métricas elegidas a mano, por perfil. Sin entrada para un perfil, manda su set por defecto.
+  const [metricPicks, setMetricPicks] = useState<Record<string, string[]>>({});
   const [aiError, setAiError] = useState("");
   const [printLayoutError, setPrintLayoutError] = useState("");
   const [readingOverride, setReadingOverride] = useState("");
@@ -260,9 +264,17 @@ export default function ScoutStudio() {
     [players, selectedTeam],
   );
   const report = useMemo(
-    () => buildPlayerReport(reportRows, selectedPlayer, minimumMinutes, cohort),
+    () => {
+      // El perfil solo se conoce tras construir el informe, y la selección se
+      // guarda por perfil: se resuelve primero el perfil y se rehace únicamente
+      // si ese perfil tiene métricas elegidas a mano.
+      const base = buildPlayerReport(reportRows, selectedPlayer, minimumMinutes, cohort);
+      const picks = base ? metricPicks[base.cohort] : undefined;
+      if (!base || !picks) return base;
+      return buildPlayerReport(reportRows, selectedPlayer, minimumMinutes, cohort, picks) ?? base;
+    },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [reportRows, selectedPlayer, minimumMinutes, cohort, lang],
+    [reportRows, selectedPlayer, minimumMinutes, cohort, lang, metricPicks],
   );
   // Bloques de métricas del desglose: solo las categorías con datos. El número
   // de columnas se ajusta al total para no dejar una categoría suelta al final
@@ -326,11 +338,20 @@ export default function ScoutStudio() {
     if (!printRun) return;
     let cancelled = false;
     document.body.classList.add("print-layout-check");
+    // En una pestaña en segundo plano requestAnimationFrame no dispara nunca y
+    // la exportación se quedaría esperando para siempre: se corre contra un
+    // temporizador para que el flujo siempre avance.
+    const siguienteCuadro = () => new Promise<void>((resolve) => {
+      let hecho = false;
+      const listo = () => { if (!hecho) { hecho = true; resolve(); } };
+      window.requestAnimationFrame(() => window.requestAnimationFrame(listo));
+      window.setTimeout(listo, 400);
+    });
     // Espera fuentes, imágenes y dos ciclos de layout antes de abrir la impresión.
     // Así Chrome no captura una página todavía reordenándose.
     const timer = window.setTimeout(() => {
       void (async () => {
-        await document.fonts?.ready;
+        await Promise.race([document.fonts?.ready ?? Promise.resolve(), new Promise((resolve) => window.setTimeout(resolve, 3_000))]);
         const images = Array.from(document.querySelectorAll<HTMLImageElement>(".legal-page-shell img, .scout-report img, .visual-report-page img"));
         await Promise.all(images.map(async (image) => {
           if (!image.complete) {
@@ -344,28 +365,74 @@ export default function ScoutStudio() {
           }
           try { await image.decode(); } catch { /* El navegador puede imprimir el fallback ya renderizado. */ }
         }));
-        await new Promise<void>((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve())));
+        await siguienteCuadro();
         if (cancelled) return;
-        const fitTargets = Array.from(document.querySelectorAll<HTMLElement>(
-          ".legal-page-shell .scout-report, .legal-page-shell .visual-report-page, .legal-page-shell .similarity-native-block, .legal-page-shell .similarity-native-content, .legal-page-shell .similarity-report-main, .legal-page-shell .similarity-metric-section, .legal-page-shell .visual-text-content",
-        ));
-        const clippedMetrics = Array.from(document.querySelectorAll<HTMLElement>(".legal-page-shell .similarity-metric-section")).some((section) => {
-          const metrics = section.querySelectorAll<HTMLElement>(".metric-duel");
-          const lastMetric = metrics.item(metrics.length - 1);
-          const boundary = section.closest<HTMLElement>(".similarity-native-content");
-          if (!lastMetric || !boundary) return false;
-          const metricRect = lastMetric.getBoundingClientRect();
-          const boundaryRect = boundary.getBoundingClientRect();
-          return metricRect.bottom > boundaryRect.bottom + 2 || metricRect.right > boundaryRect.right + 2;
-        });
-        const overflowing = clippedMetrics || fitTargets.some((element) => element.clientHeight > 0 && element.scrollHeight > element.clientHeight + 2);
-        if (overflowing) {
+        // Ajuste automático a la hoja Legal. En vez de rechazar la exportación
+        // por unos milímetros de más, cada página se reduce con una escala
+        // uniforme: las proporciones y la maquetación se conservan intactas y,
+        // al ser un escalado único, nada puede quedar solapado. Se itera porque
+        // ensanchar la caja antes de escalarla vuelve a repartir el texto.
+        const FIT_SELECTOR = ".scout-report, .visual-report-page, .similarity-native-block, .similarity-native-content, .similarity-report-main, .similarity-metric-section, .visual-text-content";
+        const MIN_FIT = 0.55;
+        const shells = Array.from(document.querySelectorAll<HTMLElement>(".legal-page-shell"));
+
+        const overflowRatio = (shell: HTMLElement) => {
+          let worst = 1;
+          for (const element of Array.from(shell.querySelectorAll<HTMLElement>(FIT_SELECTOR))) {
+            if (element.clientHeight > 0 && element.scrollHeight > element.clientHeight + 2) {
+              worst = Math.min(worst, element.clientHeight / element.scrollHeight);
+            }
+            if (element.clientWidth > 0 && element.scrollWidth > element.clientWidth + 2) {
+              worst = Math.min(worst, element.clientWidth / element.scrollWidth);
+            }
+          }
+          // La comparación de similitud recorta por posición, no por scroll: la
+          // última métrica puede caer fuera del marco sin que scrollHeight crezca.
+          for (const section of Array.from(shell.querySelectorAll<HTMLElement>(".similarity-metric-section"))) {
+            const duels = section.querySelectorAll<HTMLElement>(".metric-duel");
+            const last = duels.item(duels.length - 1);
+            const boundary = section.closest<HTMLElement>(".similarity-native-content");
+            if (!last || !boundary) continue;
+            const lastRect = last.getBoundingClientRect();
+            const frame = boundary.getBoundingClientRect();
+            const usado = lastRect.bottom - frame.top;
+            if (usado > frame.height + 2 && usado > 0) worst = Math.min(worst, frame.height / usado);
+          }
+          return worst;
+        };
+
+        const escalas = new Map<HTMLElement, number>();
+        for (let pasada = 0; pasada < 4; pasada += 1) {
+          let ajustada = false;
+          for (const shell of shells) {
+            const ratio = overflowRatio(shell);
+            if (ratio >= 1) continue;
+            // Un poco de holgura evita quedarse a un pelo del borde.
+            const escala = Math.max(MIN_FIT, (escalas.get(shell) ?? 1) * ratio * 0.995);
+            if (Math.abs(escala - (escalas.get(shell) ?? 1)) < 0.002) continue;
+            escalas.set(shell, escala);
+            shell.style.setProperty("--print-fit", String(escala));
+            shell.dataset.printFit = "1";
+            ajustada = true;
+          }
+          if (!ajustada) break;
+          await siguienteCuadro();
+          if (cancelled) return;
+        }
+
+        const irreducible = shells.some((shell) => (escalas.get(shell) ?? 1) <= MIN_FIT && overflowRatio(shell) < 1);
+        if (irreducible) {
+          for (const shell of shells) { shell.style.removeProperty("--print-fit"); delete shell.dataset.printFit; }
           document.body.classList.remove("print-layout-check");
-          setPrintLayoutError(t("Una página excede el área Legal. Reduce el texto o ajusta su contenido antes de exportar."));
+          setPrintLayoutError(t("Una página tiene demasiado contenido para la hoja Legal, incluso reduciéndola. Quita algún bloque o acorta el texto."));
           setPrintRun(null);
           setPrintDialogOpen(true);
           return;
         }
+        const limpiarEscala = () => {
+          for (const shell of shells) { shell.style.removeProperty("--print-fit"); delete shell.dataset.printFit; }
+        };
+        window.addEventListener("afterprint", limpiarEscala, { once: true });
         const previousTitle = document.title;
         const exportTitle = printFileNameRef.current;
         const restoreTitle = () => {
@@ -460,6 +527,10 @@ export default function ScoutStudio() {
 
   useEffect(() => {
     try { setAiControlsHidden(window.localStorage.getItem("fos-scout-ai-controls-v2") !== "shown"); } catch { /* preferencia opcional */ }
+    try {
+      const stored = window.localStorage.getItem("fos-scout-metric-picks-v1");
+      if (stored) setMetricPicks(JSON.parse(stored) as Record<string, string[]>);
+    } catch { /* preferencia opcional */ }
   }, []);
 
   useEffect(() => {
@@ -552,6 +623,38 @@ export default function ScoutStudio() {
 
   // Hechos que se le entregan a Claude: los mismos números que se dibujan en
   // el radar, para que el texto no pueda inventar nada.
+  const availableMetrics = useMemo(() => (reportRows.length ? metricCatalogue(reportRows, report?.cohort ?? "OTHER") : []), [reportRows, report?.cohort]);
+
+  function saveMetricPicks(next: Record<string, string[]>) {
+    setMetricPicks(next);
+    try { window.localStorage.setItem("fos-scout-metric-picks-v1", JSON.stringify(next)); } catch { /* preferencia opcional */ }
+  }
+
+  function toggleMetric(label: string) {
+    if (!report) return;
+    const perfil = report.cohort;
+    const porDefecto = report.metrics.map((metric) => metric.label);
+    // Actualización funcional: varios clics seguidos se componen sobre el
+    // estado real. Con el valor del render se pisaban entre sí y la misma
+    // métrica podía acabar repetida en la lista.
+    setMetricPicks((current) => {
+      const base = [...new Set(current[perfil] ?? porDefecto)];
+      const next = base.includes(label) ? base.filter((item) => item !== label) : [...base, label];
+      // Sin métricas no hay radar: la última no se puede quitar.
+      if (!next.length) return current;
+      const updated = { ...current, [perfil]: next };
+      try { window.localStorage.setItem("fos-scout-metric-picks-v1", JSON.stringify(updated)); } catch { /* preferencia opcional */ }
+      return updated;
+    });
+  }
+
+  function restoreCohortMetrics() {
+    if (!report) return;
+    const next = { ...metricPicks };
+    delete next[report.cohort];
+    saveMetricPicks(next);
+  }
+
   function aiPlayerFacts(source: PlayerReport): AiPlayerFacts {
     const row = reportRows[selectedPlayer] ?? {};
     return {
@@ -942,6 +1045,23 @@ export default function ScoutStudio() {
                   {report && report.cohortSize < 5 && <div className="inline-error">{report.cohortSize === 0 ? t("No hay jugadores de esta posición con el mínimo de minutos: baja el mínimo o carga más datos.") : (report.cohortSize === 1 ? t("Cohorte de 1 jugador: percentiles poco fiables. Baja el mínimo de minutos o carga más datos.") : tf("Cohorte de {n} jugadores: percentiles poco fiables. Baja el mínimo de minutos o carga más datos.", { n: report.cohortSize }))}</div>}
                   {report && report.metrics.some((metric) => metric.source && metric.source !== "wyscout") && <div className="radar-color-toggle"><span className="field-label">{t("Color del radar")}</span><div className="segmented"><button className={radarColorMode === "groups" ? "active" : ""} onClick={() => setRadarColorMode("groups")}>{t("Por grupo")}</button><button className={radarColorMode === "platform" ? "active" : ""} onClick={() => setRadarColorMode("platform")}>{t("Por plataforma")}</button></div></div>}
                   <div className="radar-color-toggle"><span className="field-label">{t("Textos con IA")}</span><div className="segmented"><button className={!aiControlsHidden ? "active" : ""} onClick={() => { setAiControlsHidden(false); try { window.localStorage.setItem("fos-scout-ai-controls-v2", "shown"); } catch { /* opcional */ } }}>{t("Mostrar")}</button><button className={aiControlsHidden ? "active" : ""} onClick={() => { setAiControlsHidden(true); setAiError(""); try { window.localStorage.setItem("fos-scout-ai-controls-v2", "hidden"); } catch { /* opcional */ } }}>{t("Ocultar")}</button></div></div>
+                  {report && availableMetrics.length > 0 && <details className="profile-details metric-picker">
+                    <summary>{t("Métricas del radar")} <b>{report.metrics.length}</b></summary>
+                    <p className="metric-picker-hint">{t("Marca las que quieres ver. El percentil siempre se calcula contra los jugadores de su posición en la base cargada.")}</p>
+                    {SIMILARITY_METRIC_GROUPS.map((group) => {
+                      const delGrupo = availableMetrics.filter((definition) => similarityMetricGroup(definition, report.cohort).id === group.id);
+                      if (!delGrupo.length) return null;
+                      const activas = new Set(report.metrics.map((metric) => metric.label));
+                      return <div key={group.id} className="metric-picker-group">
+                        <span style={{ "--group-color": group.color } as React.CSSProperties}><i />{t(group.label)}</span>
+                        {delGrupo.map((definition) => <label key={definition.label}>
+                          <input type="checkbox" checked={activas.has(definition.label)} onChange={() => toggleMetric(definition.label)} />
+                          <span>{t(definition.label)}</span>
+                        </label>)}
+                      </div>;
+                    })}
+                    {metricPicks[report.cohort] && <button type="button" className="button secondary compact" onClick={restoreCohortMetrics}>{t("Volver al set del perfil")}</button>}
+                  </details>}
                   <p className="inline-edit-hint">{t("Los textos del informe (etiqueta de la base, lectura rápida, club destinatario) se editan con un clic directamente sobre la vista previa.")}</p>
                   <details className="profile-details report-recipient-editor">
                     <summary>{t("Reporte generado para")}</summary>

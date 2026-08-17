@@ -937,7 +937,44 @@ function roleReading(cohort: string, metrics: RadarMetric[]) {
   return text.trim();
 }
 
-export function buildPlayerReport(rows: DataRow[], selectedIndex: number, minimumMinutes: number, forcedCohort = "AUTO"): PlayerReport | null {
+/**
+ * Métricas que la base cargada permite dibujar: toda definición conocida —de
+ * cualquier perfil— cuya columna exista en los datos. Es el universo que se
+ * ofrece para añadir o quitar del radar; el set por defecto sigue siendo el
+ * del perfil del jugador.
+ */
+export type CatalogueMetric = MetricDefinition & { key: string };
+
+export function metricCatalogue(rows: DataRow[], cohort = "OTHER"): CatalogueMetric[] {
+  const headers = [...new Set(rows.flatMap((row) => Object.keys(row)))];
+  const seen = new Set<string>();
+  const catalogue: CatalogueMetric[] = [];
+  // Una misma etiqueta puede estar definida en varios perfiles con distinto
+  // grupo de color (OBV de pase es "pase" para un lateral y "portería" para un
+  // portero). Manda la definición del perfil activo.
+  const ordenadas = [...(METRICS[cohort] ?? []), ...Object.values(METRICS).flat()];
+  for (const definition of ordenadas) {
+    if (seen.has(definition.label)) continue;
+    // La columna real es la que decide el grupo de color: clasificar por la
+    // etiqueta manda métricas al bloque equivocado ("Pass OBV" a portería).
+    const key = findColumn(headers, definition.aliases);
+    if (!key) continue;
+    seen.add(definition.label);
+    catalogue.push({ ...definition, key });
+  }
+  const rank = new Map(SIMILARITY_METRIC_GROUPS.map((group, index) => [group.id, index] as const));
+  return catalogue.sort((a, b) => {
+    const byGroup = (rank.get(similarityMetricGroup(a, cohort).id) ?? 99) - (rank.get(similarityMetricGroup(b, cohort).id) ?? 99);
+    return byGroup || a.label.localeCompare(b.label, "es");
+  });
+}
+
+/** Métricas que trae por defecto un perfil, en su orden de definición. */
+export function defaultMetricLabels(cohort: string): string[] {
+  return (METRICS[cohort] ?? METRICS.OTHER).map((definition) => definition.label);
+}
+
+export function buildPlayerReport(rows: DataRow[], selectedIndex: number, minimumMinutes: number, forcedCohort = "AUTO", selectedMetricLabels?: string[] | null): PlayerReport | null {
   const row = rows[selectedIndex];
   if (!row) return null;
   const headers = [...new Set(rows.flatMap((item) => Object.keys(item)))];
@@ -945,7 +982,13 @@ export function buildPlayerReport(rows: DataRow[], selectedIndex: number, minimu
   const positionColumn = findColumn(headers, POSITION_ALIASES);
   const sourceCohort = cohortOf(positionColumn ? row[positionColumn] : "");
   const cohort = forcedCohort === "AUTO" ? sourceCohort : forcedCohort;
-  const definitions = METRICS[cohort] ?? METRICS.OTHER;
+  // Con una selección propia se respeta su orden y puede traer métricas de
+  // otros perfiles; sin ella, el set del perfil. El grupo de referencia y el
+  // cálculo del percentil no cambian en ningún caso.
+  const byLabel = new Map(Object.values(METRICS).flat().map((definition) => [definition.label, definition] as const));
+  const definitions = selectedMetricLabels?.length
+    ? selectedMetricLabels.map((label) => byLabel.get(label)).filter((definition): definition is MetricDefinition => Boolean(definition))
+    : METRICS[cohort] ?? METRICS.OTHER;
   // La cohorte siempre son los jugadores de esa misma posición dentro de la
   // base cargada. Al forzar una cohorte se comparan las métricas de ese rol,
   // pero el grupo de referencia sigue siendo el de la posición seleccionada:

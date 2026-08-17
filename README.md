@@ -247,6 +247,24 @@ El prompt fija las reglas de estilo del departamento: lenguaje de scout, solo lo
 números entregados, sin la palabra "cohorte", sin mencionar vídeo y sin aludir a
 que se revisaron otros jugadores.
 
+## Métricas del radar a medida
+
+La página 01 trae un panel **Métricas del radar** que lista todo lo que la base
+cargada permite dibujar, agrupado por categoría y con su color. Se marcan y
+desmarcan una a una, y se pueden añadir métricas de otros perfiles —el
+percentil se sigue calculando siempre contra los jugadores de la misma posición
+en la base cargada—. La elección se recuerda por perfil entre sesiones y se
+deshace con "Volver al set del perfil".
+
+## Exportación que siempre entra en la hoja
+
+Antes de imprimir, cada página se mide contra el área Legal. Si sobra
+contenido, la hoja se reduce con una **escala uniforme** en vez de rechazar la
+exportación: solo se compensa el alto, nunca el ancho, para que nada se
+re-maquete —el radar mantiene su tamaño— y al ser un único escalado ninguna
+proporción cambia ni puede quedar nada solapado. Solo se avisa si ni siquiera
+reduciendo al 55 % cabe el contenido.
+
 ## Nombres de club
 
 Cada export escribe los clubes a su manera: con FC y sin FC, con espacios de

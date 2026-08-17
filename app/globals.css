@@ -989,6 +989,20 @@ body::before { position: fixed; inset: 0; z-index: -1; pointer-events: none; bac
   .dossier-footer { padding: 15px 18px; align-items: flex-start; flex-direction: column; }.report-signatures { width: 100%; justify-content: flex-start; flex-wrap: wrap; }.report-author { text-align: left; }.report-recipient { padding-left: 14px; }
 }
 
+
+/* Autoajuste a la hoja Legal: la página se reduce con una escala uniforme y se
+   ensancha en la misma proporción, de modo que llena exactamente el marco. Al
+   ser un único escalado, ninguna proporción cambia y nada puede solaparse. */
+.legal-page-shell[data-print-fit] > * {
+  /* Solo se compensa el ALTO. Si además se ensancha la caja, el contenido se
+     re-maqueta —el radar se redibuja más grande— y el ajuste no converge.
+     Con el ancho intacto no hay reflow: el contenido recibe aire vertical y
+     el escalado lo devuelve al marco. */
+  transform: scale(var(--print-fit, 1));
+  transform-origin: top center;
+  height: calc(100% / var(--print-fit, 1)) !important;
+}
+
 /* Replica el lienzo fisico justo antes de imprimir para detectar desbordes. */
 body.print-layout-check .legal-page-shell { width: 215.9mm; height: 355.6mm; padding: 8mm; display: block; overflow: hidden; box-sizing: border-box; }
 body.print-layout-check .scout-report,
@@ -1029,6 +1043,11 @@ body.print-layout-check .similarity-star-visual > svg { transform: none !importa
   .block-resize-handle, .block-height-resize-handle { display: none !important; }
   .block-chrome { display: none !important; }
   .visual-image-slot, .visual-text-content { height: 100% !important; }
+  .legal-page-shell[data-print-fit] > * {
+    transform: scale(var(--print-fit, 1)) !important;
+    transform-origin: top center !important;
+    height: calc(100% / var(--print-fit, 1)) !important;
+  }
   .print-dialog-overlay { display: none !important; }
   .designer-workspace { break-inside: avoid; }
   @page { size: legal portrait; margin: 0; }
@@ -1795,3 +1814,15 @@ body.print-layout-check .ai-error { display: none !important; }
 @media print {
   .reading-ai, .ai-error, .designer-ai-button { display: none !important; }
 }
+
+/* Selector de métricas del radar: se despliega bajo los controles de la
+   página 1 y no forma parte de la hoja del informe. */
+.metric-picker summary b { margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--report-accent, #4f6bed) 16%, transparent); color: var(--report-accent, #4f6bed); font-size: 10px; }
+.metric-picker-hint { margin: 6px 0 10px; color: #7c89a0; font-size: 10px; line-height: 1.45; }
+.metric-picker-group { margin-bottom: 12px; }
+.metric-picker-group > span { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; color: #9fb0c6; font-size: 9px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
+.metric-picker-group > span > i { width: 9px; height: 9px; border-radius: 3px; background: var(--group-color); }
+.metric-picker-group label { display: flex; align-items: center; gap: 7px; padding: 3px 0; color: #cfd8e8; font-size: 11px; cursor: pointer; }
+.metric-picker-group label:hover { color: #fff; }
+.metric-picker-group input { width: 13px; height: 13px; accent-color: var(--report-accent, #4f6bed); cursor: pointer; }
+.metric-picker > button { margin-top: 4px; }
