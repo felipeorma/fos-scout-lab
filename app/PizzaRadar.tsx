@@ -133,16 +133,25 @@ export function PizzaRadar({ metrics, score, cohort, lang = "es", colorMode = "g
         const pillWidth = Math.max(valueFontSize * 1.85, ctx.measureText(value).width + valueFontSize * 0.85);
         const pillHeight = valueFontSize * 1.55;
         ctx.save();
-        ctx.shadowColor = "rgba(3, 10, 17, .34)";
-        ctx.shadowBlur = Math.max(3, size * 0.009);
-        roundedRect(ctx, valueX - pillWidth / 2, valueY - pillHeight / 2, pillWidth, pillHeight, pillHeight / 2);
-        ctx.fillStyle = "rgba(8, 18, 28, .82)";
-        ctx.fill();
-        ctx.shadowBlur = 0;
-        ctx.strokeStyle = "rgba(255, 255, 255, .42)";
-        ctx.lineWidth = Math.max(1, size * 0.0018);
-        ctx.stroke();
-        ctx.fillStyle = "#ffffff";
+        // La píldora oscura existe para que el número se lea sobre el color de
+        // la porción. En un percentil bajo la porción es tan corta que el valor
+        // cae fuera, y entonces el recuadro se ve como una caja semitransparente
+        // flotando sobre el fondo: ahí el número va suelto, en el color del grupo.
+        const dentroDeLaPorcion = valueRadius + pillHeight / 2 <= radius;
+        if (dentroDeLaPorcion) {
+          ctx.shadowColor = "rgba(3, 10, 17, .34)";
+          ctx.shadowBlur = Math.max(3, size * 0.009);
+          roundedRect(ctx, valueX - pillWidth / 2, valueY - pillHeight / 2, pillWidth, pillHeight, pillHeight / 2);
+          ctx.fillStyle = "rgba(8, 18, 28, .82)";
+          ctx.fill();
+          ctx.shadowBlur = 0;
+          ctx.strokeStyle = "rgba(255, 255, 255, .42)";
+          ctx.lineWidth = Math.max(1, size * 0.0018);
+          ctx.stroke();
+          ctx.fillStyle = "#ffffff";
+        } else {
+          ctx.fillStyle = metricGroups[index].color;
+        }
         ctx.fillText(value, valueX, valueY + valueFontSize * 0.02);
         ctx.restore();
 
