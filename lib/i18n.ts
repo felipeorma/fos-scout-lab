@@ -486,6 +486,7 @@ const EN: Record<string, string> = {
   "Ocultar aviso": "Hide notice",
   "Textos con IA": "AI texts",
   "Métricas del radar": "Radar metrics",
+  "Añadir o quitar métricas": "Add or remove metrics",
   "Marca las que quieres ver. El percentil siempre se calcula contra los jugadores de su posición en la base cargada.": "Tick the ones you want to see. Percentiles are always computed against players in the same position within the loaded database.",
   "Volver al set del perfil": "Back to the profile set",
   "Mostrar": "Show",
