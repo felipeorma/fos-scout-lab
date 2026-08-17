@@ -258,10 +258,20 @@ del informe. Tres bloques:
 - **El puesto de su equipo** en cada una de esas métricas, frente al resto de
   clubes de la base. Un percentil alto en un equipo que va último significa
   algo distinto que en uno que va primero.
+- **Su lugar en la distribución**: un *swarm* por cada métrica del perfil —no
+  una muestra— con toda la población de su posición como puntos, sus
+  compañeros de club en ámbar, la mediana marcada y él resaltado en el color
+  de la plataforma de origen. Un percentil no dice si el P80 está en un
+  pelotón apretado o destacado; la distribución sí. Junto a ellos, un
+  cuadrante que cruza volumen contra eficacia.
 - **Embudo de la ruptura a la espalda** (si la competición trae game
   intelligence de SkillCorner): hechas → peligrosas → buscadas → recibidas →
   remate en 10 s, con la mediana del equipo marcada. Separa lo que hace el
   jugador de lo que su equipo hace con él.
+
+La hoja se adapta a lo que haya: con Wyscout sola muestra sus métricas, y va
+sumando las de StatsBomb y SkillCorner conforme estén disponibles. Se exporta
+como una página más desde el diálogo de impresión.
 
 ## Métricas del radar a medida
 

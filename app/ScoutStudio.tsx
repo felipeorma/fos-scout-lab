@@ -1287,11 +1287,12 @@ export default function ScoutStudio() {
                   {[
                     { page: CARD_PAGE, title: t("Ficha y radar"), hint: t("Percentiles del jugador") },
                     { page: SIMILARITY_PAGE, title: t("Similitud"), hint: t("Jugadores comparables") },
+                    { page: CONTEXT_PAGE, title: t("Contexto"), hint: t("Dónde destaca y por qué") },
                     ...visualPages.map((page, index) => ({ page, title: tf("Visuales {n}", { n: index + 1 }), hint: t("Mapas, imágenes y texto") })),
                   ].map(({ page, title, hint }) => (
                     <label key={page} className={printPages.includes(page) ? "selected" : ""}>
                       <input type="checkbox" checked={printPages.includes(page)} onChange={() => togglePrintPage(page)} />
-                      <span><b>{String(page).padStart(2, "0")} · {title}</b><small>{hint}</small></span>
+                      <span><b>{String(page === CONTEXT_PAGE ? 3 : page).padStart(2, "0")} · {title}</b><small>{hint}</small></span>
                     </label>
                   ))}
                   <div className="print-dialog-actions">

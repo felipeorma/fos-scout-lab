@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import type { DataRow, PlayerReport } from "@/lib/scouting";
 import { METRIC_SOURCE_COLORS } from "@/lib/similarityMetricGroups";
 import { t, tf } from "@/lib/i18n";
+import { CuadranteMetricas, LeyendaGraficos, SwarmMetric, type PuntoCuadrante, type PuntoSwarm } from "./ContextCharts";
 
 /**
  * Página de contexto: sitúa al jugador dentro de su equipo y de la liga.
@@ -124,6 +125,44 @@ export function ContextPage({ report, rows }: { report: PlayerReport; rows: Data
     ].filter((item) => Number.isFinite(item.valor));
   }, [fila, rows, report.team]);
 
+  // Población de su posición: la misma que sostiene los percentiles de la
+  // ficha, para que el punto del jugador caiga donde dice el percentil.
+  const poblacion = useMemo(
+    () => rows.filter((row) => String(row.Position ?? "").trim() && String(row["Minutes played"] ?? "") !== ""),
+    [rows],
+  );
+
+  // Todas las aristas del perfil: una distribución por cada métrica que la
+  // base permita, venga de Wyscout, StatsBomb o SkillCorner. Si una fuente no
+  // está disponible simplemente no aporta filas, y el resto sigue igual.
+  const swarms = useMemo(() => {
+    const elegidas = [...report.metrics].sort((a, b) => b.percentile - a.percentile);
+    return elegidas.map((metrica) => {
+      const puntos: PuntoSwarm[] = poblacion.flatMap((row) => {
+        const valor = numero(row[metrica.key]);
+        if (!Number.isFinite(valor)) return [];
+        const nombre = String(row.Player ?? "");
+        return [{ valor, esObjetivo: nombre === report.player, esCompanero: nombre !== report.player && String(row.Team ?? "") === report.team }];
+      });
+      return { metrica, puntos };
+    }).filter((item) => item.puntos.some((punto) => punto.esObjetivo));
+  }, [report.metrics, poblacion, report.player, report.team]);
+
+  // Cuadrante volumen contra eficacia: el cruce que más dice de un perfil.
+  const cuadrante = useMemo(() => {
+    const volumen = destacadas[0] ?? report.metrics[0];
+    const eficacia = report.metrics.find((metrica) => metrica.key !== volumen?.key && /%/.test(metrica.label))
+      ?? report.metrics.find((metrica) => metrica.key !== volumen?.key);
+    if (!volumen || !eficacia) return null;
+    const puntos: PuntoCuadrante[] = poblacion.flatMap((row) => {
+      const x = numero(row[volumen.key]); const y = numero(row[eficacia.key]);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return [];
+      const nombre = String(row.Player ?? "");
+      return [{ x, y, nombre, esObjetivo: nombre === report.player, esCompanero: nombre !== report.player && String(row.Team ?? "") === report.team }];
+    });
+    return puntos.some((punto) => punto.esObjetivo) ? { volumen, eficacia, puntos } : null;
+  }, [destacadas, report.metrics, report.player, report.team, poblacion]);
+
   return <article className="context-page">
     <header>
       <div>
@@ -152,6 +191,24 @@ export function ContextPage({ report, rows }: { report: PlayerReport; rows: Data
           : <p className="ctx-empty">{t("No baja del percentil 25 en ninguna métrica de su posición.")}</p>}
       </section>
     </div>
+
+    {(swarms.length > 0 || cuadrante) && <section className="ctx-charts">
+      <h3>{t("Su lugar en la distribución")}</h3>
+      <LeyendaGraficos equipo={report.team} />
+      <div className="ctx-charts-grid">
+        <div className="ctx-swarms">
+          {swarms.map(({ metrica, puntos }) => (
+            <SwarmMetric key={metrica.key} etiqueta={t(metrica.label)} puntos={puntos} percentil={metrica.percentile} fuente={metrica.source ?? "wyscout"} />
+          ))}
+        </div>
+        {cuadrante && <CuadranteMetricas
+          titulo={t("Volumen contra eficacia")}
+          ejeX={t(cuadrante.volumen.label)}
+          ejeY={t(cuadrante.eficacia.label)}
+          puntos={cuadrante.puntos}
+        />}
+      </div>
+    </section>}
 
     {embudo && embudo.length >= 3 && <section className="ctx-funnel-block">
       <h3>{t("Embudo de la ruptura a la espalda")}</h3>
