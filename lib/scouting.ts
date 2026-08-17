@@ -382,7 +382,12 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
     const tb = nameTokens(b[0].player);
     if (!ta.length || !tb.length) return false;
     if (ta[ta.length - 1] !== tb[tb.length - 1]) return false;
-    if (ta[0][0] !== tb[0][0]) return false;
+    // Basta compartir la inicial del nombre ("J. Smith" ≡ "Jordan Smith") o que
+    // el nombre corto esté contenido en el largo: SkillCorner recorta el primer
+    // nombre de pila ("Elage Bah" por "Thierno Elage Bah") y esos duplicados
+    // quedaban como jugadores distintos, con media ficha cada uno.
+    const contenido = ta.every((token) => tb.includes(token)) || tb.every((token) => ta.includes(token));
+    if (ta[0][0] !== tb[0][0] && !contenido) return false;
     const clubsA = [...new Set(a.map((entry) => entry.clubIdentity).filter(Boolean))];
     const clubsB = [...new Set(b.map((entry) => entry.clubIdentity).filter(Boolean))];
     if (!clubsA.some((clubA) => clubsB.some((clubB) => clubsMatch(clubA, clubB)))) return false;
@@ -393,8 +398,16 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
   };
   for (let shortIndex = mergedGroups.length - 1; shortIndex >= 0; shortIndex -= 1) {
     const group = mergedGroups[shortIndex];
-    if (!isAbbreviated(group[0].player)) continue;
-    const candidates = mergedGroups.filter((other) => other !== group && !isAbbreviated(other[0].player) && compatible(group, other));
+    const tokensGrupo = nameTokens(group[0].player);
+    const recortable = isAbbreviated(group[0].player) || tokensGrupo.length >= 2;
+    if (!recortable) continue;
+    const candidates = mergedGroups.filter((other) => {
+      if (other === group) return false;
+      // Solo se absorbe hacia el nombre más completo, nunca al revés.
+      if (nameTokens(other[0].player).length <= tokensGrupo.length && !isAbbreviated(group[0].player)) return false;
+      if (isAbbreviated(other[0].player) && isAbbreviated(group[0].player)) return false;
+      return compatible(group, other);
+    });
     if (candidates.length === 1) {
       candidates[0].push(...group);
       mergedGroups.splice(shortIndex, 1);

@@ -31,6 +31,7 @@ type SimilarityStudioProps = {
   sourceName: string;
   lang?: Lang;
   aiControlsHidden?: boolean;
+  metricLabels?: string[] | null;
   /** Conjunto de métricas asignado en la ficha de la Página 1 */
   reportCohort?: string;
   targets: TargetOption[];
@@ -558,7 +559,7 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
   return canvas.toDataURL("image/png");
 }
 
-export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es", aiControlsHidden = false, reportCohort = "AUTO", targets, theme, targetProfile, recipientName, recipientLogoUrl, onSelectTarget, onTargetProfileChange, onRecipientNameChange, onRecipientLogoChange, onOpenReports }: SimilarityStudioProps) {
+export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es", aiControlsHidden = false, metricLabels = null, reportCohort = "AUTO", targets, theme, targetProfile, recipientName, recipientLogoUrl, onSelectTarget, onTargetProfileChange, onRecipientNameChange, onRecipientLogoChange, onOpenReports }: SimilarityStudioProps) {
   const [query, setQuery] = useState("");
   const [ageMin, setAgeMin] = useState("");
   const [ageMax, setAgeMax] = useState("");
@@ -608,7 +609,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     side,
   }), [ageMax, ageMin, minimumMinutes, passport, position, query, secondaryRole, side]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const search = useMemo(() => buildSimilaritySearch(rows, selectedIndex, filters, metricWeights, reportCohort), [filters, metricWeights, rows, selectedIndex, lang, reportCohort]);
+  const search = useMemo(() => buildSimilaritySearch(rows, selectedIndex, filters, metricWeights, reportCohort, metricLabels), [filters, metricWeights, rows, selectedIndex, lang, reportCohort, metricLabels]);
   const candidates = search?.candidates ?? [];
   const activeMetricWeights = search?.target.metrics.filter((metric) => (metricWeights[metric.key] ?? 1) !== 1).length ?? 0;
   const selectedCandidate = candidates.find((candidate) => candidate.index === selectedCandidateIndex) ?? candidates[0] ?? null;

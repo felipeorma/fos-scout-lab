@@ -185,7 +185,7 @@ function metricWeight(key: string, weights: SimilarityMetricWeights) {
   return Number.isFinite(value) ? Math.max(0, Math.min(3, value)) : 1;
 }
 
-export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filters: SimilarityFilters, metricWeights: SimilarityMetricWeights = {}, reportCohort = "AUTO"): SimilaritySearchResult | null {
+export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filters: SimilarityFilters, metricWeights: SimilarityMetricWeights = {}, reportCohort = "AUTO", selectedMetricLabels?: string[] | null): SimilaritySearchResult | null {
   // Si el usuario filtra por un rol, la comparación usa el set de métricas de
   // ese rol (p. ej. filtrar por Delanteros compara con métricas de CF aunque
   // el jugador objetivo sea extremo). Sin filtro, se usa su cohorte natural.
@@ -194,7 +194,10 @@ export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filt
   // describan al jugador con el mismo rol.
   const filteredRole = POSITION_ROLES.find((role) => role === filters.position) ?? null;
   const forcedCohort = filteredRole ? roleCohort(filteredRole) : reportCohort;
-  const target = buildPlayerReport(rows, targetIndex, filters.minimumMinutes, forcedCohort);
+  // La selección de métricas de la Página 1 manda también aquí: una sola
+  // elección describe al jugador en las dos hojas. Con un filtro de rol activo
+  // se ignora, porque entonces el set es el de ese rol.
+  const target = buildPlayerReport(rows, targetIndex, filters.minimumMinutes, forcedCohort, filters.position ? null : selectedMetricLabels);
   const targetRow = rows[targetIndex];
   if (!target || !targetRow || !target.metrics.length) return null;
 
@@ -270,7 +273,12 @@ export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filt
         difference: Math.abs(targetPercentile - candidatePercentile),
       } satisfies SimilarityMetricComparison];
     });
-    if (metrics.length < Math.min(3, target.metrics.length)) return [];
+    // Un candidato con datos a medias no puede encabezar el ranking: con 4 de
+    // 16 métricas es fácil parecerse "un 78%" y desplazar a uno comparado con
+    // las 16. Además la hoja mostraría solo ese puñado de métricas, dando la
+    // impresión de que faltan las de una plataforma.
+    const minimoComparable = Math.max(Math.min(3, target.metrics.length), Math.ceil(target.metrics.length * 0.6));
+    if (metrics.length < minimoComparable) return [];
 
     const targetVector = metrics.map((metric) => (metric.targetPercentile - 50) / 50);
     const candidateVector = metrics.map((metric) => (metric.candidatePercentile - 50) / 50);

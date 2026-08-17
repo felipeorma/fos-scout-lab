@@ -1225,6 +1225,7 @@ export default function ScoutStudio() {
               <div className={`similarity-page-host ${(printRun ? printRun.includes(SIMILARITY_PAGE) : reportPage === SIMILARITY_PAGE) ? "" : "is-hidden"}`}>
                 <SimilarityStudio
                   aiControlsHidden={aiControlsHidden}
+                  metricLabels={report ? metricPicks[report.cohort] ?? null : null}
                   rows={reportRows}
                   selectedIndex={selectedPlayer}
                   sourceName={reportFileName}

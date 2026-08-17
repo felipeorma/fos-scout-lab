@@ -140,3 +140,22 @@ test("el nombre visible del club sale de la base, no de SkillCorner", () => {
   ]);
   for (const row of result.rows) assert.equal(row.Team, "Inter Toronto FC");
 });
+
+test("SkillCorner recorta el primer nombre y aun así se fusiona", () => {
+  const result = aggregateDatasets([
+    dataset("StatsBomb · CPL 2026", 2026, "statsbomb", [player({ Player: "Thierno Elage Bah", Team: "Cavalry FC" })]),
+    dataset("SkillCorner · CPL 2026", 2026, "skillcorner", [player({ Player: "Elage Bah", Team: "Cavalry FC" })]),
+  ]);
+  assert.equal(result.rows.length, 1);
+  assert.equal(result.rows[0].Player, "Thierno Elage Bah");
+});
+
+test("dos jugadores distintos con el mismo apellido no se fusionan", () => {
+  const result = aggregateDatasets([
+    dataset("cpl.xlsx", 2026, "wyscout", [
+      player({ Player: "Thierno Bah", Team: "Cavalry FC", "Birth date": "1999-03-31" }),
+      player({ Player: "Moussa Bah", Team: "Cavalry FC", "Birth date": "2002-07-14", Age: 21 }),
+    ]),
+  ]);
+  assert.equal(result.rows.length, 2);
+});
