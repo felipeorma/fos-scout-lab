@@ -1008,6 +1008,7 @@ body::before { position: fixed; inset: 0; z-index: -1; pointer-events: none; bac
    empujado al fondo, para saber cuánto ocupa el contenido de verdad. */
 body.print-measure .legal-page-shell,
 body.print-measure .legal-page-shell > *,
+body.print-measure .similarity-report-sheet,
 body.print-measure .similarity-legal-page,
 body.print-measure .visual-report-page,
 body.print-measure .scout-report { height: auto !important; min-height: 0 !important; overflow: visible !important; }

@@ -372,8 +372,16 @@ export default function ScoutStudio() {
         // natural del contenido —con la altura liberada y sin el footer
         // empujado al fondo— y si cabe en Carta se exporta en Carta.
         const MM = 96 / 25.4;
-        const ALTO_UTIL_CARTA = (279.4 - 16) * MM;
-        const hojas = Array.from(document.querySelectorAll<HTMLElement>(".legal-page-shell"));
+        // Contra el alto completo de la Carta menos un par de milímetros de
+        // resguardo: descontar además el margen interno dejaba fuera casos que
+        // sí caben, como una comparación sin comentario del scout.
+        const ALTO_CARTA = (279.4 - 4) * MM;
+        // La página de similitud no vive dentro de .legal-page-shell —fluye en
+        // su propia hoja—, así que hay que medirla aparte o nunca entraría en
+        // la decisión y se exportaría siempre en Legal.
+        const hojas = Array.from(document.querySelectorAll<HTMLElement>(
+          ".legal-page-shell, .similarity-page-host:not(.is-hidden) .similarity-report-sheet",
+        ));
         document.body.classList.add("print-measure");
         await siguienteCuadro();
         if (cancelled) return;
@@ -382,7 +390,7 @@ export default function ScoutStudio() {
         await siguienteCuadro();
         if (cancelled) return;
 
-        const cabeEnCarta = hojas.length > 0 && altoNatural.every((alto) => alto > 0 && alto <= ALTO_UTIL_CARTA);
+        const cabeEnCarta = hojas.length > 0 && altoNatural.every((alto) => alto > 0 && alto <= ALTO_CARTA);
         const estiloHoja = document.getElementById("fos-page-size") ?? Object.assign(document.createElement("style"), { id: "fos-page-size" });
         estiloHoja.textContent = `@page { size: ${cabeEnCarta ? "letter" : "legal"} portrait; margin: 0; }`;
         if (!estiloHoja.parentNode) document.head.appendChild(estiloHoja);
