@@ -502,6 +502,8 @@ const EN: Record<string, string> = {
   "Datos físicos enlazados": "Physical data linked",
   "{n} de {m} jugadores de la base quedaron enlazados con SkillCorner.": "{n} of {m} players in the database were linked with SkillCorner.",
   "Enlazar": "Link",
+  "Elige la competición que corresponde a esta base: el archivo no dice de cuál es.": "Pick the competition this database belongs to: the file does not say which one.",
+  "Arrastra para ordenar · ↕ abajo a la izquierda cambia solo el alto · ↘ en la esquina ajusta ancho y alto": "Drag to reorder · ↕ bottom left changes height only · ↘ in the corner adjusts width and height",
   "No coincidió ningún jugador": "No player matched",
   "Revisa que la competición elegida sea la misma temporada y liga de la base: se cruzan por nombre, club y edad.": "Check that the chosen competition is the same league and season as the database: players are matched by name, club and age.",
   "Esta competición trae {n} de {m} métricas de SkillCorner: el resto no está en tu suscripción para esta liga, así que no aparecerán en el radar.": "This competition returns {n} of {m} SkillCorner metrics: the rest are not in your subscription for this league, so they will not appear on the radar.",

@@ -989,10 +989,10 @@ export function buildPlayerReport(rows: DataRow[], selectedIndex: number, minimu
   const definitions = selectedMetricLabels?.length
     ? selectedMetricLabels.map((label) => byLabel.get(label)).filter((definition): definition is MetricDefinition => Boolean(definition))
     : METRICS[cohort] ?? METRICS.OTHER;
-  // La cohorte siempre son los jugadores de esa misma posición dentro de la
-  // base cargada. Al forzar una cohorte se comparan las métricas de ese rol,
-  // pero el grupo de referencia sigue siendo el de la posición seleccionada:
-  // nunca todos los jugadores de la base.
+  // El grupo de referencia son siempre los jugadores de una posición dentro de
+  // la base cargada, nunca la base entera. Al forzar una cohorte se cambian a
+  // la vez la lente de métricas y los pares: mirar a un portero "como delantero"
+  // solo significa algo si se le compara contra delanteros.
   const peerGroup = peerCohort(cohort);
   const peers = rows.filter((candidate) => (
     cohortOf(positionColumn ? candidate[positionColumn] : "") === peerGroup

@@ -556,7 +556,7 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
       </aside>
 
       <section className="designer-stage" style={{ background: theme.canvas }}>
-        <div className="preview-toolbar designer-toolbar"><div><span className="live-dot" /> {tf("Página {n} · Editor visual", { n: pageNumber })}</div><span><Grip size={14} /> {t("Arrastra para ordenar · ↕ cambia solo el alto · ↘ ajusta ambos · todo encaja en la rejilla")}</span></div>
+        <div className="preview-toolbar designer-toolbar"><div><span className="live-dot" /> {tf("Página {n} · Editor visual", { n: pageNumber })}</div><span><Grip size={14} /> {t("Arrastra para ordenar · ↕ abajo a la izquierda cambia solo el alto · ↘ en la esquina ajusta ancho y alto")}</span></div>
         <div className="legal-page-shell">
         <article className={`visual-report-page unified-report-page ${hasSimilarityComparison ? "similarity-legal-page" : ""}`} style={canvasStyle}>
           {pageNumber >= FIRST_VISUAL_PAGE && <>
