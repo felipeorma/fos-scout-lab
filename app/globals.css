@@ -1003,6 +1003,20 @@ body::before { position: fixed; inset: 0; z-index: -1; pointer-events: none; bac
   height: calc(100% / var(--print-fit, 1)) !important;
 }
 
+
+/* Medición del alto natural: se libera la altura fija y se desactiva el footer
+   empujado al fondo, para saber cuánto ocupa el contenido de verdad. */
+body.print-measure .legal-page-shell,
+body.print-measure .legal-page-shell > *,
+body.print-measure .similarity-legal-page,
+body.print-measure .visual-report-page,
+body.print-measure .scout-report { height: auto !important; min-height: 0 !important; overflow: visible !important; }
+body.print-measure .dossier-footer { margin-top: 0 !important; }
+
+/* Carta en vez de Legal cuando el contenido cabe: evita el cuarto de hoja en
+   blanco de una comparación sin comentario. */
+body.print-size-letter .legal-page-shell { height: 279.4mm !important; }
+
 /* Replica el lienzo fisico justo antes de imprimir para detectar desbordes. */
 body.print-layout-check .legal-page-shell { width: 215.9mm; height: 355.6mm; padding: 8mm; display: block; overflow: hidden; box-sizing: border-box; }
 body.print-layout-check .scout-report,
@@ -1048,6 +1062,7 @@ body.print-layout-check .similarity-star-visual > svg { transform: none !importa
     transform-origin: top center !important;
     height: calc(100% / var(--print-fit, 1)) !important;
   }
+  body.print-size-letter .legal-page-shell { height: 279.4mm !important; }
   .print-dialog-overlay { display: none !important; }
   .designer-workspace { break-inside: avoid; }
   @page { size: legal portrait; margin: 0; }

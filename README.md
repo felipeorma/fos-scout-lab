@@ -256,6 +256,13 @@ percentil se sigue calculando siempre contra los jugadores de la misma posición
 en la base cargada—. La elección se recuerda por perfil entre sesiones y se
 deshace con "Volver al set del perfil".
 
+## Tamaño de hoja automático
+
+Antes de imprimir se mide el alto natural de cada página —con la altura
+liberada y sin el pie empujado al fondo— y, si todas caben, la exportación
+sale en **Carta** en vez de Legal. Una comparación sin comentario del scout
+dejaba así un cuarto de hoja en blanco al final.
+
 ## Exportación que siempre entra en la hoja
 
 Antes de imprimir, cada página se mide contra el área Legal. Si sobra
