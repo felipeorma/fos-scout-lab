@@ -1017,6 +1017,9 @@ body.print-measure .dossier-footer { margin-top: 0 !important; }
 /* Carta en vez de Legal cuando el contenido cabe: evita el cuarto de hoja en
    blanco de una comparación sin comentario. */
 body.print-size-letter .legal-page-shell { height: 279.4mm !important; }
+/* La hoja de similitud no tiene alto fijo: se escala entera para llenar la
+   página elegida, con un único escalado que no altera proporciones. */
+.similarity-report-sheet[data-print-fit] { transform: scale(var(--print-fit, 1)); transform-origin: top center; }
 
 /* Replica el lienzo fisico justo antes de imprimir para detectar desbordes. */
 body.print-layout-check .legal-page-shell { width: 215.9mm; height: 355.6mm; padding: 8mm; display: block; overflow: hidden; box-sizing: border-box; }
@@ -1064,6 +1067,7 @@ body.print-layout-check .similarity-star-visual > svg { transform: none !importa
     height: calc(100% / var(--print-fit, 1)) !important;
   }
   body.print-size-letter .legal-page-shell { height: 279.4mm !important; }
+  .similarity-report-sheet[data-print-fit] { transform: scale(var(--print-fit, 1)) !important; transform-origin: top center !important; }
   .print-dialog-overlay { display: none !important; }
   .designer-workspace { break-inside: avoid; }
   @page { size: legal portrait; margin: 0; }

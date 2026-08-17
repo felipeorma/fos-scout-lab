@@ -390,11 +390,31 @@ export default function ScoutStudio() {
         await siguienteCuadro();
         if (cancelled) return;
 
-        const cabeEnCarta = hojas.length > 0 && altoNatural.every((alto) => alto > 0 && alto <= ALTO_CARTA);
+        const ALTO_LEGAL = (355.6 - 4) * MM;
+        // Reducir hasta un 15% es imperceptible al lado de dejar media cuartilla
+        // en gris: si el contenido casi cabe en Carta, se elige Carta y se
+        // encoge lo justo para llenarla en vez de saltar a Legal y desperdiciar
+        // el resto de la hoja.
+        const ENCOGIDO_ACEPTABLE = 0.85;
+        const altoMayor = Math.max(0, ...altoNatural);
+        let cabeEnCarta = false;
+        let escalaHoja = 1;
+        if (altoMayor > 0) {
+          if (altoMayor <= ALTO_CARTA) cabeEnCarta = true;
+          else if (ALTO_CARTA / altoMayor >= ENCOGIDO_ACEPTABLE) { cabeEnCarta = true; escalaHoja = ALTO_CARTA / altoMayor; }
+          else escalaHoja = Math.min(1, ALTO_LEGAL / altoMayor);
+        }
         const estiloHoja = document.getElementById("fos-page-size") ?? Object.assign(document.createElement("style"), { id: "fos-page-size" });
         estiloHoja.textContent = `@page { size: ${cabeEnCarta ? "letter" : "legal"} portrait; margin: 0; }`;
         if (!estiloHoja.parentNode) document.head.appendChild(estiloHoja);
         document.body.classList.toggle("print-size-letter", cabeEnCarta);
+        // La hoja de similitud fluye libre: se le aplica la escala directamente
+        // para que llene la página elegida y no quede la banda gris al pie.
+        for (const hoja of hojas) {
+          if (hoja.classList.contains("legal-page-shell")) continue;
+          if (escalaHoja < 0.999) { hoja.style.setProperty("--print-fit", String(escalaHoja)); hoja.dataset.printFit = "1"; }
+          else { hoja.style.removeProperty("--print-fit"); delete hoja.dataset.printFit; }
+        }
         await siguienteCuadro();
         if (cancelled) return;
 
@@ -461,7 +481,7 @@ export default function ScoutStudio() {
           return;
         }
         const limpiarEscala = () => {
-          for (const shell of shells) { shell.style.removeProperty("--print-fit"); delete shell.dataset.printFit; }
+          for (const shell of [...shells, ...hojas]) { shell.style.removeProperty("--print-fit"); delete shell.dataset.printFit; }
           document.body.classList.remove("print-size-letter");
         };
         window.addEventListener("afterprint", limpiarEscala, { once: true });
