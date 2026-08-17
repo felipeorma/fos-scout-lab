@@ -18,6 +18,7 @@ import {
   Upload,
 } from "./Icons";
 import { PizzaRadar } from "./PizzaRadar";
+import { ContextPage } from "./ContextPage";
 import { ReportPageDesigner } from "./ReportPageDesigner";
 import { SimilarityStudio } from "./SimilarityStudio";
 import { DEFAULT_REPORT_THEME, reportThemeStyle, type ReportTheme } from "./reportTheme";
@@ -48,6 +49,9 @@ type ReportPage = number;
 const CARD_PAGE = 1;
 const SIMILARITY_PAGE = 2;
 const FIRST_VISUAL_PAGE = 3;
+// Fuera del rango de las páginas visuales para no chocar con el editor, que
+// guarda sus diseños indexados por número de página.
+const CONTEXT_PAGE = 90;
 type ReportFileMode = "single" | "combine" | "replace";
 type ProfileAssetField = "playerImage" | "clubLogo" | "leagueLogo";
 
@@ -1060,6 +1064,7 @@ export default function ScoutStudio() {
               <nav className="report-page-tabs" aria-label={t("Páginas del reporte")}>
                 <button className={reportPage === CARD_PAGE ? "active" : ""} onClick={() => setReportPage(CARD_PAGE)}><span>01</span><div><b>{t("Ficha y radar")}</b><small>{t("Percentiles del jugador")}</small></div></button>
                 <button className={reportPage === SIMILARITY_PAGE ? "active" : ""} onClick={() => setReportPage(SIMILARITY_PAGE)}><span>02</span><div><b>{t("Similitud")}</b><small>{t("Jugadores comparables")}</small></div></button>
+                <button className={reportPage === CONTEXT_PAGE ? "active" : ""} onClick={() => setReportPage(CONTEXT_PAGE)}><span>03</span><div><b>{t("Contexto")}</b><small>{t("Dónde destaca y por qué")}</small></div></button>
                 {visualPages.map((page, index) => (
                   <button key={page} className={reportPage === page ? "active" : ""} onClick={() => setReportPage(page)}>
                     <span>{String(page).padStart(2, "0")}</span>
@@ -1264,6 +1269,9 @@ export default function ScoutStudio() {
                 />
               </div>
 
+              {report && (printRun ? printRun.includes(CONTEXT_PAGE) : reportPage === CONTEXT_PAGE) && (
+                <div className="legal-page-shell"><ContextPage report={report} rows={reportRows} /></div>
+              )}
               {report ? visualPages.filter((page) => printRun ? printRun.includes(page) : reportPage === page).map((page) => (
                 <ReportPageDesigner key={page} pageNumber={page} persist={!printRun || reportPage === page} player={report.player} team={profile.club || report.team} position={formatPlayerPositions(profile.position || report.position)} theme={reportTheme} onThemeChange={setReportTheme} recipientName={recipientName} recipientLogoUrl={reportRecipientLogoUrl} aiFacts={aiControlsHidden ? undefined : () => ({ lang, player: aiPlayerFacts(report), metrics: aiMetricFacts(report) })} />
               )) : !printRun && reportPage >= FIRST_VISUAL_PAGE ? <div className="empty-preview">{t("Selecciona un jugador para diseñar las páginas.")}</div> : null}

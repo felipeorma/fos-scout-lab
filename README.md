@@ -247,6 +247,22 @@ El prompt fija las reglas de estilo del departamento: lenguaje de scout, solo lo
 números entregados, sin la palabra "cohorte", sin mencionar vídeo y sin aludir a
 que se revisaron otros jugadores.
 
+## Página de contexto
+
+Una hoja propia que sitúa al jugador dentro de su equipo y de la liga, con el
+lenguaje visual de SkillCorner —lienzo oscuro y su verde— sobre la tipografía
+del informe. Tres bloques:
+
+- **Dónde destaca y dónde no**: sus métricas por encima del percentil 75 y por
+  debajo del 25, con el color de la plataforma de origen.
+- **El puesto de su equipo** en cada una de esas métricas, frente al resto de
+  clubes de la base. Un percentil alto en un equipo que va último significa
+  algo distinto que en uno que va primero.
+- **Embudo de la ruptura a la espalda** (si la competición trae game
+  intelligence de SkillCorner): hechas → peligrosas → buscadas → recibidas →
+  remate en 10 s, con la mediana del equipo marcada. Separa lo que hace el
+  jugador de lo que su equipo hace con él.
+
 ## Métricas del radar a medida
 
 La página 01 trae un panel **Métricas del radar** que lista todo lo que la base

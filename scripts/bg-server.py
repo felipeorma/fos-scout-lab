@@ -364,6 +364,12 @@ _SC_GI = {
     "Runs in behind P30 (SC)": ("off_ball_runs", ["behindrun_count"], "p30"),
     "Dangerous runs behind P30 (SC)": ("off_ball_runs", ["behindrun_count_dangerous"], "p30"),
     "Runs received P30 (SC)": ("off_ball_runs", ["offballrun_count_received"], "p30"),
+    # Embudo de la ruptura a la espalda: hechas → peligrosas → buscadas →
+    # recibidas → remate. Separa lo que hace el jugador de lo que hace su
+    # equipo con él, que es la lectura de contexto que pide el scouting.
+    "Behind targeted P30 (SC)": ("off_ball_runs", ["behindrun_count_targeted"], "p30"),
+    "Behind received P30 (SC)": ("off_ball_runs", ["behindrun_count_received"], "p30"),
+    "Behind shot within 10s P30 (SC)": ("off_ball_runs", ["behindrun_count_shotwithin10s"], "p30"),
 }
 
 

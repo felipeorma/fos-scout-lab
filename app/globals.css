@@ -1846,3 +1846,44 @@ body.print-layout-check .ai-error { display: none !important; }
 .metric-picker-group label:hover { color: #fff; }
 .metric-picker-group input { width: 13px; height: 13px; accent-color: var(--report-accent, #4f6bed); cursor: pointer; }
 .metric-picker > button { margin-top: 4px; }
+
+/* ---- Página de contexto ----
+   Lenguaje visual de SkillCorner —lienzo oscuro y su verde— con la tipografía
+   editorial del resto del informe. */
+.context-page { --ctx-green: #12c48b; --ctx-ink: #eaf2f0; --ctx-dim: #8fa3a0; width: 100%; height: 100%; padding: 26px 30px 20px; display: flex; flex-direction: column; gap: 20px; box-sizing: border-box; color: var(--ctx-ink); background: linear-gradient(168deg, #0d1a1f 0%, #10242a 62%, #0b1519 100%); font-family: var(--font-barlow), Arial, sans-serif; }
+.context-page > header { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,.09); }
+.context-page > header span { display: block; color: var(--ctx-green); font-size: 9px; font-weight: 800; letter-spacing: .22em; }
+.context-page > header b { display: block; margin-top: 4px; font-family: var(--font-space-grotesk), sans-serif; font-size: 27px; line-height: 1.05; letter-spacing: -.01em; }
+.context-page > header small { display: block; margin-top: 3px; color: var(--ctx-dim); font-size: 10px; }
+.ctx-legend { display: flex; gap: 12px; }
+.ctx-legend span { display: inline-flex; align-items: center; gap: 5px; color: var(--ctx-dim); font-size: 8px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.ctx-legend i { width: 9px; height: 9px; border-radius: 3px; }
+
+.ctx-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; }
+.ctx-grid h3 { margin: 0 0 10px; font-size: 10px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+.ctx-good { color: var(--ctx-green); }
+.ctx-bad { color: #e0685c; }
+.ctx-metrics { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 9px; }
+.ctx-metrics li { display: grid; grid-template-columns: minmax(0,1fr) 78px 30px; align-items: center; gap: 9px; }
+.ctx-metric-label { overflow: hidden; font-size: 10.5px; text-overflow: ellipsis; white-space: nowrap; }
+.ctx-bar { height: 7px; display: block; overflow: hidden; border-radius: 5px; background: rgba(255,255,255,.09); }
+.ctx-bar em { height: 100%; display: block; border-radius: 5px; }
+.ctx-metrics li b { font-family: var(--font-space-grotesk), sans-serif; font-size: 11px; text-align: right; }
+.ctx-team-rank { grid-column: 1 / -1; margin-top: -3px; color: var(--ctx-dim); font-size: 8px; letter-spacing: .04em; }
+.ctx-team-rank.alto { color: var(--ctx-green); }
+.ctx-team-rank.bajo { color: #e0a05c; }
+.ctx-empty { color: var(--ctx-dim); font-size: 10px; }
+
+.ctx-funnel-block { margin-top: auto; padding-top: 16px; border-top: 1px solid rgba(255,255,255,.09); }
+.ctx-funnel-block h3 { margin: 0 0 5px; color: var(--ctx-green); font-size: 10px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+.ctx-funnel-block > p { margin: 0 0 13px; max-width: 78ch; color: var(--ctx-dim); font-size: 9.5px; line-height: 1.5; }
+.ctx-funnel { display: flex; flex-direction: column; gap: 7px; }
+.ctx-funnel-step { display: grid; grid-template-columns: 96px minmax(0,1fr) 42px 34px; align-items: center; gap: 10px; }
+.ctx-funnel-step > span { color: var(--ctx-dim); font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.ctx-funnel-step > i { position: relative; height: 15px; display: block; overflow: hidden; border-radius: 4px; background: rgba(255,255,255,.07); }
+.ctx-funnel-step > i > em { height: 100%; display: block; border-radius: 4px; background: linear-gradient(90deg, var(--ctx-green), color-mix(in srgb, var(--ctx-green) 55%, #0d1a1f)); }
+/* Marca de la mediana del equipo: la referencia contra la que se lee al jugador. */
+.ctx-funnel-step > i > u { position: absolute; top: -2px; bottom: -2px; width: 2px; background: #f4c95d; }
+.ctx-funnel-step > b { font-family: var(--font-space-grotesk), sans-serif; font-size: 12px; text-align: right; }
+.ctx-funnel-step > small { color: var(--ctx-dim); font-size: 9px; text-align: right; }
+.context-page > footer { color: var(--ctx-dim); font-size: 8px; letter-spacing: .04em; }
