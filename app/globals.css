@@ -1973,3 +1973,9 @@ body.print-layout-check .ai-error { display: none !important; }
 .ctx-controls select, .ctx-controls input { max-width: 190px; padding: 4px 7px; border: 1px solid rgba(255,255,255,.16); border-radius: 6px; background: rgba(255,255,255,.05); color: var(--ctx-ink); font-family: inherit; font-size: 10px; }
 .ctx-controls select:focus, .ctx-controls input:focus { outline: 0; border-color: var(--ctx-green); }
 @media print { .ctx-controls { display: none !important; } }
+
+/* Botón de fuente: ambas, solo StatsBomb o solo SkillCorner. */
+.ctx-source { display: inline-flex; gap: 0; margin-bottom: 6px; border: 1px solid rgba(255,255,255,.16); border-radius: 999px; overflow: hidden; }
+.ctx-source button { padding: 3px 11px; border: 0; background: none; color: var(--ctx-dim); font-family: inherit; font-size: 8px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; cursor: pointer; }
+.ctx-source button.on { background: color-mix(in srgb, var(--fuente-color, var(--ctx-green)) 22%, transparent); color: var(--fuente-color, var(--ctx-green)); }
+@media print { .ctx-source { display: none !important; } }

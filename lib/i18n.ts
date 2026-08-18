@@ -502,6 +502,8 @@ const EN: Record<string, string> = {
   "Datos físicos enlazados": "Physical data linked",
   "{n} de {m} jugadores de la base quedaron enlazados con SkillCorner.": "{n} of {m} players in the database were linked with SkillCorner.",
   "Enlazar": "Link",
+  "Fuente de datos": "Data source",
+  "Ambas": "Both",
   "Veces que se ofrece como opción de pase por dentro de la estructura defensiva rival, por 30 minutos de posesión.": "Times he offers as a passing option inside the opponent's defensive shape, per 30 minutes of possession.",
   "Veces que se ofrece por fuera de la estructura defensiva rival, por 30 minutos de posesión.": "Times he offers outside the opponent's defensive shape, per 30 minutes of possession.",
   "Balones recibidos con un rival presionando de forma intensa, por 30 minutos de posesión.": "Balls received with an opponent pressing intensely, per 30 minutes of possession.",

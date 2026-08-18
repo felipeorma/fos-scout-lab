@@ -130,6 +130,29 @@ export function ContextPage({ report, rows, controles }: { report: PlayerReport;
     setVisibles(siguiente);
     try { window.localStorage.setItem(claveMemoria, JSON.stringify(siguiente)); } catch { /* opcional */ }
   };
+  // Filtro de plataforma: ver solo lo que aporta StatsBomb, solo SkillCorner,
+  // o las dos. Útil para saber qué parte de la lectura depende de cada fuente.
+  const [fuente, setFuente] = useState<"todas" | "statsbomb" | "skillcorner">("todas");
+  useEffect(() => {
+    try {
+      const guardado = window.localStorage.getItem("fos-scout-context-source");
+      if (guardado === "statsbomb" || guardado === "skillcorner" || guardado === "todas") setFuente(guardado);
+    } catch { /* preferencia opcional */ }
+  }, []);
+  const cambiarFuente = (valor: "todas" | "statsbomb" | "skillcorner") => {
+    setFuente(valor);
+    try { window.localStorage.setItem("fos-scout-context-source", valor); } catch { /* opcional */ }
+  };
+  const encaja = (origen?: string) => fuente === "todas" || (origen ?? "wyscout") === fuente;
+  /** Una ficha pertenece a la fuente de las columnas que usa; las mixtas salen en ambas. */
+  const fichaEncaja = (ficha: FichaContexto) => {
+    if (fuente === "todas") return true;
+    const columnas = [ficha.ejeX, ficha.ejeY, ficha.campo, ...(ficha.campos ?? []).map((campo) => campo.columna)].filter(Boolean) as string[];
+    if (!columnas.length) return true;
+    const marca = fuente === "skillcorner" ? "(SC)" : "(SB)";
+    return columnas.some((columna) => columna.includes(marca));
+  };
+
   const muestra = (id: BloqueId) => visibles.includes(id);
   const recomendada = (ficha: FichaContexto) => ficha.perfiles.includes(report.cohort);
 
@@ -313,11 +336,18 @@ export function ContextPage({ report, rows, controles }: { report: PlayerReport;
         <b>{report.player}</b>
         <small>{report.team} · {report.position} · {tf("frente a {n} jugadores de su posición", { n: report.cohortSize })}</small>
       </div>
+      <div className="ctx-source" role="group" aria-label={t("Fuente de datos")}>
+        {([["todas", t("Ambas")], ["statsbomb", METRIC_SOURCE_COLORS.statsbomb.label], ["skillcorner", METRIC_SOURCE_COLORS.skillcorner.label]] as const).map(([valor, etiqueta]) => (
+          <button key={valor} type="button" className={fuente === valor ? "on" : ""}
+            style={valor !== "todas" ? { "--fuente-color": METRIC_SOURCE_COLORS[valor].color } as React.CSSProperties : undefined}
+            onClick={() => cambiarFuente(valor)}>{etiqueta}</button>
+        ))}
+      </div>
       <div className="ctx-picker" role="group" aria-label={t("Qué visualizar")}>
         {BLOQUES.map((bloque) => (
           <button key={bloque.id} type="button" className={muestra(bloque.id) ? "on" : ""} onClick={() => alternar(bloque.id)}>{t(bloque.etiqueta)}</button>
         ))}
-        {[...fichas].sort((a, b) => Number(recomendada(b.ficha)) - Number(recomendada(a.ficha))).map(({ ficha }) => (
+        {[...fichas].filter(({ ficha }) => fichaEncaja(ficha)).sort((a, b) => Number(recomendada(b.ficha)) - Number(recomendada(a.ficha))).map(({ ficha }) => (
           <button key={ficha.id} type="button"
             className={`${muestra(ficha.id as BloqueId) ? "on" : ""}${recomendada(ficha) ? " sugerida" : ""}`}
             onClick={() => alternar(ficha.id as BloqueId)}
@@ -337,13 +367,13 @@ export function ContextPage({ report, rows, controles }: { report: PlayerReport;
       <section>
         <h3 className="ctx-good">{t("Donde destaca")}</h3>
         {destacadas.length
-          ? <ul className="ctx-metrics">{destacadas.map((metrica) => <FilaMetrica key={metrica.key} metrica={metrica} contexto={contextos.get(metrica.key) ?? null} />)}</ul>
+          ? <ul className="ctx-metrics">{destacadas.filter((metrica) => encaja(metrica.source)).map((metrica) => <FilaMetrica key={metrica.key} metrica={metrica} contexto={contextos.get(metrica.key) ?? null} />)}</ul>
           : <p className="ctx-empty">{t("No supera el percentil 75 en ninguna métrica de su posición.")}</p>}
       </section>
       <section>
         <h3 className="ctx-bad">{t("Donde no")}</h3>
         {flojas.length
-          ? <ul className="ctx-metrics">{flojas.map((metrica) => <FilaMetrica key={metrica.key} metrica={metrica} contexto={contextos.get(metrica.key) ?? null} />)}</ul>
+          ? <ul className="ctx-metrics">{flojas.filter((metrica) => encaja(metrica.source)).map((metrica) => <FilaMetrica key={metrica.key} metrica={metrica} contexto={contextos.get(metrica.key) ?? null} />)}</ul>
           : <p className="ctx-empty">{t("No baja del percentil 25 en ninguna métrica de su posición.")}</p>}
       </section>
     </div>}
@@ -354,7 +384,7 @@ export function ContextPage({ report, rows, controles }: { report: PlayerReport;
       <div className="ctx-charts-grid">
         {muestra("distribucion") && <div className="ctx-swarms">
           {swarms.map(({ metrica, puntos }) => (
-            <SwarmMetric key={metrica.key} etiqueta={t(metrica.label)} puntos={puntos} percentil={metrica.percentile} fuente={metrica.source ?? "wyscout"} />
+            encaja(metrica.source) ? <SwarmMetric key={metrica.key} etiqueta={t(metrica.label)} puntos={puntos} percentil={metrica.percentile} fuente={metrica.source ?? "wyscout"} /> : null
           ))}
         </div>}
         {muestra("cuadrante") && cuadrante && <CuadranteMetricas
@@ -366,10 +396,10 @@ export function ContextPage({ report, rows, controles }: { report: PlayerReport;
       </div>
     </section>}
 
-    {fichas.some(({ ficha }) => muestra(ficha.id as BloqueId)) && <section className="ctx-catalog-block">
+    {fichas.some(({ ficha }) => muestra(ficha.id as BloqueId) && fichaEncaja(ficha)) && <section className="ctx-catalog-block">
       <h3>{t("Análisis de los artículos de SkillCorner")}</h3>
       <div className="ctx-catalog">
-        {fichas.filter(({ ficha }) => muestra(ficha.id as BloqueId)).map(({ ficha, datos }) => (
+        {fichas.filter(({ ficha }) => muestra(ficha.id as BloqueId) && fichaEncaja(ficha)).map(({ ficha, datos }) => (
           <section key={ficha.id}>
             <h4>{t(ficha.titulo)}</h4>
             <p>{t(ficha.lectura)}</p>
