@@ -102,8 +102,20 @@ export function numeric(value: CellValue): number {
   return Number.isFinite(parsed) ? parsed : Number.NaN;
 }
 
+// Letras cirílicas y griegas idénticas de forma a las latinas. Aparecen en los
+// exports y parten a un jugador en dos: "Erik" y "Еrik" no son el mismo texto
+// aunque se vean iguales.
+const HOMOGLIFOS: Record<string, string> = {
+  "\u0410": "A", "\u0412": "B", "\u0415": "E", "\u041A": "K", "\u041C": "M", "\u041D": "H",
+  "\u041E": "O", "\u0420": "P", "\u0421": "C", "\u0422": "T", "\u0425": "X",
+  "\u0430": "a", "\u0435": "e", "\u043E": "o", "\u0440": "p", "\u0441": "c", "\u0443": "y", "\u0445": "x",
+  "\u0391": "A", "\u0392": "B", "\u0395": "E", "\u0397": "H", "\u039A": "K", "\u039C": "M",
+  "\u039D": "N", "\u039F": "O", "\u03A1": "P", "\u03A4": "T", "\u03A7": "X", "\u03BF": "o",
+};
+
 function normalizeIdentityText(value: CellValue) {
   return String(value ?? "")
+    .replace(/[\u0400-\u04FF\u0370-\u03FF]/g, (letra) => HOMOGLIFOS[letra] ?? letra)
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLocaleLowerCase("es")
@@ -247,6 +259,29 @@ function difiereEnUnaLetra(a: string, b: string) {
 }
 
 /** Mismo nombre salvo una errata de una letra en una palabra larga. */
+/**
+ * Nombres de pila equivalentes: uno es prefijo del otro ("Max" de "Maxwell")
+ * o forman un par de diminutivo conocido. Solo se consulta cuando el apellido
+ * y el club ya coinciden, que es lo que hace segura la equivalencia.
+ */
+const DIMINUTIVOS: Record<string, string> = {
+  drew: "andrew", andy: "andrew", bob: "robert", bill: "william", liam: "william",
+  dick: "richard", jack: "john", harry: "henry", ted: "edward", ned: "edward",
+  peppe: "giuseppe", pepe: "jose", pancho: "francisco", paco: "francisco",
+  nacho: "ignacio", chema: "josemaria", lalo: "eduardo", memo: "guillermo",
+  toni: "antonio", tony: "anthony", chuck: "charles", hank: "henry", jim: "james",
+  sully: "sullivan", jerry: "gerald", larry: "lawrence", terry: "terence",
+};
+function nombresDePilaEquivalentes(a: string, b: string) {
+  if (a === b) return true;
+  const [corto, largo] = a.length <= b.length ? [a, b] : [b, a];
+  if (corto.length >= 3 && largo.startsWith(corto)) return true;
+  // Recorte por delante: "Tomiwa" de "Oluwatomiwa". Se pide más longitud que
+  // en el prefijo porque una terminación común engaña más fácil.
+  if (corto.length >= 5 && largo.endsWith(corto)) return true;
+  return DIMINUTIVOS[corto] === largo || DIMINUTIVOS[largo] === corto;
+}
+
 function nombresCasiIguales(a: string[], b: string[]) {
   if (a.length !== b.length) return false;
   let distintas = 0;
@@ -464,7 +499,8 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
     // nombre de pila ("Elage Bah" por "Thierno Elage Bah") y esos duplicados
     // quedaban como jugadores distintos, con media ficha cada uno.
     const contenido = ta.every((token) => tb.includes(token)) || tb.every((token) => ta.includes(token));
-    if (ta[0][0] !== tb[0][0] && !contenido) return false;
+    const pilaEquivalente = ta.slice(0, -1).some((uno) => tb.slice(0, -1).some((otro) => nombresDePilaEquivalentes(uno, otro)));
+    if (ta[0][0] !== tb[0][0] && !contenido && !pilaEquivalente) return false;
     const clubsA = [...new Set(a.map((entry) => entry.clubIdentity).filter(Boolean))];
     const clubsB = [...new Set(b.map((entry) => entry.clubIdentity).filter(Boolean))];
     if (!clubsA.some((clubA) => clubsB.some((clubB) => clubsMatch(clubA, clubB)))) return false;
@@ -493,8 +529,15 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
       // Nombre idéntico: son la misma persona aunque una plataforma no traiga
       // la edad y la clave nombre+edad+club los haya separado. Pasa en masa
       // cuando SkillCorner devuelve la fecha de nacimiento vacía.
+      const otrosTokens = nameTokens(other[0].player);
+      // Mismo apellido y algún nombre de pila equivalente, esté donde esté:
+      // "Zach Booth" contra "Chadwick Zachary Booth". El club ya está validado
+      // en compatible(), que es lo que sostiene la equivalencia.
+      const diminutivo = otrosTokens.length >= 2 && tokensGrupo.length >= 2
+        && otrosTokens[otrosTokens.length - 1] === tokensGrupo[tokensGrupo.length - 1]
+        && otrosTokens.slice(0, -1).some((uno) => tokensGrupo.slice(0, -1).some((otro) => nombresDePilaEquivalentes(uno, otro)));
       const mismoNombre = normalizeIdentityText(other[0].player) === normalizeIdentityText(group[0].player)
-        || nombresCasiIguales(nameTokens(other[0].player), tokensGrupo);
+        || nombresCasiIguales(otrosTokens, tokensGrupo) || diminutivo;
       // Si no, solo se absorbe hacia el nombre más completo, nunca al revés.
       if (!mismoNombre && nameTokens(other[0].player).length <= tokensGrupo.length && !isAbbreviated(group[0].player)) return false;
       if (isAbbreviated(other[0].player) && isAbbreviated(group[0].player)) return false;

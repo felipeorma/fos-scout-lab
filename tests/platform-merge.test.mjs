@@ -218,3 +218,30 @@ test("una letra de diferencia en un apellido corto son dos jugadores", () => {
   ]);
   assert.equal(result.rows.length, 2);
 });
+
+test("un diminutivo del nombre de pila no duplica al jugador", () => {
+  const result = aggregateDatasets([
+    dataset("StatsBomb", 2026, "statsbomb", [player({ Player: "Maxwell Harwood", Team: "Minnesota United II" })]),
+    dataset("SkillCorner", 2026, "skillcorner", [player({ Player: "Max Harwood", Team: "Minnesota United FC II", Age: "" })]),
+  ]);
+  assert.equal(result.rows.length, 1);
+});
+
+test("una letra cirílica idéntica en forma no parte al jugador en dos", () => {
+  // "Еrik" con Е cirílica se ve igual que "Erik" pero es otro texto.
+  const result = aggregateDatasets([
+    dataset("StatsBomb", 2026, "statsbomb", [player({ Player: "Erik Hernandez", Team: "Austin II" })]),
+    dataset("SkillCorner", 2026, "skillcorner", [player({ Player: "Еrik Hernandez", Team: "Austin II", Age: "" })]),
+  ]);
+  assert.equal(result.rows.length, 1);
+});
+
+test("nombres de pila distintos con el mismo apellido y club no se fusionan", () => {
+  const result = aggregateDatasets([
+    dataset("liga.xlsx", 2026, "wyscout", [
+      player({ Player: "Gage Guerra", Team: "Tacoma Defiance", "Birth date": "2002-04-01" }),
+      player({ Player: "Andrew Guerra", Team: "Tacoma Defiance", "Birth date": "2002-09-15" }),
+    ]),
+  ]);
+  assert.equal(result.rows.length, 2);
+});
