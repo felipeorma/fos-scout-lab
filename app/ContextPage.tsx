@@ -336,6 +336,16 @@ export function ContextPage({ report, rows, controles }: { report: PlayerReport;
         <b>{report.player}</b>
         <small>{report.team} · {report.position} · {tf("frente a {n} jugadores de su posición", { n: report.cohortSize })}</small>
       </div>
+      <div className="ctx-legend">
+        {(["wyscout", "statsbomb", "skillcorner"] as const)
+          .filter((fuente) => report.metrics.some((metrica) => (metrica.source ?? "wyscout") === fuente))
+          .map((fuente) => <span key={fuente}><i style={{ background: METRIC_SOURCE_COLORS[fuente].color }} />{METRIC_SOURCE_COLORS[fuente].label}</span>)}
+      </div>
+    </header>
+
+    {/* Los controles viven en su propia barra, no dentro de la cabecera:
+        apilados junto al nombre se aplastaban unos contra otros. */}
+    <div className="ctx-toolbar">
       <div className="ctx-source" role="group" aria-label={t("Fuente de datos")}>
         {([["todas", t("Ambas")], ["statsbomb", METRIC_SOURCE_COLORS.statsbomb.label], ["skillcorner", METRIC_SOURCE_COLORS.skillcorner.label]] as const).map(([valor, etiqueta]) => (
           <button key={valor} type="button" className={fuente === valor ? "on" : ""}
@@ -356,12 +366,7 @@ export function ContextPage({ report, rows, controles }: { report: PlayerReport;
           </button>
         ))}
       </div>
-      <div className="ctx-legend">
-        {(["wyscout", "statsbomb", "skillcorner"] as const)
-          .filter((fuente) => report.metrics.some((metrica) => (metrica.source ?? "wyscout") === fuente))
-          .map((fuente) => <span key={fuente}><i style={{ background: METRIC_SOURCE_COLORS[fuente].color }} />{METRIC_SOURCE_COLORS[fuente].label}</span>)}
-      </div>
-    </header>
+    </div>
 
     {muestra("destacados") && <div className="ctx-grid">
       <section>

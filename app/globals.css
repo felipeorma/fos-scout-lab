@@ -1851,7 +1851,7 @@ body.print-layout-check .ai-error { display: none !important; }
    Lenguaje visual de SkillCorner —lienzo oscuro y su verde— con la tipografía
    editorial del resto del informe. */
 .context-page { --ctx-green: #12c48b; --ctx-ink: #eaf2f0; --ctx-dim: #8fa3a0; width: 100%; height: 100%; padding: 26px 30px 20px; display: flex; flex-direction: column; gap: 20px; box-sizing: border-box; color: var(--ctx-ink); background: linear-gradient(168deg, #0d1a1f 0%, #10242a 62%, #0b1519 100%); font-family: var(--font-barlow), Arial, sans-serif; }
-.context-page > header { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,.09); }
+.context-page > header { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; padding-bottom: 12px; }
 .context-page > header span { display: block; color: var(--ctx-green); font-size: 9px; font-weight: 800; letter-spacing: .22em; }
 .context-page > header b { display: block; margin-top: 4px; font-family: var(--font-space-grotesk), sans-serif; font-size: 27px; line-height: 1.05; letter-spacing: -.01em; }
 .context-page > header small { display: block; margin-top: 3px; color: var(--ctx-dim); font-size: 10px; }
@@ -1985,3 +1985,10 @@ body.print-layout-check .ai-error { display: none !important; }
 .weight-panel-actions { display: flex; align-items: center; gap: 8px; }
 .weight-panel-toggle { padding: 3px 10px; border: 1px solid var(--report-line, rgba(255,255,255,.2)); border-radius: 999px; background: none; color: inherit; font-family: inherit; font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; cursor: pointer; }
 @media print { .weight-panel-toggle { display: none !important; } }
+
+/* Barra de herramientas: fuente de datos a la izquierda, selector de visuales
+   a la derecha, en filas propias para que nunca se aplasten entre sí. */
+.ctx-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: -8px 0 4px; padding: 9px 11px; border: 1px solid rgba(255,255,255,.07); border-radius: 9px; background: rgba(255,255,255,.028); }
+.ctx-toolbar .ctx-source { margin-bottom: 0; flex: 0 0 auto; }
+.ctx-toolbar .ctx-picker { flex: 1 1 320px; min-width: 0; }
+@media print { .ctx-toolbar { display: none !important; } }
