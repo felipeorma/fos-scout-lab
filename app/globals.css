@@ -1950,3 +1950,6 @@ body.print-layout-check .ai-error { display: none !important; }
 
 .ctx-catalog-block { padding-top: 15px; border-top: 1px solid rgba(255,255,255,.09); }
 .ctx-catalog-block > h3 { margin: 0 0 12px; color: var(--ctx-green); font-size: 10px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+.ctx-picker button.sugerida { border-color: rgba(255,255,255,.3); }
+.ctx-picker button > i { margin-right: 4px; font-size: 7px; font-style: normal; }
+.ctx-picker button.on.sugerida { border-color: var(--ctx-green); }

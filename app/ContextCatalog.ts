@@ -27,11 +27,18 @@ export type FichaContexto = {
   unidad?: string;
   /** Para el bloque de z-scores. */
   campos?: Array<{ columna: string; etiqueta: string }>;
+  /**
+   * Perfiles a los que responde la ficha; vacío = sirve para todos. No oculta
+   * el resto: decide cuáles vienen activas de entrada, porque a un central no
+   * se le pregunta lo mismo que a un extremo.
+   */
+  perfiles: string[];
 };
 
 export const CATALOGO: FichaContexto[] = [
   {
     id: "primera-linea",
+    perfiles: ["CB", "FB", "DMF", "B2B", "AM"],
     articulo: "Passing options · primera línea de presión",
     titulo: "Opciones dentro y fuera de la estructura",
     lectura: "Ofrecerse por dentro de la estructura rival es romper líneas; por fuera es circular. El cruce dice si el jugador ayuda a progresar o solo a mover el balón.",
@@ -44,6 +51,7 @@ export const CATALOGO: FichaContexto[] = [
   },
   {
     id: "espacio-reducido",
+    perfiles: ["DMF", "B2B", "AM", "WING"],
     articulo: "Tight space retained under intense pressure",
     titulo: "Exposición contra retención",
     lectura: "Cuántas veces recibe en espacio reducido bajo presión intensa, y qué proporción retiene. Volumen alto con retención baja es un jugador al que la liga le llega.",
@@ -56,6 +64,7 @@ export const CATALOGO: FichaContexto[] = [
   },
   {
     id: "progresion-presion",
+    perfiles: ["CB", "DMF", "B2B", "AM"],
     articulo: "Progressive actions under intense pressure",
     titulo: "Progresar con el rival encima",
     lectura: "Recepciones bajo presión intensa contra las que acaba progresando. Separa a quien juega cómodo de quien resuelve incómodo.",
@@ -68,6 +77,7 @@ export const CATALOGO: FichaContexto[] = [
   },
   {
     id: "peligro-presion",
+    perfiles: ["AM", "WING", "DWING", "CF"],
     articulo: "Dangerous action under intense pressure",
     titulo: "Crear peligro bajo presión",
     lectura: "Lo que de verdad decide si un fichaje sigue produciendo cuando le quitan tiempo y espacio.",
@@ -77,6 +87,7 @@ export const CATALOGO: FichaContexto[] = [
   },
   {
     id: "escapar-presion",
+    perfiles: ["DMF", "B2B", "AM"],
     articulo: "Escaped pressure",
     titulo: "Escapar de la presión",
     lectura: "Salir jugando de una situación ya comprometida. Es la métrica que más distingue a un mediocentro que puede jugar entre líneas.",
@@ -86,6 +97,7 @@ export const CATALOGO: FichaContexto[] = [
   },
   {
     id: "atraer-presion",
+    perfiles: ["CF", "AM", "WING", "DMF"],
     articulo: "Drawing pressure",
     titulo: "Atraer presión y sobrevivir a ella",
     lectura: "Atraer rivales libera a un compañero, pero solo si retiene el balón. El cruce distingue al que genera espacio del que regala posesiones.",
@@ -98,6 +110,7 @@ export const CATALOGO: FichaContexto[] = [
   },
   {
     id: "centrales-salida",
+    perfiles: ["CB", "FB", "DMF"],
     articulo: "Game intelligence · centrales en salida",
     titulo: "Romper líneas contra precisión bajo presión",
     lectura: "Un central que rompe líneas sin precisión bajo presión es un riesgo; uno preciso que nunca rompe no progresa. El cuadrante separa ambas cosas.",
@@ -110,6 +123,7 @@ export const CATALOGO: FichaContexto[] = [
   },
   {
     id: "carreras-perfil",
+    perfiles: ["FB", "WING", "DWING", "AM", "CF"],
     articulo: "Open data 4 · carreras sin balón",
     titulo: "Perfil de carreras sin balón",
     lectura: "Sin coordenadas no hay mapa sobre el campo, pero la mezcla de tipos de carrera sí define el movimiento: romper a la espalda, abrir el campo o dar apoyo.",
@@ -126,6 +140,7 @@ export const CATALOGO: FichaContexto[] = [
   },
   {
     id: "arquetipo-delantero",
+    perfiles: ["CF", "DWING"],
     articulo: "Striker archetypes · Open data 3",
     titulo: "Arquetipo: directo, asociativo o referencia",
     lectura: "No mide cuán bueno es, sino de qué tipo. Tres índices sobre la media de su posición: ruptura y velocidad, asociación y retención, y juego aéreo con remate.",
@@ -141,7 +156,21 @@ export const CATALOGO: FichaContexto[] = [
     ],
   },
   {
+    id: "portero-salida",
+    perfiles: ["GK"],
+    articulo: "Game intelligence · salida de balón",
+    titulo: "Riesgo y ruptura desde la portería",
+    lectura: "Un portero que rompe líneas asumiendo pases difíciles no es el mismo que uno que solo juega corto y seguro. El cruce sitúa su perfil de salida.",
+    tipo: "cuadrante",
+    requiere: ["Linebreak passes P30 (SC)", "Avg xPass attempted (SC)"],
+    ejeX: "Avg xPass attempted (SC)",
+    ejeY: "Linebreak passes P30 (SC)",
+    etiquetaX: "Dificultad del pase",
+    etiquetaY: "Pases rompe-líneas",
+  },
+  {
     id: "zscores-perfil",
+    perfiles: [],
     articulo: "Open data 2 · comparar con z-scores",
     titulo: "Perfil en desviaciones típicas",
     lectura: "El percentil comprime los extremos: un P99 puede estar pegado al P90 o muy por encima. El z-score muestra la distancia real a la media de su posición.",
@@ -151,6 +180,7 @@ export const CATALOGO: FichaContexto[] = [
   },
   {
     id: "ranking-liga",
+    perfiles: [],
     articulo: "Open data 1 · visualización de datos",
     titulo: "Su puesto en la liga",
     lectura: "El embudo empieza aquí: una liga entera ordenada por una métrica, con el jugador situado dentro y sus compañeros de club marcados.",

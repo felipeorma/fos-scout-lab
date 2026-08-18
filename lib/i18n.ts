@@ -502,6 +502,7 @@ const EN: Record<string, string> = {
   "Datos físicos enlazados": "Physical data linked",
   "{n} de {m} jugadores de la base quedaron enlazados con SkillCorner.": "{n} of {m} players in the database were linked with SkillCorner.",
   "Enlazar": "Link",
+  "recomendada para este perfil": "recommended for this profile",
   "Análisis de los artículos de SkillCorner": "Analyses from the SkillCorner articles",
   "Qué visualizar": "What to show",
   "Dónde destaca": "Where he stands out",

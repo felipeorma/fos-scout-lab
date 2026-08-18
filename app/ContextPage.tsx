@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { DataRow, PlayerReport } from "@/lib/scouting";
 import { METRIC_SOURCE_COLORS } from "@/lib/similarityMetricGroups";
 import { t, tf } from "@/lib/i18n";
@@ -97,20 +97,28 @@ type BloqueId = string;
 export function ContextPage({ report, rows }: { report: PlayerReport; rows: DataRow[] }) {
   // Qué visuales se muestran. Se recuerda entre sesiones: cada scout mira
   // cosas distintas y la hoja no debería obligar a todas.
-  const [visibles, setVisibles] = useState<BloqueId[]>(() => {
-    if (typeof window === "undefined") return BLOQUES.map((bloque) => bloque.id);
+  // Por defecto se muestran los bloques generales más las fichas que responden
+  // al perfil del jugador. La elección se guarda POR PERFIL: un central y un
+  // extremo no deberían compartir preferencia.
+  const claveMemoria = `fos-scout-context-blocks-${report.cohort}`;
+  const porDefecto = useMemo(() => [
+    ...BLOQUES.map((bloque) => bloque.id as BloqueId),
+    ...CATALOGO.filter((ficha) => !ficha.perfiles.length || ficha.perfiles.includes(report.cohort)).map((ficha) => ficha.id),
+  ], [report.cohort, claveMemoria]);
+  const [visibles, setVisibles] = useState<BloqueId[]>(porDefecto);
+  useEffect(() => {
     try {
-      const guardado = window.localStorage.getItem("fos-scout-context-blocks-v1");
-      if (guardado) return JSON.parse(guardado) as BloqueId[];
-    } catch { /* preferencia opcional */ }
-    return BLOQUES.map((bloque) => bloque.id);
-  });
+      const guardado = window.localStorage.getItem(claveMemoria);
+      setVisibles(guardado ? JSON.parse(guardado) as BloqueId[] : porDefecto);
+    } catch { setVisibles(porDefecto); }
+  }, [claveMemoria, porDefecto]);
   const alternar = (id: BloqueId) => {
     const siguiente = visibles.includes(id) ? visibles.filter((item) => item !== id) : [...visibles, id];
     setVisibles(siguiente);
-    try { window.localStorage.setItem("fos-scout-context-blocks-v1", JSON.stringify(siguiente)); } catch { /* opcional */ }
+    try { window.localStorage.setItem(claveMemoria, JSON.stringify(siguiente)); } catch { /* opcional */ }
   };
   const muestra = (id: BloqueId) => visibles.includes(id);
+  const recomendada = (ficha: FichaContexto) => ficha.perfiles.includes(report.cohort);
 
   const fila = useMemo(() => rows.find((row) => String(row.Player ?? "") === report.player), [rows, report.player]);
 
@@ -265,8 +273,13 @@ export function ContextPage({ report, rows }: { report: PlayerReport; rows: Data
         {BLOQUES.map((bloque) => (
           <button key={bloque.id} type="button" className={muestra(bloque.id) ? "on" : ""} onClick={() => alternar(bloque.id)}>{t(bloque.etiqueta)}</button>
         ))}
-        {fichas.map(({ ficha }) => (
-          <button key={ficha.id} type="button" className={muestra(ficha.id as BloqueId) ? "on" : ""} onClick={() => alternar(ficha.id as BloqueId)} title={ficha.articulo}>{t(ficha.titulo)}</button>
+        {[...fichas].sort((a, b) => Number(recomendada(b.ficha)) - Number(recomendada(a.ficha))).map(({ ficha }) => (
+          <button key={ficha.id} type="button"
+            className={`${muestra(ficha.id as BloqueId) ? "on" : ""}${recomendada(ficha) ? " sugerida" : ""}`}
+            onClick={() => alternar(ficha.id as BloqueId)}
+            title={`${ficha.articulo}${recomendada(ficha) ? " · " + t("recomendada para este perfil") : ""}`}>
+            {recomendada(ficha) && <i aria-hidden="true">★</i>}{t(ficha.titulo)}
+          </button>
         ))}
       </div>
       <div className="ctx-legend">
