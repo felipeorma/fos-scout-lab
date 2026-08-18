@@ -178,3 +178,15 @@ test("una sigla no hace equivalentes a clubes que solo comparten ciudad", () => 
   assert.equal(clubsMatch(norm("LA Galaxy II"), norm("Los Angeles Galaxy II")), true);
   assert.equal(clubsMatch(norm("Inter Toronto FC"), norm("Toronto FC")), false);
 });
+
+test("una edad vacía no vale cero al cruzar plataformas", () => {
+  // Number("") es 0 y es finito: sin filtrar, el motor creía que el jugador
+  // tenía cero años y lo separaba de su propia ficha en la otra plataforma.
+  const result = aggregateDatasets([
+    dataset("StatsBomb · MLSNP", 2026, "statsbomb", [player({ Player: "Luciano Pechota", Team: "Minnesota United II", Age: 22, "Birth date": "" })]),
+    dataset("SkillCorner · MLSNP", 2026, "skillcorner", [player({ Player: "Luciano Pechota", Team: "Minnesota United II", Age: "", "Birth date": "" })]),
+  ]);
+  assert.equal(result.rows.length, 1);
+  assert.ok(String(result.rows[0]["Data sources"]).includes("StatsBomb"));
+  assert.ok(String(result.rows[0]["Data sources"]).includes("SkillCorner"));
+});

@@ -112,6 +112,19 @@ function normalizeIdentityText(value: CellValue) {
     .replace(/\s+/g, " ");
 }
 
+/**
+ * Edad utilizable para comparar identidades. Una celda vacía es una edad
+ * DESCONOCIDA, no un cero: Number("") vale 0 y es finito, así que sin este
+ * filtro el motor creía que el jugador tenía cero años y lo separaba de su
+ * propia ficha en la otra plataforma.
+ */
+function edadComparable(value: string) {
+  const texto = String(value ?? "").trim();
+  if (!texto) return Number.NaN;
+  const numero = Number(texto);
+  return Number.isFinite(numero) && numero > 0 ? numero : Number.NaN;
+}
+
 function normalizeIdentityAge(value: CellValue) {
   const age = numeric(value);
   return Number.isFinite(age) ? String(age) : normalizeIdentityText(value);
@@ -382,10 +395,10 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
     const clusters: Array<typeof combined> = [];
     for (const group of groups) {
       const groupSources = new Set(group.map((entry) => entry.sourceIndex));
-      const groupAges = group.map((entry) => Number(entry.ageIdentity)).filter(Number.isFinite);
+      const groupAges = group.map((entry) => edadComparable(entry.ageIdentity)).filter(Number.isFinite);
       const target = clusters.find((cluster) => {
         if (cluster.some((entry) => groupSources.has(entry.sourceIndex))) return false;
-        const clusterAges = cluster.map((entry) => Number(entry.ageIdentity)).filter(Number.isFinite);
+        const clusterAges = cluster.map((entry) => edadComparable(entry.ageIdentity)).filter(Number.isFinite);
         if (!groupAges.length || !clusterAges.length) return true;
         return groupAges.some((a) => clusterAges.some((b) => Math.abs(a - b) <= 1));
       });
@@ -422,8 +435,8 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
     const clubsA = [...new Set(a.map((entry) => entry.clubIdentity).filter(Boolean))];
     const clubsB = [...new Set(b.map((entry) => entry.clubIdentity).filter(Boolean))];
     if (!clubsA.some((clubA) => clubsB.some((clubB) => clubsMatch(clubA, clubB)))) return false;
-    const agesA = a.map((entry) => Number(entry.ageIdentity)).filter(Number.isFinite);
-    const agesB = b.map((entry) => Number(entry.ageIdentity)).filter(Number.isFinite);
+    const agesA = a.map((entry) => edadComparable(entry.ageIdentity)).filter(Number.isFinite);
+    const agesB = b.map((entry) => edadComparable(entry.ageIdentity)).filter(Number.isFinite);
     if (!agesA.length || !agesB.length) return true;
     return agesA.some((x) => agesB.some((y) => Math.abs(x - y) <= 1));
   };
