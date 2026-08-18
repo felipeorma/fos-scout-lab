@@ -1965,3 +1965,11 @@ body.print-layout-check .ai-error { display: none !important; }
 .ctx-swarm svg, .ctx-quadrant svg { overflow: visible; }
 .ctx-dot { cursor: crosshair; }
 @media print { .ctx-tip { display: none !important; } }
+
+/* Barra de filtros de la página de contexto: el mismo estado que la Página 01. */
+.ctx-controls { display: flex; flex-wrap: wrap; gap: 10px 14px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,.09); }
+.ctx-controls label { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ctx-controls label > span { color: var(--ctx-dim); font-size: 7.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.ctx-controls select, .ctx-controls input { max-width: 190px; padding: 4px 7px; border: 1px solid rgba(255,255,255,.16); border-radius: 6px; background: rgba(255,255,255,.05); color: var(--ctx-ink); font-family: inherit; font-size: 10px; }
+.ctx-controls select:focus, .ctx-controls input:focus { outline: 0; border-color: var(--ctx-green); }
+@media print { .ctx-controls { display: none !important; } }

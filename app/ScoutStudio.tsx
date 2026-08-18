@@ -1270,7 +1270,11 @@ export default function ScoutStudio() {
               </div>
 
               {report && (printRun ? printRun.includes(CONTEXT_PAGE) : reportPage === CONTEXT_PAGE) && (
-                <div className="legal-page-shell"><ContextPage report={report} rows={reportRows} /></div>
+                <div className="legal-page-shell"><ContextPage report={report} rows={reportRows} controles={{
+                  equipos: teams, jugadores: teamPlayers, equipo: selectedTeam, jugador: selectedPlayer,
+                  cohorte: cohort, minutos: minimumMinutes,
+                  onEquipo: selectTeam, onJugador: selectPlayer, onCohorte: setCohort, onMinutos: setMinimumMinutes,
+                }} /></div>
               )}
               {report ? visualPages.filter((page) => printRun ? printRun.includes(page) : reportPage === page).map((page) => (
                 <ReportPageDesigner key={page} pageNumber={page} persist={!printRun || reportPage === page} player={report.player} team={profile.club || report.team} position={formatPlayerPositions(profile.position || report.position)} theme={reportTheme} onThemeChange={setReportTheme} recipientName={recipientName} recipientLogoUrl={reportRecipientLogoUrl} aiFacts={aiControlsHidden ? undefined : () => ({ lang, player: aiPlayerFacts(report), metrics: aiMetricFacts(report) })} />

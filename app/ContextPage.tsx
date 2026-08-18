@@ -94,7 +94,20 @@ const BLOQUES = [
 
 type BloqueId = string;
 
-export function ContextPage({ report, rows }: { report: PlayerReport; rows: DataRow[] }) {
+export type ControlesContexto = {
+  equipos: string[];
+  jugadores: Array<{ player: string; index: number }>;
+  equipo: string;
+  jugador: number;
+  cohorte: string;
+  minutos: number;
+  onEquipo: (equipo: string) => void;
+  onJugador: (indice: number) => void;
+  onCohorte: (cohorte: string) => void;
+  onMinutos: (minutos: number) => void;
+};
+
+export function ContextPage({ report, rows, controles }: { report: PlayerReport; rows: DataRow[]; controles?: ControlesContexto }) {
   // Qué visuales se muestran. Se recuerda entre sesiones: cada scout mira
   // cosas distintas y la hoja no debería obligar a todas.
   // Por defecto se muestran los bloques generales más las fichas que responden
@@ -263,6 +276,37 @@ export function ContextPage({ report, rows }: { report: PlayerReport; rows: Data
   }, [rows, poblacion, fila, report, destacadas]);
 
   return <article className="context-page">
+    {/* Los mismos filtros de la Página 01, sobre el mismo estado: cambiar aquí
+        cambia el informe entero. Evita ir y volver de pestaña para comparar. */}
+    {controles && <div className="ctx-controls">
+      <label><span>{t("Equipo")}</span>
+        <select value={controles.equipo} onChange={(event) => controles.onEquipo(event.target.value)}>
+          {controles.equipos.map((equipo) => <option key={equipo || "__sin__"} value={equipo}>{equipo || t("Equipo no disponible")}</option>)}
+        </select>
+      </label>
+      <label><span>{t("Jugador")}</span>
+        <select value={controles.jugador} onChange={(event) => controles.onJugador(Number(event.target.value))}>
+          {controles.jugadores.map((jugador) => <option key={`${jugador.player}-${jugador.index}`} value={jugador.index}>{jugador.player}</option>)}
+        </select>
+      </label>
+      <label><span>{t("Cohorte")}</span>
+        <select value={controles.cohorte} onChange={(event) => controles.onCohorte(event.target.value)}>
+          <option value="AUTO">{t("Automática")}</option>
+          <option value="GK">{t("Porteros")}</option>
+          <option value="CB">{t("Centrales")}</option>
+          <option value="FB">{t("Laterales")}</option>
+          <option value="DMF">{t("Pivotes / mediocentros")}</option>
+          <option value="B2B">{t("Interiores (box-to-box)")}</option>
+          <option value="WING">{t("Extremos")}</option>
+          <option value="DWING">{t("Extremos directos")}</option>
+          <option value="AM">{t("Mediapuntas")}</option>
+          <option value="CF">{t("Delanteros")}</option>
+        </select>
+      </label>
+      <label><span>{t("Mín. minutos")}</span>
+        <input type="number" min="0" step="100" value={controles.minutos} onChange={(event) => controles.onMinutos(Number(event.target.value))} />
+      </label>
+    </div>}
     <header>
       <div>
         <span>{t("CONTEXTO")}</span>
