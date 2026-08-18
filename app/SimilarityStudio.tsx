@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { ArrowDownToLine, Printer, RotateCcw, Search, Sparkles, Upload } from "./Icons";
 import { reportThemeStyle, type ReportTheme } from "./reportTheme";
 import { SimilarityReportMain, similarityStarColor, similarityStarGlow, type SimilarityReportPayload } from "./SimilarityReport";
@@ -32,6 +32,8 @@ type SimilarityStudioProps = {
   lang?: Lang;
   aiControlsHidden?: boolean;
   metricLabels?: string[] | null;
+  minimumMinutes?: number;
+  onMinimumMinutes?: (minutos: number) => void;
   /** Conjunto de métricas asignado en la ficha de la Página 1 */
   reportCohort?: string;
   targets: TargetOption[];
@@ -559,11 +561,20 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
   return canvas.toDataURL("image/png");
 }
 
-export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es", aiControlsHidden = false, metricLabels = null, reportCohort = "AUTO", targets, theme, targetProfile, recipientName, recipientLogoUrl, onSelectTarget, onTargetProfileChange, onRecipientNameChange, onRecipientLogoChange, onOpenReports }: SimilarityStudioProps) {
+export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es", aiControlsHidden = false, metricLabels = null, minimumMinutes: minutosBase, onMinimumMinutes, reportCohort = "AUTO", targets, theme, targetProfile, recipientName, recipientLogoUrl, onSelectTarget, onTargetProfileChange, onRecipientNameChange, onRecipientLogoChange, onOpenReports }: SimilarityStudioProps) {
   const [query, setQuery] = useState("");
   const [ageMin, setAgeMin] = useState("");
   const [ageMax, setAgeMax] = useState("");
-  const [minimumMinutes, setMinimumMinutes] = useState("500");
+  // El mínimo de minutos es el mismo de la Página 01 y de Contexto: una sola
+  // red de filtros, para que las tres hojas describan al jugador contra el
+  // mismo grupo de referencia.
+  const [minimumMinutes, setMinimumMinutes] = useState(String(minutosBase ?? 500));
+  useEffect(() => { if (minutosBase !== undefined) setMinimumMinutes(String(minutosBase)); }, [minutosBase]);
+  const cambiarMinutos = (valor: string) => {
+    setMinimumMinutes(valor);
+    const numero = Number(valor);
+    if (Number.isFinite(numero) && onMinimumMinutes) onMinimumMinutes(Math.max(0, numero));
+  };
   const [passport, setPassport] = useState("");
   const [position, setPosition] = useState("");
   const [secondaryRole, setSecondaryRole] = useState("");
@@ -586,6 +597,16 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
   const [metricWeights, setMetricWeights] = useState<SimilarityMetricWeights>({});
   const [exportBusy, setExportBusy] = useState(false);
   const [exportStatus, setExportStatus] = useState("");
+  // El panel de pesos ocupa mucho y no siempre se usa: se puede plegar y la
+  // elección se recuerda.
+  const [pesosVisibles, setPesosVisibles] = useState(true);
+  useEffect(() => {
+    try { setPesosVisibles(window.localStorage.getItem("fos-scout-weight-panel") !== "off"); } catch { /* opcional */ }
+  }, []);
+  const cambiarPesosVisibles = (valor: boolean) => {
+    setPesosVisibles(valor);
+    try { window.localStorage.setItem("fos-scout-weight-panel", valor ? "on" : "off"); } catch { /* opcional */ }
+  };
   const [comparisonNote, setComparisonNote] = useState("");
   const [comparisonAiLoading, setComparisonAiLoading] = useState(false);
   const [comparisonAiError, setComparisonAiError] = useState("");
@@ -1016,12 +1037,15 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
         <div className="similarity-model-badge"><Sparkles size={16} /><span><b>{t("BASELINE ESTADÍSTICO")}</b><small>{t("Percentiles + contexto de edad y rol")}</small></span></div>
       </section>
 
-      <section className="similarity-weight-panel">
+      <section className={`similarity-weight-panel${pesosVisibles ? "" : " plegado"}`}>
         <header>
-          <div><span>{t("PONDERACIÓN PERSONALIZADA")}</span><h2>{t("Importancia de las métricas")}</h2><p>{t("100% mantiene el peso normal. Sube una métrica para que influya más en el ranking o llévala a 0% para excluirla.")}</p></div>
-          <button type="button" onClick={resetMetricWeights} disabled={!activeMetricWeights}><RotateCcw size={14} /> {t("Restablecer pesos")}</button>
+          <div><span>{t("PONDERACIÓN PERSONALIZADA")}</span><h2>{t("Importancia de las métricas")}</h2>{pesosVisibles && <p>{t("100% mantiene el peso normal. Sube una métrica para que influya más en el ranking o llévala a 0% para excluirla.")}</p>}</div>
+          <div className="weight-panel-actions">
+            <button type="button" className="weight-panel-toggle" onClick={() => cambiarPesosVisibles(!pesosVisibles)}>{pesosVisibles ? t("Ocultar") : t("Mostrar")}</button>
+            {pesosVisibles && <button type="button" onClick={resetMetricWeights} disabled={!activeMetricWeights}><RotateCcw size={14} /> {t("Restablecer pesos")}</button>}
+          </div>
         </header>
-        <div className="similarity-weight-grid">
+        {pesosVisibles && <div className="similarity-weight-grid">
           {search.target.metrics.map((metric) => {
             const weight = metricWeights[metric.key] ?? 1;
             const percentage = Math.round(weight * 100);
@@ -1032,7 +1056,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
               <small><span>0%</span><span>{t("Neutral 100%")}</span><span>{t("Máx. 300%")}</span></small>
             </label>;
           })}
-        </div>
+        </div>}
       </section>
 
       <div className="similarity-workspace">
@@ -1040,7 +1064,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
           <div className="similarity-panel-title"><div><Search size={17} /><span><b>{t("Red de filtros")}</b><small>{tf("{n} coincidencias", { n: candidates.length })}</small></span></div><button onClick={resetFilters} aria-label={t("Restablecer filtros")}><RotateCcw size={14} /></button></div>
           <label><span>{t("Buscar jugador o club")}</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("Escribe un nombre…")} /></label>
           <div className="similarity-age-fields"><label><span>{t("Edad mínima")}</span><input type="number" min="14" max="50" value={ageMin} onChange={(event) => setAgeMin(event.target.value)} placeholder={t("Todas")} /></label><label><span>{t("Edad máxima")}</span><input type="number" min="14" max="50" value={ageMax} onChange={(event) => setAgeMax(event.target.value)} placeholder={t("Todas")} /></label></div>
-          <label><span>{t("Mínimo de minutos")}</span><input type="number" min="0" step="100" value={minimumMinutes} onChange={(event) => setMinimumMinutes(event.target.value)} /></label>
+          <label><span>{t("Mínimo de minutos")}</span><input type="number" min="0" step="100" value={minimumMinutes} onChange={(event) => cambiarMinutos(event.target.value)} /></label>
           <label><span>{t("Pasaporte · principal o secundario")}</span><select value={passport} onChange={(event) => setPassport(event.target.value)}><option value="">{t("Todos los pasaportes")}</option>{options.passports.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
           <label><span>{t("Rol principal")}</span><select value={position} onChange={(event) => { setPosition(event.target.value); setSecondaryRole(""); }}><option value="">{t("Todos los roles")}</option>{options.positions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
           <label><span>{t("Rol secundario · según el primer filtro")}</span><select value={secondaryRole} onChange={(event) => setSecondaryRole(event.target.value)} disabled={!secondaryOptions.length}><option value="">{t("Cualquiera")}</option>{secondaryOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>

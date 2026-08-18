@@ -1979,3 +1979,9 @@ body.print-layout-check .ai-error { display: none !important; }
 .ctx-source button { padding: 3px 11px; border: 0; background: none; color: var(--ctx-dim); font-family: inherit; font-size: 8px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; cursor: pointer; }
 .ctx-source button.on { background: color-mix(in srgb, var(--fuente-color, var(--ctx-green)) 22%, transparent); color: var(--fuente-color, var(--ctx-green)); }
 @media print { .ctx-source { display: none !important; } }
+
+/* Panel de ponderación plegable. */
+.similarity-weight-panel.plegado { padding-bottom: 14px; }
+.weight-panel-actions { display: flex; align-items: center; gap: 8px; }
+.weight-panel-toggle { padding: 3px 10px; border: 1px solid var(--report-line, rgba(255,255,255,.2)); border-radius: 999px; background: none; color: inherit; font-family: inherit; font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; cursor: pointer; }
+@media print { .weight-panel-toggle { display: none !important; } }

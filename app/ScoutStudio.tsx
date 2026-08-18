@@ -1251,6 +1251,8 @@ export default function ScoutStudio() {
                 <SimilarityStudio
                   aiControlsHidden={aiControlsHidden}
                   metricLabels={report ? metricPicks[report.cohort] ?? null : null}
+                  minimumMinutes={minimumMinutes}
+                  onMinimumMinutes={setMinimumMinutes}
                   rows={reportRows}
                   selectedIndex={selectedPlayer}
                   sourceName={reportFileName}
