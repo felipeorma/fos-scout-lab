@@ -246,6 +246,19 @@ function difiereEnUnaLetra(a: string, b: string) {
   return fallos + (larga.length - j) + (corta.length - i) <= 1;
 }
 
+/** Mismo nombre salvo una errata de una letra en una palabra larga. */
+function nombresCasiIguales(a: string[], b: string[]) {
+  if (a.length !== b.length) return false;
+  let distintas = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    if (a[i] === b[i]) continue;
+    distintas += 1;
+    if (distintas > 1) return false;
+    if (Math.min(a[i].length, b[i].length) < 6 || !difiereEnUnaLetra(a[i], b[i])) return false;
+  }
+  return distintas === 1;
+}
+
 function mismaSecuenciaConSiglas(a: string[], b: string[]): boolean {
   const avanzar = (corta: string[], larga: string[]) => {
     let i = 0;
@@ -474,7 +487,8 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
       // Nombre idéntico: son la misma persona aunque una plataforma no traiga
       // la edad y la clave nombre+edad+club los haya separado. Pasa en masa
       // cuando SkillCorner devuelve la fecha de nacimiento vacía.
-      const mismoNombre = normalizeIdentityText(other[0].player) === normalizeIdentityText(group[0].player);
+      const mismoNombre = normalizeIdentityText(other[0].player) === normalizeIdentityText(group[0].player)
+        || nombresCasiIguales(nameTokens(other[0].player), tokensGrupo);
       // Si no, solo se absorbe hacia el nombre más completo, nunca al revés.
       if (!mismoNombre && nameTokens(other[0].player).length <= tokensGrupo.length && !isAbbreviated(group[0].player)) return false;
       if (isAbbreviated(other[0].player) && isAbbreviated(group[0].player)) return false;
