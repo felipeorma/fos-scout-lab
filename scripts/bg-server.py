@@ -370,6 +370,19 @@ _SC_GI = {
     "Behind targeted P30 (SC)": ("off_ball_runs", ["behindrun_count_targeted"], "p30"),
     "Behind received P30 (SC)": ("off_ball_runs", ["behindrun_count_received"], "p30"),
     "Behind shot within 10s P30 (SC)": ("off_ball_runs", ["behindrun_count_shotwithin10s"], "p30"),
+    # Familia de presión: es el eje de cinco de los "metric explainer" de
+    # SkillCorner —atraer presión, escaparla, progresar bajo ella, crear
+    # peligro bajo ella y retener en espacio reducido—. Nombres verificados
+    # contra la API, no inferidos.
+    "Drawing pressure P30 (SC)": ("player_possessions", ["possession_count_drawnpressure"], "p30"),
+    "Drawing pressure retained % (SC)": ("player_possessions", ["possession_pct_drawnpressure_retained"], "raw"),
+    "Escaped pressure P30 (SC)": ("player_possessions", ["possession_count_escapedpressure"], "p30"),
+    "Progressive under pressure P30 (SC)": ("player_possessions", ["possession_count_intensepressure_progressed"], "p30"),
+    "Dangerous under pressure P30 (SC)": ("player_possessions", ["possession_count_intensepressure_dangercreated"], "p30"),
+    "Receptions under pressure P30 (SC)": ("player_possessions", ["reception_count_intensepressure"], "p30"),
+    "Tight space retained P30 (SC)": ("player_possessions", ["reception_count_intensepressure_tightspace_retained"], "p30"),
+    "Options inside shape P30 (SC)": ("passing_options", ["optionoffered_count_insidedefensiveshape"], "p30"),
+    "Options outside shape P30 (SC)": ("passing_options", ["optionoffered_count_outsidedefensiveshape"], "p30"),
 }
 
 

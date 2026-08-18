@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { DataRow, PlayerReport } from "@/lib/scouting";
 import { METRIC_SOURCE_COLORS } from "@/lib/similarityMetricGroups";
 import { t, tf } from "@/lib/i18n";
@@ -83,7 +83,34 @@ function Embudo({ pasos }: { pasos: Array<{ etiqueta: string; valor: number; bas
   </div>;
 }
 
+const BLOQUES = [
+  { id: "destacados", etiqueta: "Dónde destaca" },
+  { id: "distribucion", etiqueta: "Distribución" },
+  { id: "cuadrante", etiqueta: "Cuadrante" },
+  { id: "presion", etiqueta: "Presión" },
+  { id: "embudo", etiqueta: "Embudo de rupturas" },
+] as const;
+
+type BloqueId = typeof BLOQUES[number]["id"];
+
 export function ContextPage({ report, rows }: { report: PlayerReport; rows: DataRow[] }) {
+  // Qué visuales se muestran. Se recuerda entre sesiones: cada scout mira
+  // cosas distintas y la hoja no debería obligar a todas.
+  const [visibles, setVisibles] = useState<BloqueId[]>(() => {
+    if (typeof window === "undefined") return BLOQUES.map((bloque) => bloque.id);
+    try {
+      const guardado = window.localStorage.getItem("fos-scout-context-blocks-v1");
+      if (guardado) return JSON.parse(guardado) as BloqueId[];
+    } catch { /* preferencia opcional */ }
+    return BLOQUES.map((bloque) => bloque.id);
+  });
+  const alternar = (id: BloqueId) => {
+    const siguiente = visibles.includes(id) ? visibles.filter((item) => item !== id) : [...visibles, id];
+    setVisibles(siguiente);
+    try { window.localStorage.setItem("fos-scout-context-blocks-v1", JSON.stringify(siguiente)); } catch { /* opcional */ }
+  };
+  const muestra = (id: BloqueId) => visibles.includes(id);
+
   const fila = useMemo(() => rows.find((row) => String(row.Player ?? "") === report.player), [rows, report.player]);
 
   const destacadas = useMemo(
@@ -142,7 +169,7 @@ export function ContextPage({ report, rows }: { report: PlayerReport; rows: Data
         const valor = numero(row[metrica.key]);
         if (!Number.isFinite(valor)) return [];
         const nombre = String(row.Player ?? "");
-        return [{ valor, esObjetivo: nombre === report.player, esCompanero: nombre !== report.player && String(row.Team ?? "") === report.team }];
+        return [{ valor, nombre, esObjetivo: nombre === report.player, esCompanero: nombre !== report.player && String(row.Team ?? "") === report.team }];
       });
       return { metrica, puntos };
     }).filter((item) => item.puntos.some((punto) => punto.esObjetivo));
@@ -163,12 +190,32 @@ export function ContextPage({ report, rows }: { report: PlayerReport; rows: Data
     return puntos.some((punto) => punto.esObjetivo) ? { volumen, eficacia, puntos } : null;
   }, [destacadas, report.metrics, report.player, report.team, poblacion]);
 
+  // Perfil de presión: el eje de cinco de los "metric explainer". Volumen de
+  // recepciones bajo presión contra lo que consigue hacer con ellas.
+  const presion = useMemo(() => {
+    const ejeX = "Receptions under pressure P30 (SC)";
+    const ejeY = "Progressive under pressure P30 (SC)";
+    if (!fila || !Number.isFinite(numero(fila[ejeX]))) return null;
+    const puntos: PuntoCuadrante[] = poblacion.flatMap((row) => {
+      const x = numero(row[ejeX]); const y = numero(row[ejeY]);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return [];
+      const nombre = String(row.Player ?? "");
+      return [{ x, y, nombre, esObjetivo: nombre === report.player, esCompanero: nombre !== report.player && String(row.Team ?? "") === report.team }];
+    });
+    return puntos.some((punto) => punto.esObjetivo) ? puntos : null;
+  }, [fila, poblacion, report.player, report.team]);
+
   return <article className="context-page">
     <header>
       <div>
         <span>{t("CONTEXTO")}</span>
         <b>{report.player}</b>
         <small>{report.team} · {report.position} · {tf("frente a {n} jugadores de su posición", { n: report.cohortSize })}</small>
+      </div>
+      <div className="ctx-picker" role="group" aria-label={t("Qué visualizar")}>
+        {BLOQUES.map((bloque) => (
+          <button key={bloque.id} type="button" className={muestra(bloque.id) ? "on" : ""} onClick={() => alternar(bloque.id)}>{t(bloque.etiqueta)}</button>
+        ))}
       </div>
       <div className="ctx-legend">
         {(["wyscout", "statsbomb", "skillcorner"] as const)
@@ -177,7 +224,7 @@ export function ContextPage({ report, rows }: { report: PlayerReport; rows: Data
       </div>
     </header>
 
-    <div className="ctx-grid">
+    {muestra("destacados") && <div className="ctx-grid">
       <section>
         <h3 className="ctx-good">{t("Donde destaca")}</h3>
         {destacadas.length
@@ -190,18 +237,18 @@ export function ContextPage({ report, rows }: { report: PlayerReport; rows: Data
           ? <ul className="ctx-metrics">{flojas.map((metrica) => <FilaMetrica key={metrica.key} metrica={metrica} contexto={contextos.get(metrica.key) ?? null} />)}</ul>
           : <p className="ctx-empty">{t("No baja del percentil 25 en ninguna métrica de su posición.")}</p>}
       </section>
-    </div>
+    </div>}
 
-    {(swarms.length > 0 || cuadrante) && <section className="ctx-charts">
+    {(muestra("distribucion") || muestra("cuadrante")) && (swarms.length > 0 || cuadrante) && <section className="ctx-charts">
       <h3>{t("Su lugar en la distribución")}</h3>
       <LeyendaGraficos equipo={report.team} />
       <div className="ctx-charts-grid">
-        <div className="ctx-swarms">
+        {muestra("distribucion") && <div className="ctx-swarms">
           {swarms.map(({ metrica, puntos }) => (
             <SwarmMetric key={metrica.key} etiqueta={t(metrica.label)} puntos={puntos} percentil={metrica.percentile} fuente={metrica.source ?? "wyscout"} />
           ))}
-        </div>
-        {cuadrante && <CuadranteMetricas
+        </div>}
+        {muestra("cuadrante") && cuadrante && <CuadranteMetricas
           titulo={t("Volumen contra eficacia")}
           ejeX={t(cuadrante.volumen.label)}
           ejeY={t(cuadrante.eficacia.label)}
@@ -210,7 +257,13 @@ export function ContextPage({ report, rows }: { report: PlayerReport; rows: Data
       </div>
     </section>}
 
-    {embudo && embudo.length >= 3 && <section className="ctx-funnel-block">
+    {muestra("presion") && presion && <section className="ctx-pressure">
+      <h3>{t("Perfil de presión")}</h3>
+      <p>{t("Cuántos balones recibe bajo presión intensa y cuántos consigue progresar. Es el eje que separa a quien juega cómodo de quien resuelve incómodo.")}</p>
+      <CuadranteMetricas titulo={t("Bajo presión intensa")} ejeX={t("Recepciones bajo presión")} ejeY={t("Progresiones bajo presión")} puntos={presion} />
+    </section>}
+
+    {muestra("embudo") && embudo && embudo.length >= 3 && <section className="ctx-funnel-block">
       <h3>{t("Embudo de la ruptura a la espalda")}</h3>
       <p>{t("Cuántas hace, cuántas son peligrosas y cuántas le buscan sus compañeros. La marca es la mediana de su equipo: separa lo que hace el jugador de lo que su equipo hace con él.")}</p>
       <Embudo pasos={embudo} />

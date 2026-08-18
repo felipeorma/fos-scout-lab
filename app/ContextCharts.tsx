@@ -26,7 +26,7 @@ function mediana(values: number[]) {
   return orden.length % 2 ? orden[medio] : (orden[medio - 1] + orden[medio]) / 2;
 }
 
-export type PuntoSwarm = { valor: number; esObjetivo?: boolean; esCompanero?: boolean };
+export type PuntoSwarm = { valor: number; nombre?: string; esObjetivo?: boolean; esCompanero?: boolean };
 
 export function SwarmMetric({ etiqueta, puntos, unidad = "", percentil, fuente = "wyscout" }: { etiqueta: string; puntos: PuntoSwarm[]; unidad?: string; percentil?: number; fuente?: string }) {
   const acento = METRIC_SOURCE_COLORS[fuente]?.color ?? VERDE;
@@ -55,8 +55,10 @@ export function SwarmMetric({ etiqueta, puntos, unidad = "", percentil, fuente =
       {Number.isFinite(med) && <line x1={x(med)} y1="8" x2={x(med)} y2={ALTO - 14} stroke="rgba(255,255,255,.22)" strokeWidth="1" strokeDasharray="3 3" />}
       {puntos.map((punto, index) => {
         if (!Number.isFinite(punto.valor) || punto.esObjetivo) return null;
-        return <circle key={index} cx={x(punto.valor)} cy={ALTO / 2 + desplazamiento(index)} r={punto.esCompanero ? 3 : 2.4}
-          fill={punto.esCompanero ? "rgba(244, 201, 93, .75)" : TENUE} />;
+        return <circle key={index} className="ctx-dot" cx={x(punto.valor)} cy={ALTO / 2 + desplazamiento(index)} r={punto.esCompanero ? 3 : 2.4}
+          fill={punto.esCompanero ? "rgba(244, 201, 93, .75)" : TENUE}>
+          <title>{`${punto.nombre ?? ""} · ${punto.valor.toFixed(2)}`}</title>
+        </circle>;
       })}
       {objetivo && Number.isFinite(objetivo.valor) && <>
         <circle cx={x(objetivo.valor)} cy={ALTO / 2} r="6.5" fill={acento} stroke="#0d1a1f" strokeWidth="1.5" />
@@ -90,11 +92,16 @@ export function CuadranteMetricas({ titulo, ejeX, ejeY, puntos }: { titulo: stri
       <line x1={px(medX)} y1={M - 8} x2={px(medX)} y2={H - M + 6} stroke="rgba(255,255,255,.16)" strokeDasharray="4 4" />
       <line x1={M - 8} y1={py(medY)} x2={W - M + 6} y2={py(medY)} stroke="rgba(255,255,255,.16)" strokeDasharray="4 4" />
       {validos.map((punto, index) => punto.esObjetivo ? null : (
-        <circle key={index} cx={px(punto.x)} cy={py(punto.y)} r={punto.esCompanero ? 3.4 : 2.6}
-          fill={punto.esCompanero ? "rgba(244, 201, 93, .8)" : TENUE} />
+        <circle key={index} className="ctx-dot" cx={px(punto.x)} cy={py(punto.y)} r={punto.esCompanero ? 3.4 : 2.6}
+          fill={punto.esCompanero ? "rgba(244, 201, 93, .8)" : TENUE}>
+          {/* Etiqueta nativa al pasar el ratón: sin JavaScript, y no estorba al exportar. */}
+          <title>{`${punto.nombre} · ${ejeX} ${punto.x.toFixed(2)} · ${ejeY} ${punto.y.toFixed(2)}`}</title>
+        </circle>
       ))}
       {objetivo && <>
-        <circle cx={px(objetivo.x)} cy={py(objetivo.y)} r="7" fill={VERDE} stroke="#0d1a1f" strokeWidth="1.6" />
+        <circle cx={px(objetivo.x)} cy={py(objetivo.y)} r="7" fill={VERDE} stroke="#0d1a1f" strokeWidth="1.6">
+          <title>{`${objetivo.nombre} · ${ejeX} ${objetivo.x.toFixed(2)} · ${ejeY} ${objetivo.y.toFixed(2)}`}</title>
+        </circle>
         <text x={px(objetivo.x)} y={py(objetivo.y) - 11} textAnchor="middle" fill={VERDE} fontSize="9" fontWeight="700">
           {objetivo.nombre.split(" ").slice(-1)[0]}
         </text>
