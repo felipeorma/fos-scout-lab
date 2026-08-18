@@ -4,7 +4,8 @@ import { useMemo, useState } from "react";
 import type { DataRow, PlayerReport } from "@/lib/scouting";
 import { METRIC_SOURCE_COLORS } from "@/lib/similarityMetricGroups";
 import { t, tf } from "@/lib/i18n";
-import { CuadranteMetricas, LeyendaGraficos, SwarmMetric, type PuntoCuadrante, type PuntoSwarm } from "./ContextCharts";
+import { BarrasRanking, BarrasZ, CuadranteMetricas, LeyendaGraficos, SwarmMetric, type BarraRank, type BarraZ, type PuntoCuadrante, type PuntoSwarm } from "./ContextCharts";
+import { CATALOGO, type FichaContexto } from "./ContextCatalog";
 
 /**
  * Página de contexto: sitúa al jugador dentro de su equipo y de la liga.
@@ -91,7 +92,7 @@ const BLOQUES = [
   { id: "embudo", etiqueta: "Embudo de rupturas" },
 ] as const;
 
-type BloqueId = typeof BLOQUES[number]["id"];
+type BloqueId = string;
 
 export function ContextPage({ report, rows }: { report: PlayerReport; rows: DataRow[] }) {
   // Qué visuales se muestran. Se recuerda entre sesiones: cada scout mira
@@ -205,6 +206,54 @@ export function ContextPage({ report, rows }: { report: PlayerReport; rows: Data
     return puntos.some((punto) => punto.esObjetivo) ? puntos : null;
   }, [fila, poblacion, report.player, report.team]);
 
+  // Fichas del catálogo que la base cargada permite dibujar. Las dos genéricas
+  // —z-scores y ranking— se rellenan con las propias métricas del perfil.
+  const fichas = useMemo(() => {
+    const columnas = new Set(rows.length ? Object.keys(rows[0]) : []);
+    const mejor = destacadas[0] ?? report.metrics[0];
+    return CATALOGO.map((ficha): { ficha: FichaContexto; datos: unknown } | null => {
+      const resuelta: FichaContexto = ficha.id === "zscores-perfil"
+        ? { ...ficha, campos: report.metrics.slice(0, 10).map((metrica) => ({ columna: metrica.key, etiqueta: t(metrica.label) })) }
+        : ficha.id === "ranking-liga" && mejor ? { ...ficha, campo: mejor.key, titulo: `${t(ficha.titulo)} · ${t(mejor.label)}` }
+        : ficha;
+      const necesarias = [...resuelta.requiere, ...(resuelta.ejeX ? [resuelta.ejeX] : []), ...(resuelta.ejeY ? [resuelta.ejeY] : []), ...(resuelta.campo ? [resuelta.campo] : [])];
+      if (necesarias.some((columna) => !columnas.has(columna))) return null;
+
+      if (resuelta.tipo === "cuadrante" && resuelta.ejeX && resuelta.ejeY) {
+        const puntos: PuntoCuadrante[] = poblacion.flatMap((row) => {
+          const x = numero(row[resuelta.ejeX!]); const y = numero(row[resuelta.ejeY!]);
+          if (!Number.isFinite(x) || !Number.isFinite(y)) return [];
+          const nombre = String(row.Player ?? "");
+          return [{ x, y, nombre, esObjetivo: nombre === report.player, esCompanero: nombre !== report.player && String(row.Team ?? "") === report.team }];
+        });
+        return puntos.some((punto) => punto.esObjetivo) ? { ficha: resuelta, datos: puntos } : null;
+      }
+      if (resuelta.tipo === "ranking" && resuelta.campo) {
+        const barras: BarraRank[] = poblacion.flatMap((row) => {
+          const valor = numero(row[resuelta.campo!]);
+          if (!Number.isFinite(valor)) return [];
+          const nombre = String(row.Player ?? "");
+          return [{ nombre, valor, esObjetivo: nombre === report.player, esCompanero: nombre !== report.player && String(row.Team ?? "") === report.team }];
+        });
+        return barras.some((barra) => barra.esObjetivo) ? { ficha: resuelta, datos: barras } : null;
+      }
+      if (resuelta.tipo === "zscores" && resuelta.campos?.length) {
+        const barras: BarraZ[] = resuelta.campos.flatMap(({ columna, etiqueta }) => {
+          if (!columnas.has(columna) || !fila) return [];
+          const propio = numero(fila[columna]);
+          const valores = poblacion.map((row) => numero(row[columna])).filter(Number.isFinite);
+          if (!Number.isFinite(propio) || valores.length < 6) return [];
+          const media = valores.reduce((suma, valor) => suma + valor, 0) / valores.length;
+          const desviacion = Math.sqrt(valores.reduce((suma, valor) => suma + (valor - media) ** 2, 0) / valores.length);
+          if (desviacion < 1e-9) return [];
+          return [{ etiqueta, z: (propio - media) / desviacion }];
+        });
+        return barras.length >= 3 ? { ficha: resuelta, datos: barras } : null;
+      }
+      return null;
+    }).filter(Boolean) as Array<{ ficha: FichaContexto; datos: unknown }>;
+  }, [rows, poblacion, fila, report, destacadas]);
+
   return <article className="context-page">
     <header>
       <div>
@@ -215,6 +264,9 @@ export function ContextPage({ report, rows }: { report: PlayerReport; rows: Data
       <div className="ctx-picker" role="group" aria-label={t("Qué visualizar")}>
         {BLOQUES.map((bloque) => (
           <button key={bloque.id} type="button" className={muestra(bloque.id) ? "on" : ""} onClick={() => alternar(bloque.id)}>{t(bloque.etiqueta)}</button>
+        ))}
+        {fichas.map(({ ficha }) => (
+          <button key={ficha.id} type="button" className={muestra(ficha.id as BloqueId) ? "on" : ""} onClick={() => alternar(ficha.id as BloqueId)} title={ficha.articulo}>{t(ficha.titulo)}</button>
         ))}
       </div>
       <div className="ctx-legend">
@@ -254,6 +306,21 @@ export function ContextPage({ report, rows }: { report: PlayerReport; rows: Data
           ejeY={t(cuadrante.eficacia.label)}
           puntos={cuadrante.puntos}
         />}
+      </div>
+    </section>}
+
+    {fichas.some(({ ficha }) => muestra(ficha.id as BloqueId)) && <section className="ctx-catalog-block">
+      <h3>{t("Análisis de los artículos de SkillCorner")}</h3>
+      <div className="ctx-catalog">
+        {fichas.filter(({ ficha }) => muestra(ficha.id as BloqueId)).map(({ ficha, datos }) => (
+          <section key={ficha.id}>
+            <h4>{t(ficha.titulo)}</h4>
+            <p>{t(ficha.lectura)}</p>
+            {ficha.tipo === "cuadrante" && <CuadranteMetricas titulo="" ejeX={t(ficha.etiquetaX ?? "")} ejeY={t(ficha.etiquetaY ?? "")} puntos={datos as PuntoCuadrante[]} />}
+            {ficha.tipo === "ranking" && <BarrasRanking titulo="" unidad={ficha.unidad} barras={datos as BarraRank[]} />}
+            {ficha.tipo === "zscores" && <BarrasZ titulo="" barras={datos as BarraZ[]} />}
+          </section>
+        ))}
       </div>
     </section>}
 

@@ -120,3 +120,56 @@ export function LeyendaGraficos({ equipo }: { equipo: string }) {
     <span><i className="mediana" />{t("Mediana")}</span>
   </div>;
 }
+
+export type BarraRank = { nombre: string; valor: number; esObjetivo?: boolean; esCompanero?: boolean };
+
+/** Barras rankeadas (artículo 1 y 3): el top de la liga con el jugador dentro. */
+export function BarrasRanking({ titulo, unidad = "", barras, top = 12 }: { titulo: string; unidad?: string; barras: BarraRank[]; top?: number }) {
+  const validas = barras.filter((barra) => Number.isFinite(barra.valor)).sort((a, b) => b.valor - a.valor);
+  if (validas.length < 4) return null;
+  const objetivo = validas.find((barra) => barra.esObjetivo);
+  const puesto = objetivo ? validas.indexOf(objetivo) + 1 : 0;
+  // Si el jugador no entra en el top se le añade al final, para que la barra
+  // siempre esté: el gráfico existe para situarlo a él, no para lucir un top.
+  const visibles = validas.slice(0, top);
+  if (objetivo && !visibles.includes(objetivo)) visibles[visibles.length - 1] = objetivo;
+  const maximo = Math.max(...visibles.map((barra) => barra.valor), 0.0001);
+  return <figure className="ctx-rank">
+    <figcaption>{titulo}{objetivo ? ` · ${puesto}/${validas.length}` : ""}</figcaption>
+    <div className="ctx-rank-rows">
+      {visibles.map((barra, index) => (
+        <div key={`${barra.nombre}-${index}`} className={`ctx-rank-row${barra.esObjetivo ? " objetivo" : barra.esCompanero ? " companero" : ""}`}>
+          <span title={barra.nombre}>{barra.nombre}</span>
+          <i><em style={{ width: `${Math.max(2, (barra.valor / maximo) * 100)}%` }} /></i>
+          <b>{barra.valor.toFixed(barra.valor >= 10 ? 0 : 2)}{unidad}</b>
+        </div>
+      ))}
+    </div>
+  </figure>;
+}
+
+export type BarraZ = { etiqueta: string; z: number };
+
+/** Barras divergentes de z-score (artículo 2): sobre y bajo la media de su posición. */
+export function BarrasZ({ titulo, barras }: { titulo: string; barras: BarraZ[] }) {
+  const validas = barras.filter((barra) => Number.isFinite(barra.z));
+  if (!validas.length) return null;
+  const tope = Math.max(2, ...validas.map((barra) => Math.abs(barra.z)));
+  return <figure className="ctx-z">
+    <figcaption>{titulo}</figcaption>
+    <div className="ctx-z-rows">
+      {validas.map((barra) => {
+        const ancho = (Math.abs(barra.z) / tope) * 50;
+        const positivo = barra.z >= 0;
+        return <div key={barra.etiqueta} className="ctx-z-row">
+          <span title={barra.etiqueta}>{barra.etiqueta}</span>
+          <i>
+            <u />
+            <em className={positivo ? "pos" : "neg"} style={positivo ? { left: "50%", width: `${ancho}%` } : { right: "50%", width: `${ancho}%` }} />
+          </i>
+          <b className={positivo ? "pos" : "neg"}>{barra.z > 0 ? "+" : ""}{barra.z.toFixed(2)}</b>
+        </div>;
+      })}
+    </div>
+  </figure>;
+}
