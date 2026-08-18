@@ -26,7 +26,7 @@ function mediana(values: number[]) {
   return orden.length % 2 ? orden[medio] : (orden[medio - 1] + orden[medio]) / 2;
 }
 
-export type PuntoSwarm = { valor: number; nombre?: string; esObjetivo?: boolean; esCompanero?: boolean };
+export type PuntoSwarm = { valor: number; nombre?: string; equipo?: string; esObjetivo?: boolean; esCompanero?: boolean };
 
 export function SwarmMetric({ etiqueta, puntos, unidad = "", percentil, fuente = "wyscout" }: { etiqueta: string; puntos: PuntoSwarm[]; unidad?: string; percentil?: number; fuente?: string }) {
   const acento = METRIC_SOURCE_COLORS[fuente]?.color ?? VERDE;
@@ -57,11 +57,13 @@ export function SwarmMetric({ etiqueta, puntos, unidad = "", percentil, fuente =
         if (!Number.isFinite(punto.valor) || punto.esObjetivo) return null;
         return <circle key={index} className="ctx-dot" cx={x(punto.valor)} cy={ALTO / 2 + desplazamiento(index)} r={punto.esCompanero ? 3 : 2.4}
           fill={punto.esCompanero ? "rgba(244, 201, 93, .75)" : TENUE}>
-          <title>{`${punto.nombre ?? ""} · ${punto.valor.toFixed(2)}`}</title>
+          <title>{`${punto.nombre ?? ""}${punto.equipo ? ` · ${punto.equipo}` : ""}\n${etiqueta}: ${punto.valor.toFixed(2)}${unidad}`}</title>
         </circle>;
       })}
       {objetivo && Number.isFinite(objetivo.valor) && <>
-        <circle cx={x(objetivo.valor)} cy={ALTO / 2} r="6.5" fill={acento} stroke="#0d1a1f" strokeWidth="1.5" />
+        <circle cx={x(objetivo.valor)} cy={ALTO / 2} r="6.5" fill={acento} stroke="#0d1a1f" strokeWidth="1.5">
+          <title>{`${objetivo.nombre ?? ""}${objetivo.equipo ? ` · ${objetivo.equipo}` : ""}\n${etiqueta}: ${objetivo.valor.toFixed(2)}${unidad}`}</title>
+        </circle>
         <text x={x(objetivo.valor)} y={ALTO - 3} textAnchor="middle" fill={acento} fontSize="8.5" fontWeight="700">
           {objetivo.valor.toFixed(objetivo.valor >= 10 ? 0 : 2)}{unidad}
         </text>
@@ -70,7 +72,7 @@ export function SwarmMetric({ etiqueta, puntos, unidad = "", percentil, fuente =
   </figure>;
 }
 
-export type PuntoCuadrante = { x: number; y: number; nombre: string; esObjetivo?: boolean; esCompanero?: boolean };
+export type PuntoCuadrante = { x: number; y: number; nombre: string; equipo?: string; esObjetivo?: boolean; esCompanero?: boolean };
 
 export function CuadranteMetricas({ titulo, ejeX, ejeY, puntos }: { titulo: string; ejeX: string; ejeY: string; puntos: PuntoCuadrante[] }) {
   const validos = puntos.filter((punto) => Number.isFinite(punto.x) && Number.isFinite(punto.y));
@@ -95,12 +97,12 @@ export function CuadranteMetricas({ titulo, ejeX, ejeY, puntos }: { titulo: stri
         <circle key={index} className="ctx-dot" cx={px(punto.x)} cy={py(punto.y)} r={punto.esCompanero ? 3.4 : 2.6}
           fill={punto.esCompanero ? "rgba(244, 201, 93, .8)" : TENUE}>
           {/* Etiqueta nativa al pasar el ratón: sin JavaScript, y no estorba al exportar. */}
-          <title>{`${punto.nombre} · ${ejeX} ${punto.x.toFixed(2)} · ${ejeY} ${punto.y.toFixed(2)}`}</title>
+          <title>{`${punto.nombre}${punto.equipo ? ` · ${punto.equipo}` : ""}\n${ejeX}: ${punto.x.toFixed(2)}\n${ejeY}: ${punto.y.toFixed(2)}`}</title>
         </circle>
       ))}
       {objetivo && <>
         <circle cx={px(objetivo.x)} cy={py(objetivo.y)} r="7" fill={VERDE} stroke="#0d1a1f" strokeWidth="1.6">
-          <title>{`${objetivo.nombre} · ${ejeX} ${objetivo.x.toFixed(2)} · ${ejeY} ${objetivo.y.toFixed(2)}`}</title>
+          <title>{`${objetivo.nombre}${objetivo.equipo ? ` · ${objetivo.equipo}` : ""}\n${ejeX}: ${objetivo.x.toFixed(2)}\n${ejeY}: ${objetivo.y.toFixed(2)}`}</title>
         </circle>
         <text x={px(objetivo.x)} y={py(objetivo.y) - 11} textAnchor="middle" fill={VERDE} fontSize="9" fontWeight="700">
           {objetivo.nombre.split(" ").slice(-1)[0]}
@@ -121,7 +123,7 @@ export function LeyendaGraficos({ equipo }: { equipo: string }) {
   </div>;
 }
 
-export type BarraRank = { nombre: string; valor: number; esObjetivo?: boolean; esCompanero?: boolean };
+export type BarraRank = { nombre: string; equipo?: string; valor: number; esObjetivo?: boolean; esCompanero?: boolean };
 
 /** Barras rankeadas (artículo 1 y 3): el top de la liga con el jugador dentro. */
 export function BarrasRanking({ titulo, unidad = "", barras, top = 12 }: { titulo: string; unidad?: string; barras: BarraRank[]; top?: number }) {
@@ -139,7 +141,7 @@ export function BarrasRanking({ titulo, unidad = "", barras, top = 12 }: { titul
     <div className="ctx-rank-rows">
       {visibles.map((barra, index) => (
         <div key={`${barra.nombre}-${index}`} className={`ctx-rank-row${barra.esObjetivo ? " objetivo" : barra.esCompanero ? " companero" : ""}`}>
-          <span title={barra.nombre}>{barra.nombre}</span>
+          <span title={`${barra.nombre}${barra.equipo ? ` · ${barra.equipo}` : ""}\n${titulo}: ${barra.valor.toFixed(2)}${unidad}`}>{barra.nombre}</span>
           <i><em style={{ width: `${Math.max(2, (barra.valor / maximo) * 100)}%` }} /></i>
           <b>{barra.valor.toFixed(barra.valor >= 10 ? 0 : 2)}{unidad}</b>
         </div>

@@ -178,7 +178,7 @@ export function ContextPage({ report, rows }: { report: PlayerReport; rows: Data
         const valor = numero(row[metrica.key]);
         if (!Number.isFinite(valor)) return [];
         const nombre = String(row.Player ?? "");
-        return [{ valor, nombre, esObjetivo: nombre === report.player, esCompanero: nombre !== report.player && String(row.Team ?? "") === report.team }];
+        return [{ valor, nombre, equipo: String(row.Team ?? ""), esObjetivo: nombre === report.player, esCompanero: nombre !== report.player && String(row.Team ?? "") === report.team }];
       });
       return { metrica, puntos };
     }).filter((item) => item.puntos.some((punto) => punto.esObjetivo));
@@ -194,7 +194,7 @@ export function ContextPage({ report, rows }: { report: PlayerReport; rows: Data
       const x = numero(row[volumen.key]); const y = numero(row[eficacia.key]);
       if (!Number.isFinite(x) || !Number.isFinite(y)) return [];
       const nombre = String(row.Player ?? "");
-      return [{ x, y, nombre, esObjetivo: nombre === report.player, esCompanero: nombre !== report.player && String(row.Team ?? "") === report.team }];
+      return [{ x, y, nombre, equipo: String(row.Team ?? ""), esObjetivo: nombre === report.player, esCompanero: nombre !== report.player && String(row.Team ?? "") === report.team }];
     });
     return puntos.some((punto) => punto.esObjetivo) ? { volumen, eficacia, puntos } : null;
   }, [destacadas, report.metrics, report.player, report.team, poblacion]);
@@ -209,7 +209,7 @@ export function ContextPage({ report, rows }: { report: PlayerReport; rows: Data
       const x = numero(row[ejeX]); const y = numero(row[ejeY]);
       if (!Number.isFinite(x) || !Number.isFinite(y)) return [];
       const nombre = String(row.Player ?? "");
-      return [{ x, y, nombre, esObjetivo: nombre === report.player, esCompanero: nombre !== report.player && String(row.Team ?? "") === report.team }];
+      return [{ x, y, nombre, equipo: String(row.Team ?? ""), esObjetivo: nombre === report.player, esCompanero: nombre !== report.player && String(row.Team ?? "") === report.team }];
     });
     return puntos.some((punto) => punto.esObjetivo) ? puntos : null;
   }, [fila, poblacion, report.player, report.team]);
@@ -232,7 +232,7 @@ export function ContextPage({ report, rows }: { report: PlayerReport; rows: Data
           const x = numero(row[resuelta.ejeX!]); const y = numero(row[resuelta.ejeY!]);
           if (!Number.isFinite(x) || !Number.isFinite(y)) return [];
           const nombre = String(row.Player ?? "");
-          return [{ x, y, nombre, esObjetivo: nombre === report.player, esCompanero: nombre !== report.player && String(row.Team ?? "") === report.team }];
+          return [{ x, y, nombre, equipo: String(row.Team ?? ""), esObjetivo: nombre === report.player, esCompanero: nombre !== report.player && String(row.Team ?? "") === report.team }];
         });
         return puntos.some((punto) => punto.esObjetivo) ? { ficha: resuelta, datos: puntos } : null;
       }
@@ -241,7 +241,7 @@ export function ContextPage({ report, rows }: { report: PlayerReport; rows: Data
           const valor = numero(row[resuelta.campo!]);
           if (!Number.isFinite(valor)) return [];
           const nombre = String(row.Player ?? "");
-          return [{ nombre, valor, esObjetivo: nombre === report.player, esCompanero: nombre !== report.player && String(row.Team ?? "") === report.team }];
+          return [{ nombre, equipo: String(row.Team ?? ""), valor, esObjetivo: nombre === report.player, esCompanero: nombre !== report.player && String(row.Team ?? "") === report.team }];
         });
         return barras.some((barra) => barra.esObjetivo) ? { ficha: resuelta, datos: barras } : null;
       }
