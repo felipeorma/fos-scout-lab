@@ -1961,3 +1961,7 @@ body.print-layout-check .ai-error { display: none !important; }
 .ctx-glossary dl > div { display: grid; grid-template-columns: minmax(0,.85fr) minmax(0,1.15fr); gap: 8px; align-items: baseline; }
 .ctx-glossary dt { overflow: hidden; color: var(--ctx-ink); font-size: 8px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 .ctx-glossary dd { margin: 0; color: var(--ctx-dim); font-size: 8px; line-height: 1.4; }
+/* La etiqueta flotante no debe capturar el ratón ni salir al imprimir. */
+.ctx-swarm svg, .ctx-quadrant svg { overflow: visible; }
+.ctx-dot { cursor: crosshair; }
+@media print { .ctx-tip { display: none !important; } }

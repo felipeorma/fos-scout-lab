@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
 import { t } from "@/lib/i18n";
 import { METRIC_SOURCE_COLORS } from "@/lib/similarityMetricGroups";
 
@@ -18,6 +18,28 @@ import { METRIC_SOURCE_COLORS } from "@/lib/similarityMetricGroups";
 const VERDE = "#12c48b";
 const TENUE = "rgba(234, 242, 240, .26)";
 const TEXTO = "#8fa3a0";
+
+type Etiqueta = { x: number; y: number; lineas: string[] } | null;
+
+/**
+ * Etiqueta flotante dibujada dentro del propio SVG. El <title> nativo tarda
+ * casi un segundo en aparecer y se pierde; esto responde al instante y se
+ * puede leer mientras el ratón recorre la nube de puntos.
+ */
+function EtiquetaFlotante({ etiqueta, ancho, alto }: { etiqueta: Etiqueta; ancho: number; alto: number }) {
+  if (!etiqueta) return null;
+  const anchoCaja = Math.max(...etiqueta.lineas.map((linea) => linea.length)) * 4.3 + 12;
+  const altoCaja = etiqueta.lineas.length * 10 + 8;
+  // Se voltea contra el borde para no salirse del lienzo.
+  const x = Math.min(Math.max(4, etiqueta.x - anchoCaja / 2), ancho - anchoCaja - 4);
+  const y = etiqueta.y - altoCaja - 10 < 4 ? etiqueta.y + 12 : etiqueta.y - altoCaja - 10;
+  return <g className="ctx-tip" pointerEvents="none">
+    <rect x={x} y={y} width={anchoCaja} height={altoCaja} rx="4" fill="rgba(6,16,20,.94)" stroke="rgba(18,196,139,.55)" strokeWidth="1" />
+    {etiqueta.lineas.map((linea, index) => (
+      <text key={index} x={x + 6} y={y + 12 + index * 10} fill={index === 0 ? "#eaf2f0" : "#9fb3af"} fontSize={index === 0 ? "8.5" : "7.5"} fontWeight={index === 0 ? "700" : "400"}>{linea}</text>
+    ))}
+  </g>;
+}
 
 function mediana(values: number[]) {
   if (!values.length) return Number.NaN;
@@ -44,30 +66,34 @@ export function SwarmMetric({ etiqueta, puntos, unidad = "", percentil, fuente =
   const desplazamiento = (index: number) => ((index * 37) % 11) - 5;
   const objetivo = puntos.find((punto) => punto.esObjetivo);
   const med = mediana(valores);
+  const [tip, setTip] = useState<Etiqueta>(null);
 
   return <figure className="ctx-swarm">
     <figcaption>
       <span>{etiqueta}</span>
       {percentil !== undefined && <b style={{ color: acento }}>P{percentil}</b>}
     </figcaption>
-    <svg viewBox={`0 0 ${ANCHO} ${ALTO}`} role="img" aria-label={etiqueta}>
+    <svg viewBox={`0 0 ${ANCHO} ${ALTO}`} role="img" aria-label={etiqueta} onMouseLeave={() => setTip(null)}>
       <line x1="6" y1={ALTO / 2} x2={ANCHO - 6} y2={ALTO / 2} stroke="rgba(255,255,255,.08)" strokeWidth="1" />
       {Number.isFinite(med) && <line x1={x(med)} y1="8" x2={x(med)} y2={ALTO - 14} stroke="rgba(255,255,255,.22)" strokeWidth="1" strokeDasharray="3 3" />}
       {puntos.map((punto, index) => {
         if (!Number.isFinite(punto.valor) || punto.esObjetivo) return null;
         return <circle key={index} className="ctx-dot" cx={x(punto.valor)} cy={ALTO / 2 + desplazamiento(index)} r={punto.esCompanero ? 3 : 2.4}
-          fill={punto.esCompanero ? "rgba(244, 201, 93, .75)" : TENUE}>
+          fill={punto.esCompanero ? "rgba(244, 201, 93, .75)" : TENUE}
+          onMouseEnter={() => setTip({ x: x(punto.valor), y: ALTO / 2 + desplazamiento(index), lineas: [punto.nombre ?? "", punto.equipo ?? "", `${etiqueta}: ${punto.valor.toFixed(2)}${unidad}`].filter(Boolean) })}>
           <title>{`${punto.nombre ?? ""}${punto.equipo ? ` · ${punto.equipo}` : ""}\n${etiqueta}: ${punto.valor.toFixed(2)}${unidad}`}</title>
         </circle>;
       })}
       {objetivo && Number.isFinite(objetivo.valor) && <>
-        <circle cx={x(objetivo.valor)} cy={ALTO / 2} r="6.5" fill={acento} stroke="#0d1a1f" strokeWidth="1.5">
+        <circle cx={x(objetivo.valor)} cy={ALTO / 2} r="6.5" fill={acento} stroke="#0d1a1f" strokeWidth="1.5"
+          onMouseEnter={() => setTip({ x: x(objetivo.valor), y: ALTO / 2, lineas: [objetivo.nombre ?? "", objetivo.equipo ?? "", `${etiqueta}: ${objetivo.valor.toFixed(2)}${unidad}`].filter(Boolean) })}>
           <title>{`${objetivo.nombre ?? ""}${objetivo.equipo ? ` · ${objetivo.equipo}` : ""}\n${etiqueta}: ${objetivo.valor.toFixed(2)}${unidad}`}</title>
         </circle>
         <text x={x(objetivo.valor)} y={ALTO - 3} textAnchor="middle" fill={acento} fontSize="8.5" fontWeight="700">
           {objetivo.valor.toFixed(objetivo.valor >= 10 ? 0 : 2)}{unidad}
         </text>
       </>}
+      <EtiquetaFlotante etiqueta={tip} ancho={ANCHO} alto={ALTO} />
     </svg>
   </figure>;
 }
@@ -87,21 +113,24 @@ export function CuadranteMetricas({ titulo, ejeX, ejeY, puntos }: { titulo: stri
   const py = (valor: number) => H - M - ((valor - minY) / rangoY) * (H - M * 2);
   const medX = mediana(xs); const medY = mediana(ys);
   const objetivo = validos.find((punto) => punto.esObjetivo);
+  const [tip, setTip] = useState<Etiqueta>(null);
 
   return <figure className="ctx-quadrant">
     <figcaption>{titulo}</figcaption>
-    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={titulo}>
+    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={titulo} onMouseLeave={() => setTip(null)}>
       <line x1={px(medX)} y1={M - 8} x2={px(medX)} y2={H - M + 6} stroke="rgba(255,255,255,.16)" strokeDasharray="4 4" />
       <line x1={M - 8} y1={py(medY)} x2={W - M + 6} y2={py(medY)} stroke="rgba(255,255,255,.16)" strokeDasharray="4 4" />
       {validos.map((punto, index) => punto.esObjetivo ? null : (
         <circle key={index} className="ctx-dot" cx={px(punto.x)} cy={py(punto.y)} r={punto.esCompanero ? 3.4 : 2.6}
-          fill={punto.esCompanero ? "rgba(244, 201, 93, .8)" : TENUE}>
+          fill={punto.esCompanero ? "rgba(244, 201, 93, .8)" : TENUE}
+          onMouseEnter={() => setTip({ x: px(punto.x), y: py(punto.y), lineas: [punto.nombre, punto.equipo ?? "", `${ejeX}: ${punto.x.toFixed(2)}`, `${ejeY}: ${punto.y.toFixed(2)}`].filter(Boolean) })}>
           {/* Etiqueta nativa al pasar el ratón: sin JavaScript, y no estorba al exportar. */}
           <title>{`${punto.nombre}${punto.equipo ? ` · ${punto.equipo}` : ""}\n${ejeX}: ${punto.x.toFixed(2)}\n${ejeY}: ${punto.y.toFixed(2)}`}</title>
         </circle>
       ))}
       {objetivo && <>
-        <circle cx={px(objetivo.x)} cy={py(objetivo.y)} r="7" fill={VERDE} stroke="#0d1a1f" strokeWidth="1.6">
+        <circle cx={px(objetivo.x)} cy={py(objetivo.y)} r="7" fill={VERDE} stroke="#0d1a1f" strokeWidth="1.6"
+          onMouseEnter={() => setTip({ x: px(objetivo.x), y: py(objetivo.y), lineas: [objetivo.nombre, objetivo.equipo ?? "", `${ejeX}: ${objetivo.x.toFixed(2)}`, `${ejeY}: ${objetivo.y.toFixed(2)}`].filter(Boolean) })}>
           <title>{`${objetivo.nombre}${objetivo.equipo ? ` · ${objetivo.equipo}` : ""}\n${ejeX}: ${objetivo.x.toFixed(2)}\n${ejeY}: ${objetivo.y.toFixed(2)}`}</title>
         </circle>
         <text x={px(objetivo.x)} y={py(objetivo.y) - 11} textAnchor="middle" fill={VERDE} fontSize="9" fontWeight="700">
@@ -110,6 +139,7 @@ export function CuadranteMetricas({ titulo, ejeX, ejeY, puntos }: { titulo: stri
       </>}
       <text x={W / 2} y={H - 4} textAnchor="middle" fill={TEXTO} fontSize="8" letterSpacing="1">{ejeX.toUpperCase()}</text>
       <text x="9" y={H / 2} textAnchor="middle" fill={TEXTO} fontSize="8" letterSpacing="1" transform={`rotate(-90 9 ${H / 2})`}>{ejeY.toUpperCase()}</text>
+      <EtiquetaFlotante etiqueta={tip} ancho={W} alto={H} />
     </svg>
   </figure>;
 }
