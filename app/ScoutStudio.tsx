@@ -427,7 +427,7 @@ export default function ScoutStudio() {
         // uniforme: las proporciones y la maquetación se conservan intactas y,
         // al ser un escalado único, nada puede quedar solapado. Se itera porque
         // ensanchar la caja antes de escalarla vuelve a repartir el texto.
-        const FIT_SELECTOR = ".scout-report, .visual-report-page, .similarity-native-block, .similarity-native-content, .similarity-report-main, .similarity-metric-section, .visual-text-content";
+        const FIT_SELECTOR = ".scout-report, .visual-report-page, .context-page, .similarity-native-block, .similarity-native-content, .similarity-report-main, .similarity-metric-section, .visual-text-content";
         const MIN_FIT = 0.55;
         const shells = Array.from(document.querySelectorAll<HTMLElement>(".legal-page-shell"));
 

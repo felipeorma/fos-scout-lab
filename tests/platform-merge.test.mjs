@@ -159,3 +159,19 @@ test("dos jugadores distintos con el mismo apellido no se fusionan", () => {
   ]);
   assert.equal(result.rows.length, 2);
 });
+
+test("una fuente abrevia el club y la otra no", () => {
+  const result = aggregateDatasets([
+    dataset("StatsBomb · MLSNP", 2026, "statsbomb", [player({ Player: "Benjamin Rodriguez", Team: "New York RB II" })]),
+    dataset("SkillCorner · MLSNP", 2026, "skillcorner", [player({ Player: "Benjamin Rodriguez", Team: "New York Red Bulls II" })]),
+  ]);
+  assert.equal(result.rows.length, 1);
+});
+
+test("una sigla no fusiona clubes que solo comparten ciudad", () => {
+  const result = aggregateDatasets([
+    dataset("a.xlsx", 2026, "wyscout", [player({ Player: "A Uno", Team: "New York RB II" })]),
+    dataset("b.xlsx", 2026, "wyscout", [player({ Player: "A Uno", Team: "New York City II", "Birth date": "2001-01-01", Age: 24 })]),
+  ]);
+  assert.equal(result.rows.length, 2);
+});

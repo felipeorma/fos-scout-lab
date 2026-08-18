@@ -1850,7 +1850,7 @@ body.print-layout-check .ai-error { display: none !important; }
 /* ---- Página de contexto ----
    Lenguaje visual de SkillCorner —lienzo oscuro y su verde— con la tipografía
    editorial del resto del informe. */
-.context-page { --ctx-green: #12c48b; --ctx-ink: #eaf2f0; --ctx-dim: #8fa3a0; width: 100%; height: 100%; padding: 26px 30px 20px; display: flex; flex-direction: column; gap: 20px; box-sizing: border-box; color: var(--ctx-ink); background: linear-gradient(168deg, #0d1a1f 0%, #10242a 62%, #0b1519 100%); font-family: var(--font-barlow), Arial, sans-serif; }
+.context-page { --ctx-green: #12c48b; --ctx-ink: #eaf2f0; --ctx-dim: #8fa3a0; width: 100%; max-width: 990px; margin: 18px auto 24px; height: 100%; padding: 26px 30px 20px; display: flex; flex-direction: column; gap: 20px; box-sizing: border-box; color: var(--ctx-ink); background: linear-gradient(168deg, #0d1a1f 0%, #10242a 62%, #0b1519 100%); font-family: var(--font-barlow), Arial, sans-serif; }
 .context-page > header { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; padding-bottom: 12px; }
 .context-page > header span { display: block; color: var(--ctx-green); font-size: 9px; font-weight: 800; letter-spacing: .22em; }
 .context-page > header b { display: block; margin-top: 4px; font-family: var(--font-space-grotesk), sans-serif; font-size: 27px; line-height: 1.05; letter-spacing: -.01em; }
@@ -1874,7 +1874,7 @@ body.print-layout-check .ai-error { display: none !important; }
 .ctx-team-rank.bajo { color: #e0a05c; }
 .ctx-empty { color: var(--ctx-dim); font-size: 10px; }
 
-.ctx-funnel-block { margin-top: auto; padding-top: 16px; border-top: 1px solid rgba(255,255,255,.09); }
+.ctx-funnel-block { padding-top: 16px; border-top: 1px solid rgba(255,255,255,.09); }
 .ctx-funnel-block h3 { margin: 0 0 5px; color: var(--ctx-green); font-size: 10px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
 .ctx-funnel-block > p { margin: 0 0 13px; max-width: 78ch; color: var(--ctx-dim); font-size: 9.5px; line-height: 1.5; }
 .ctx-funnel { display: flex; flex-direction: column; gap: 7px; }
@@ -1886,7 +1886,7 @@ body.print-layout-check .ai-error { display: none !important; }
 .ctx-funnel-step > i > u { position: absolute; top: -2px; bottom: -2px; width: 2px; background: #f4c95d; }
 .ctx-funnel-step > b { font-family: var(--font-space-grotesk), sans-serif; font-size: 12px; text-align: right; }
 .ctx-funnel-step > small { color: var(--ctx-dim); font-size: 9px; text-align: right; }
-.context-page > footer { color: var(--ctx-dim); font-size: 8px; letter-spacing: .04em; }
+.context-page > footer { margin-top: auto; color: var(--ctx-dim); font-size: 8px; letter-spacing: .04em; }
 
 /* Gráficos de contexto: swarm de distribución y cuadrante volumen/eficacia. */
 .ctx-charts { padding-top: 15px; border-top: 1px solid rgba(255,255,255,.09); }
@@ -1898,14 +1898,14 @@ body.print-layout-check .ai-error { display: none !important; }
 .ctx-chart-legend i.companero { background: rgba(244, 201, 93, .8); }
 .ctx-chart-legend i.resto { background: rgba(234, 242, 240, .3); }
 .ctx-chart-legend i.mediana { width: 2px; height: 11px; border-radius: 0; background: rgba(255,255,255,.35); }
-.ctx-charts-grid { display: grid; grid-template-columns: minmax(0,2.1fr) minmax(0,.9fr); gap: 20px; align-items: start; }
-.ctx-swarms { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 2px 16px; }
+.ctx-charts-grid { display: grid; grid-template-columns: minmax(0,1.6fr) minmax(300px,1.4fr); gap: 20px; align-items: start; }
+.ctx-swarms { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px 16px; }
 .ctx-swarm { margin: 0; }
 .ctx-swarm figcaption { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .ctx-swarm figcaption span { overflow: hidden; color: var(--ctx-ink); font-size: 9.5px; text-overflow: ellipsis; white-space: nowrap; }
 .ctx-swarm figcaption b { font-family: var(--font-space-grotesk), sans-serif; font-size: 9px; }
 .ctx-swarm svg { width: 100%; height: auto; display: block; }
-.ctx-quadrant { margin: 0; }
+.ctx-quadrant { margin: 0; grid-column: 2; }
 .ctx-quadrant figcaption { margin-bottom: 4px; color: var(--ctx-ink); font-size: 9.5px; font-weight: 700; letter-spacing: .04em; }
 .ctx-quadrant svg { width: 100%; height: auto; display: block; }
 
@@ -1957,9 +1957,9 @@ body.print-layout-check .ai-error { display: none !important; }
 /* Glosario al pie: solo las métricas visibles en ese momento. */
 .ctx-glossary { padding-top: 14px; border-top: 1px solid rgba(255,255,255,.09); }
 .ctx-glossary h3 { margin: 0 0 8px; color: var(--ctx-green); font-size: 10px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
-.ctx-glossary dl { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 4px 22px; }
-.ctx-glossary dl > div { display: grid; grid-template-columns: minmax(0,.85fr) minmax(0,1.15fr); gap: 8px; align-items: baseline; }
-.ctx-glossary dt { overflow: hidden; color: var(--ctx-ink); font-size: 8px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.ctx-glossary dl { margin: 0; display: grid; grid-template-columns: minmax(0,1fr); gap: 6px 22px; }
+.ctx-glossary dl > div { display: grid; grid-template-columns: 210px minmax(0,1fr); gap: 10px; align-items: baseline; }
+.ctx-glossary dt { color: var(--ctx-ink); font-size: 8px; font-weight: 700; white-space: normal; }
 .ctx-glossary dd { margin: 0; color: var(--ctx-dim); font-size: 8px; line-height: 1.4; }
 /* La etiqueta flotante no debe capturar el ratón ni salir al imprimir. */
 .ctx-swarm svg, .ctx-quadrant svg { overflow: visible; }

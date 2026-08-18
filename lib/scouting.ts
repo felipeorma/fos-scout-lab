@@ -213,6 +213,33 @@ function maxPerProvider(entries: Array<{ row: DataRow; provider: MetricSource }>
 // de equipos muestre una sola entrada por club.
 const CLUB_STOPWORDS = new Set(["fc", "cf", "sc", "afc", "cd", "ac", "fk", "sk", "club", "football", "futbol", "soccer", "de", "du", "des", "the"]);
 const CLUB_ALIAS_GROUPS = [["york united", "inter toronto"]];
+/**
+ * Compara dos nombres de club permitiendo siglas: un token corto vale por las
+ * palabras siguientes de la otra lista si deletrea sus iniciales. Exige que la
+ * sigla tenga al menos dos letras y consuma al menos dos palabras, para que
+ * "FC" o un "II" no se traguen medio nombre.
+ */
+function mismaSecuenciaConSiglas(a: string[], b: string[]): boolean {
+  const avanzar = (corta: string[], larga: string[]) => {
+    let i = 0;
+    let j = 0;
+    let huboSigla = false;
+    while (i < corta.length && j < larga.length) {
+      if (corta[i] === larga[j]) { i += 1; j += 1; continue; }
+      const sigla = corta[i];
+      if (sigla.length >= 2 && sigla.length <= 4) {
+        const consumidas = larga.slice(j, j + sigla.length);
+        if (consumidas.length === sigla.length && consumidas.every((palabra, indice) => palabra[0] === sigla[indice])) {
+          i += 1; j += sigla.length; huboSigla = true; continue;
+        }
+      }
+      return false;
+    }
+    return huboSigla && i === corta.length && j === larga.length;
+  };
+  return avanzar(a, b) || avanzar(b, a);
+}
+
 const clubTokens = (value: string) => value.split(" ").filter((token) => token && !CLUB_STOPWORDS.has(token));
 
 export function clubsMatch(a: string, b: string) {
@@ -227,6 +254,10 @@ export function clubsMatch(a: string, b: string) {
   // "Vancouver FC" ≡ "Vancouver Football Club", "FC Supra" ≡ "FC Supra du
   // Québec", pero clubes distintos de la misma ciudad no se confunden.
   if (listA[0] === listB[0] && ([...ta].every((token) => tb.has(token)) || [...tb].every((token) => ta.has(token)))) return true;
+  // Una fuente abrevia y la otra no: "New York RB II" ≡ "New York Red Bulls II".
+  // Se recorren las dos listas en paralelo permitiendo que una sigla consuma
+  // las palabras cuyas iniciales deletrea.
+  if (mismaSecuenciaConSiglas(listA, listB)) return true;
   return CLUB_ALIAS_GROUPS.some((group) => {
     const inA = group.find((alias) => a.includes(alias));
     const inB = group.find((alias) => b.includes(alias));
@@ -403,8 +434,12 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
     if (!recortable) continue;
     const candidates = mergedGroups.filter((other) => {
       if (other === group) return false;
-      // Solo se absorbe hacia el nombre más completo, nunca al revés.
-      if (nameTokens(other[0].player).length <= tokensGrupo.length && !isAbbreviated(group[0].player)) return false;
+      // Nombre idéntico: son la misma persona aunque una plataforma no traiga
+      // la edad y la clave nombre+edad+club los haya separado. Pasa en masa
+      // cuando SkillCorner devuelve la fecha de nacimiento vacía.
+      const mismoNombre = normalizeIdentityText(other[0].player) === normalizeIdentityText(group[0].player);
+      // Si no, solo se absorbe hacia el nombre más completo, nunca al revés.
+      if (!mismoNombre && nameTokens(other[0].player).length <= tokensGrupo.length && !isAbbreviated(group[0].player)) return false;
       if (isAbbreviated(other[0].player) && isAbbreviated(group[0].player)) return false;
       return compatible(group, other);
     });
