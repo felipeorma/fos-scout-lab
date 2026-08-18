@@ -232,6 +232,20 @@ const CLUB_ALIAS_GROUPS = [["york united", "inter toronto"]];
  * sigla tenga al menos dos letras y consuma al menos dos palabras, para que
  * "FC" o un "II" no se traguen medio nombre.
  */
+/** Distancia de edición acotada: solo interesa si difieren en ≤1 letra. */
+function difiereEnUnaLetra(a: string, b: string) {
+  if (Math.abs(a.length - b.length) > 1 || a === b) return false;
+  const [corta, larga] = a.length <= b.length ? [a, b] : [b, a];
+  let i = 0, j = 0, fallos = 0;
+  while (i < corta.length && j < larga.length) {
+    if (corta[i] === larga[j]) { i += 1; j += 1; continue; }
+    fallos += 1;
+    if (fallos > 1) return false;
+    if (corta.length === larga.length) { i += 1; j += 1; } else { j += 1; }
+  }
+  return fallos + (larga.length - j) + (corta.length - i) <= 1;
+}
+
 function mismaSecuenciaConSiglas(a: string[], b: string[]): boolean {
   const avanzar = (corta: string[], larga: string[]) => {
     let i = 0;
@@ -425,7 +439,13 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
     const ta = nameTokens(a[0].player);
     const tb = nameTokens(b[0].player);
     if (!ta.length || !tb.length) return false;
-    if (ta[ta.length - 1] !== tb[tb.length - 1]) return false;
+    // El apellido admite una errata de una letra ("Ittycheria" contra
+    // "Iittycheria"), pero solo si es largo: en uno corto, una letra de
+    // diferencia son dos personas distintas.
+    const apellidoA = ta[ta.length - 1];
+    const apellidoB = tb[tb.length - 1];
+    if (apellidoA !== apellidoB
+      && !(Math.min(apellidoA.length, apellidoB.length) >= 6 && difiereEnUnaLetra(apellidoA, apellidoB))) return false;
     // Basta compartir la inicial del nombre ("J. Smith" ≡ "Jordan Smith") o que
     // el nombre corto esté contenido en el largo: SkillCorner recorta el primer
     // nombre de pila ("Elage Bah" por "Thierno Elage Bah") y esos duplicados
@@ -435,6 +455,10 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
     const clubsA = [...new Set(a.map((entry) => entry.clubIdentity).filter(Boolean))];
     const clubsB = [...new Set(b.map((entry) => entry.clubIdentity).filter(Boolean))];
     if (!clubsA.some((clubA) => clubsB.some((clubB) => clubsMatch(clubA, clubB)))) return false;
+    // Nombre exacto y club compatible ya identifican a la persona: la edad no
+    // puede vetar. Las plataformas discrepan en la edad de los juveniles —el
+    // mismo jugador figura con 15 en una y 17 en otra— y eso los duplicaba.
+    if (normalizeIdentityText(a[0].player) === normalizeIdentityText(b[0].player)) return true;
     const agesA = a.map((entry) => edadComparable(entry.ageIdentity)).filter(Number.isFinite);
     const agesB = b.map((entry) => edadComparable(entry.ageIdentity)).filter(Number.isFinite);
     if (!agesA.length || !agesB.length) return true;

@@ -190,3 +190,31 @@ test("una edad vacía no vale cero al cruzar plataformas", () => {
   assert.ok(String(result.rows[0]["Data sources"]).includes("StatsBomb"));
   assert.ok(String(result.rows[0]["Data sources"]).includes("SkillCorner"));
 });
+
+test("una edad discrepante no separa a un jugador de nombre y club idénticos", () => {
+  // Las plataformas discrepan en la edad de los juveniles: el mismo chico
+  // figura con 15 en una y 17 en otra.
+  const result = aggregateDatasets([
+    dataset("StatsBomb · MLSNP", 2026, "statsbomb", [player({ Player: "Jesse Peace", Team: "Vancouver Whitecaps II", Age: 15, "Birth date": "" })]),
+    dataset("SkillCorner · MLSNP", 2026, "skillcorner", [player({ Player: "Jesse Peace", Team: "Vancouver Whitecaps FC II", Age: 17, "Birth date": "" })]),
+  ]);
+  assert.equal(result.rows.length, 1);
+});
+
+test("una errata de una letra en el apellido no duplica al jugador", () => {
+  const result = aggregateDatasets([
+    dataset("StatsBomb · MLSNP", 2026, "statsbomb", [player({ Player: "Daniel Ittycheria", Team: "Vancouver Whitecaps II" })]),
+    dataset("SkillCorner · MLSNP", 2026, "skillcorner", [player({ Player: "Daniel Iittycheria", Team: "Vancouver Whitecaps FC II" })]),
+  ]);
+  assert.equal(result.rows.length, 1);
+});
+
+test("una letra de diferencia en un apellido corto son dos jugadores", () => {
+  const result = aggregateDatasets([
+    dataset("liga.xlsx", 2026, "wyscout", [
+      player({ Player: "Luis Diaz", Team: "Cavalry FC", "Birth date": "1997-01-07" }),
+      player({ Player: "Luis Diez", Team: "Cavalry FC", "Birth date": "2003-05-12", Age: 22 }),
+    ]),
+  ]);
+  assert.equal(result.rows.length, 2);
+});
