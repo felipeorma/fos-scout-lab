@@ -1953,3 +1953,11 @@ body.print-layout-check .ai-error { display: none !important; }
 .ctx-picker button.sugerida { border-color: rgba(255,255,255,.3); }
 .ctx-picker button > i { margin-right: 4px; font-size: 7px; font-style: normal; }
 .ctx-picker button.on.sugerida { border-color: var(--ctx-green); }
+
+/* Glosario al pie: solo las métricas visibles en ese momento. */
+.ctx-glossary { padding-top: 14px; border-top: 1px solid rgba(255,255,255,.09); }
+.ctx-glossary h3 { margin: 0 0 8px; color: var(--ctx-green); font-size: 10px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+.ctx-glossary dl { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 4px 22px; }
+.ctx-glossary dl > div { display: grid; grid-template-columns: minmax(0,.85fr) minmax(0,1.15fr); gap: 8px; align-items: baseline; }
+.ctx-glossary dt { overflow: hidden; color: var(--ctx-ink); font-size: 8px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.ctx-glossary dd { margin: 0; color: var(--ctx-dim); font-size: 8px; line-height: 1.4; }

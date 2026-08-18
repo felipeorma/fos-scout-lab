@@ -189,3 +189,36 @@ export const CATALOGO: FichaContexto[] = [
     campo: "",
   },
 ];
+
+/**
+ * Qué mide cada columna, en una línea. La hoja imprime al pie solo las
+ * definiciones de lo que está en pantalla: un informe que sale del club tiene
+ * que poder leerse sin conocer la nomenclatura de SkillCorner.
+ */
+export const DEFINICIONES: Record<string, string> = {
+  "Options inside shape P30 (SC)": "Veces que se ofrece como opción de pase por dentro de la estructura defensiva rival, por 30 minutos de posesión.",
+  "Options outside shape P30 (SC)": "Veces que se ofrece por fuera de la estructura defensiva rival, por 30 minutos de posesión.",
+  "Receptions under pressure P30 (SC)": "Balones recibidos con un rival presionando de forma intensa, por 30 minutos de posesión.",
+  "Retention under pressure % (SC)": "Proporción de esas recepciones en espacio reducido que conserva sin perder el balón.",
+  "Progressive under pressure P30 (SC)": "Posesiones bajo presión intensa que acaban progresando hacia la portería rival.",
+  "Dangerous under pressure P30 (SC)": "Posesiones bajo presión intensa que generan una acción de peligro.",
+  "Escaped pressure P30 (SC)": "Veces que sale con el balón de una situación de presión ya comprometida.",
+  "Drawing pressure P30 (SC)": "Posesiones en las que atrae la presión de un rival, liberando espacio para un compañero.",
+  "Drawing pressure retained % (SC)": "De esas posesiones con presión atraída, cuántas termina conservando.",
+  "Linebreak passes P30 (SC)": "Pases completados que superan una línea de jugadores rivales.",
+  "Avg xPass attempted (SC)": "Dificultad media de los pases que intenta: cuanto más bajo, más arriesgados.",
+  "Passes to runs P30 (SC)": "Pases completados que encuentran a un compañero en carrera.",
+  "Runs in behind P30 (SC)": "Carreras que atacan el espacio a la espalda de la defensa.",
+  "Dangerous runs behind P30 (SC)": "De esas carreras, las que SkillCorner clasifica como peligrosas.",
+  "Behind targeted P30 (SC)": "Carreras a la espalda que un compañero intenta encontrar con un pase.",
+  "Behind received P30 (SC)": "Carreras a la espalda en las que efectivamente recibe el balón.",
+  "Behind shot within 10s P30 (SC)": "Carreras a la espalda seguidas de un remate en los diez segundos siguientes.",
+  "Pulling wide runs P30 (SC)": "Carreras que abren el campo hacia la banda.",
+  "Overlap underlap runs P30 (SC)": "Desdobles por fuera y por dentro del compañero con balón.",
+  "Off ball runs P30 (SC)": "Total de carreras sin balón de cualquier tipo.",
+  "Runs received P30 (SC)": "Carreras sin balón en las que acaba recibiendo.",
+  "PSV-99 (SC)": "Velocidad punta sostenida: percentil 99 de sus velocidades, en km/h.",
+  "Pressured pass % (SB)": "Precisión de pase cuando hay un rival presionando.",
+  "Aerial win % (SB)": "Proporción de duelos aéreos ganados.",
+  "Touches in box (SB)": "Toques dentro del área rival.",
+};

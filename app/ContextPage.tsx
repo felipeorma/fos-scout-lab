@@ -5,7 +5,7 @@ import type { DataRow, PlayerReport } from "@/lib/scouting";
 import { METRIC_SOURCE_COLORS } from "@/lib/similarityMetricGroups";
 import { t, tf } from "@/lib/i18n";
 import { BarrasRanking, BarrasZ, CuadranteMetricas, LeyendaGraficos, SwarmMetric, type BarraRank, type BarraZ, type PuntoCuadrante, type PuntoSwarm } from "./ContextCharts";
-import { CATALOGO, type FichaContexto } from "./ContextCatalog";
+import { CATALOGO, DEFINICIONES, type FichaContexto } from "./ContextCatalog";
 
 /**
  * Página de contexto: sitúa al jugador dentro de su equipo y de la liga.
@@ -348,6 +348,31 @@ export function ContextPage({ report, rows }: { report: PlayerReport; rows: Data
       <p>{t("Cuántas hace, cuántas son peligrosas y cuántas le buscan sus compañeros. La marca es la mediana de su equipo: separa lo que hace el jugador de lo que su equipo hace con él.")}</p>
       <Embudo pasos={embudo} />
     </section>}
+
+    {(() => {
+      // Solo las métricas que el scout tiene delante: un glosario completo
+      // sería ruido, y uno ausente obliga a saberse la nomenclatura.
+      const enPantalla = new Set<string>();
+      for (const metrica of [...destacadas, ...flojas]) enPantalla.add(metrica.key);
+      if (muestra("distribucion")) for (const { metrica } of swarms) enPantalla.add(metrica.key);
+      for (const { ficha } of fichas) {
+        if (!muestra(ficha.id as BloqueId)) continue;
+        for (const columna of [ficha.ejeX, ficha.ejeY, ficha.campo, ...(ficha.campos ?? []).map((campo) => campo.columna)]) {
+          if (columna) enPantalla.add(columna);
+        }
+      }
+      const glosario = [...enPantalla].filter((columna) => DEFINICIONES[columna]).sort();
+      if (!glosario.length) return null;
+      return <section className="ctx-glossary">
+        <h3>{t("Qué mide cada métrica")}</h3>
+        <dl>
+          {glosario.map((columna) => <div key={columna}>
+            <dt>{t(columna)}</dt>
+            <dd>{t(DEFINICIONES[columna])}</dd>
+          </div>)}
+        </dl>
+      </section>;
+    })()}
 
     <footer>{t("Percentiles contra jugadores de la misma posición en la base cargada. El puesto del equipo compara la mediana de cada club de la base.")}</footer>
   </article>;
