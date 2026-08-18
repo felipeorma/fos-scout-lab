@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { METRICS, aggregateDatasets, canonicalTeamNames, peerCohort } from "../lib/scouting.ts";
+import { METRICS, aggregateDatasets, canonicalTeamNames, clubsMatch, peerCohort } from "../lib/scouting.ts";
 
 const HEADERS = ["Player", "Team", "Age", "Birth date", "Minutes played", "Matches played", "Goals", "Assists"];
 
@@ -168,10 +168,13 @@ test("una fuente abrevia el club y la otra no", () => {
   assert.equal(result.rows.length, 1);
 });
 
-test("una sigla no fusiona clubes que solo comparten ciudad", () => {
-  const result = aggregateDatasets([
-    dataset("a.xlsx", 2026, "wyscout", [player({ Player: "A Uno", Team: "New York RB II" })]),
-    dataset("b.xlsx", 2026, "wyscout", [player({ Player: "A Uno", Team: "New York City II", "Birth date": "2001-01-01", Age: 24 })]),
-  ]);
-  assert.equal(result.rows.length, 2);
+test("una sigla no hace equivalentes a clubes que solo comparten ciudad", () => {
+  // Se prueba la equivalencia de clubes en sí, no el resultado de la fusión:
+  // dos jugadores del mismo nombre y edad en clubes distintos SÍ se unen a
+  // propósito, porque es como se sigue a alguien que cambia de equipo.
+  const norm = (valor) => valor.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  assert.equal(clubsMatch(norm("New York RB II"), norm("New York Red Bulls II")), true);
+  assert.equal(clubsMatch(norm("New York RB II"), norm("New York City II")), false);
+  assert.equal(clubsMatch(norm("LA Galaxy II"), norm("Los Angeles Galaxy II")), true);
+  assert.equal(clubsMatch(norm("Inter Toronto FC"), norm("Toronto FC")), false);
 });
