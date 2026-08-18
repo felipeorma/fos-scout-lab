@@ -471,7 +471,13 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
     // Nombre exacto y club compatible ya identifican a la persona: la edad no
     // puede vetar. Las plataformas discrepan en la edad de los juveniles —el
     // mismo jugador figura con 15 en una y 17 en otra— y eso los duplicaba.
-    if (normalizeIdentityText(a[0].player) === normalizeIdentityText(b[0].player)) return true;
+    // Nombre exacto, o uno contenido en el otro ("Lisboa Feliciano" dentro de
+    // "Erick Lisboa Feliciano"): con el club ya validado, la persona está
+    // identificada y la edad no puede vetar.
+    const nombreA = nameTokens(a[0].player);
+    const nombreB = nameTokens(b[0].player);
+    const unoDentroDelOtro = nombreA.every((token) => nombreB.includes(token)) || nombreB.every((token) => nombreA.includes(token));
+    if (normalizeIdentityText(a[0].player) === normalizeIdentityText(b[0].player) || unoDentroDelOtro) return true;
     const agesA = a.map((entry) => edadComparable(entry.ageIdentity)).filter(Number.isFinite);
     const agesB = b.map((entry) => edadComparable(entry.ageIdentity)).filter(Number.isFinite);
     if (!agesA.length || !agesB.length) return true;
