@@ -8,6 +8,7 @@ export const POSITION_ROLES = [
   "Box2Box Midfielder",
   "Attack Midfielder",
   "Wingers",
+  "Direct Winger",
   "Forward",
 ] as const;
 
@@ -120,6 +121,15 @@ export function formatPlayerPositions(value: unknown) {
   }).join(" · ");
 }
 
+/**
+ * "Extremo directo" es una lente de análisis, no una posición que ningún
+ * export escriba: se compara contra los extremos, pero con su set de métricas.
+ * Por eso nunca sale de la detección automática, solo del filtro manual.
+ */
+export function roleDetectionEquivalent(role: string | null) {
+  return role === "Direct Winger" ? "Wingers" : role;
+}
+
 export function roleCohort(role: PositionRole | null) {
   if (role === "Goalkeeper") return "GK";
   if (role === "Defender") return "CB";
@@ -127,6 +137,7 @@ export function roleCohort(role: PositionRole | null) {
   if (role === "Defensive Midfielder") return "DMF";
   if (role === "Box2Box Midfielder") return "B2B";
   if (role === "Wingers") return "WING";
+  if (role === "Direct Winger") return "DWING";
   if (role === "Attack Midfielder") return "AM";
   if (role === "Forward") return "CF";
   return "OTHER";

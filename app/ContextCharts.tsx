@@ -89,7 +89,8 @@ export function SwarmMetric({ etiqueta, puntos, unidad = "", percentil, fuente =
           onMouseEnter={() => setTip({ x: x(objetivo.valor), y: ALTO / 2, lineas: [objetivo.nombre ?? "", objetivo.equipo ?? "", `${etiqueta}: ${objetivo.valor.toFixed(2)}${unidad}`].filter(Boolean) })}>
           <title>{`${objetivo.nombre ?? ""}${objetivo.equipo ? ` · ${objetivo.equipo}` : ""}\n${etiqueta}: ${objetivo.valor.toFixed(2)}${unidad}`}</title>
         </circle>
-        <text x={x(objetivo.valor)} y={ALTO - 3} textAnchor="middle" fill={acento} fontSize="8.5" fontWeight="700">
+        <text x={x(objetivo.valor)} y={ALTO - 3} textAnchor="middle" fill={acento} fontSize="8.5" fontWeight="700"
+          stroke="#0b1519" strokeWidth="2.8" paintOrder="stroke" strokeLinejoin="round">
           {objetivo.valor.toFixed(objetivo.valor >= 10 ? 0 : 2)}{unidad}
         </text>
       </>}
@@ -133,7 +134,10 @@ export function CuadranteMetricas({ titulo, ejeX, ejeY, puntos }: { titulo: stri
           onMouseEnter={() => setTip({ x: px(objetivo.x), y: py(objetivo.y), lineas: [objetivo.nombre, objetivo.equipo ?? "", `${ejeX}: ${objetivo.x.toFixed(2)}`, `${ejeY}: ${objetivo.y.toFixed(2)}`].filter(Boolean) })}>
           <title>{`${objetivo.nombre}${objetivo.equipo ? ` · ${objetivo.equipo}` : ""}\n${ejeX}: ${objetivo.x.toFixed(2)}\n${ejeY}: ${objetivo.y.toFixed(2)}`}</title>
         </circle>
-        <text x={px(objetivo.x)} y={py(objetivo.y) - 11} textAnchor="middle" fill={VERDE} fontSize="9" fontWeight="700">
+        {/* Contorno del color del lienzo: el nombre cae sobre la nube de puntos
+            y sin halo se pierde contra el verde y el ámbar. */}
+        <text x={px(objetivo.x)} y={py(objetivo.y) - 11} textAnchor="middle" fill={VERDE} fontSize="9" fontWeight="700"
+          stroke="#0b1519" strokeWidth="3.2" paintOrder="stroke" strokeLinejoin="round">
           {objetivo.nombre.split(" ").slice(-1)[0]}
         </text>
       </>}

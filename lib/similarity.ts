@@ -16,6 +16,7 @@ import {
   positionSides,
   primaryPositionRole,
   roleCohort,
+  roleDetectionEquivalent,
   type PlayerPosition,
 } from "./positions.ts";
 import { t, tf } from "./i18n.ts";
@@ -250,7 +251,7 @@ export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filt
     if (filters.ageMax !== null && (age === null || age > filters.ageMax)) return [];
     if (filters.passport && !playerPassports(passport).some((item) => normalizeSearch(item) === normalizeSearch(filters.passport))) return [];
     const candidatePrimary = primaryPositionRole(rawPosition);
-    if (filters.position && candidatePrimary !== filters.position) return [];
+    if (filters.position && candidatePrimary !== roleDetectionEquivalent(filters.position)) return [];
     if (filters.secondaryRole && !roles.some((role) => role !== candidatePrimary && role === filters.secondaryRole)) return [];
     if (filters.side && !positionSides(rawPosition).includes(filters.side)) return [];
     if (normalizedQuery && !normalizeSearch(`${name} ${team}`).includes(normalizedQuery)) return [];
