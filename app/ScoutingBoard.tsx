@@ -14,11 +14,45 @@ import { t, tf } from "@/lib/i18n";
  * no al que es bueno en todo.
  */
 
-const PERFILES: Array<{ id: string; etiqueta: string }> = [
-  { id: "GK", etiqueta: "Porteros" }, { id: "CB", etiqueta: "Centrales" }, { id: "FB", etiqueta: "Laterales" },
-  { id: "DMF", etiqueta: "Pivotes" }, { id: "B2B", etiqueta: "Interiores" }, { id: "AM", etiqueta: "Mediapuntas" },
-  { id: "WING", etiqueta: "Extremos" }, { id: "DWING", etiqueta: "Extremos directos" }, { id: "CF", etiqueta: "Delanteros" },
+/**
+ * Mapa de posiciones de Maldonado. Distingue lado —lo que la cohorte de
+ * métricas no hace— porque para ellos un lateral izquierdo y uno derecho son
+ * puestos distintos a la hora de buscar.
+ *
+ * Ojo con la separación: se AGRUPA por este mapa, pero el índice se sigue
+ * calculando contra la cohorte de métricas. Comparar a un lateral izquierdo
+ * solo contra los ocho de la base daría percentiles sin valor; contra todos
+ * los laterales, sí.
+ */
+const MAPA_MALDONADO: Record<string, string> = {
+  GK: "Arquero",
+  LB: "Lateral Izquierdo", LWB: "Lateral Izquierdo", RB: "Lateral Derecho", RWB: "Lateral Derecho",
+  LCB: "Defensor Central Izquierdo", CB: "Defensor Central", RCB: "Defensor Central Derecho",
+  CM: "Contensión", CMF: "Contensión", DMF: "Contensión", CDM: "Contensión", DM: "Contensión",
+  LDMF: "Contensión", RDMF: "Contensión",
+  LCMF: "Interior Izquierdo", RCMF: "Interior Derecho",
+  AMF: "Enganche", CAM: "Enganche", AM: "Enganche", MEDIAPUNTA: "Enganche",
+  LM: "Extremo Izquierdo", RM: "Extremo Derecho", LW: "Extremo Izquierdo", LWF: "Extremo Izquierdo",
+  RW: "Extremo Derecho", RWF: "Extremo Derecho",
+  LAMF: "Interior Izquierdo", RAMF: "Interior Derecho",
+  CF: "Delantero",
+  // Añadidos al mapa original: Wyscout y StatsBomb marcan al delantero por
+  // lado y el mapa de Maldonado no los contempla. Todos son el mismo puesto.
+  RCF: "Delantero", LCF: "Delantero", ST: "Delantero", SS: "Delantero", CFW: "Delantero",
+};
+
+/** Orden de lectura de una alineación: portería, defensa, medio, ataque. */
+const ORDEN_MALDONADO = [
+  "Arquero", "Defensor Central Izquierdo", "Defensor Central", "Defensor Central Derecho",
+  "Lateral Izquierdo", "Lateral Derecho", "Contensión", "Interior Izquierdo", "Interior Derecho",
+  "Enganche", "Extremo Izquierdo", "Extremo Derecho", "Delantero",
 ];
+
+function puestoMaldonado(posicion: unknown) {
+  const bruta = String(posicion ?? "").split(",")[0].trim().toUpperCase();
+  if (!bruta) return "";
+  return MAPA_MALDONADO[bruta] ?? MAPA_MALDONADO[bruta.replace(/[^A-Z]/g, "")] ?? "";
+}
 
 type Ficha = {
   indice: number;
@@ -27,6 +61,7 @@ type Ficha = {
   edad: number;
   minutos: number;
   perfil: string;
+  puesto: string;
   puntuacion: number;
   destacadas: Array<{ label: string; percentile: number }>;
   fila: number;
@@ -61,6 +96,7 @@ export function ScoutingBoard({ rows, minimumMinutes, onSelectPlayer }: {
         edad: numero(rows[indice].Age),
         minutos: Number.isFinite(minutos) ? minutos : 0,
         perfil: informe.cohort,
+        puesto: puestoMaldonado(rows[indice].Position) || informe.cohort,
         puntuacion: informe.score,
         // Lo que llama la atención: no el que es correcto en todo, sino el que
         // sobresale en algo. Un P90 aislado es una señal de scouting.
@@ -73,7 +109,7 @@ export function ScoutingBoard({ rows, minimumMinutes, onSelectPlayer }: {
 
   const visibles = useMemo(() => {
     let lista = fichas;
-    if (perfil !== "TODOS") lista = lista.filter((f) => f.perfil === perfil);
+    if (perfil !== "TODOS") lista = lista.filter((f) => f.puesto === perfil);
     if (edadMax > 0) lista = lista.filter((f) => Number.isFinite(f.edad) && f.edad <= edadMax);
     if (soloJoven) lista = lista.filter((f) => Number.isFinite(f.edad) && f.edad <= 23);
     return [...lista].sort((a, b) => b.puntuacion - a.puntuacion);
@@ -81,7 +117,7 @@ export function ScoutingBoard({ rows, minimumMinutes, onSelectPlayer }: {
 
   const porPerfil = useMemo(() => {
     const mapa = new Map<string, Ficha[]>();
-    for (const ficha of visibles) mapa.set(ficha.perfil, [...(mapa.get(ficha.perfil) ?? []), ficha]);
+    for (const ficha of visibles) mapa.set(ficha.puesto, [...(mapa.get(ficha.puesto) ?? []), ficha]);
     return mapa;
   }, [visibles]);
 
@@ -99,7 +135,7 @@ export function ScoutingBoard({ rows, minimumMinutes, onSelectPlayer }: {
       <label><span>{t("Perfil")}</span>
         <select value={perfil} onChange={(event) => setPerfil(event.target.value)}>
           <option value="TODOS">{t("Todos")}</option>
-          {PERFILES.map((item) => <option key={item.id} value={item.id}>{t(item.etiqueta)}</option>)}
+          {ORDEN_MALDONADO.map((puesto) => <option key={puesto} value={puesto}>{puesto}</option>)}
         </select>
       </label>
       <label><span>{t("Mín. minutos")}</span>
@@ -111,9 +147,11 @@ export function ScoutingBoard({ rows, minimumMinutes, onSelectPlayer }: {
       <button type="button" className={soloJoven ? "on" : ""} onClick={() => setSoloJoven(!soloJoven)}>{t("Solo sub-23")}</button>
     </div>
 
-    {[...porPerfil.entries()].sort((a, b) => b[1].length - a[1].length).map(([id, lista]) => (
+    {[...porPerfil.entries()]
+      .sort((a, b) => (ORDEN_MALDONADO.indexOf(a[0]) + 99) % 199 - (ORDEN_MALDONADO.indexOf(b[0]) + 99) % 199)
+      .map(([id, lista]) => (
       <div key={id} className="board-group">
-        <h3>{t(PERFILES.find((p) => p.id === id)?.etiqueta ?? id)} <i>{lista.length}</i></h3>
+        <h3>{id} <i>{lista.length}</i></h3>
         <table>
           <thead><tr>
             <th>#</th><th>{t("Jugador")}</th><th>{t("Equipo")}</th>
