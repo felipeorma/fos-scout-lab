@@ -1272,7 +1272,7 @@ export default function ScoutStudio() {
               </div>
 
               {report && (printRun ? printRun.includes(CONTEXT_PAGE) : reportPage === CONTEXT_PAGE) && (
-                <div className="legal-page-shell"><ContextPage report={report} rows={reportRows} controles={{
+                <div className="legal-page-shell"><ContextPage report={report} rows={reportRows} minutosFiltro={minimumMinutes} controles={{
                   equipos: teams, jugadores: teamPlayers, equipo: selectedTeam, jugador: selectedPlayer,
                   cohorte: cohort, minutos: minimumMinutes,
                   onEquipo: selectTeam, onJugador: selectPlayer, onCohorte: setCohort, onMinutos: setMinimumMinutes,

@@ -1992,3 +1992,8 @@ body.print-layout-check .ai-error { display: none !important; }
 .ctx-toolbar .ctx-source { margin-bottom: 0; flex: 0 0 auto; }
 .ctx-toolbar .ctx-picker { flex: 1 1 320px; min-width: 0; }
 @media print { .ctx-toolbar { display: none !important; } }
+
+/* Ranking del perfil: quiénes son los mejores de esa posición en la base. */
+.ctx-ranking-block { padding-top: 15px; border-top: 1px solid rgba(255,255,255,.09); }
+.ctx-ranking-block > h3 { margin: 0 0 4px; color: var(--ctx-green); font-size: 10px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+.ctx-ranking-block > p { margin: 0 0 10px; max-width: 82ch; color: var(--ctx-dim); font-size: 9px; line-height: 1.5; }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { DataRow, PlayerReport } from "@/lib/scouting";
+import { buildPlayerReport, type DataRow, type PlayerReport } from "@/lib/scouting";
 import { METRIC_SOURCE_COLORS } from "@/lib/similarityMetricGroups";
 import { t, tf } from "@/lib/i18n";
 import { BarrasRanking, BarrasZ, CuadranteMetricas, LeyendaGraficos, SwarmMetric, type BarraRank, type BarraZ, type PuntoCuadrante, type PuntoSwarm } from "./ContextCharts";
@@ -15,6 +15,12 @@ import { CATALOGO, DEFINICIONES, type FichaContexto } from "./ContextCatalog";
  * extremo que recibe muchas rupturas en un equipo que sirve bien no es el
  * mismo jugador en otro que no las busca. Esta hoja separa las dos cosas.
  */
+
+const ETIQUETAS_PERFIL: Record<string, string> = {
+  GK: "porteros", CB: "centrales", FB: "laterales", DMF: "pivotes", B2B: "interiores",
+  AM: "mediapuntas", WING: "extremos", DWING: "extremos directos", CF: "delanteros",
+};
+const cohortLabelCorto = (cohorte: string) => ETIQUETAS_PERFIL[cohorte] ?? "su posición";
 
 const DESTACA = 75;
 const FLOJEA = 25;
@@ -86,6 +92,7 @@ function Embudo({ pasos }: { pasos: Array<{ etiqueta: string; valor: number; bas
 
 const BLOQUES = [
   { id: "destacados", etiqueta: "Dónde destaca" },
+  { id: "ranking", etiqueta: "Ranking del perfil" },
   { id: "distribucion", etiqueta: "Distribución" },
   { id: "cuadrante", etiqueta: "Cuadrante" },
   { id: "presion", etiqueta: "Presión" },
@@ -107,7 +114,7 @@ export type ControlesContexto = {
   onMinutos: (minutos: number) => void;
 };
 
-export function ContextPage({ report, rows, controles }: { report: PlayerReport; rows: DataRow[]; controles?: ControlesContexto }) {
+export function ContextPage({ report, rows, controles, minutosFiltro = 0 }: { report: PlayerReport; rows: DataRow[]; controles?: ControlesContexto; minutosFiltro?: number }) {
   // Qué visuales se muestran. Se recuerda entre sesiones: cada scout mira
   // cosas distintas y la hoja no debería obligar a todas.
   // Por defecto se muestran los bloques generales más las fichas que responden
@@ -298,6 +305,26 @@ export function ContextPage({ report, rows, controles }: { report: PlayerReport;
     }).filter(Boolean) as Array<{ ficha: FichaContexto; datos: unknown }>;
   }, [rows, poblacion, fila, report, destacadas]);
 
+  // Ranking del perfil por índice global —la media de sus percentiles—, que es
+  // el mismo número del centro del radar. Se recorre la base una vez; con
+  // ligas grandes cuesta unos segundos, así que se memoiza por perfil.
+  const ranking = useMemo(() => {
+    const lista: BarraRank[] = [];
+    for (let indice = 0; indice < rows.length; indice += 1) {
+      const informe = buildPlayerReport(rows, indice, minutosFiltro, report.cohort);
+      if (!informe || !informe.metrics.length || informe.cohort !== report.cohort) continue;
+      const nombre = String(rows[indice].Player ?? "");
+      lista.push({
+        nombre,
+        equipo: String(rows[indice].Team ?? ""),
+        valor: informe.score,
+        esObjetivo: nombre === report.player,
+        esCompanero: nombre !== report.player && String(rows[indice].Team ?? "") === report.team,
+      });
+    }
+    return lista;
+  }, [rows, report.cohort, report.player, report.team, minutosFiltro]);
+
   return <article className="context-page">
     {/* Los mismos filtros de la Página 01, sobre el mismo estado: cambiar aquí
         cambia el informe entero. Evita ir y volver de pestaña para comparar. */}
@@ -399,6 +426,12 @@ export function ContextPage({ report, rows, controles }: { report: PlayerReport;
           puntos={cuadrante.puntos}
         />}
       </div>
+    </section>}
+
+    {muestra("ranking") && ranking.length >= 4 && <section className="ctx-ranking-block">
+      <h3>{tf("Los mejores de {perfil} en la base", { perfil: t(cohortLabelCorto(report.cohort)) })}</h3>
+      <p>{t("Ordenados por índice global: la media de sus percentiles contra los jugadores de su misma posición. Es el número del centro del radar.")}</p>
+      <BarrasRanking titulo="" barras={ranking} top={14} />
     </section>}
 
     {fichas.some(({ ficha }) => muestra(ficha.id as BloqueId) && fichaEncaja(ficha)) && <section className="ctx-catalog-block">
