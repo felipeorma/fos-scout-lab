@@ -19,6 +19,7 @@ import {
 } from "./Icons";
 import { PizzaRadar } from "./PizzaRadar";
 import { ContextPage } from "./ContextPage";
+import { ScoutingBoard } from "./ScoutingBoard";
 import { ReportPageDesigner } from "./ReportPageDesigner";
 import { SimilarityStudio } from "./SimilarityStudio";
 import { DEFAULT_REPORT_THEME, reportThemeStyle, type ReportTheme } from "./reportTheme";
@@ -52,6 +53,8 @@ const FIRST_VISUAL_PAGE = 3;
 // Fuera del rango de las páginas visuales para no chocar con el editor, que
 // guarda sus diseños indexados por número de página.
 const CONTEXT_PAGE = 90;
+// Mesa de detección mensual para Maldonado: fuera del rango de páginas visuales.
+const BOARD_PAGE = 91;
 type ReportFileMode = "single" | "combine" | "replace";
 type ProfileAssetField = "playerImage" | "clubLogo" | "leagueLogo";
 
@@ -1064,6 +1067,7 @@ export default function ScoutStudio() {
               <nav className="report-page-tabs" aria-label={t("Páginas del reporte")}>
                 <button className={reportPage === CARD_PAGE ? "active" : ""} onClick={() => setReportPage(CARD_PAGE)}><span>01</span><div><b>{t("Ficha y radar")}</b><small>{t("Percentiles del jugador")}</small></div></button>
                 <button className={reportPage === SIMILARITY_PAGE ? "active" : ""} onClick={() => setReportPage(SIMILARITY_PAGE)}><span>02</span><div><b>{t("Similitud")}</b><small>{t("Jugadores comparables")}</small></div></button>
+                <button className={reportPage === BOARD_PAGE ? "active" : ""} onClick={() => setReportPage(BOARD_PAGE)}><span>★</span><div><b>MALDONADO</b><small>{t("Mesa de detección")}</small></div></button>
                 <button className={reportPage === CONTEXT_PAGE ? "active" : ""} onClick={() => setReportPage(CONTEXT_PAGE)}><span>03</span><div><b>{t("Contexto")}</b><small>{t("Dónde destaca y por qué")}</small></div></button>
                 {visualPages.map((page, index) => (
                   <button key={page} className={reportPage === page ? "active" : ""} onClick={() => setReportPage(page)}>
@@ -1271,6 +1275,9 @@ export default function ScoutStudio() {
                 />
               </div>
 
+              {report && (printRun ? printRun.includes(BOARD_PAGE) : reportPage === BOARD_PAGE) && (
+                <div className="legal-page-shell"><ScoutingBoard rows={reportRows} minimumMinutes={minimumMinutes} onSelectPlayer={(indice) => { selectPlayer(indice); setReportPage(CARD_PAGE); }} /></div>
+              )}
               {report && (printRun ? printRun.includes(CONTEXT_PAGE) : reportPage === CONTEXT_PAGE) && (
                 <div className="legal-page-shell"><ContextPage report={report} rows={reportRows} minutosFiltro={minimumMinutes} controles={{
                   equipos: teams, jugadores: teamPlayers, equipo: selectedTeam, jugador: selectedPlayer,
@@ -1294,6 +1301,7 @@ export default function ScoutStudio() {
                     { page: CARD_PAGE, title: t("Ficha y radar"), hint: t("Percentiles del jugador") },
                     { page: SIMILARITY_PAGE, title: t("Similitud"), hint: t("Jugadores comparables") },
                     { page: CONTEXT_PAGE, title: t("Contexto"), hint: t("Dónde destaca y por qué") },
+                    { page: BOARD_PAGE, title: "MALDONADO", hint: t("Mesa de detección") },
                     ...visualPages.map((page, index) => ({ page, title: tf("Visuales {n}", { n: index + 1 }), hint: t("Mapas, imágenes y texto") })),
                   ].map(({ page, title, hint }) => (
                     <label key={page} className={printPages.includes(page) ? "selected" : ""}>
