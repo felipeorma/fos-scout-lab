@@ -2026,3 +2026,13 @@ body.print-layout-check .ai-error { display: none !important; }
 .board-flags span { color: var(--brd-dim); }
 .board-empty { margin-top: 20px; color: var(--brd-dim); font-size: 11px; }
 @media print { .board-filters { display: none !important; } }
+.board-teams { margin-top: 18px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,.09); }
+.board-teams h3 { display: flex; align-items: center; gap: 7px; margin: 0 0 4px; color: var(--brd-green); font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+.board-teams h3 > i { padding: 1px 7px; border-radius: 999px; background: rgba(255,255,255,.08); color: var(--brd-dim); font-size: 9px; font-style: normal; }
+.board-teams > p { margin: 0 0 9px; max-width: 84ch; color: var(--brd-dim); font-size: 9px; line-height: 1.5; }
+.board-teams table { width: 100%; border-collapse: collapse; }
+.board-teams th { padding: 4px 6px; border-bottom: 1px solid rgba(255,255,255,.12); color: var(--brd-dim); font-size: 7.5px; font-weight: 700; letter-spacing: .08em; text-align: left; text-transform: uppercase; }
+.board-teams td { padding: 5px 6px; border-bottom: 1px solid rgba(255,255,255,.05); font-size: 10px; }
+.board-teams td b { color: var(--brd-green); font-family: var(--font-space-grotesk), sans-serif; font-size: 12px; }
+.board-best { color: var(--brd-dim); font-size: 9px; }
+.board-best > u { text-decoration: none; color: var(--brd-green); font-weight: 700; }

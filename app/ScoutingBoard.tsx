@@ -107,6 +107,42 @@ export function ScoutingBoard({ rows, minimumMinutes, onSelectPlayer }: {
     return salida;
   }, [rows, minutosMin]);
 
+  /**
+   * Lectura de equipo. El encargo pide entender el rendimiento del club antes
+   * de bajar al jugador, y con razón: un delantero con índice 70 en el peor
+   * ataque de la liga no es el mismo jugador que uno con 70 en el mejor.
+   *
+   * Se resume cada club por la mediana del índice de su plantilla —no la
+   * media, que un solo crack distorsiona— y se marca en qué destaca y en qué
+   * flojea respecto al resto de la liga.
+   */
+  const equipos = useMemo(() => {
+    const porClub = new Map<string, Ficha[]>();
+    for (const ficha of fichas) {
+      if (!ficha.equipo) continue;
+      porClub.set(ficha.equipo, [...(porClub.get(ficha.equipo) ?? []), ficha]);
+    }
+    const medianaDe = (valores: number[]) => {
+      if (!valores.length) return 0;
+      const orden = [...valores].sort((a, b) => a - b);
+      const medio = Math.floor(orden.length / 2);
+      return orden.length % 2 ? orden[medio] : Math.round((orden[medio - 1] + orden[medio]) / 2);
+    };
+    const lista = [...porClub.entries()]
+      .filter(([, plantilla]) => plantilla.length >= 6)
+      .map(([club, plantilla]) => ({
+        club,
+        jugadores: plantilla.length,
+        indice: medianaDe(plantilla.map((f) => f.puntuacion)),
+        // Cuántos de su plantilla sobresalen en algo: mide profundidad, no una estrella.
+        destacados: plantilla.filter((f) => f.destacadas.length > 0).length,
+        mejor: [...plantilla].sort((a, b) => b.puntuacion - a.puntuacion)[0],
+        edad: medianaDe(plantilla.map((f) => f.edad).filter(Number.isFinite)),
+      }))
+      .sort((a, b) => b.indice - a.indice);
+    return lista;
+  }, [fichas]);
+
   const visibles = useMemo(() => {
     let lista = fichas;
     if (perfil !== "TODOS") lista = lista.filter((f) => f.puesto === perfil);
@@ -146,6 +182,30 @@ export function ScoutingBoard({ rows, minimumMinutes, onSelectPlayer }: {
       </label>
       <button type="button" className={soloJoven ? "on" : ""} onClick={() => setSoloJoven(!soloJoven)}>{t("Solo sub-23")}</button>
     </div>
+
+    {equipos.length >= 2 && <div className="board-teams">
+      <h3>{t("Contexto de los equipos")} <i>{equipos.length}</i></h3>
+      <p>{t("Mediana del índice de cada plantilla, no la media: un solo crack no debe levantar a un equipo entero. Un jugador destacado en un club de la parte baja tiene más mérito que el mismo número arriba.")}</p>
+      <table>
+        <thead><tr>
+          <th>#</th><th>{t("Equipo")}</th><th>{t("Jugadores")}</th><th>{t("Edad")}</th>
+          <th>{t("Índice")}</th><th>{t("Destacados")}</th><th>{t("Mejor del plantel")}</th>
+        </tr></thead>
+        <tbody>
+          {equipos.map((equipo, posicion) => (
+            <tr key={equipo.club}>
+              <td>{posicion + 1}</td>
+              <td className="board-name">{equipo.club}</td>
+              <td>{equipo.jugadores}</td>
+              <td>{equipo.edad || "—"}</td>
+              <td><b>{equipo.indice}</b></td>
+              <td>{equipo.destacados}</td>
+              <td className="board-best">{equipo.mejor?.jugador} <u>{equipo.mejor?.puntuacion}</u></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>}
 
     {[...porPerfil.entries()]
       .sort((a, b) => (ORDEN_MALDONADO.indexOf(a[0]) + 99) % 199 - (ORDEN_MALDONADO.indexOf(b[0]) + 99) % 199)
