@@ -209,6 +209,10 @@ export default function ScoutStudio() {
   const [lang, setLang] = useState<Lang>("es");
   const [langLoaded, setLangLoaded] = useState(false);
   const [reportPage, setReportPage] = useState<ReportPage>(CARD_PAGE);
+  // Vista rápida del reporte desde la mesa de Maldonado: no cambia de página,
+  // solo abre el mismo reporte encima en una ventana. Se cierra sola si se
+  // recarga el jugador desde la mesa: el clic siguiente ya la deja abierta.
+  const [boardPreviewOpen, setBoardPreviewOpen] = useState(false);
   const [visualPages, setVisualPages] = useState<ReportPage[]>([FIRST_VISUAL_PAGE]);
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const [printPages, setPrintPages] = useState<ReportPage[]>([CARD_PAGE, SIMILARITY_PAGE, FIRST_VISUAL_PAGE]);
@@ -954,6 +958,87 @@ export default function ScoutStudio() {
     setAssetSourceStatus("");
   }
 
+  /**
+   * El artículo del reporte, aparte del taller de edición que lo rodea (subida
+   * de archivos, selector de jugador, Transfermarkt…). Se define una sola vez
+   * para poder mostrarlo en dos sitios sin duplicar el JSX: la página 01 del
+   * reporte y la vista rápida que se abre desde la mesa de Maldonado. Ambos
+   * comparten el mismo estado (report, profile, readingOverride…), así que
+   * editar la lectura rápida en una vale también en la otra.
+   */
+  const reportArticleNode = report ? (
+    <article className="scout-report jordhy-report" style={reportThemeStyle(reportTheme)}>
+      <header className="dossier-header">
+        <div className="dossier-portrait">
+          <span className="portrait-glow" />
+          {profile.clubLogo ? <ReportImage src={profile.clubLogo} alt={profile.club || report.team} className="dossier-club-logo" /> : <span className="dossier-club-fallback">{report.team.slice(0, 2).toUpperCase()}</span>}
+          <b className="shirt-number">#{profile.number || "—"}</b>
+          {profile.playerImage ? <ReportImage src={profile.playerImage} alt={report.player} className="dossier-player-image" /> : <div className="dossier-player-fallback">{report.player.split(/\s+/).slice(0, 2).map((part) => part[0]).join("")}</div>}
+        </div>
+        <div className="dossier-info">
+          <div className="dossier-topline">
+            <div className="competition-lockup">
+              {profile.leagueLogo && <ReportImage src={profile.leagueLogo} alt={profile.league || t("Liga")} className="dossier-league-logo" />}
+              <div className="competition-copy"><span>{profile.league || t("Competición")}</span><strong>{profile.club || report.team}</strong></div>
+            </div>
+            <div className="market-lockup"><small>{t("VALOR DE MERCADO")}</small><strong>{profile.marketValue || "—"}</strong><ReportImage src={TRANSFERMARKT_LOGO} alt="Transfermarkt" className="market-transfermarkt-logo" /></div>
+          </div>
+          <h2>{report.player}</h2>
+          <div className="identity-line"><b>{selectedCohortPosition(cohort, formatPlayerPositions(profile.position || report.position))}</b><span>{profile.citizenship || report.passport}</span></div>
+          <div className="dossier-meta-grid">
+            <div><span>{t("Nacimiento")}</span><b>{profile.birthDate || "—"}{profile.age || report.age !== "—" ? ` · ${tf("{age}a", { age: profile.age || report.age })}` : ""}</b></div>
+            <div><span>{t("Lugar")}</span><b>{profile.birthPlace || "—"}</b></div>
+            <div><span>{t("Altura")}</span><b>{profile.height || "—"}</b></div>
+            <div><span>{t("Pie")}</span><b>{profile.foot || report.foot}</b></div>
+            <div><span>{t("Contrato")}</span><b>{profile.contract || report.contract}</b></div>
+            <div><span>{t("Agente")}</span><b>{profile.agent || "—"}</b></div>
+            <div><span>{t("Selección")}</span><b>{profile.nationalTeam || "—"}</b></div>
+            <div><span>{t("Caps / goles")}</span><b>{profile.capsGoals || "—"}</b></div>
+          </div>
+        </div>
+      </header>
+
+      <section className="dossier-season-strip">
+        <div className="season-source"><span><InlineText editKey={`label-${report.player}`} value={tDefault(analysisLabel)} fallback={reportSourceCount > 1 ? t("BASES ANALIZADAS") : t("BASE ANALIZADA")} onCommit={setAnalysisLabel} /></span><b><InlineText editKey={`source-${report.player}`} value={tDefault(analysisSourceTitle)} fallback={tDefault(reportFileName)} onCommit={updateAnalysisSourceName} /></b><small>{tf("Cohorte {c} · mín. {m}′", { c: cohortLabel(report.cohort), m: minimumMinutes })}</small></div>
+        <div className="dossier-stat"><strong>{numberFormat(report.matches)}</strong><span>{t("Partidos")}</span></div>
+        <div className="dossier-stat"><strong>{numberFormat(report.minutes)}</strong><span>{t("Minutos")}</span></div>
+        <div className="dossier-stat goals"><strong>{numberFormat(report.goals)}</strong><span>{t("Goles")}</span></div>
+        <div className="dossier-stat assists"><strong>{numberFormat(report.assists)}</strong><span>{t("Asist.")}</span></div>
+        <div className="score-ring" style={{ "--score": `${report.score * 3.6}deg` } as React.CSSProperties}><b>{report.score}</b><span>{t("Índice")}</span></div>
+      </section>
+
+      <section className="dossier-radar-row">
+        <div className="dossier-radar">{report.metrics.length ? <PizzaRadar metrics={report.metrics} score={report.score} cohort={report.cohort} lang={lang} colorMode={radarColorMode} /> : <div className="empty-radar"><BarChart3 size={34} /><b>{t("No encontramos métricas para esta cohorte")}</b></div>}</div>
+        <aside className="dossier-reading">
+          <div className="average-percentile"><strong>{report.score}</strong><small>{t("percentil")}<br />{t("medio")}</small></div>
+          <div className="dossier-legend">{radarColorMode === "platform"
+            ? [...new Set(report.metrics.map((metric) => metric.source ?? "wyscout"))].map((source) => <span key={source}><i style={{ background: METRIC_SOURCE_COLORS[source]?.color }} />{METRIC_SOURCE_COLORS[source]?.label ?? source}</span>)
+            : SIMILARITY_METRIC_GROUPS.filter((group) => report.metrics.some((metric) => similarityMetricGroup(metric, report.cohort).id === group.id)).map((group) => <span key={group.id}><i style={{ background: group.color }} />{t(group.label)}</span>)}</div>
+          <div className="quick-reading"><b>{t("LECTURA RÁPIDA")}{!aiControlsHidden && <button type="button" className="reading-ai" disabled={aiLoading === "quick"} onClick={() => void writeQuickRead()}><Sparkles size={11} /> {aiLoading === "quick" ? t("Escribiendo…") : t("Escribir con IA")}</button>}{readingOverride.trim() !== "" && <button type="button" className="reading-restore" onClick={() => updateReadingOverride("")}>{t("Usar texto automático")}</button>}</b>{aiError && !aiControlsHidden && <small className="inline-error ai-error"><span>{aiError}</span><button type="button" onClick={() => setAiError("")} aria-label={t("Ocultar aviso")}>×</button></small>}<p><InlineText editKey={`reading-${report.player}`} value={readingOverride} fallback={report.reading} onCommit={updateReadingOverride} multiline /></p></div>
+        </aside>
+      </section>
+
+      <section className="metric-breakdown" style={{ "--metric-columns": metricBreakdownColumns } as React.CSSProperties}>
+        {metricBreakdown.map(({ group, metrics }) => (
+          <div className="metric-group" style={{ "--metric-group-color": group.color } as React.CSSProperties} key={group.id}>
+            <h3>{t(group.label)}</h3>
+            {metrics.slice(0, 4).map((metric) => <div className="metric-row" key={metric.key}><div><span>{t(metric.label)}</span><b>{formatCell(metric.value)} <small>· P{metric.percentile}</small></b></div><i><em style={{ width: `${metric.percentile}%` }} /></i></div>)}
+          </div>
+        ))}
+      </section>
+      <footer className="dossier-footer">
+        <p>{tf("Percentiles por posición · mínimo {m}′ · {n} jugadores en la cohorte · datos por 90 minutos.", { m: minimumMinutes, n: report.cohortSize })}
+          {report.metrics.some((metric) => metric.source === "skillcorner") && ` ${t("Los volúmenes de SkillCorner (SC) van por 30 minutos con balón del equipo.")}`}</p>
+        <div className="report-signatures">
+          <div className="report-author"><span>{t("ELABORADO POR")}</span><b>FELIPE ORMAZABAL</b><small>SCOUTING REPORT</small></div>
+          <div className="report-recipient">
+            {recipientLogoReady ? <ReportImage src={reportRecipientLogoUrl.trim()} alt={recipientName} className="dossier-footer-club-logo" /> : <span className="dossier-footer-club-fallback">{recipientName.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span>}
+            <div><span>{t("REPORTE GENERADO PARA")}</span><b><InlineText editKey="recipient" value={reportRecipientName} fallback={t("Club destinatario")} onCommit={setReportRecipientName} /></b></div>
+          </div>
+        </div>
+      </footer>
+    </article>
+  ) : null;
 
   return (
     <div className="app-shell no-sidebar">
@@ -1176,77 +1261,7 @@ export default function ScoutStudio() {
 
                 <section className="report-preview-wrap">
                   <div className="preview-toolbar"><div><span className="live-dot" /> {t("Página 01 · Ficha de scouting")}</div><span>{t("Haz clic en los textos del informe para editarlos")}</span></div>
-                  {report ? <div className="legal-page-shell"><article className="scout-report jordhy-report" style={reportThemeStyle(reportTheme)}>
-                    <header className="dossier-header">
-                      <div className="dossier-portrait">
-                        <span className="portrait-glow" />
-                        {profile.clubLogo ? <ReportImage src={profile.clubLogo} alt={profile.club || report.team} className="dossier-club-logo" /> : <span className="dossier-club-fallback">{report.team.slice(0, 2).toUpperCase()}</span>}
-                        <b className="shirt-number">#{profile.number || "—"}</b>
-                        {profile.playerImage ? <ReportImage src={profile.playerImage} alt={report.player} className="dossier-player-image" /> : <div className="dossier-player-fallback">{report.player.split(/\s+/).slice(0, 2).map((part) => part[0]).join("")}</div>}
-                      </div>
-                      <div className="dossier-info">
-                        <div className="dossier-topline">
-                          <div className="competition-lockup">
-                            {profile.leagueLogo && <ReportImage src={profile.leagueLogo} alt={profile.league || t("Liga")} className="dossier-league-logo" />}
-                            <div className="competition-copy"><span>{profile.league || t("Competición")}</span><strong>{profile.club || report.team}</strong></div>
-                          </div>
-                          <div className="market-lockup"><small>{t("VALOR DE MERCADO")}</small><strong>{profile.marketValue || "—"}</strong><ReportImage src={TRANSFERMARKT_LOGO} alt="Transfermarkt" className="market-transfermarkt-logo" /></div>
-                        </div>
-                        <h2>{report.player}</h2>
-                        <div className="identity-line"><b>{selectedCohortPosition(cohort, formatPlayerPositions(profile.position || report.position))}</b><span>{profile.citizenship || report.passport}</span></div>
-                        <div className="dossier-meta-grid">
-                          <div><span>{t("Nacimiento")}</span><b>{profile.birthDate || "—"}{profile.age || report.age !== "—" ? ` · ${tf("{age}a", { age: profile.age || report.age })}` : ""}</b></div>
-                          <div><span>{t("Lugar")}</span><b>{profile.birthPlace || "—"}</b></div>
-                          <div><span>{t("Altura")}</span><b>{profile.height || "—"}</b></div>
-                          <div><span>{t("Pie")}</span><b>{profile.foot || report.foot}</b></div>
-                          <div><span>{t("Contrato")}</span><b>{profile.contract || report.contract}</b></div>
-                          <div><span>{t("Agente")}</span><b>{profile.agent || "—"}</b></div>
-                          <div><span>{t("Selección")}</span><b>{profile.nationalTeam || "—"}</b></div>
-                          <div><span>{t("Caps / goles")}</span><b>{profile.capsGoals || "—"}</b></div>
-                        </div>
-                      </div>
-                    </header>
-
-                    <section className="dossier-season-strip">
-                      <div className="season-source"><span><InlineText editKey={`label-${report.player}`} value={tDefault(analysisLabel)} fallback={reportSourceCount > 1 ? t("BASES ANALIZADAS") : t("BASE ANALIZADA")} onCommit={setAnalysisLabel} /></span><b><InlineText editKey={`source-${report.player}`} value={tDefault(analysisSourceTitle)} fallback={tDefault(reportFileName)} onCommit={updateAnalysisSourceName} /></b><small>{tf("Cohorte {c} · mín. {m}′", { c: cohortLabel(report.cohort), m: minimumMinutes })}</small></div>
-                      <div className="dossier-stat"><strong>{numberFormat(report.matches)}</strong><span>{t("Partidos")}</span></div>
-                      <div className="dossier-stat"><strong>{numberFormat(report.minutes)}</strong><span>{t("Minutos")}</span></div>
-                      <div className="dossier-stat goals"><strong>{numberFormat(report.goals)}</strong><span>{t("Goles")}</span></div>
-                      <div className="dossier-stat assists"><strong>{numberFormat(report.assists)}</strong><span>{t("Asist.")}</span></div>
-                      <div className="score-ring" style={{ "--score": `${report.score * 3.6}deg` } as React.CSSProperties}><b>{report.score}</b><span>{t("Índice")}</span></div>
-                    </section>
-
-                    <section className="dossier-radar-row">
-                      <div className="dossier-radar">{report.metrics.length ? <PizzaRadar metrics={report.metrics} score={report.score} cohort={report.cohort} lang={lang} colorMode={radarColorMode} /> : <div className="empty-radar"><BarChart3 size={34} /><b>{t("No encontramos métricas para esta cohorte")}</b></div>}</div>
-                      <aside className="dossier-reading">
-                        <div className="average-percentile"><strong>{report.score}</strong><small>{t("percentil")}<br />{t("medio")}</small></div>
-                        <div className="dossier-legend">{radarColorMode === "platform"
-                          ? [...new Set(report.metrics.map((metric) => metric.source ?? "wyscout"))].map((source) => <span key={source}><i style={{ background: METRIC_SOURCE_COLORS[source]?.color }} />{METRIC_SOURCE_COLORS[source]?.label ?? source}</span>)
-                          : SIMILARITY_METRIC_GROUPS.filter((group) => report.metrics.some((metric) => similarityMetricGroup(metric, report.cohort).id === group.id)).map((group) => <span key={group.id}><i style={{ background: group.color }} />{t(group.label)}</span>)}</div>
-                        <div className="quick-reading"><b>{t("LECTURA RÁPIDA")}{!aiControlsHidden && <button type="button" className="reading-ai" disabled={aiLoading === "quick"} onClick={() => void writeQuickRead()}><Sparkles size={11} /> {aiLoading === "quick" ? t("Escribiendo…") : t("Escribir con IA")}</button>}{readingOverride.trim() !== "" && <button type="button" className="reading-restore" onClick={() => updateReadingOverride("")}>{t("Usar texto automático")}</button>}</b>{aiError && !aiControlsHidden && <small className="inline-error ai-error"><span>{aiError}</span><button type="button" onClick={() => setAiError("")} aria-label={t("Ocultar aviso")}>×</button></small>}<p><InlineText editKey={`reading-${report.player}`} value={readingOverride} fallback={report.reading} onCommit={updateReadingOverride} multiline /></p></div>
-                      </aside>
-                    </section>
-
-                    <section className="metric-breakdown" style={{ "--metric-columns": metricBreakdownColumns } as React.CSSProperties}>
-                      {metricBreakdown.map(({ group, metrics }) => (
-                        <div className="metric-group" style={{ "--metric-group-color": group.color } as React.CSSProperties} key={group.id}>
-                          <h3>{t(group.label)}</h3>
-                          {metrics.slice(0, 4).map((metric) => <div className="metric-row" key={metric.key}><div><span>{t(metric.label)}</span><b>{formatCell(metric.value)} <small>· P{metric.percentile}</small></b></div><i><em style={{ width: `${metric.percentile}%` }} /></i></div>)}
-                        </div>
-                      ))}
-                    </section>
-                    <footer className="dossier-footer">
-                      <p>{tf("Percentiles por posición · mínimo {m}′ · {n} jugadores en la cohorte · datos por 90 minutos.", { m: minimumMinutes, n: report.cohortSize })}
-                        {report.metrics.some((metric) => metric.source === "skillcorner") && ` ${t("Los volúmenes de SkillCorner (SC) van por 30 minutos con balón del equipo.")}`}</p>
-                      <div className="report-signatures">
-                        <div className="report-author"><span>{t("ELABORADO POR")}</span><b>FELIPE ORMAZABAL</b><small>SCOUTING REPORT</small></div>
-                        <div className="report-recipient">
-                          {recipientLogoReady ? <ReportImage src={reportRecipientLogoUrl.trim()} alt={recipientName} className="dossier-footer-club-logo" /> : <span className="dossier-footer-club-fallback">{recipientName.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span>}
-                          <div><span>{t("REPORTE GENERADO PARA")}</span><b><InlineText editKey="recipient" value={reportRecipientName} fallback={t("Club destinatario")} onCommit={setReportRecipientName} /></b></div>
-                        </div>
-                      </div>
-                    </footer>
-                  </article></div> : <div className="empty-preview">{t("Selecciona un jugador para generar el informe.")}</div>}
+                  {reportArticleNode ? <div className="legal-page-shell">{reportArticleNode}</div> : <div className="empty-preview">{t("Selecciona un jugador para generar el informe.")}</div>}
                 </section>
               </div> : null}
               {/* La similitud vive montada siempre: filtros, pesos y candidato
@@ -1276,7 +1291,23 @@ export default function ScoutStudio() {
               </div>
 
               {report && (printRun ? printRun.includes(BOARD_PAGE) : reportPage === BOARD_PAGE) && (
-                <div className="legal-page-shell"><ScoutingBoard rows={reportRows} minimumMinutes={minimumMinutes} onSelectPlayer={(indice) => { selectPlayer(indice); setReportPage(CARD_PAGE); }} /></div>
+                <div className="legal-page-shell"><ScoutingBoard rows={reportRows} minimumMinutes={minimumMinutes} onSelectPlayer={(indice) => { selectPlayer(indice); setBoardPreviewOpen(true); }} /></div>
+              )}
+              {boardPreviewOpen && (
+                <div className="board-preview-overlay" role="dialog" aria-modal="true" aria-label={t("Vista rápida del reporte")} onClick={() => setBoardPreviewOpen(false)}>
+                  <div className="board-preview-dialog" onClick={(event) => event.stopPropagation()}>
+                    <div className="board-preview-bar">
+                      <span>{t("Vista rápida · vuelve a la mesa sin perder el filtro")}</span>
+                      <div className="board-preview-bar-actions">
+                        <button type="button" className="button secondary compact" onClick={() => { setBoardPreviewOpen(false); setReportPage(CARD_PAGE); }}>{t("Abrir como página completa")}</button>
+                        <button type="button" className="board-preview-close" onClick={() => setBoardPreviewOpen(false)} aria-label={t("Cerrar")}>×</button>
+                      </div>
+                    </div>
+                    <div className="board-preview-body">
+                      {reportArticleNode ?? <div className="empty-preview">{t("Selecciona un jugador para generar el informe.")}</div>}
+                    </div>
+                  </div>
+                </div>
               )}
               {report && (printRun ? printRun.includes(CONTEXT_PAGE) : reportPage === CONTEXT_PAGE) && (
                 <div className="legal-page-shell"><ContextPage report={report} rows={reportRows} minutosFiltro={minimumMinutes} controles={{

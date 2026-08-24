@@ -1068,7 +1068,7 @@ body.print-layout-check .similarity-star-visual > svg { transform: none !importa
   }
   body.print-size-letter .legal-page-shell { height: 279.4mm !important; }
   .similarity-report-sheet[data-print-fit] { transform: scale(var(--print-fit, 1)) !important; transform-origin: top center !important; }
-  .print-dialog-overlay { display: none !important; }
+  .print-dialog-overlay, .board-preview-overlay { display: none !important; }
   .designer-workspace { break-inside: avoid; }
   @page { size: legal portrait; margin: 0; }
 }
@@ -1172,6 +1172,29 @@ body.print-layout-check .similarity-star-visual > svg { transform: none !importa
 .print-dialog-note { display: block; margin-top: 9px; color: #f2b8b5; font-size: 11px; }
 .workflow-step-link { border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
 .workflow-step-link:disabled { cursor: default; opacity: .55; }
+
+/* ---- Vista rápida del reporte desde la mesa de Maldonado ---- */
+.board-preview-overlay {
+  position: fixed; inset: 0; z-index: 95;
+  display: grid; place-items: center; padding: 24px;
+  background: rgba(5, 10, 18, .68);
+  backdrop-filter: blur(4px);
+}
+.board-preview-dialog {
+  display: flex; flex-direction: column;
+  width: min(880px, 100%); max-height: calc(100vh - 48px);
+  border: 1px solid rgba(148, 163, 184, .22);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(23, 30, 44, .99), rgba(13, 18, 28, .99));
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .5);
+  overflow: hidden;
+}
+.board-preview-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; border-bottom: 1px solid rgba(148, 163, 184, .18); }
+.board-preview-bar > span { color: rgba(231, 236, 245, .58); font-size: 10.5px; font-weight: 600; letter-spacing: .03em; }
+.board-preview-bar-actions { display: flex; align-items: center; gap: 8px; }
+.board-preview-close { width: 26px; height: 26px; border: 1px solid rgba(148, 163, 184, .28); border-radius: 8px; background: rgba(255,255,255,.04); color: #e7ecf5; font-size: 15px; line-height: 1; cursor: pointer; }
+.board-preview-close:hover { background: rgba(255,255,255,.09); }
+.board-preview-body { overflow: auto; padding: 18px; }
 
 /* ---- Editor de lectura rápida ---- */
 .reading-editor { display: flex; flex-direction: column; gap: 8px; padding: 4px 2px 2px; }

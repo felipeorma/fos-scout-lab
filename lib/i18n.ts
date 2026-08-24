@@ -1062,4 +1062,8 @@ const EN: Record<string, string> = {
   "Volver a considerar a {club}": "Reconsider {club}",
   "o pega un link https://…": "or paste a link https://…",
   "Pega un link directo http:// o https://.": "Paste a direct http:// or https:// link.",
+  "Vista rápida del reporte": "Quick report preview",
+  "Vista rápida · vuelve a la mesa sin perder el filtro": "Quick preview · goes back to the board without losing the filter",
+  "Abrir como página completa": "Open as full page",
+  "Cerrar": "Close",
 };
