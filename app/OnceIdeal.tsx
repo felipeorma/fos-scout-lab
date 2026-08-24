@@ -85,7 +85,7 @@ export function OnceIdeal({ once, titulo, subtitulo, escudo, usarAjustada, onSel
         if (!titular) {
           return <g key={puesto.id} className="once-vacio">
             <circle cx={x} cy={y} r={13} fill="rgba(255,255,255,.03)" stroke="rgba(255,255,255,.18)" strokeDasharray="3 3" />
-            <text x={x} y={y + 3.5} textAnchor="middle" className="once-sigla-vacia">{puesto.sigla}</text>
+            <text x={x} y={y + 3.5} textAnchor="middle" className="once-sigla-vacia">{t(puesto.sigla)}</text>
             <text x={x} y={y + 26} textAnchor="middle" className="once-sin">{t("sin candidato")}</text>
           </g>;
         }

@@ -297,7 +297,7 @@ export function ContextPage({ report, rows, controles, minutosFiltro = 0 }: { re
           const media = valores.reduce((suma, valor) => suma + valor, 0) / valores.length;
           const desviacion = Math.sqrt(valores.reduce((suma, valor) => suma + (valor - media) ** 2, 0) / valores.length);
           if (desviacion < 1e-9) return [];
-          return [{ etiqueta, z: (propio - media) / desviacion }];
+          return [{ etiqueta: t(etiqueta), z: (propio - media) / desviacion }];
         });
         return barras.length >= 3 ? { ficha: resuelta, datos: barras } : null;
       }

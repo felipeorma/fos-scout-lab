@@ -1066,4 +1066,13 @@ const EN: Record<string, string> = {
   "Vista rápida · vuelve a la mesa sin perder el filtro": "Quick preview · goes back to the board without losing the filter",
   "Abrir como página completa": "Open as full page",
   "Cerrar": "Close",
+  // ---- Siglas del once ideal (solo el hueco vacío las muestra) ----
+  "ARQ": "GK",
+  "LI": "LB",
+  "DFC": "CB",
+  "LD": "RB",
+  "CTN": "DM",
+  "INT": "CM",
+  "ENG": "AM",
+  "DEL": "ST",
 };
