@@ -2119,7 +2119,15 @@ body.print-layout-check .ai-error { display: none !important; }
 .board-variacion-cols u.nuevo { color: #e7b45a; }
 .board-variacion-cols p.board-vacio { color: var(--brd-dim); font-size: 8.5px; }
 .board-variacion > small { display: block; margin-top: 8px; color: var(--brd-dim); font-size: 8px; }
+.board-escudo-acciones { display: flex; flex-direction: column; gap: 3px; margin-left: auto; }
+.board-escudo-link { width: 150px; padding: 3px 6px; border: 1px solid rgba(255,255,255,.16); border-radius: 6px; background: rgba(255,255,255,.05); color: var(--brd-ink); font-family: inherit; font-size: 8.5px; }
+.board-escudo-link-aviso { color: #d79280; font-size: 7.5px; line-height: 1.3; }
+.board-excluidos { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 14px; }
+.board-excluidos > span { color: var(--brd-dim); font-size: 7.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.board-excluidos > button { display: flex; align-items: center; gap: 5px; padding: 3px 9px; border: 1px solid rgba(228,112,94,.4); border-radius: 999px; background: rgba(228,112,94,.08); color: #e4a99e; font-family: inherit; font-size: 9px; font-weight: 600; cursor: pointer; }
+.board-excluidos > button:hover { background: rgba(228,112,94,.16); }
+.board-excluidos > button > i { font-style: normal; opacity: .8; }
 /* Los controles son herramientas de trabajo, no contenido del informe. */
 @media print {
-  .board-ligas, .board-once-tabs, .board-fotos-acciones { display: none !important; }
+  .board-ligas, .board-once-tabs, .board-fotos-acciones, .board-excluidos, .board-escudo-acciones { display: none !important; }
 }

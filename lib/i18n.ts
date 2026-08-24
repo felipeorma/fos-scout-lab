@@ -1056,4 +1056,10 @@ const EN: Record<string, string> = {
   "Nadie baja más de 3 puntos.": "Nobody falls more than 3 points.",
   "Ningún jugador nuevo respecto al mes anterior.": "No new players compared with last month.",
   "{e} jugadores estables (±3) · {s} ya no aparecen en la base": "{e} players stable (±3) · {s} no longer in the database",
+  "Excluir club": "Exclude club",
+  "+ Elegir club": "+ Pick a club",
+  "Clubes excluidos": "Excluded clubs",
+  "Volver a considerar a {club}": "Reconsider {club}",
+  "o pega un link https://…": "or paste a link https://…",
+  "Pega un link directo http:// o https://.": "Paste a direct http:// or https:// link.",
 };

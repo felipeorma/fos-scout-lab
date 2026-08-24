@@ -5,6 +5,7 @@ import { buildPlayerReport, type DataRow } from "@/lib/scouting";
 import { t, tf } from "@/lib/i18n";
 import { OnceIdeal } from "./OnceIdeal";
 import {
+  CLAVE_CLUBES_EXCLUIDOS,
   CLAVE_ESCUDOS,
   CLAVE_LIGAS_MANUALES,
   FECHA_RATINGS_RESPALDO,
@@ -75,6 +76,29 @@ function guardarMapa(clave: string, valor: Record<string, string>) {
   }
 }
 
+function leerListaGuardada(clave: string): string[] {
+  try {
+    const crudo = window.localStorage.getItem(clave);
+    const valor = crudo ? JSON.parse(crudo) : [];
+    return Array.isArray(valor) ? valor.filter((item): item is string => typeof item === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function guardarLista(clave: string, valor: string[]) {
+  try {
+    window.localStorage.setItem(clave, JSON.stringify(valor));
+  } catch {
+    // Cuota llena o modo privado: la elección vale para esta sesión igual.
+  }
+}
+
+/** Un link directo de imagen sirve igual que un archivo subido: se guarda tal cual. */
+function enlaceValido(valor: string) {
+  return /^https?:\/\/\S+$/i.test(valor.trim());
+}
+
 /**
  * El escudo se guarda como data URI, así que viaja con el navegador y no
  * depende de ninguna URL externa. Se reescala antes: localStorage aguanta
@@ -116,6 +140,9 @@ export function ScoutingBoard({ rows, minimumMinutes, onSelectPlayer }: {
   const [ligaFiltro, setLigaFiltro] = useState("TODAS");
   const [ligasManuales, setLigasManuales] = useState<Record<string, string>>({});
   const [escudos, setEscudos] = useState<Record<string, string>>({});
+  const [enlacesEscudo, setEnlacesEscudo] = useState<Record<string, string>>({});
+  const [clubesExcluidos, setClubesExcluidos] = useState<string[]>([]);
+  const [clubParaExcluir, setClubParaExcluir] = useState("");
   const [optaMeta, setOptaMeta] = useState<OptaLiga[] | null>(null);
   const [optaEstado, setOptaEstado] = useState<"cargando" | "vivo" | "respaldo">("cargando");
   const [vistaOnce, setVistaOnce] = useState<"liga" | "combinado">("liga");
@@ -126,6 +153,7 @@ export function ScoutingBoard({ rows, minimumMinutes, onSelectPlayer }: {
   useEffect(() => {
     setLigasManuales(leerMapaGuardado(CLAVE_LIGAS_MANUALES));
     setEscudos(leerMapaGuardado(CLAVE_ESCUDOS));
+    setClubesExcluidos(leerListaGuardada(CLAVE_CLUBES_EXCLUIDOS));
   }, []);
 
   // ---- 1. Detección de liga ------------------------------------------------
@@ -233,15 +261,39 @@ export function ScoutingBoard({ rows, minimumMinutes, onSelectPlayer }: {
   }), [fichasBase, rows, ligaDeFuente, factores]);
 
   // ---- 4. Filtros ----------------------------------------------------------
+  /**
+   * Clubes de la carga, para el desplegable de exclusión. Sale de `fichas`
+   * (antes de aplicar la propia exclusión) para que un club ya excluido siga
+   * disponible y se pueda volver a considerar sin perderlo de vista.
+   */
+  const clubesDisponibles = useMemo(
+    () => [...new Set(fichas.map((f) => f.equipo).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es")),
+    [fichas],
+  );
+
+  function excluirClub(club: string) {
+    if (!club || clubesExcluidos.includes(club)) return;
+    const siguiente = [...clubesExcluidos, club].sort((a, b) => a.localeCompare(b, "es"));
+    setClubesExcluidos(siguiente);
+    guardarLista(CLAVE_CLUBES_EXCLUIDOS, siguiente);
+  }
+
+  function reincluirClub(club: string) {
+    const siguiente = clubesExcluidos.filter((c) => c !== club);
+    setClubesExcluidos(siguiente);
+    guardarLista(CLAVE_CLUBES_EXCLUIDOS, siguiente);
+  }
+
   /** Todo menos el filtro de puesto: es la base del once y del contexto. */
   const elegibles = useMemo(() => {
     let lista = fichas;
     if (ligaFiltro === "SIN") lista = lista.filter((f) => !f.liga);
     else if (ligaFiltro !== "TODAS") lista = lista.filter((f) => f.liga === ligaFiltro);
+    if (clubesExcluidos.length) lista = lista.filter((f) => !clubesExcluidos.includes(f.equipo));
     if (edadMax > 0) lista = lista.filter((f) => Number.isFinite(f.edad) && f.edad <= edadMax);
     if (soloJoven) lista = lista.filter((f) => Number.isFinite(f.edad) && f.edad <= 23);
     return lista;
-  }, [fichas, ligaFiltro, edadMax, soloJoven]);
+  }, [fichas, ligaFiltro, clubesExcluidos, edadMax, soloJoven]);
 
   const visibles = useMemo(() => {
     const lista = perfil === "TODOS" ? elegibles : elegibles.filter((f) => f.puesto === perfil);
@@ -391,6 +443,21 @@ export function ScoutingBoard({ rows, minimumMinutes, onSelectPlayer }: {
     }
   }
 
+  /**
+   * Alternativa al archivo: pegar el link de la imagen (por ejemplo, un
+   * resultado de Google Images). Se guarda el link tal cual, igual que el
+   * logo del destinatario en el reporte: no hace falta bajarlo a data URI
+   * para mostrarlo o imprimirlo.
+   */
+  function pegarEscudo(liga: string, valor: string) {
+    setEnlacesEscudo((anterior) => ({ ...anterior, [liga]: valor }));
+    const limpio = valor.trim();
+    if (!enlaceValido(limpio)) return;
+    const siguiente = { ...escudos, [liga]: limpio };
+    setEscudos(siguiente);
+    guardarMapa(CLAVE_ESCUDOS, siguiente);
+  }
+
   const etiquetaOpta = optaEstado === "vivo"
     ? t("Ratings en vivo de Opta Power Rankings")
     : optaEstado === "cargando"
@@ -430,7 +497,30 @@ export function ScoutingBoard({ rows, minimumMinutes, onSelectPlayer }: {
         <input type="number" min="0" max="45" value={edadMax || ""} placeholder="—" onChange={(event) => setEdadMax(Number(event.target.value))} />
       </label>
       <button type="button" className={soloJoven ? "on" : ""} onClick={() => setSoloJoven(!soloJoven)}>{t("Solo sub-23")}</button>
+      <label><span>{t("Excluir club")}</span>
+        <select
+          value={clubParaExcluir}
+          onChange={(event) => {
+            excluirClub(event.target.value);
+            setClubParaExcluir("");
+          }}
+        >
+          <option value="">{t("+ Elegir club")}</option>
+          {clubesDisponibles.filter((club) => !clubesExcluidos.includes(club)).map((club) => (
+            <option key={club} value={club}>{club}</option>
+          ))}
+        </select>
+      </label>
     </div>
+
+    {clubesExcluidos.length > 0 && <div className="board-excluidos">
+      <span>{t("Clubes excluidos")}</span>
+      {clubesExcluidos.map((club) => (
+        <button key={club} type="button" onClick={() => reincluirClub(club)} title={tf("Volver a considerar a {club}", { club })}>
+          {club} <i>×</i>
+        </button>
+      ))}
+    </div>}
 
     {/* ---- Ligas del mes: detección, corrección manual y escudos ---- */}
     {fuentes.length > 0 && <div className="board-ligas">
@@ -476,10 +566,22 @@ export function ScoutingBoard({ rows, minimumMinutes, onSelectPlayer }: {
                 ? tf("Opta {r}", { r: (rating as number).toFixed(1) })
                 : t("Sin rating en Opta")}</small>
             </div>
-            <label className="board-escudo-subir">
-              {escudos[liga] ? t("Cambiar") : t("Subir escudo")}
-              <input type="file" accept="image/*" onChange={(event) => void subirEscudo(liga, event.target.files?.[0])} />
-            </label>
+            <div className="board-escudo-acciones">
+              <label className="board-escudo-subir">
+                {escudos[liga] ? t("Cambiar") : t("Subir escudo")}
+                <input type="file" accept="image/*" onChange={(event) => void subirEscudo(liga, event.target.files?.[0])} />
+              </label>
+              <input
+                type="url"
+                className="board-escudo-link"
+                placeholder={t("o pega un link https://…")}
+                value={enlacesEscudo[liga] ?? ""}
+                onChange={(event) => pegarEscudo(liga, event.target.value)}
+              />
+              {Boolean(enlacesEscudo[liga]) && !enlaceValido(enlacesEscudo[liga]) && (
+                <small className="board-escudo-link-aviso">{t("Pega un link directo http:// o https://.")}</small>
+              )}
+            </div>
           </div>;
         })}
       </div>}

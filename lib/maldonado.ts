@@ -138,8 +138,10 @@ export function detectarLiga(nombreArchivo: string): LigaId | null {
 
 /** Clave de localStorage: elecciones manuales archivo → liga, para el mes siguiente. */
 export const CLAVE_LIGAS_MANUALES = "fos.maldonado.ligas";
-/** Clave de localStorage: escudos subidos por liga, como data URI. */
+/** Clave de localStorage: escudos por liga, como data URI o como link directo. */
 export const CLAVE_ESCUDOS = "fos.maldonado.escudos";
+/** Clave de localStorage: clubes excluidos de la mesa (el propio club, por ejemplo). */
+export const CLAVE_CLUBES_EXCLUIDOS = "fos.maldonado.clubesExcluidos";
 
 /**
  * Palabras que cambian de un mes a otro sin cambiar de qué liga se trata.
