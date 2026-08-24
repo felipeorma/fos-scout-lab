@@ -730,3 +730,115 @@ async def ai_summary(request: Request):
         return Response(_json.dumps({"text": text, "model": _AI_MODELS[kind]}), media_type="application/json", headers=cors_headers())
     except Exception as error:
         return Response(_json.dumps({"error": str(error)[:300]}), status_code=502, media_type="application/json", headers=cors_headers())
+
+
+# ============================================================================
+# Fotos mensuales de la mesa de detección (Maldonado).
+#
+# Se guardan SOLO en esta máquina, en ~/.fos-scouting/snapshots/. El
+# repositorio es público y los datos vienen de Wyscout, bajo licencia: no
+# pueden viajar al repo. El JSON es autosuficiente a propósito (mes, liga y
+# todo lo que identifica al jugador) para poder mudarlo mañana a un repo
+# privado sin depender de la base que lo generó.
+# ============================================================================
+
+import re as _re
+
+_SNAPSHOTS_DIR = Path.home() / ".fos-scouting" / "snapshots"
+_MES_RE = _re.compile(r"^\d{4}-\d{2}$")
+
+
+def _slug(valor: str) -> str:
+    """Trozo de nombre de archivo seguro: sin separadores de ruta ni sorpresas.
+
+    El navegador manda la liga y el mes; si se escribieran tal cual en la
+    ruta, un valor como "../../.ssh/config" saldría del directorio de fotos.
+    """
+    limpio = "".join(c if (c.isalnum() or c in "-_") else "-" for c in str(valor or "").strip().lower())
+    return limpio.strip("-")[:60]
+
+
+def _snapshot_path(liga: str, mes: str) -> Path:
+    return _SNAPSHOTS_DIR / f"{_slug(liga)}__{_slug(mes)}.json"
+
+
+def _snapshot_resumen(ruta: Path) -> dict:
+    import json as _json
+    try:
+        datos = _json.loads(ruta.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return {
+        "archivo": ruta.name,
+        "liga": datos.get("liga", ""),
+        "ligaNombre": datos.get("ligaNombre", ""),
+        "mes": datos.get("mes", ""),
+        "generado": datos.get("generado", ""),
+        "minutosMin": datos.get("minutosMin", 0),
+        "jugadores": len(datos.get("jugadores", []) or []),
+    }
+
+
+@app.post("/api/snapshots/save")
+async def snapshots_save(request: Request):
+    import json as _json
+    try:
+        cuerpo = await request.json()
+    except Exception:
+        return Response('{"error": "cuerpo JSON invalido"}', status_code=400,
+                        media_type="application/json", headers=cors_headers())
+
+    liga = _slug(cuerpo.get("liga", ""))
+    mes = str(cuerpo.get("mes", "")).strip()
+    jugadores = cuerpo.get("jugadores")
+    if not liga or not _MES_RE.match(mes):
+        return Response('{"error": "hacen falta liga y mes (AAAA-MM)"}', status_code=400,
+                        media_type="application/json", headers=cors_headers())
+    if not isinstance(jugadores, list) or not jugadores:
+        return Response('{"error": "la foto no trae jugadores"}', status_code=400,
+                        media_type="application/json", headers=cors_headers())
+
+    cuerpo.setdefault("version", 1)
+    cuerpo["liga"] = liga
+    cuerpo["mes"] = mes
+    # El sello lo pone el servidor: es la hora real de guardado, no la del
+    # navegador, que puede tener otra zona horaria o el reloj corrido.
+    cuerpo["guardado"] = _dt.datetime.now().isoformat(timespec="seconds")
+
+    _SNAPSHOTS_DIR.mkdir(parents=True, exist_ok=True)
+    destino = _snapshot_path(liga, mes)
+    destino.write_text(_json.dumps(cuerpo, ensure_ascii=False, indent=1), encoding="utf-8")
+    # 0600: la foto lleva datos bajo licencia y vive en el equipo personal.
+    try:
+        os.chmod(destino, 0o600)
+    except OSError:
+        pass
+    return Response(
+        _json.dumps({"ok": True, "archivo": destino.name, "ruta": str(destino), "jugadores": len(jugadores)}),
+        media_type="application/json", headers=cors_headers(),
+    )
+
+
+@app.get("/api/snapshots/list")
+async def snapshots_list(liga: str = ""):
+    import json as _json
+    if not _SNAPSHOTS_DIR.exists():
+        return Response("[]", media_type="application/json", headers=cors_headers())
+    filtro = _slug(liga)
+    fotos = [_snapshot_resumen(ruta) for ruta in sorted(_SNAPSHOTS_DIR.glob("*.json"))]
+    fotos = [foto for foto in fotos if foto and (not filtro or foto.get("liga") == filtro)]
+    # Más reciente primero: la comparación siempre quiere el mes anterior.
+    fotos.sort(key=lambda foto: str(foto.get("mes", "")), reverse=True)
+    return Response(_json.dumps(fotos, ensure_ascii=False), media_type="application/json", headers=cors_headers())
+
+
+@app.get("/api/snapshots/get")
+async def snapshots_get(liga: str, mes: str):
+    if not _MES_RE.match(str(mes).strip()):
+        return Response('{"error": "mes invalido (AAAA-MM)"}', status_code=400,
+                        media_type="application/json", headers=cors_headers())
+    ruta = _snapshot_path(liga, mes)
+    if not ruta.exists():
+        return Response('{"error": "no hay foto de esa liga y mes"}', status_code=404,
+                        media_type="application/json", headers=cors_headers())
+    return Response(ruta.read_text(encoding="utf-8"), media_type="application/json", headers=cors_headers())

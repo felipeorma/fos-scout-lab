@@ -115,6 +115,7 @@ async function fetchHtmlThroughCorsProxy(url: string) {
 // El mismo servidor local del recorte de fondos expone los datos de las APIs
 // con las credenciales guardadas SOLO en esta máquina.
 import { extractSeason, type DataRow, type SourceDataset } from "./scouting";
+import { OPTA_URL, type FotoMensual, type OptaLiga } from "./maldonado";
 
 const LOCAL_BRIDGE = "http://127.0.0.1:7001";
 
@@ -174,6 +175,79 @@ export async function fetchSkillcornerDataset(competition: ApiCompetition): Prom
     `/api/skillcorner/player-stats?competition_edition_id=${competition.id}`,
   );
   return toDataset(`SkillCorner · ${competition.name} ${competition.season}`, competition.season, payload.rows, "skillcorner");
+}
+
+// ---- Mesa de detección: ratings de liga y fotos mensuales ----
+
+/**
+ * Ratings de Opta Power Rankings. El feed es público y responde con
+ * `access-control-allow-origin: *`, así que se lee directo desde el navegador
+ * y funciona igual en GitHub Pages que en local, sin pasar por el puente.
+ *
+ * Devuelve null si no se pudo leer: quien llama decide qué decir en pantalla,
+ * pero nunca se rellena con un valor inventado.
+ */
+export async function fetchOptaLeagueMeta(): Promise<OptaLiga[] | null> {
+  try {
+    const response = await fetch(OPTA_URL, { signal: AbortSignal.timeout(15_000) });
+    if (!response.ok) return null;
+    const payload = await response.json() as OptaLiga[];
+    return Array.isArray(payload) && payload.length ? payload : null;
+  } catch {
+    return null;
+  }
+}
+
+export type ResumenFoto = {
+  archivo: string;
+  liga: string;
+  ligaNombre: string;
+  mes: string;
+  generado: string;
+  minutosMin: number;
+  jugadores: number;
+};
+
+/**
+ * Las fotos mensuales viven SOLO en el servidor local (~/.fos-scouting/
+ * snapshots). El repositorio es público y los datos de Wyscout están bajo
+ * licencia: no pueden viajar a GitHub. Sin servidor, la función avisa en vez
+ * de fallar en silencio.
+ */
+export async function fetchSnapshotList(liga: string): Promise<ResumenFoto[]> {
+  try {
+    return await bridgeJson<ResumenFoto[]>(`/api/snapshots/list?liga=${encodeURIComponent(liga)}`, 5_000);
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchSnapshot(liga: string, mes: string): Promise<FotoMensual | null> {
+  try {
+    return await bridgeJson<FotoMensual>(
+      `/api/snapshots/get?liga=${encodeURIComponent(liga)}&mes=${encodeURIComponent(mes)}`,
+      5_000,
+    );
+  } catch {
+    return null;
+  }
+}
+
+export async function saveSnapshot(foto: FotoMensual): Promise<{ archivo: string; ruta: string; jugadores: number }> {
+  let response: Response;
+  try {
+    response = await fetch(`${LOCAL_BRIDGE}/api/snapshots/save`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(foto),
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch {
+    throw new Error(t("El servidor local no está corriendo. Arranca npm run bg:server y reintenta."));
+  }
+  const payload = await response.json() as { archivo?: string; ruta?: string; jugadores?: number; error?: string };
+  if (!response.ok || !payload.archivo) throw new Error(payload.error || t("No se pudo guardar la foto del mes."));
+  return { archivo: payload.archivo, ruta: payload.ruta ?? "", jugadores: payload.jugadores ?? 0 };
 }
 
 // ---- Lecturas escritas por Claude (vía el puente local) ----
