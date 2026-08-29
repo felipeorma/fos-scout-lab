@@ -997,3 +997,194 @@ async def skillcorner_off_ball_runs(competition_edition_id: int, team: str = "",
         }, ensure_ascii=False),
         media_type="application/json", headers=cors_headers(),
     )
+
+
+# ============================================================================
+# Contexto defensivo de StatsBomb 360.
+#
+# El 360 no es una métrica: es la foto de dónde estaban todos los jugadores
+# visibles en el instante de cada acción. Lo que aporta al scouting es el
+# contexto que ninguna estadística de evento trae: cuánto espacio le daban al
+# recibir, cuántos rivales dejó atrás, si el pase rompió línea.
+#
+# CPL no tiene 360 (StatsBomb no lo recolecta), pero MLS Next Pro y USL sí, y
+# ahí juegan los canadienses jóvenes: por eso vive en su propia pestaña y no
+# dentro del informe del jugador.
+#
+# Un partido son ~9 MB entre eventos y frames, así que aquí se agrega en el
+# servidor y se cachea en disco solo el resumen por jugador. Bajar la
+# temporada entera al navegador serían gigas.
+# ============================================================================
+
+_S360_CACHE_DIR = Path.home() / ".fos-scouting" / "sb360-cache"
+
+
+def _sb360_match_summary(match_id: int, auth):
+    """Resumen por jugador de un partido. Del disco si ya se calculó."""
+    import json as _json
+    _S360_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    cache = _S360_CACHE_DIR / f"sb360-{int(match_id)}.json"
+    if cache.exists():
+        try:
+            guardado = _json.loads(cache.read_text(encoding="utf-8"))
+            return guardado.get("jugadores", []), guardado.get("estado", "ok")
+        except Exception:
+            pass
+
+    try:
+        eventos = _requests.get(f"https://data.statsbomb.com/api/v8/events/{int(match_id)}", auth=auth, timeout=120)
+        frames = _requests.get(f"https://data.statsbomb.com/api/v2/360-frames/{int(match_id)}", auth=auth, timeout=120)
+    except Exception:
+        return [], "red"
+    if eventos.status_code != 200 or frames.status_code != 200:
+        return [], f"http_{eventos.status_code}_{frames.status_code}"
+
+    try:
+        lista_eventos = eventos.json()
+        lista_frames = frames.json()
+    except Exception:
+        return [], "json"
+    if not lista_frames:
+        filas, estado = [], "sin_360"
+        try:
+            cache.write_text(_json.dumps({"jugadores": filas, "estado": estado}), encoding="utf-8")
+            os.chmod(cache, 0o600)
+        except OSError:
+            pass
+        return filas, estado
+
+    por_id = {e.get("id"): e for e in lista_eventos}
+    acumulado = {}
+
+    def entrada(nombre, equipo):
+        if nombre not in acumulado:
+            acumulado[nombre] = {
+                "jugador": nombre, "equipo": equipo,
+                "recepciones": 0, "distanciaSuma": 0.0, "distanciaN": 0, "enEspacio": 0,
+                "pases": 0, "rompeLinea": 0,
+                "conducciones": 0, "defensoresSuma": 0.0, "defensoresN": 0,
+            }
+        return acumulado[nombre]
+
+    for frame in lista_frames:
+        evento = por_id.get(frame.get("event_uuid"))
+        if not evento:
+            continue
+        jugador = (evento.get("player") or {}).get("name")
+        if not jugador:
+            continue
+        equipo = (evento.get("team") or {}).get("name") or ""
+        tipo = (evento.get("type") or {}).get("name") or ""
+        fila = entrada(jugador, equipo)
+
+        distancia = frame.get("distance_to_nearest_defender")
+        defensores = frame.get("num_defenders_on_goal_side_of_actor")
+
+        if tipo == "Ball Receipt*":
+            fila["recepciones"] += 1
+            if frame.get("ball_receipt_in_space") is True:
+                fila["enEspacio"] += 1
+            # La presión al recibir es lo que separa a quien juega cómodo de
+            # quien resuelve incómodo: solo cuenta en la recepción.
+            if isinstance(distancia, (int, float)):
+                fila["distanciaSuma"] += float(distancia)
+                fila["distanciaN"] += 1
+        elif tipo == "Pass":
+            fila["pases"] += 1
+            if frame.get("line_breaking_pass") is True:
+                fila["rompeLinea"] += 1
+        elif tipo == "Carry":
+            fila["conducciones"] += 1
+            if isinstance(defensores, (int, float)):
+                fila["defensoresSuma"] += float(defensores)
+                fila["defensoresN"] += 1
+
+    filas = list(acumulado.values())
+    try:
+        cache.write_text(_json.dumps({"jugadores": filas, "estado": "ok"}, ensure_ascii=False), encoding="utf-8")
+        os.chmod(cache, 0o600)
+    except OSError:
+        pass
+    return filas, "ok"
+
+
+@app.get("/api/statsbomb/context360")
+async def statsbomb_context360(competition_id: int, season_id: int, team: str = "", limit_matches: int = 0):
+    """Contexto defensivo por jugador de una temporada, sumando sus partidos."""
+    import json as _json
+    auth = _statsbomb_auth()
+    if not auth:
+        return Response('{"error": "sin credenciales"}', status_code=503,
+                        media_type="application/json", headers=cors_headers())
+
+    try:
+        partidos = _cached_get(
+            f"sb:matches:{competition_id}:{season_id}",
+            f"https://data.statsbomb.com/api/v6/competitions/{competition_id}/seasons/{season_id}/matches",
+            auth, ttl_seconds=1800,
+        )
+    except Exception as error:
+        return Response(_json.dumps({"error": f"no se pudo listar partidos: {error}"}), status_code=502,
+                        media_type="application/json", headers=cors_headers())
+
+    def lado(partido, cual):
+        return str((partido.get(cual) or {}).get(f"{cual}_name") or "")
+
+    buscado = team.strip().lower()
+    if buscado:
+        partidos = [p for p in partidos
+                    if buscado in lado(p, "home_team").lower() or buscado in lado(p, "away_team").lower()]
+    # Sin 360 declarado no hay nada que pedir: se ahorra la llamada entera.
+    disponibles = [p for p in partidos if str(p.get("match_status_360")) == "available"]
+    disponibles.sort(key=lambda p: str(p.get("match_date", "")), reverse=True)
+    if limit_matches > 0:
+        disponibles = disponibles[:limit_matches]
+
+    total, estados, con_datos = {}, {}, 0
+    for partido in disponibles:
+        filas, estado = _sb360_match_summary(partido.get("match_id"), auth)
+        estados[estado] = estados.get(estado, 0) + 1
+        if not filas:
+            continue
+        con_datos += 1
+        for fila in filas:
+            if buscado and buscado not in str(fila.get("equipo", "")).lower():
+                continue
+            clave = fila["jugador"]
+            actual = total.setdefault(clave, {"jugador": clave, "equipo": fila.get("equipo", ""), "partidos": 0})
+            actual["partidos"] += 1
+            for campo, valor in fila.items():
+                if campo in ("jugador", "equipo"):
+                    continue
+                actual[campo] = actual.get(campo, 0) + valor
+
+    jugadores = []
+    for fila in total.values():
+        recepciones = fila.get("recepciones", 0)
+        pases = fila.get("pases", 0)
+        jugadores.append({
+            "jugador": fila["jugador"],
+            "equipo": fila["equipo"],
+            "partidos": fila["partidos"],
+            "recepciones": recepciones,
+            "pases": pases,
+            "conducciones": fila.get("conducciones", 0),
+            # Metros libres al recibir: cuanto más bajo, más apretado juega.
+            "distanciaMedia": round(fila["distanciaSuma"] / fila["distanciaN"], 2) if fila.get("distanciaN") else None,
+            "enEspacioPct": round(100 * fila.get("enEspacio", 0) / recepciones, 1) if recepciones else None,
+            "rompeLineaPct": round(100 * fila.get("rompeLinea", 0) / pases, 1) if pases else None,
+            "rompeLinea": fila.get("rompeLinea", 0),
+            "defensoresMedia": round(fila["defensoresSuma"] / fila["defensoresN"], 2) if fila.get("defensoresN") else None,
+        })
+    jugadores.sort(key=lambda j: -(j["recepciones"] + j["pases"]))
+
+    return Response(
+        _json.dumps({
+            "jugadores": jugadores,
+            "partidos": len(partidos),
+            "partidosCon360": len(disponibles),
+            "partidosConDatos": con_datos,
+            "estados": estados,
+        }, ensure_ascii=False),
+        media_type="application/json", headers=cors_headers(),
+    )

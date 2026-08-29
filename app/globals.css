@@ -2207,3 +2207,34 @@ body.print-layout-check .ai-error { display: none !important; }
 .runs-squad td b { color: var(--brd-green); }
 /* Los controles son herramientas de trabajo, no contenido del informe. */
 @media print { .runs-controls { display: none !important; } }
+
+/* ---- Contexto defensivo (StatsBomb 360) ---- */
+.ctx360-page { --brd-green: #12c48b; --brd-ink: #eaf2f0; --brd-dim: #8fa3a0; width: 100%; max-width: 990px; margin: 18px auto 24px; padding: 24px 28px; box-sizing: border-box; color: var(--brd-ink); background: linear-gradient(168deg, #0d1a1f 0%, #10242a 62%, #0b1519 100%); font-family: var(--font-barlow), Arial, sans-serif; }
+.ctx360-page > header { padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,.09); }
+.ctx360-page > header span { color: var(--brd-green); font-size: 9px; font-weight: 800; letter-spacing: .22em; }
+.ctx360-page > header h2 { margin: 4px 0; font-family: var(--font-space-grotesk), sans-serif; font-size: 24px; }
+.ctx360-page > header p { margin: 0; max-width: 72ch; color: var(--brd-dim); font-size: 10px; line-height: 1.5; }
+.ctx360-aviso { margin: 12px 0 0; padding: 8px 11px; border: 1px solid rgba(215,146,128,.28); border-left-width: 3px; border-radius: 7px; background: rgba(215,146,128,.07); color: #e0b3a5; font-size: 9px; line-height: 1.5; }
+.ctx360-controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 14px; margin: 12px 0 6px; padding: 10px 12px; border: 1px solid rgba(255,255,255,.07); border-radius: 9px; background: rgba(255,255,255,.028); }
+.ctx360-controls label { display: flex; flex-direction: column; gap: 3px; }
+.ctx360-controls label > span { color: var(--brd-dim); font-size: 7.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.ctx360-controls select, .ctx360-controls input { width: 200px; padding: 4px 7px; border: 1px solid rgba(255,255,255,.16); border-radius: 6px; background: rgba(255,255,255,.05); color: var(--brd-ink); font-family: inherit; font-size: 10px; }
+.ctx360-controls button { padding: 5px 12px; border: 1px solid var(--brd-green); border-radius: 999px; background: color-mix(in srgb, var(--brd-green) 18%, transparent); color: var(--brd-green); font-family: inherit; font-size: 9px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; cursor: pointer; }
+.ctx360-controls button:disabled { opacity: .45; cursor: default; }
+.ctx360-estado { flex-basis: 100%; color: var(--brd-dim); font-size: 8.5px; line-height: 1.45; }
+.ctx360-quadrant { margin-top: 16px; }
+.ctx360-quadrant h3, .ctx360-table h3 { display: flex; align-items: center; gap: 7px; margin: 0 0 5px; color: var(--brd-green); font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+.ctx360-table h3 > i { padding: 1px 7px; border-radius: 999px; background: rgba(255,255,255,.08); color: var(--brd-dim); font-size: 9px; font-style: normal; }
+.ctx360-quadrant > p, .ctx360-table > p { margin: 0 0 8px; max-width: 74ch; color: var(--brd-dim); font-size: 9px; line-height: 1.5; }
+.ctx360-lectura { margin: 12px 0 0; padding: 9px 11px; border-left: 3px solid var(--brd-green); border-radius: 0 7px 7px 0; background: rgba(18,196,139,.07); color: var(--brd-ink); font-size: 10px; line-height: 1.55; }
+.ctx360-table { margin-top: 18px; }
+.ctx360-table table { width: 100%; border-collapse: collapse; }
+.ctx360-table th { padding: 4px 6px; border-bottom: 1px solid rgba(255,255,255,.12); color: var(--brd-dim); font-size: 7.5px; font-weight: 700; letter-spacing: .08em; text-align: left; text-transform: uppercase; }
+.ctx360-table td { padding: 5px 6px; border-bottom: 1px solid rgba(255,255,255,.05); font-size: 10px; }
+.ctx360-table td.ctx360-name { font-weight: 700; }
+.ctx360-table td b { color: var(--brd-green); }
+/* Los controles son herramientas de trabajo, no contenido del informe. */
+@media print { .ctx360-controls { display: none !important; } }
+.ctx360-table tbody tr { cursor: pointer; }
+.ctx360-table tbody tr:hover td { background: rgba(18,196,139,.07); }
+.ctx360-table tbody tr.activo td { background: rgba(18,196,139,.13); }

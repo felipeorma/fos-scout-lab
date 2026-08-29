@@ -225,6 +225,45 @@ export function fetchOffBallRuns(competitionEditionId: number, equipo: string) {
   );
 }
 
+// ---- Contexto defensivo (StatsBomb 360) ----
+
+/** Lo que el 360 aporta de un jugador: con cuánto espacio y rivales juega. */
+export type Jugador360 = {
+  jugador: string;
+  equipo: string;
+  partidos: number;
+  recepciones: number;
+  pases: number;
+  conducciones: number;
+  /** Metros hasta el defensor más cercano al recibir. Bajo = juega apretado. */
+  distanciaMedia: number | null;
+  enEspacioPct: number | null;
+  rompeLineaPct: number | null;
+  rompeLinea: number;
+  defensoresMedia: number | null;
+};
+
+export type Respuesta360 = {
+  jugadores: Jugador360[];
+  partidos: number;
+  partidosCon360: number;
+  partidosConDatos: number;
+  estados: Record<string, number>;
+};
+
+/**
+ * Contexto defensivo de una temporada, por equipo. Se agrega en el puente:
+ * un partido son unos 9 MB entre eventos y frames, y una temporada entera
+ * no cabe en el navegador.
+ */
+export function fetchContext360(competition: ApiCompetition, equipo: string) {
+  return bridgeJson<Respuesta360>(
+    `/api/statsbomb/context360?competition_id=${competition.competition_id}`
+    + `&season_id=${competition.season_id}&team=${encodeURIComponent(equipo)}`,
+    600_000,
+  );
+}
+
 // ---- Mesa de detección: ratings de liga y fotos mensuales ----
 
 /**
