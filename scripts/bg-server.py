@@ -334,6 +334,14 @@ _SC_METRICS = {
     "HSR distance (SC)": ["hsr_distance_full_all_p90", "hsr_distance_full_all"],
     "Meters per minute (SC)": ["total_metersperminute_full_all", "total_metersperminute_full_all_p90"],
     "Time to sprint post COD (SC)": ["timetosprintpostcod_top3", "timetosprintpostcod"],
+    # El arquetipo de central físico se sostiene en cuánto tarda en alcanzar
+    # el sprint y en cuántas aceleraciones explosivas hace: no basta la
+    # velocidad punta, que un central rara vez llega a usar entera.
+    "Time to sprint (SC)": ["timetosprint_top3", "timetosprint"],
+    "Explosive accels to sprint (SC)": ["explacceltosprint_count_full_all_p90", "explacceltosprint_count_full_all"],
+    "Sprints (SC)": ["sprint_count_full_all_p90", "sprint_count_full_all"],
+    "Changes of direction (SC)": ["cod_count_full_all_p90", "cod_count_full_all"],
+    "High decelerations (SC)": ["highdecel_count_full_all_p90", "highdecel_count_full_all"],
 }
 
 # Game intelligence: columna → (ruta, campos que se suman, modo).
@@ -383,6 +391,37 @@ _SC_GI = {
     "Tight space retained P30 (SC)": ("player_possessions", ["reception_count_intensepressure_tightspace_retained"], "p30"),
     "Options inside shape P30 (SC)": ("passing_options", ["optionoffered_count_insidedefensiveshape"], "p30"),
     "Options outside shape P30 (SC)": ("passing_options", ["optionoffered_count_outsidedefensiveshape"], "p30"),
+    # ---- Duelo defensivo -------------------------------------------------
+    # Treinta y siete métricas de on_ball_engagements estaban sin leer, y son
+    # las que sostienen los perfiles de central y lateral: sin ellas, un
+    # defensor solo se describía por lo que hace con el balón.
+    "Danger mitigated % (SC)": ("on_ball_engagements", ["onballengagement_pct_dangermitigated"], "raw"),
+    "Forced backward % (SC)": ("on_ball_engagements", ["onballengagement_pct_forcedbackward"], "raw"),
+    "Direct disruption % (SC)": ("on_ball_engagements", ["onballengagement_pct_directdisruption"], "raw"),
+    "Linebreak affected % (SC)": ("on_ball_engagements", ["onballengagement_pct_linebreakaffected"], "raw"),
+    "Defensive duels P30 (SC)": ("on_ball_engagements", ["onballengagement_count"], "p30"),
+    "Intense duels P30 (SC)": ("on_ball_engagements", ["onballengagement_count_abovehsr"], "p30"),
+    "Pressing chain P30 (SC)": ("on_ball_engagements", ["onballengagement_count_pressingchain"], "p30"),
+    "Dangerous situations P30 (SC)": ("on_ball_engagements", ["onballengagement_count_dangeroussituation"], "p30"),
+    # ---- Conducción y decisión ------------------------------------------
+    "Long carries P30 (SC)": ("player_possessions", ["longcarry_count"], "p30"),
+    "Long carry retention % (SC)": ("player_possessions", ["longcarry_pct_retained"], "raw"),
+    "Forward momentum P30 (SC)": ("player_possessions", ["possession_count_forwardmomentum"], "p30"),
+    "Give and go P30 (SC)": ("player_possessions", ["giveandgo_count"], "p30"),
+    "Receptions in space P30 (SC)": ("player_possessions", ["reception_count_inspace"], "p30"),
+    # Oportunidades de pase que tuvo contra las que ejecutó: es lo más cerca
+    # que llega el dato a medir la decisión, no la ejecución.
+    "Linebreak pass opportunities P30 (SC)": ("passes", ["passopportunity_count_linebreak"], "p30"),
+    "Dangerous pass opportunities P30 (SC)": ("passes", ["passopportunity_count_dangerous"], "p30"),
+    "Passes to shot within 10s P30 (SC)": ("passes", ["pass_count_shotwithin10s"], "p30"),
+    "Dangerous passes P30 (SC)": ("passes", ["pass_count_dangerous_completed"], "p30"),
+    # ---- Carreras que faltaban para laterales y extremos -----------------
+    "Cross receiver runs P30 (SC)": ("off_ball_runs", ["crossreceiverrun_count"], "p30"),
+    "Support runs P30 (SC)": ("off_ball_runs", ["supportrun_count"], "p30"),
+    "Dropping off runs P30 (SC)": ("off_ball_runs", ["droppingoffrun_count"], "p30"),
+    "Ahead of ball runs P30 (SC)": ("off_ball_runs", ["aheadoftheballrun_count"], "p30"),
+    "Half-space runs P30 (SC)": ("off_ball_runs", ["pullinghalfspacerun_count"], "p30"),
+    "High intensity runs P30 (SC)": ("off_ball_runs", ["offballrun_count_abovehsr"], "p30"),
 }
 
 

@@ -965,7 +965,7 @@ METRICS.DWING.push(
 );
 
 
-function percentile(value: number, values: number[], inverse = false) {
+export function percentile(value: number, values: number[], inverse = false) {
   const valid = values.filter(Number.isFinite).sort((a, b) => a - b);
   if (!valid.length || !Number.isFinite(value)) return 0;
   const below = valid.filter((candidate) => candidate < value).length;

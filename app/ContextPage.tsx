@@ -6,6 +6,7 @@ import { METRIC_SOURCE_COLORS } from "@/lib/similarityMetricGroups";
 import { t, tf } from "@/lib/i18n";
 import { BarrasRanking, BarrasZ, CuadranteMetricas, LeyendaGraficos, SwarmMetric, type BarraRank, type BarraZ, type PuntoCuadrante, type PuntoSwarm } from "./ContextCharts";
 import { CATALOGO, DEFINICIONES, type FichaContexto } from "./ContextCatalog";
+import { Arquetipos } from "./Arquetipos";
 
 /**
  * Página de contexto: sitúa al jugador dentro de su equipo y de la liga.
@@ -93,6 +94,7 @@ function Embudo({ pasos }: { pasos: Array<{ etiqueta: string; valor: number; bas
 const BLOQUES = [
   { id: "destacados", etiqueta: "Dónde destaca" },
   { id: "ranking", etiqueta: "Ranking del perfil" },
+  { id: "arquetipos", etiqueta: "Arquetipos" },
   { id: "distribucion", etiqueta: "Distribución" },
   { id: "cuadrante", etiqueta: "Cuadrante" },
   { id: "presion", etiqueta: "Presión" },
@@ -433,6 +435,14 @@ export function ContextPage({ report, rows, controles, minutosFiltro = 0 }: { re
       <p>{t("Ordenados por índice global: la media de sus percentiles contra los jugadores de su misma posición. Es el número del centro del radar.")}</p>
       <BarrasRanking titulo="" barras={ranking} top={14} />
     </section>}
+
+    {muestra("arquetipos") && <Arquetipos
+      rows={rows}
+      cohorte={report.cohort}
+      minutosMin={minutosFiltro}
+      jugador={report.player}
+      onSelectPlayer={controles?.onJugador}
+    />}
 
     {fichas.some(({ ficha }) => muestra(ficha.id as BloqueId) && fichaEncaja(ficha)) && <section className="ctx-catalog-block">
       <h3>{t("Análisis de los artículos de SkillCorner")}</h3>
