@@ -177,6 +177,54 @@ export async function fetchSkillcornerDataset(competition: ApiCompetition): Prom
   return toDataset(`SkillCorner · ${competition.name} ${competition.season}`, competition.season, payload.rows, "skillcorner");
 }
 
+// ---- Carreras sin balón, evento a evento ----
+
+/** Una carrera con sus coordenadas: lo que dibuja una flecha en el mapa. */
+export type CarreraSinBalon = {
+  player_name: string;
+  team_shortname: string;
+  event_subtype: string;
+  period: string;
+  x_start: number | null;
+  y_start: number | null;
+  x_end: number | null;
+  y_end: number | null;
+  speed_avg: number | null;
+  speed_avg_band: string;
+  distance_covered: number | null;
+  dangerous: boolean;
+  received: boolean;
+  targeted: boolean;
+  xthreat: number | null;
+  break_defensive_line: boolean;
+  lead_to_shot: boolean;
+  lead_to_goal: boolean;
+};
+
+export type RespuestaCarreras = {
+  runs: CarreraSinBalon[];
+  jugadores: string[];
+  partidos: number;
+  partidosConDatos: number;
+  /** Por qué un partido no trae datos: calidad, sin_procesar, sin_licencia. */
+  estados: Record<string, number>;
+};
+
+/**
+ * Carreras sin balón de una temporada, por equipo. Pasa por el puente local
+ * porque SkillCorner sirve un CSV por partido: la temporada entera son
+ * decenas de llamadas que el servidor cachea en disco.
+ *
+ * La primera carga de un equipo tarda (baja todos sus partidos); a partir de
+ * ahí sale del caché en milisegundos, por eso el timeout es largo.
+ */
+export function fetchOffBallRuns(competitionEditionId: number, equipo: string) {
+  return bridgeJson<RespuestaCarreras>(
+    `/api/skillcorner/off-ball-runs?competition_edition_id=${competitionEditionId}&team=${encodeURIComponent(equipo)}`,
+    300_000,
+  );
+}
+
 // ---- Mesa de detección: ratings de liga y fotos mensuales ----
 
 /**

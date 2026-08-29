@@ -842,3 +842,158 @@ async def snapshots_get(liga: str, mes: str):
         return Response('{"error": "no hay foto de esa liga y mes"}', status_code=404,
                         media_type="application/json", headers=cors_headers())
     return Response(ruta.read_text(encoding="utf-8"), media_type="application/json", headers=cors_headers())
+
+
+# ============================================================================
+# Carreras sin balón, evento a evento (SkillCorner Dynamic Events).
+#
+# A diferencia del resto de métricas de SkillCorner —que llegan agregadas por
+# temporada—, aquí cada carrera es una fila con sus coordenadas de inicio y
+# fin. Es lo que permite dibujar el mapa de carreras del artículo "Open Data
+# #4" en vez de un número suelto.
+#
+# El endpoint de SkillCorner es por partido y devuelve CSV, así que una
+# temporada son decenas de llamadas de ~300 KB. Se cachea en disco: la
+# temporada pasada no cambia nunca y la actual solo suma partidos nuevos.
+# ============================================================================
+
+_RUNS_CACHE_DIR = Path.home() / ".fos-scouting" / "runs-cache"
+# Campos que sobreviven al recorte: los que dibujan la flecha, la colorean y
+# permiten filtrar. El CSV trae 118 columnas y casi ninguna se usa en el mapa.
+_RUN_FIELDS = (
+    "player_name", "team_shortname", "event_subtype", "period",
+    "x_start", "y_start", "x_end", "y_end",
+    "speed_avg", "speed_avg_band", "distance_covered",
+    "dangerous", "received", "targeted", "xthreat",
+    "break_defensive_line", "lead_to_shot", "lead_to_goal",
+)
+_RUN_BOOLS = ("dangerous", "received", "targeted", "break_defensive_line", "lead_to_shot", "lead_to_goal")
+_RUN_NUMS = ("x_start", "y_start", "x_end", "y_end", "speed_avg", "distance_covered", "xthreat")
+
+
+def _run_row(raw: dict) -> dict:
+    """Una fila de CSV recortada a lo que el mapa necesita, ya tipada."""
+    out = {}
+    for field in _RUN_FIELDS:
+        value = raw.get(field, "")
+        if field in _RUN_BOOLS:
+            out[field] = str(value).strip().lower() == "true"
+        elif field in _RUN_NUMS:
+            try:
+                out[field] = round(float(value), 3)
+            except (TypeError, ValueError):
+                out[field] = None
+        else:
+            out[field] = value
+    return out
+
+
+def _match_runs(match_id: int, auth, data_version: int = 3):
+    """Carreras de un partido, del disco si ya se pidieron alguna vez.
+
+    Devuelve (filas, estado). Un partido sin datos se cachea igual con su
+    motivo: SkillCorner no repara la calidad de un partido ya cerrado, así
+    que reintentarlo en cada carga sería pagar el timeout para nada.
+    """
+    import json as _json
+    _RUNS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    cache = _RUNS_CACHE_DIR / f"obr-v{data_version}-{int(match_id)}.json"
+    if cache.exists():
+        try:
+            guardado = _json.loads(cache.read_text(encoding="utf-8"))
+            return guardado.get("runs", []), guardado.get("estado", "ok")
+        except Exception:
+            pass
+
+    try:
+        response = _requests.get(
+            f"https://skillcorner.com/api/match/{int(match_id)}/dynamic_events/off_ball_runs/",
+            auth=auth, params={"data_version": data_version}, timeout=60,
+        )
+    except Exception:
+        # Un fallo de red sí puede resolverse solo: no se cachea.
+        return [], "red"
+
+    if response.status_code == 200:
+        import csv as _csv, io as _io
+        filas = [_run_row(fila) for fila in _csv.DictReader(_io.StringIO(response.text))]
+        estado = "ok"
+    elif response.status_code == 400:
+        filas, estado = [], "calidad"
+    elif response.status_code == 404:
+        filas, estado = [], "sin_procesar"
+    elif response.status_code == 403:
+        filas, estado = [], "sin_licencia"
+    else:
+        return [], f"http_{response.status_code}"
+
+    try:
+        cache.write_text(_json.dumps({"runs": filas, "estado": estado}, ensure_ascii=False), encoding="utf-8")
+        os.chmod(cache, 0o600)
+    except OSError:
+        pass
+    return filas, estado
+
+
+@app.get("/api/skillcorner/off-ball-runs")
+async def skillcorner_off_ball_runs(competition_edition_id: int, team: str = "", limit_matches: int = 0):
+    """Carreras sin balón de una temporada, opcionalmente de un solo equipo.
+
+    `team` filtra por los partidos de ese club Y por sus propias carreras: sin
+    él se devolverían también las del rival, que en un mapa de equipo sobran.
+    """
+    import json as _json
+    auth = _skillcorner_auth()
+    if not auth:
+        return Response('{"error": "sin credenciales"}', status_code=503,
+                        media_type="application/json", headers=cors_headers())
+
+    try:
+        partidos = []
+        url = "https://skillcorner.com/api/matches/"
+        params = {"competition_edition": competition_edition_id, "limit": 100}
+        while url and len(partidos) < 400:
+            data = _cached_get(f"sc:matches:{competition_edition_id}:{url}", url, auth, params=params, ttl_seconds=1800)
+            partidos.extend(data.get("results", []))
+            url = data.get("next")
+            params = None
+    except Exception as error:
+        return Response(_json.dumps({"error": f"no se pudo listar partidos: {error}"}), status_code=502,
+                        media_type="application/json", headers=cors_headers())
+
+    def nombre(lado):
+        return str((lado or {}).get("short_name") or "")
+
+    buscado = team.strip().lower()
+    if buscado:
+        partidos = [p for p in partidos
+                    if buscado in nombre(p.get("home_team")).lower() or buscado in nombre(p.get("away_team")).lower()]
+    # Solo los ya jugados: un partido futuro existe pero no tiene eventos.
+    partidos = [p for p in partidos if str(p.get("status", "")).lower() in ("closed", "postmatch")]
+    partidos.sort(key=lambda p: str(p.get("date_time", "")), reverse=True)
+    if limit_matches > 0:
+        partidos = partidos[:limit_matches]
+
+    runs, estados, con_datos = [], {}, 0
+    for partido in partidos:
+        filas, estado = _match_runs(partido.get("id"), auth)
+        estados[estado] = estados.get(estado, 0) + 1
+        if not filas:
+            continue
+        con_datos += 1
+        for fila in filas:
+            if buscado and buscado not in str(fila.get("team_shortname", "")).lower():
+                continue
+            runs.append(fila)
+
+    jugadores = sorted({str(r.get("player_name") or "") for r in runs} - {""})
+    return Response(
+        _json.dumps({
+            "runs": runs,
+            "jugadores": jugadores,
+            "partidos": len(partidos),
+            "partidosConDatos": con_datos,
+            "estados": estados,
+        }, ensure_ascii=False),
+        media_type="application/json", headers=cors_headers(),
+    )
