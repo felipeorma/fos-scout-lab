@@ -2361,31 +2361,35 @@ body.print-layout-check .ai-error { display: none !important; }
    se cambian aquí, en una línea por paleta.
    ========================================================================== */
 .app-shell[data-paleta="cavalry"] {
-  --acento: #2f9e6f;          /* verde Cavalry */
-  --acento-claro: #63c79a;
-  --acento-suave: rgba(47,158,111,.13);
-  --acento-borde: rgba(47,158,111,.28);
-  --acento-degradado: linear-gradient(145deg,#2f9e6f,#1d7d63);
-  --halo-a: rgba(47,158,111,.14);
-  --halo-b: rgba(99,199,154,.07);
+  /* Calgary Red, el primario declarado del club y el de su camiseta 25/26. */
+  --acento: #da291c;
+  --acento-claro: #f2695c;
+  --acento-suave: rgba(218,41,28,.14);
+  --acento-borde: rgba(218,41,28,.34);
+  --acento-degradado: linear-gradient(145deg,#da291c,#a81d12);
+  --halo-a: rgba(218,41,28,.13);
+  --halo-b: rgba(51,85,37,.07);   /* Army Green, el secundario */
 }
 .app-shell[data-paleta="maldonado"] {
-  --acento: #d98b2b;          /* ámbar Maldonado */
-  --acento-claro: #eeb45f;
-  --acento-suave: rgba(217,139,43,.13);
-  --acento-borde: rgba(217,139,43,.3);
-  --acento-degradado: linear-gradient(145deg,#d98b2b,#b06a1c);
-  --halo-a: rgba(217,139,43,.13);
-  --halo-b: rgba(238,180,95,.06);
+  /* Verdirrojo: se toma el verde, que es el que nombra al club y el que lo
+     separa de Cavalry, que comparte los dos colores. */
+  --acento: #17804a;
+  --acento-claro: #46b67c;
+  --acento-suave: rgba(23,128,74,.15);
+  --acento-borde: rgba(23,128,74,.36);
+  --acento-degradado: linear-gradient(145deg,#17804a,#0f5c34);
+  --halo-a: rgba(23,128,74,.13);
+  --halo-b: rgba(196,42,42,.06);  /* el rojo de las franjas, de apoyo */
 }
 .app-shell[data-paleta="otros"] {
-  --acento: #6b8299;          /* acero neutro */
-  --acento-claro: #9db2c6;
-  --acento-suave: rgba(107,130,153,.14);
-  --acento-borde: rgba(107,130,153,.3);
-  --acento-degradado: linear-gradient(145deg,#6b8299,#4e6377);
-  --halo-a: rgba(107,130,153,.12);
-  --halo-b: rgba(157,178,198,.06);
+  /* Sin club detrás: gris neutro, sin identidad prestada. */
+  --acento: #6f747c;
+  --acento-claro: #a3a9b2;
+  --acento-suave: rgba(111,116,124,.15);
+  --acento-borde: rgba(111,116,124,.32);
+  --acento-degradado: linear-gradient(145deg,#6f747c,#53575e);
+  --halo-a: rgba(111,116,124,.11);
+  --halo-b: rgba(163,169,178,.05);
 }
 
 /* El acento manda sobre los tokens que antes eran azul/violeta fijos. */

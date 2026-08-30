@@ -22,9 +22,11 @@ export type ReportTheme = {
  * paletas): si se cambia uno, cambiar también el otro.
  */
 export const CLIENT_THEMES: Record<"cavalry" | "maldonado" | "otros", ReportTheme> = {
-  cavalry: { name: "Cavalry", canvas: "#e8efec", paper: "#ffffff", accent: "#2f9e6f", ink: "#12241d", muted: "#7b8f87", surface: "#f4f8f6", line: "#dfe9e5", dark: "#154034" },
-  maldonado: { name: "Maldonado", canvas: "#f0eae0", paper: "#fffdfa", accent: "#d98b2b", ink: "#2a2119", muted: "#8d8175", surface: "#faf6ef", line: "#e9dfd0", dark: "#4a3416" },
-  otros: { name: "Neutro", canvas: "#e9ecef", paper: "#ffffff", accent: "#6b8299", ink: "#1a222b", muted: "#7d8a97", surface: "#f5f7f9", line: "#e2e7ec", dark: "#2f3d4a" },
+  // Calgary Red sobre papel, con el Army Green del club como tono oscuro.
+  cavalry: { name: "Cavalry", canvas: "#efe8e7", paper: "#ffffff", accent: "#da291c", ink: "#1d1513", muted: "#8b7d7b", surface: "#faf5f4", line: "#e9dedc", dark: "#335525" },
+  // Verdirrojo: manda el verde, que es el que lo separa de Cavalry.
+  maldonado: { name: "Maldonado", canvas: "#e7efe9", paper: "#ffffff", accent: "#17804a", ink: "#12211a", muted: "#7d8f85", surface: "#f4f9f6", line: "#dce9e2", dark: "#0f5c34" },
+  otros: { name: "Neutro", canvas: "#ecedee", paper: "#ffffff", accent: "#6f747c", ink: "#1c1e21", muted: "#82868d", surface: "#f6f7f8", line: "#e4e6e8", dark: "#3a3d42" },
 };
 
 export const REPORT_THEMES: ReportTheme[] = [
