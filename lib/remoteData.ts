@@ -320,6 +320,28 @@ export async function fetchSnapshot(liga: string, mes: string): Promise<FotoMens
   }
 }
 
+/** URL de descarga del respaldo: el navegador la abre y baja el ZIP. */
+export function snapshotExportUrl() {
+  return `${LOCAL_BRIDGE}/api/snapshots/export`;
+}
+
+/** Restaura un respaldo. Las fotos del ZIP pisan las del mismo mes y liga. */
+export async function importSnapshots(archivo: File): Promise<{ importadas: number; omitidas: number }> {
+  const cuerpo = new FormData();
+  cuerpo.append("archivo", archivo);
+  let response: Response;
+  try {
+    response = await fetch(`${LOCAL_BRIDGE}/api/snapshots/import`, {
+      method: "POST", body: cuerpo, signal: AbortSignal.timeout(60_000),
+    });
+  } catch {
+    throw new Error(t("El servidor local no está corriendo. Arranca npm run bg:server y reintenta."));
+  }
+  const payload = await response.json() as { importadas?: number; omitidas?: number; error?: string };
+  if (!response.ok) throw new Error(payload.error || t("No se pudo restaurar el respaldo."));
+  return { importadas: payload.importadas ?? 0, omitidas: payload.omitidas ?? 0 };
+}
+
 export async function saveSnapshot(foto: FotoMensual): Promise<{ archivo: string; ruta: string; jugadores: number }> {
   let response: Response;
   try {

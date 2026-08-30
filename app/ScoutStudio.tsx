@@ -22,6 +22,7 @@ import { ContextPage } from "./ContextPage";
 import { ScoutingBoard } from "./ScoutingBoard";
 import { RunsPage } from "./RunsPage";
 import { Context360Page } from "./Context360Page";
+import { RankingPage } from "./RankingPage";
 import { ReportPageDesigner } from "./ReportPageDesigner";
 import { SimilarityStudio } from "./SimilarityStudio";
 import { DEFAULT_REPORT_THEME, reportThemeStyle, type ReportTheme } from "./reportTheme";
@@ -61,6 +62,8 @@ const BOARD_PAGE = 91;
 const RUNS_PAGE = 92;
 // Contexto defensivo de StatsBomb 360, fuera del rango de páginas visuales.
 const S360_PAGE = 93;
+// Ranking de la base por posición: quién es el mejor de cada puesto.
+const RANK_PAGE = 94;
 type ReportFileMode = "single" | "combine" | "replace";
 type ProfileAssetField = "playerImage" | "clubLogo" | "leagueLogo";
 
@@ -1161,6 +1164,7 @@ export default function ScoutStudio() {
                 <button className={reportPage === BOARD_PAGE ? "active" : ""} onClick={() => setReportPage(BOARD_PAGE)}><span>★</span><div><b>MALDONADO</b><small>{t("Mesa de detección")}</small></div></button>
                 <button className={reportPage === RUNS_PAGE ? "active" : ""} onClick={() => setReportPage(RUNS_PAGE)}><span>↗</span><div><b>{t("Carreras")}</b><small>{t("Mapa sin balón")}</small></div></button>
                 <button className={reportPage === S360_PAGE ? "active" : ""} onClick={() => setReportPage(S360_PAGE)}><span>360</span><div><b>{t("Contexto 360")}</b><small>{t("Espacio y presión")}</small></div></button>
+                <button className={reportPage === RANK_PAGE ? "active" : ""} onClick={() => setReportPage(RANK_PAGE)}><span>⇅</span><div><b>{t("Ranking")}</b><small>{t("Los mejores por puesto")}</small></div></button>
                 <button className={reportPage === CONTEXT_PAGE ? "active" : ""} onClick={() => setReportPage(CONTEXT_PAGE)}><span>03</span><div><b>{t("Contexto")}</b><small>{t("Dónde destaca y por qué")}</small></div></button>
                 {visualPages.map((page, index) => (
                   <button key={page} className={reportPage === page ? "active" : ""} onClick={() => setReportPage(page)}>
@@ -1307,6 +1311,9 @@ export default function ScoutStudio() {
               {(printRun ? printRun.includes(S360_PAGE) : reportPage === S360_PAGE) && (
                 <div className="legal-page-shell"><Context360Page /></div>
               )}
+              {report && (printRun ? printRun.includes(RANK_PAGE) : reportPage === RANK_PAGE) && (
+                <div className="legal-page-shell"><RankingPage rows={reportRows} minimumMinutes={minimumMinutes} onSelectPlayer={(indice) => { selectPlayer(indice); setReportPage(CARD_PAGE); }} /></div>
+              )}
               {boardPreviewOpen && (
                 <div className="board-preview-overlay" role="dialog" aria-modal="true" aria-label={t("Vista rápida del reporte")} onClick={() => setBoardPreviewOpen(false)}>
                   <div className="board-preview-dialog" onClick={(event) => event.stopPropagation()}>
@@ -1349,6 +1356,7 @@ export default function ScoutStudio() {
                     { page: BOARD_PAGE, title: "MALDONADO", hint: t("Mesa de detección") },
                     { page: RUNS_PAGE, title: t("Carreras"), hint: t("Mapa sin balón") },
                     { page: S360_PAGE, title: t("Contexto 360"), hint: t("Espacio y presión") },
+                    { page: RANK_PAGE, title: t("Ranking"), hint: t("Los mejores por puesto") },
                     ...visualPages.map((page, index) => ({ page, title: tf("Visuales {n}", { n: index + 1 }), hint: t("Mapas, imágenes y texto") })),
                   ].map(({ page, title, hint }) => (
                     <label key={page} className={printPages.includes(page) ? "selected" : ""}>

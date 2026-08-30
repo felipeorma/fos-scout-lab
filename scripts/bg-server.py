@@ -1227,3 +1227,70 @@ async def statsbomb_context360(competition_id: int, season_id: int, team: str = 
         }, ensure_ascii=False),
         media_type="application/json", headers=cors_headers(),
     )
+
+
+# ---- Respaldo de las fotos mensuales ---------------------------------------
+# Las fotos viven solo en este equipo. Sin una forma de sacarlas, un disco que
+# falla se lleva el histórico entero: estas dos rutas son ese respaldo, y de
+# paso permiten mudarlas a otro Mac sin tocar el sistema de archivos a mano.
+
+
+@app.get("/api/snapshots/export")
+async def snapshots_export():
+    import io as _io
+    import zipfile as _zipfile
+    if not _SNAPSHOTS_DIR.exists():
+        return Response('{"error": "todavia no hay fotos guardadas"}', status_code=404,
+                        media_type="application/json", headers=cors_headers())
+    buffer = _io.BytesIO()
+    with _zipfile.ZipFile(buffer, "w", _zipfile.ZIP_DEFLATED) as paquete:
+        for ruta in sorted(_SNAPSHOTS_DIR.glob("*.json")):
+            paquete.write(ruta, arcname=ruta.name)
+    datos = buffer.getvalue()
+    sello = _dt.datetime.now().strftime("%Y-%m-%d")
+    headers = cors_headers()
+    headers["content-disposition"] = f'attachment; filename="fotos-maldonado-{sello}.zip"'
+    return Response(datos, media_type="application/zip", headers=headers)
+
+
+@app.post("/api/snapshots/import")
+async def snapshots_import(archivo: UploadFile = File(...)):
+    import io as _io
+    import json as _json
+    import zipfile as _zipfile
+    contenido = await archivo.read()
+    try:
+        paquete = _zipfile.ZipFile(_io.BytesIO(contenido))
+    except Exception:
+        return Response('{"error": "el archivo no es un ZIP valido"}', status_code=400,
+                        media_type="application/json", headers=cors_headers())
+
+    _SNAPSHOTS_DIR.mkdir(parents=True, exist_ok=True)
+    escritas, omitidas = 0, 0
+    for nombre in paquete.namelist():
+        # El nombre viene de un ZIP que pudo armar cualquiera: se reconstruye
+        # desde la liga y el mes del contenido, nunca desde la ruta del ZIP,
+        # para que un "../../.ssh/config" no salga del directorio de fotos.
+        if not nombre.endswith(".json") or nombre.endswith("/"):
+            omitidas += 1
+            continue
+        try:
+            foto = _json.loads(paquete.read(nombre).decode("utf-8"))
+        except Exception:
+            omitidas += 1
+            continue
+        liga = _slug(foto.get("liga", ""))
+        mes = str(foto.get("mes", "")).strip()
+        if not liga or not _MES_RE.match(mes) or not isinstance(foto.get("jugadores"), list):
+            omitidas += 1
+            continue
+        destino = _snapshot_path(liga, mes)
+        destino.write_text(_json.dumps(foto, ensure_ascii=False, indent=1), encoding="utf-8")
+        try:
+            os.chmod(destino, 0o600)
+        except OSError:
+            pass
+        escritas += 1
+
+    return Response(_json.dumps({"ok": True, "importadas": escritas, "omitidas": omitidas}),
+                    media_type="application/json", headers=cors_headers())

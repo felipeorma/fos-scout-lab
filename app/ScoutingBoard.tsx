@@ -31,7 +31,7 @@ import {
   type LigaId,
   type OptaLiga,
 } from "@/lib/maldonado";
-import { fetchOptaLeagueMeta, fetchSnapshot, fetchSnapshotList, saveSnapshot } from "@/lib/remoteData";
+import { fetchOptaLeagueMeta, fetchSnapshot, fetchSnapshotList, importSnapshots, saveSnapshot, snapshotExportUrl } from "@/lib/remoteData";
 
 /**
  * Mesa de detección mensual.
@@ -149,6 +149,8 @@ export function ScoutingBoard({ rows, minimumMinutes, onSelectPlayer }: {
   const [mes, setMes] = useState(mesActual());
   const [fotosPrevias, setFotosPrevias] = useState<Record<string, FotoMensual>>({});
   const [estadoFoto, setEstadoFoto] = useState("");
+  // Cambia al importar un respaldo, para releer las fotos previas del disco.
+  const [recarga, setRecarga] = useState(0);
 
   useEffect(() => {
     setLigasManuales(leerMapaGuardado(CLAVE_LIGAS_MANUALES));
@@ -395,7 +397,7 @@ export function ScoutingBoard({ rows, minimumMinutes, onSelectPlayer }: {
       if (montado) setFotosPrevias(salida);
     })();
     return () => { montado = false; };
-  }, [ligasParaFoto, mes]);
+  }, [ligasParaFoto, mes, recarga]);
 
   const comparaciones = useMemo(() => {
     const salida: Array<{ liga: string; nombre: string; previa: FotoMensual; diff: ComparacionFotos }> = [];
@@ -426,6 +428,25 @@ export function ScoutingBoard({ rows, minimumMinutes, onSelectPlayer }: {
       setEstadoFoto(guardadas
         ? tf("{n} foto(s) guardadas en ~/.fos-scouting/snapshots/ · mes {m}", { n: guardadas, m: mes })
         : t("Ninguna liga reconocida en la carga: no hay nada que guardar."));
+    } catch (error) {
+      setEstadoFoto(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  /**
+   * Restaurar un respaldo. Las fotos viven solo en este equipo, así que el ZIP
+   * es la única forma de moverlas a otro Mac o de recuperarlas si el disco
+   * falla. Una foto del mismo mes y liga se sobrescribe.
+   */
+  async function restaurarRespaldo(archivo: File | undefined) {
+    if (!archivo) return;
+    setEstadoFoto(t("Restaurando el respaldo…"));
+    try {
+      const { importadas, omitidas } = await importSnapshots(archivo);
+      setEstadoFoto(omitidas
+        ? tf("{n} fotos restauradas · {o} archivos del ZIP no eran fotos válidas.", { n: importadas, o: omitidas })
+        : tf("{n} fotos restauradas.", { n: importadas }));
+      setRecarga((valor) => valor + 1);
     } catch (error) {
       setEstadoFoto(error instanceof Error ? error.message : String(error));
     }
@@ -653,6 +674,11 @@ export function ScoutingBoard({ rows, minimumMinutes, onSelectPlayer }: {
           <input type="month" value={mes} onChange={(event) => setMes(event.target.value || mesActual())} />
         </label>
         <button type="button" onClick={() => void guardarFotoDelMes()}>{t("Guardar foto del mes")}</button>
+        <a className="board-respaldo" href={snapshotExportUrl()} download>{t("Descargar respaldo")}</a>
+        <label className="board-respaldo">
+          {t("Restaurar respaldo")}
+          <input type="file" accept=".zip,application/zip" onChange={(event) => { void restaurarRespaldo(event.target.files?.[0]); event.target.value = ""; }} />
+        </label>
         {estadoFoto && <small>{estadoFoto}</small>}
       </div>
 
