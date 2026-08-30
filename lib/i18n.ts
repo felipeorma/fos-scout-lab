@@ -1270,4 +1270,7 @@ const EN: Record<string, string> = {
   "Cargo o pie de firma": "Role or signature line",
   "Usar firma temporal": "Use a temporary signature",
   "Para un informe que no es de Cavalry ni de Maldonado. Cambia también a los colores neutros.": "For a report that is not for Cavalry or Maldonado. It also switches to the neutral colours.",
+  "Leyendo equipos…": "Reading teams…",
+  "Elige una competición": "Pick a competition",
+  "No se pudieron leer los equipos de esta competición.": "The teams for this competition could not be read.",
 };

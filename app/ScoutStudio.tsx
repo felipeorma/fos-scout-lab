@@ -21,7 +21,6 @@ import { PizzaRadar } from "./PizzaRadar";
 import { ContextPage } from "./ContextPage";
 import { ScoutingBoard } from "./ScoutingBoard";
 import { RunsPage } from "./RunsPage";
-import { Context360Page } from "./Context360Page";
 import { RankingPage } from "./RankingPage";
 import { ReportPageDesigner } from "./ReportPageDesigner";
 import { SimilarityStudio } from "./SimilarityStudio";
@@ -60,8 +59,6 @@ const CONTEXT_PAGE = 90;
 const BOARD_PAGE = 91;
 // Carreras sin balón de SkillCorner: vive fuera del rango visual, como las anteriores.
 const RUNS_PAGE = 92;
-// Contexto defensivo de StatsBomb 360, fuera del rango de páginas visuales.
-const S360_PAGE = 93;
 // Ranking de la base por posición: quién es el mejor de cada puesto.
 const RANK_PAGE = 94;
 /**
@@ -1290,9 +1287,6 @@ export default function ScoutStudio() {
                     <button className={reportPage === RUNS_PAGE ? "active" : ""} onClick={() => setReportPage(RUNS_PAGE)}>
                       <b>{t("Carreras")}<i className="tab-api">API</i></b><small>{t("Mapa sin balón")}</small>
                     </button>
-                    <button className={reportPage === S360_PAGE ? "active" : ""} onClick={() => setReportPage(S360_PAGE)}>
-                      <b>{t("Contexto 360")}<i className="tab-api">API</i></b><small>{t("Espacio y presión")}</small>
-                    </button>
                   </div>
                   <div className="tab-grupo">
                     <span className="tab-grupo-nombre">{t("Reportar")}</span>
@@ -1462,9 +1456,6 @@ export default function ScoutStudio() {
               {(printRun ? printRun.includes(RUNS_PAGE) : reportPage === RUNS_PAGE) && (
                 <div className="legal-page-shell"><RunsPage /></div>
               )}
-              {(printRun ? printRun.includes(S360_PAGE) : reportPage === S360_PAGE) && (
-                <div className="legal-page-shell"><Context360Page /></div>
-              )}
               {report && (printRun ? printRun.includes(RANK_PAGE) : reportPage === RANK_PAGE) && (
                 <div className="legal-page-shell"><RankingPage rows={reportRows} minimumMinutes={minimumMinutes} onSelectPlayer={(indice) => { selectPlayer(indice); setReportPage(CARD_PAGE); }} /></div>
               )}
@@ -1512,7 +1503,6 @@ export default function ScoutStudio() {
                       { page: SIMILARITY_PAGE, title: t("Similitud"), hint: t("Jugadores comparables") },
                       { page: CONTEXT_PAGE, title: t("Contexto"), hint: t("Dónde destaca y por qué") },
                       { page: RUNS_PAGE, title: t("Carreras"), hint: t("Mapa sin balón") },
-                      { page: S360_PAGE, title: t("Contexto 360"), hint: t("Espacio y presión") },
                       { page: RANK_PAGE, title: t("Ranking"), hint: t("Los mejores por puesto") },
                       ...visualPages.map((page, index) => ({ page, title: tf("Visuales {n}", { n: index + 1 }), hint: t("Mapas, imágenes y texto") })),
                     ]

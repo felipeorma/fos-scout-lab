@@ -1038,259 +1038,38 @@ async def skillcorner_off_ball_runs(competition_edition_id: int, team: str = "",
     )
 
 
-# ============================================================================
-# Contexto defensivo de StatsBomb 360.
-#
-# El 360 no es una métrica: es la foto de dónde estaban todos los jugadores
-# visibles en el instante de cada acción. Lo que aporta al scouting es el
-# contexto que ninguna estadística de evento trae: cuánto espacio le daban al
-# recibir, cuántos rivales dejó atrás, si el pase rompió línea.
-#
-# CPL no tiene 360 (StatsBomb no lo recolecta), pero MLS Next Pro y USL sí, y
-# ahí juegan los canadienses jóvenes: por eso vive en su propia pestaña y no
-# dentro del informe del jugador.
-#
-# Un partido son ~9 MB entre eventos y frames, así que aquí se agrega en el
-# servidor y se cachea en disco solo el resumen por jugador. Bajar la
-# temporada entera al navegador serían gigas.
-# ============================================================================
+@app.get("/api/skillcorner/teams")
+async def skillcorner_teams(competition_edition_id: int):
+    """Los clubes de una edición, para que el nombre se elija y no se teclee.
 
-_S360_CACHE_DIR = Path.home() / ".fos-scouting" / "sb360-cache"
-
-
-def _sb360_match_summary(match_id: int, auth):
-    """Resumen por jugador de un partido. Del disco si ya se calculó."""
+    Salen de los propios partidos: escribir "Cavalry" a mano funcionaba por
+    casualidad —el filtro es por subcadena— y fallaba callado en cuanto el
+    club tenía acentos, artículo o abreviatura ("Atlético", "FC Supra du
+    Québec"), devolviendo cero carreras sin decir por qué.
+    """
     import json as _json
-    _S360_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    cache = _S360_CACHE_DIR / f"sb360-{int(match_id)}.json"
-    if cache.exists():
-        try:
-            guardado = _json.loads(cache.read_text(encoding="utf-8"))
-            return guardado.get("jugadores", []), guardado.get("estado", "ok")
-        except Exception:
-            pass
-
-    try:
-        eventos = _requests.get(f"https://data.statsbomb.com/api/v8/events/{int(match_id)}", auth=auth, timeout=120)
-        frames = _requests.get(f"https://data.statsbomb.com/api/v2/360-frames/{int(match_id)}", auth=auth, timeout=120)
-    except Exception:
-        return [], "red"
-    if eventos.status_code != 200 or frames.status_code != 200:
-        return [], f"http_{eventos.status_code}_{frames.status_code}"
-
-    try:
-        lista_eventos = eventos.json()
-        lista_frames = frames.json()
-    except Exception:
-        return [], "json"
-    if not lista_frames:
-        filas, estado = [], "sin_360"
-        try:
-            cache.write_text(_json.dumps({"jugadores": filas, "estado": estado}), encoding="utf-8")
-            os.chmod(cache, 0o600)
-        except OSError:
-            pass
-        return filas, estado
-
-    por_id = {e.get("id"): e for e in lista_eventos}
-    acumulado = {}
-
-    def entrada(nombre, equipo):
-        if nombre not in acumulado:
-            acumulado[nombre] = {
-                "jugador": nombre, "equipo": equipo,
-                "recepciones": 0, "distanciaSuma": 0.0, "distanciaN": 0, "enEspacio": 0,
-                "pases": 0, "rompeLinea": 0,
-                "conducciones": 0, "defensoresSuma": 0.0, "defensoresN": 0,
-            }
-        return acumulado[nombre]
-
-    for frame in lista_frames:
-        evento = por_id.get(frame.get("event_uuid"))
-        if not evento:
-            continue
-        jugador = (evento.get("player") or {}).get("name")
-        if not jugador:
-            continue
-        equipo = (evento.get("team") or {}).get("name") or ""
-        tipo = (evento.get("type") or {}).get("name") or ""
-        fila = entrada(jugador, equipo)
-
-        distancia = frame.get("distance_to_nearest_defender")
-        defensores = frame.get("num_defenders_on_goal_side_of_actor")
-
-        if tipo == "Ball Receipt*":
-            fila["recepciones"] += 1
-            if frame.get("ball_receipt_in_space") is True:
-                fila["enEspacio"] += 1
-            # La presión al recibir es lo que separa a quien juega cómodo de
-            # quien resuelve incómodo: solo cuenta en la recepción.
-            if isinstance(distancia, (int, float)):
-                fila["distanciaSuma"] += float(distancia)
-                fila["distanciaN"] += 1
-        elif tipo == "Pass":
-            fila["pases"] += 1
-            if frame.get("line_breaking_pass") is True:
-                fila["rompeLinea"] += 1
-        elif tipo == "Carry":
-            fila["conducciones"] += 1
-            if isinstance(defensores, (int, float)):
-                fila["defensoresSuma"] += float(defensores)
-                fila["defensoresN"] += 1
-
-    filas = list(acumulado.values())
-    try:
-        cache.write_text(_json.dumps({"jugadores": filas, "estado": "ok"}, ensure_ascii=False), encoding="utf-8")
-        os.chmod(cache, 0o600)
-    except OSError:
-        pass
-    return filas, "ok"
-
-
-@app.get("/api/statsbomb/context360")
-async def statsbomb_context360(competition_id: int, season_id: int, team: str = "", limit_matches: int = 0):
-    """Contexto defensivo por jugador de una temporada, sumando sus partidos."""
-    import json as _json
-    auth = _statsbomb_auth()
+    auth = _skillcorner_auth()
     if not auth:
         return Response('{"error": "sin credenciales"}', status_code=503,
                         media_type="application/json", headers=cors_headers())
 
+    nombres: set = set()
+    url = "https://skillcorner.com/api/matches/"
+    params = {"competition_edition": competition_edition_id, "limit": 100}
     try:
-        partidos = _cached_get(
-            f"sb:matches:{competition_id}:{season_id}",
-            f"https://data.statsbomb.com/api/v6/competitions/{competition_id}/seasons/{season_id}/matches",
-            auth, ttl_seconds=1800,
-        )
+        while url:
+            data = _cached_get(f"sc:matches:{competition_edition_id}:{url}", url, auth,
+                               params=params, ttl_seconds=1800)
+            for partido in data.get("results", []):
+                for lado in ("home_team", "away_team"):
+                    nombre = (partido.get(lado) or {}).get("short_name")
+                    if nombre:
+                        nombres.add(str(nombre).strip())
+            url = data.get("next")
+            params = None
     except Exception as error:
-        return Response(_json.dumps({"error": f"no se pudo listar partidos: {error}"}), status_code=502,
-                        media_type="application/json", headers=cors_headers())
+        return Response(_json.dumps({"error": f"no se pudieron listar los equipos: {error}"}),
+                        status_code=502, media_type="application/json", headers=cors_headers())
 
-    def lado(partido, cual):
-        return str((partido.get(cual) or {}).get(f"{cual}_name") or "")
-
-    buscado = team.strip().lower()
-    if buscado:
-        partidos = [p for p in partidos
-                    if buscado in lado(p, "home_team").lower() or buscado in lado(p, "away_team").lower()]
-    # Sin 360 declarado no hay nada que pedir: se ahorra la llamada entera.
-    disponibles = [p for p in partidos if str(p.get("match_status_360")) == "available"]
-    disponibles.sort(key=lambda p: str(p.get("match_date", "")), reverse=True)
-    if limit_matches > 0:
-        disponibles = disponibles[:limit_matches]
-
-    total, estados, con_datos = {}, {}, 0
-    for partido in disponibles:
-        filas, estado = _sb360_match_summary(partido.get("match_id"), auth)
-        estados[estado] = estados.get(estado, 0) + 1
-        if not filas:
-            continue
-        con_datos += 1
-        for fila in filas:
-            if buscado and buscado not in str(fila.get("equipo", "")).lower():
-                continue
-            clave = fila["jugador"]
-            actual = total.setdefault(clave, {"jugador": clave, "equipo": fila.get("equipo", ""), "partidos": 0})
-            actual["partidos"] += 1
-            for campo, valor in fila.items():
-                if campo in ("jugador", "equipo"):
-                    continue
-                actual[campo] = actual.get(campo, 0) + valor
-
-    jugadores = []
-    for fila in total.values():
-        recepciones = fila.get("recepciones", 0)
-        pases = fila.get("pases", 0)
-        jugadores.append({
-            "jugador": fila["jugador"],
-            "equipo": fila["equipo"],
-            "partidos": fila["partidos"],
-            "recepciones": recepciones,
-            "pases": pases,
-            "conducciones": fila.get("conducciones", 0),
-            # Metros libres al recibir: cuanto más bajo, más apretado juega.
-            "distanciaMedia": round(fila["distanciaSuma"] / fila["distanciaN"], 2) if fila.get("distanciaN") else None,
-            "enEspacioPct": round(100 * fila.get("enEspacio", 0) / recepciones, 1) if recepciones else None,
-            "rompeLineaPct": round(100 * fila.get("rompeLinea", 0) / pases, 1) if pases else None,
-            "rompeLinea": fila.get("rompeLinea", 0),
-            "defensoresMedia": round(fila["defensoresSuma"] / fila["defensoresN"], 2) if fila.get("defensoresN") else None,
-        })
-    jugadores.sort(key=lambda j: -(j["recepciones"] + j["pases"]))
-
-    return Response(
-        _json.dumps({
-            "jugadores": jugadores,
-            "partidos": len(partidos),
-            "partidosCon360": len(disponibles),
-            "partidosConDatos": con_datos,
-            "estados": estados,
-        }, ensure_ascii=False),
-        media_type="application/json", headers=cors_headers(),
-    )
-
-
-# ---- Respaldo de las fotos mensuales ---------------------------------------
-# Las fotos viven solo en este equipo. Sin una forma de sacarlas, un disco que
-# falla se lleva el histórico entero: estas dos rutas son ese respaldo, y de
-# paso permiten mudarlas a otro Mac sin tocar el sistema de archivos a mano.
-
-
-@app.get("/api/snapshots/export")
-async def snapshots_export():
-    import io as _io
-    import zipfile as _zipfile
-    if not _SNAPSHOTS_DIR.exists():
-        return Response('{"error": "todavia no hay fotos guardadas"}', status_code=404,
-                        media_type="application/json", headers=cors_headers())
-    buffer = _io.BytesIO()
-    with _zipfile.ZipFile(buffer, "w", _zipfile.ZIP_DEFLATED) as paquete:
-        for ruta in sorted(_SNAPSHOTS_DIR.glob("*.json")):
-            paquete.write(ruta, arcname=ruta.name)
-    datos = buffer.getvalue()
-    sello = _dt.datetime.now().strftime("%Y-%m-%d")
-    headers = cors_headers()
-    headers["content-disposition"] = f'attachment; filename="fotos-maldonado-{sello}.zip"'
-    return Response(datos, media_type="application/zip", headers=headers)
-
-
-@app.post("/api/snapshots/import")
-async def snapshots_import(archivo: UploadFile = File(...)):
-    import io as _io
-    import json as _json
-    import zipfile as _zipfile
-    contenido = await archivo.read()
-    try:
-        paquete = _zipfile.ZipFile(_io.BytesIO(contenido))
-    except Exception:
-        return Response('{"error": "el archivo no es un ZIP valido"}', status_code=400,
-                        media_type="application/json", headers=cors_headers())
-
-    _SNAPSHOTS_DIR.mkdir(parents=True, exist_ok=True)
-    escritas, omitidas = 0, 0
-    for nombre in paquete.namelist():
-        # El nombre viene de un ZIP que pudo armar cualquiera: se reconstruye
-        # desde la liga y el mes del contenido, nunca desde la ruta del ZIP,
-        # para que un "../../.ssh/config" no salga del directorio de fotos.
-        if not nombre.endswith(".json") or nombre.endswith("/"):
-            omitidas += 1
-            continue
-        try:
-            foto = _json.loads(paquete.read(nombre).decode("utf-8"))
-        except Exception:
-            omitidas += 1
-            continue
-        liga = _slug(foto.get("liga", ""))
-        mes = str(foto.get("mes", "")).strip()
-        if not liga or not _MES_RE.match(mes) or not isinstance(foto.get("jugadores"), list):
-            omitidas += 1
-            continue
-        destino = _snapshot_path(liga, mes)
-        destino.write_text(_json.dumps(foto, ensure_ascii=False, indent=1), encoding="utf-8")
-        try:
-            os.chmod(destino, 0o600)
-        except OSError:
-            pass
-        escritas += 1
-
-    return Response(_json.dumps({"ok": True, "importadas": escritas, "omitidas": omitidas}),
+    return Response(_json.dumps(sorted(nombres), ensure_ascii=False),
                     media_type="application/json", headers=cors_headers())

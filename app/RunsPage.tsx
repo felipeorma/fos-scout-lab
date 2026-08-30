@@ -6,6 +6,7 @@ import { RepartoCarreras, RunMap, TIPOS_CARRERA } from "./RunMap";
 import {
   fetchOffBallRuns,
   fetchSkillcornerCompetitions,
+  fetchSkillcornerTeams,
   type ApiCompetition,
   type CarreraSinBalon,
   type RespuestaCarreras,
@@ -49,7 +50,9 @@ function resumenJugador(carreras: CarreraSinBalon[], partidos: number) {
 export function RunsPage() {
   const [competiciones, setCompeticiones] = useState<ApiCompetition[]>([]);
   const [edicion, setEdicion] = useState("");
-  const [equipo, setEquipo] = useState("Cavalry");
+  const [equipo, setEquipo] = useState("");
+  const [equipos, setEquipos] = useState<string[]>([]);
+  const [cargandoEquipos, setCargandoEquipos] = useState(false);
   const [datos, setDatos] = useState<RespuestaCarreras | null>(null);
   const [jugador, setJugador] = useState("TODOS");
   const [tipo, setTipo] = useState("TODOS");
@@ -80,6 +83,24 @@ export function RunsPage() {
       });
     return () => { montado = false; };
   }, []);
+
+  useEffect(() => {
+    if (!edicion) { setEquipos([]); setEquipo(""); return; }
+    let montado = true;
+    setCargandoEquipos(true);
+    setEquipos([]);
+    void fetchSkillcornerTeams(Number(edicion))
+      .then((lista) => {
+        if (!montado) return;
+        setEquipos(lista);
+        // Cavalry si está en la competición; si no, el primero del listado.
+        const propio = lista.find((nombre) => /cavalry/i.test(nombre));
+        setEquipo(propio ?? lista[0] ?? "");
+      })
+      .catch(() => { if (montado) setEstado(t("No se pudieron leer los equipos de esta competición.")); })
+      .finally(() => { if (montado) setCargandoEquipos(false); });
+    return () => { montado = false; };
+  }, [edicion]);
 
   async function cargar() {
     if (!edicion || !equipo.trim()) return;
@@ -154,7 +175,11 @@ export function RunsPage() {
         </select>
       </label>
       <label><span>{t("Equipo")}</span>
-        <input value={equipo} placeholder="Cavalry" onChange={(event) => setEquipo(event.target.value)} />
+        <select value={equipo} disabled={cargandoEquipos || !equipos.length} onChange={(event) => setEquipo(event.target.value)}>
+          {cargandoEquipos && <option value="">{t("Leyendo equipos…")}</option>}
+          {!cargandoEquipos && !equipos.length && <option value="">{t("Elige una competición")}</option>}
+          {equipos.map((nombre) => <option key={nombre} value={nombre}>{nombre}</option>)}
+        </select>
       </label>
       <button type="button" className="runs-load" disabled={cargando || !edicion} onClick={() => void cargar()}>
         {cargando ? t("Cargando…") : t("Cargar carreras")}
