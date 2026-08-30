@@ -25,7 +25,7 @@ import { Context360Page } from "./Context360Page";
 import { RankingPage } from "./RankingPage";
 import { ReportPageDesigner } from "./ReportPageDesigner";
 import { SimilarityStudio } from "./SimilarityStudio";
-import { DEFAULT_REPORT_THEME, reportThemeStyle, type ReportTheme } from "./reportTheme";
+import { CLIENT_THEMES, DEFAULT_REPORT_THEME, reportThemeStyle, type ReportTheme } from "./reportTheme";
 import {
   aggregateDatasets,
   buildPlayerReport,
@@ -93,7 +93,13 @@ const PROFILE_ASSETS: Array<{ field: ProfileAssetField; label: string; linkLabel
 
 function readWorkbook(file: File): Promise<SourceDataset> {
   return file.arrayBuffer().then((buffer) => {
-    const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
+    // Un .xlsx guarda su texto como XML UTF-8 dentro del zip y se lee solo,
+    // pero un .csv es texto plano: leído como bytes se decodifica en Latin-1
+    // y "Atlético Ottawa" llega como "AtlÃ©tico". Se decodifica a mano.
+    const esTexto = /\.(csv|tsv|txt)$/i.test(file.name);
+    const workbook = esTexto
+      ? XLSX.read(new TextDecoder("utf-8").decode(buffer), { type: "string", cellDates: true })
+      : XLSX.read(buffer, { type: "array", cellDates: true });
     const sheetName = workbook.SheetNames[0];
     if (!sheetName) throw new Error(tf("El archivo {name} no contiene hojas.", { name: file.name }));
     // Wyscout exporta la misma plantilla en varios idiomas: las cabeceras se
@@ -376,6 +382,9 @@ export default function ScoutStudio() {
   function cambiarEspacio(siguiente: "cavalry" | "maldonado") {
     setEspacio(siguiente);
     setReportPage(siguiente === "maldonado" ? BOARD_PAGE : CARD_PAGE);
+    // El informe sale con el color del cliente, como la interfaz. Después se
+    // puede elegir otro tema a mano y no se reimpone hasta el próximo cambio.
+    if (!firmaTemporal) setReportTheme(CLIENT_THEMES[siguiente]);
     try { window.localStorage.setItem("fos-scout-espacio", siguiente); } catch { /* opcional */ }
   }
 
@@ -1317,11 +1326,11 @@ export default function ScoutStudio() {
                   <button className="api-connect-button" onClick={() => void openApiDialog()}><Sparkles size={14} /> {t("Conectar API")} · StatsBomb / SkillCorner</button>
                   {reportError && <div className="inline-error">{reportError}</div>}
                   <div className="control-divider" />
-                  <div className="panel-title player-section-title"><div><span className="mini-icon"><Search size={17} /></span><div><h2>{t("2. Equipo y jugador")}</h2><p>{t("Selecciona en orden")}</p></div></div><span className="tiny-state">{t("PASO 02")}</span></div>
+                  <div className="panel-title player-section-title"><div><span className="mini-icon"><Search size={17} /></span><div><h2>{t("2. Equipo y jugador")}</h2><p>{t("Selecciona en orden")}</p></div></div></div>
                   <div className="player-selector-flow">
-                    <label className="field-group selection-step"><span className="selection-step-title"><i>A</i><FieldLabel>{t("Equipo")}</FieldLabel></span><span className="select-wrap"><Files size={16} /><select value={selectedTeam} disabled={backgroundRemoving} onChange={(event) => selectTeam(event.target.value)}>{teams.map((team) => <option key={team || "__sin_equipo__"} value={team}>{team || t("Equipo no disponible")}</option>)}</select><ChevronDown size={16} /></span></label>
+                    <label className="field-group selection-step"><span className="selection-step-title"><FieldLabel>{t("Equipo")}</FieldLabel></span><span className="select-wrap"><Files size={16} /><select value={selectedTeam} disabled={backgroundRemoving} onChange={(event) => selectTeam(event.target.value)}>{teams.map((team) => <option key={team || "__sin_equipo__"} value={team}>{team || t("Equipo no disponible")}</option>)}</select><ChevronDown size={16} /></span></label>
                     <span className="selection-flow-line" aria-hidden="true" />
-                    <label className="field-group selection-step"><span className="selection-step-title"><i>B</i><FieldLabel>{t("Jugador")}</FieldLabel></span><span className="select-wrap"><Search size={16} /><select value={selectedPlayer} disabled={backgroundRemoving || !teamPlayers.length} onChange={(event) => selectPlayer(Number(event.target.value))}>{teamPlayers.map((player) => <option key={`${player.player}-${player.index}`} value={player.index}>{player.player}</option>)}</select><ChevronDown size={16} /></span></label>
+                    <label className="field-group selection-step"><span className="selection-step-title"><FieldLabel>{t("Jugador")}</FieldLabel></span><span className="select-wrap"><Search size={16} /><select value={selectedPlayer} disabled={backgroundRemoving || !teamPlayers.length} onChange={(event) => selectPlayer(Number(event.target.value))}>{teamPlayers.map((player) => <option key={`${player.player}-${player.index}`} value={player.index}>{player.player}</option>)}</select><ChevronDown size={16} /></span></label>
                   </div>
                   <div className="two-fields">
                     <label className="field-group"><FieldLabel>{t("Cohorte")}</FieldLabel><span className="select-wrap simple"><select value={cohort} onChange={(event) => setCohort(event.target.value)}><option value="AUTO">{t("Automática")}</option><option value="GK">{t("Porteros")}</option><option value="CB">{t("Centrales")}</option><option value="FB">{t("Laterales")}</option><option value="DMF">{t("Pivotes / mediocentros")}</option><option value="B2B">{t("Interiores (box-to-box)")}</option><option value="WING">{t("Extremos")}</option><option value="DWING">{t("Extremos directos")}</option><option value="AM">{t("Mediapuntas")}</option><option value="CF">{t("Delanteros")}</option></select><ChevronDown size={16} /></span></label>
@@ -1361,7 +1370,7 @@ export default function ScoutStudio() {
                       <input value={firma.cargo} maxLength={70} onChange={(event) => editarFirma("cargo", event.target.value)} />
                     </label>
                     <label className="firma-temporal">
-                      <input type="checkbox" checked={firmaTemporal} onChange={(event) => setFirmaTemporal(event.target.checked)} />
+                      <input type="checkbox" checked={firmaTemporal} onChange={(event) => { setFirmaTemporal(event.target.checked); setReportTheme(event.target.checked ? CLIENT_THEMES.otros : CLIENT_THEMES[espacio]); }} />
                       <span><b>{t("Usar firma temporal")}</b><small>{t("Para un informe que no es de Cavalry ni de Maldonado. Cambia también a los colores neutros.")}</small></span>
                     </label>
                   </details>
