@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Barlow, Barlow_Condensed, Inter, Oswald, Space_Grotesk } from "next/font/google";
+import { Archivo, Barlow, Barlow_Condensed, Oswald } from "next/font/google";
 import "./globals.css";
 
 const barlow = Barlow({
@@ -14,14 +14,12 @@ const barlowCondensed = Barlow_Condensed({
   weight: ["500", "600", "700", "800"],
 });
 
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-});
-
-const spaceGrotesk = Space_Grotesk({
+// La cara de titular. El nombre de la variable se mantiene para no reescribir
+// las cincuenta reglas que ya la usan.
+const archivo = Archivo({
   variable: "--font-space-grotesk",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
 });
 
 const oswald = Oswald({
@@ -42,7 +40,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
-      <body className={`${barlow.variable} ${barlowCondensed.variable} ${inter.variable} ${spaceGrotesk.variable} ${oswald.variable}`}>
+      <body className={`${barlow.variable} ${barlowCondensed.variable} ${archivo.variable} ${oswald.variable}`}>
         {children}
       </body>
     </html>

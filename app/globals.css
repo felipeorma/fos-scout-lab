@@ -478,7 +478,7 @@ tbody tr:hover { background: #fafcfc; }
 }
 
 html { background: #080b11; }
-body { color-scheme: dark; background: radial-gradient(circle at 74% 9%, rgba(255,104,65,.10), transparent 25%), radial-gradient(circle at 25% 8%, rgba(46,101,255,.16), transparent 30%), #080b11; color: #f4f7fb; font-family: var(--font-inter), Arial, sans-serif; }
+body { color-scheme: dark; background: radial-gradient(circle at 74% 9%, rgba(255,104,65,.10), transparent 25%), radial-gradient(circle at 25% 8%, rgba(46,101,255,.16), transparent 30%), #080b11; color: #f4f7fb; font-family: var(--font-barlow), Arial, sans-serif; }
 .app-shell { min-height: 100vh; }
 .sidebar { width: 268px; padding: 27px 17px 19px; border-right: 1px solid rgba(255,255,255,.08); background: linear-gradient(180deg, rgba(17,22,33,.97), rgba(8,11,17,.98)); box-shadow: none; }
 .brand-row { padding: 0 9px 25px; border-bottom-color: rgba(255,255,255,.08); }
@@ -2464,5 +2464,10 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
   .control-panel { position: static; }
   .page-content { padding: 20px 14px 40px; }
   .datos-barra { flex-wrap: wrap; gap: 8px; }
+}
+
+@media (max-width: 900px) {
+  .tab-grupo-nombre { display: none; }
+  .report-page-tabs > em { display: none; }
 }
 
