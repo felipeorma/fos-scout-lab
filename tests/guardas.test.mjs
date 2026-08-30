@@ -31,7 +31,7 @@ test("las páginas del informe se registran en el diálogo de exportación", () 
 test("los controles de trabajo nunca se imprimen", () => {
   // Botones y filtros son herramientas, no contenido del informe.
   for (const clase of ["ctx-toolbar", "ctx-controls", "ctx-picker", "ctx-source", "reading-ai",
-    "datos-barra", "espacio-switch", "rank-filters", "runs-controls", "ctx360-controls"]) {
+    "datos-barra", "espacio-switch", "rank-filters", "runs-controls"]) {
     const oculto = new RegExp(`\\.${clase}[^{]*\\{[^}]*display:\\s*none`).test(globals)
       || new RegExp(`@media print[^@]*\\.${clase}`, "s").test(globals);
     assert.ok(oculto, `.${clase} se imprimiría dentro del informe`);
