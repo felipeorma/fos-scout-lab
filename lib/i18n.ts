@@ -1250,4 +1250,16 @@ const EN: Record<string, string> = {
   "Por arquetipo": "By archetype",
   "Ningún jugador de esa posición pasa los filtros. Baja el mínimo de minutos o quita el tope de edad.": "No player in that position passes the filters. Lower the minutes threshold or remove the age cap.",
   "Esta posición no tiene arquetipos, o la base no trae las métricas de SkillCorner que necesitan. Carga datos de SkillCorner desde Conectar API para verlos.": "This position has no archetypes, or the database lacks the SkillCorner metrics they need. Load SkillCorner data from Connect API to see them.",
+  // ---- Espacios de trabajo y navegación agrupada ----
+  "Cavalry": "Cavalry",
+  "Maldonado": "Maldonado",
+  "Secciones": "Sections",
+  "Explorar": "Explore",
+  "Analizar": "Analyse",
+  "Reportar": "Report",
+  "Detección mensual": "Monthly detection",
+  "Perfiles, once ideal y variación": "Profiles, ideal XI and month-on-month change",
+  "Datos": "Data",
+  "{n} plataformas enlazadas": "{n} platforms linked",
+  "{n} jugadores · {b} base(s)": "{n} players · {b} database(s)",
 };

@@ -49,3 +49,7 @@ next-env.d.ts
 *.csv
 __pycache__/
 *.pyc
+
+# Skills instaladas con `npx skills add` — se reinstalan, no se versionan.
+.agents/skills/
+.claude/skills/

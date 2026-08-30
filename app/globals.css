@@ -178,16 +178,43 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .scout-note p { margin: 0; font-size: 9px; line-height: 1.45; }
 .report-footer { height: 42px; padding: 0 32px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #e6ebec; color: #96a3a8; background: #fafcfc; font-size: 8px; font-weight: 700; letter-spacing: .1em; }
 
-.report-page-tabs { margin: 18px 0; padding: 7px; display: flex; align-items: stretch; gap: 6px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.82); box-shadow: 0 8px 24px rgba(20,45,52,.035); }
-.report-page-tabs button { min-width: 185px; padding: 8px 11px; display: flex; align-items: center; gap: 10px; border: 1px solid transparent; border-radius: 8px; color: #6e7f85; background: transparent; text-align: left; cursor: pointer; }
+/* Navegación por grupos: Explorar / Analizar / Reportar. Antes eran ocho
+   pestañas planas que desbordaban sin scroll y dejaban las dos últimas
+   inalcanzables; ahora la fila scrollea y cada grupo dice para qué sirve. */
+.report-page-tabs { margin: 14px 0 18px; padding: 8px; display: flex; align-items: stretch; gap: 4px; overflow-x: auto; scrollbar-width: thin; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.82); box-shadow: 0 8px 24px rgba(20,45,52,.035); }
+.tab-grupo { display: flex; align-items: stretch; gap: 4px; padding-right: 10px; }
+.tab-grupo + .tab-grupo { padding-left: 10px; border-left: 1px solid var(--line); }
+.tab-grupo-nombre { align-self: center; padding-right: 4px; color: #9aa8ac; font-size: 8px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; white-space: nowrap; writing-mode: vertical-rl; rotate: 180deg; }
+.report-page-tabs button { min-width: 126px; padding: 8px 11px; display: flex; flex-direction: column; justify-content: center; gap: 2px; border: 1px solid transparent; border-radius: 8px; color: #6e7f85; background: transparent; text-align: left; cursor: pointer; transition: background .18s ease, border-color .18s ease, color .18s ease; }
 .report-page-tabs button:hover { background: #f4f7f6; }
 .report-page-tabs button.active { border-color: #cfe0db; color: #254c45; background: #edf5f2; box-shadow: 0 3px 10px rgba(30,87,76,.06); }
-.report-page-tabs button > span { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 7px; color: #7f9298; background: #edf1f1; font-family: var(--font-barlow-condensed), sans-serif; font-size: 12px; font-weight: 700; }
-.report-page-tabs button.active > span { color: #fff; background: var(--green); }
-.report-page-tabs button div { display: flex; flex-direction: column; }
-.report-page-tabs button b { font-size: 11px; }
-.report-page-tabs button small { margin-top: 2px; color: #91a0a4; font-size: 9px; }
+.report-page-tabs button b { display: flex; align-items: center; gap: 5px; font-size: 11px; white-space: nowrap; }
+.report-page-tabs button small { color: #91a0a4; font-size: 9px; white-space: nowrap; }
+/* Marca las pestañas que necesitan el puente local con las APIs conectadas:
+   sin él se abren vacías y no hay forma de adivinar por qué. */
+.tab-api { padding: 1px 4px; border-radius: 3px; color: #7d8b90; background: #eef2f2; font-size: 7px; font-style: normal; font-weight: 700; letter-spacing: .08em; }
+.report-page-tabs button.active .tab-api { color: #2f6d60; background: #d8ebe4; }
 .report-page-tabs > em { margin-left: auto; padding: 0 12px; display: flex; align-items: center; color: #84948f; font-size: 9.5px; font-style: normal; }
+
+/* Espacio de trabajo: Cavalry y Maldonado son encargos distintos. */
+.espacio-switch { display: flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 999px; background: rgba(255,255,255,.6); }
+.espacio-switch button { padding: 5px 14px; border: none; border-radius: 999px; background: none; color: #7c8b90; font-family: inherit; font-size: 10px; font-weight: 700; letter-spacing: .05em; cursor: pointer; transition: background .18s ease, color .18s ease; }
+.espacio-switch button:hover { color: #3c5a54; }
+.espacio-switch button.active { color: #fff; background: var(--green); }
+
+/* Qué plataformas hay cargadas, siempre a la vista. */
+.datos-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-top: 16px; padding: 7px 11px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,.6); }
+.datos-barra-titulo { color: #9aa8ac; font-size: 8px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; }
+.datos-chip { padding: 3px 9px; border: 1px solid var(--line); border-radius: 999px; color: #a8b4b7; background: transparent; font-size: 9px; font-weight: 600; opacity: .55; }
+.datos-chip.on { opacity: 1; }
+.datos-chip.on.wyscout { border-color: rgba(224,122,47,.35); color: #b8631f; background: rgba(224,122,47,.08); }
+.datos-chip.on.statsbomb { border-color: rgba(176,36,58,.35); color: #a02338; background: rgba(176,36,58,.08); }
+.datos-chip.on.skillcorner { border-color: rgba(18,196,139,.35); color: #10795a; background: rgba(18,196,139,.08); }
+.datos-enlace { color: #6e8b84; font-size: 8.5px; font-style: italic; }
+.datos-barra > small { margin-left: auto; color: #92a0a4; font-size: 9px; }
+.datos-conectar { padding: 4px 11px; border: 1px solid var(--line); border-radius: 999px; background: none; color: #6e7f85; font-family: inherit; font-size: 9px; font-weight: 700; cursor: pointer; transition: border-color .18s ease, color .18s ease; }
+.datos-conectar:hover { border-color: var(--green); color: var(--green); }
+@media print { .datos-barra, .espacio-switch { display: none !important; } }
 
 .designer-workspace { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 18px; align-items: start; }
 .designer-controls { position: sticky; top: 18px; max-height: calc(100vh - 36px); padding: 19px; overflow-y: auto; border: 1px solid var(--line); border-radius: 13px; background: #fff; box-shadow: 0 10px 35px rgba(20,45,52,.045); scrollbar-width: thin; }
@@ -528,8 +555,23 @@ body::before { position: fixed; inset: 0; z-index: -1; pointer-events: none; bac
 .report-page-tabs { border-color: rgba(255,255,255,.08); background: rgba(18,23,34,.78); box-shadow: var(--shadow), inset 0 1px rgba(255,255,255,.025); backdrop-filter: blur(14px); }
 .report-page-tabs button { color: #758195; }.report-page-tabs button:hover { color: #cfd8e8; background: rgba(255,255,255,.035); }
 .report-page-tabs button.active { border-color: rgba(104,140,255,.24); color: #dfe6f8; background: linear-gradient(105deg,rgba(79,124,255,.15),rgba(105,82,218,.07)); box-shadow: inset 0 1px rgba(255,255,255,.025); }
-.report-page-tabs button > span { color: #667185; background: rgba(255,255,255,.045); }.report-page-tabs button.active > span { background: linear-gradient(145deg,#4f7cff,#6e63df); }
-.report-page-tabs button small, .report-page-tabs > em { color: #616c7f; }
+.report-page-tabs button small, .report-page-tabs > em, .tab-grupo-nombre { color: #616c7f; }
+.tab-grupo + .tab-grupo { border-left-color: rgba(255,255,255,.08); }
+.tab-api { color: #6d788d; background: rgba(255,255,255,.06); }
+.report-page-tabs button.active .tab-api { color: #a9bcff; background: rgba(104,140,255,.16); }
+.espacio-switch { border-color: rgba(255,255,255,.1); background: rgba(255,255,255,.03); }
+.espacio-switch button { color: #7b8798; }
+.espacio-switch button:hover { color: #cfd8e8; }
+.espacio-switch button.active { color: #fff; background: linear-gradient(145deg,#4f7cff,#6e63df); }
+.datos-barra { border-color: rgba(255,255,255,.08); background: rgba(255,255,255,.03); }
+.datos-barra-titulo, .datos-barra > small { color: #616c7f; }
+.datos-chip { border-color: rgba(255,255,255,.1); color: #6d788d; }
+.datos-chip.on.wyscout { border-color: rgba(224,122,47,.4); color: #e09a5f; background: rgba(224,122,47,.12); }
+.datos-chip.on.statsbomb { border-color: rgba(199,63,86,.4); color: #e08494; background: rgba(199,63,86,.14); }
+.datos-chip.on.skillcorner { border-color: rgba(18,196,139,.4); color: #6fd6b4; background: rgba(18,196,139,.12); }
+.datos-enlace { color: #7f8ca0; }
+.datos-conectar { border-color: rgba(255,255,255,.12); color: #8b97ab; }
+.datos-conectar:hover { border-color: #4f7cff; color: #a9bcff; }
 .report-preview-wrap { background: linear-gradient(145deg,#0f141e,#0b0f17); }
 .preview-toolbar { border-bottom-color: rgba(255,255,255,.07); color: #929db0; background: rgba(255,255,255,.025); }.preview-toolbar > span { color: #596477; }
 .scout-report { border: 1px solid rgba(255,255,255,.08); box-shadow: 0 28px 70px rgba(0,0,0,.38); }
@@ -1319,6 +1361,9 @@ body.print-layout-check .similarity-star-visual > svg { transform: none !importa
 
 /* ---- Pestañas de página con agregar/quitar ---- */
 .page-tab-actions { margin-left: auto; display: flex; align-items: center; gap: 7px; }
+/* Agregar y quitar página son acciones, no destinos: no deben ocupar el
+   ancho de una pestaña ni empujar la fila hasta desbordarla. */
+.report-page-tabs .page-tab-actions button { min-width: 0; padding: 5px 10px; flex-direction: row; white-space: nowrap; }
 .page-tab-add, .page-tab-remove {
   padding: 7px 12px; border: 1px dashed rgba(148, 163, 184, .4); border-radius: 9px;
   background: transparent; color: inherit; font-size: 11.5px; font-weight: 700; cursor: pointer;

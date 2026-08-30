@@ -30,7 +30,8 @@ test("las páginas del informe se registran en el diálogo de exportación", () 
 
 test("los controles de trabajo nunca se imprimen", () => {
   // Botones y filtros son herramientas, no contenido del informe.
-  for (const clase of ["ctx-toolbar", "ctx-controls", "ctx-picker", "ctx-source", "reading-ai"]) {
+  for (const clase of ["ctx-toolbar", "ctx-controls", "ctx-picker", "ctx-source", "reading-ai",
+    "datos-barra", "espacio-switch", "rank-filters", "runs-controls", "ctx360-controls"]) {
     const oculto = new RegExp(`\\.${clase}[^{]*\\{[^}]*display:\\s*none`).test(globals)
       || new RegExp(`@media print[^@]*\\.${clase}`, "s").test(globals);
     assert.ok(oculto, `.${clase} se imprimiría dentro del informe`);
@@ -50,4 +51,18 @@ test("no quedan scripts de diagnóstico sueltos en la raíz", () => {
   const sueltos = readdirSync(new URL("../", import.meta.url))
     .filter((archivo) => archivo.endsWith(".mjs") && !["eslint.config.mjs", "postcss.config.mjs"].includes(archivo));
   assert.deepEqual(sueltos, [], `scripts de prueba sin borrar: ${sueltos.join(", ")}`);
+});
+
+test("la mesa de Maldonado no se ofrece al imprimir desde el espacio de Cavalry", () => {
+  // Son dos encargos distintos: mezclarlos en el mismo PDF sería un error
+  // difícil de notar hasta tenerlo delante del cliente equivocado.
+  // Se ancla en togglePrintPage, que solo existe dentro del diálogo.
+  const fin = scoutStudio.indexOf("togglePrintPage(page)");
+  assert.ok(fin > 0, "no se encontró el diálogo de impresión");
+  const dialogo = scoutStudio.slice(0, fin);
+  const rama = dialogo.lastIndexOf('espacio === "maldonado"');
+  assert.ok(rama > 0, "el diálogo de impresión no distingue el espacio activo");
+  const cavalry = dialogo.slice(dialogo.indexOf(": [", rama));
+  assert.ok(cavalry.includes("CARD_PAGE"), "CARD_PAGE debería estar en el listado de Cavalry");
+  assert.ok(!cavalry.includes("BOARD_PAGE"), "BOARD_PAGE se ofrece al imprimir en el espacio de Cavalry");
 });

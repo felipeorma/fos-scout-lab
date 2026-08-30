@@ -218,6 +218,9 @@ export default function ScoutStudio() {
   const [lang, setLang] = useState<Lang>("es");
   const [langLoaded, setLangLoaded] = useState(false);
   const [reportPage, setReportPage] = useState<ReportPage>(CARD_PAGE);
+  // Cavalry y Maldonado son encargos distintos: comparten los datos cargados
+  // pero no el flujo. El espacio elegido decide qué pestañas existen.
+  const [espacio, setEspacio] = useState<"cavalry" | "maldonado">("cavalry");
   // Vista rápida del reporte desde la mesa de Maldonado: no cambia de página,
   // solo abre el mismo reporte encima en una ventana. Se cierra sola si se
   // recarga el jugador desde la mesa: el clic siguiente ya la deja abierta.
@@ -310,6 +313,39 @@ export default function ScoutStudio() {
   const profileReady = Boolean(profile.sourceUrl || profile.playerImage || profile.clubLogo || profile.leagueLogo);
   const recipientName = reportRecipientName.trim() || t("Club destinatario");
   const recipientLogoReady = /^https?:\/\/\S+$/i.test(reportRecipientLogoUrl.trim());
+
+  useEffect(() => {
+    try {
+      const guardado = window.localStorage.getItem("fos-scout-espacio");
+      if (guardado === "maldonado" || guardado === "cavalry") setEspacio(guardado);
+    } catch { /* preferencia opcional */ }
+  }, []);
+
+  /**
+   * Cambiar de espacio no debe dejarte en una pestaña que allí no existe: se
+   * salta a la primera del espacio nuevo. Los datos cargados no se tocan.
+   */
+  function cambiarEspacio(siguiente: "cavalry" | "maldonado") {
+    setEspacio(siguiente);
+    setReportPage(siguiente === "maldonado" ? BOARD_PAGE : CARD_PAGE);
+    try { window.localStorage.setItem("fos-scout-espacio", siguiente); } catch { /* opcional */ }
+  }
+
+  /**
+   * Qué plataformas hay en la base. Sale de la columna "Data sources", que es
+   * la única traza de origen que sobrevive a la fusión de filas. Sirve para
+   * avisar qué pestañas pueden trabajar y cuáles se quedarán vacías.
+   */
+  const plataformas = useMemo(() => {
+    const vistas = new Set<string>();
+    for (const fila of reportRows) {
+      const origen = String(fila["Data sources"] ?? "").toLowerCase();
+      if (origen.includes("statsbomb")) vistas.add("statsbomb");
+      if (origen.includes("skillcorner")) vistas.add("skillcorner");
+      if (origen && !origen.includes("statsbomb") && !origen.includes("skillcorner")) vistas.add("wyscout");
+    }
+    return vistas;
+  }, [reportRows]);
   const reportExportName = reportExportBaseName({
     recipient: recipientName,
     player: report?.player ?? "",
@@ -1058,11 +1094,19 @@ export default function ScoutStudio() {
             <span className="studio-brand-copy"><b>Felipe Ormazabal Scouting</b><small>{t("Reportes de scouting")}</small></span>
           </div>
 
-          <ol className="studio-flow" aria-label={t("Flujo del reporte")}>
+          {/* Dos encargos, dos flujos. El dato cargado es el mismo. */}
+          <div className="espacio-switch" role="group" aria-label={t("Espacio de trabajo")}>
+            <button className={espacio === "cavalry" ? "active" : ""} aria-pressed={espacio === "cavalry"}
+              onClick={() => cambiarEspacio("cavalry")}>{t("Cavalry")}</button>
+            <button className={espacio === "maldonado" ? "active" : ""} aria-pressed={espacio === "maldonado"}
+              onClick={() => cambiarEspacio("maldonado")}>{t("Maldonado")}</button>
+          </div>
+
+          {espacio === "cavalry" && <ol className="studio-flow" aria-label={t("Flujo del reporte")}>
             <li className={dataReady ? "done" : "current"}><span>{dataReady ? <Check size={13} /> : "1"}</span><div><b>{t("Cargar datos")}</b><small>{dataReady ? tDefault(reportFileName) : t("Excel o CSV")}</small></div></li>
             <li className={report ? "done" : dataReady ? "current" : ""}><span>{report ? <Check size={13} /> : "2"}</span><div><b>{t("Elegir jugador")}</b><small>{report ? report.player : t("Equipo y jugador")}</small></div></li>
             <li className={reportPage !== CARD_PAGE ? "done" : report ? "current" : ""}><span>3</span><div><b>{t("Construir reporte")}</b><small>{t("Ficha, similitud y visuales")}</small></div></li>
-          </ol>
+          </ol>}
 
           <div className="top-actions">
             <div className="lang-switch-inline" role="group" aria-label={t("Idioma del estudio y del reporte")}>
@@ -1158,27 +1202,63 @@ export default function ScoutStudio() {
                 {reportError && <div className="inline-error">{reportError}</div>}
               </section>
             ) : <>
-              <nav className="report-page-tabs" aria-label={t("Páginas del reporte")}>
-                <button className={reportPage === CARD_PAGE ? "active" : ""} onClick={() => setReportPage(CARD_PAGE)}><span>01</span><div><b>{t("Ficha y radar")}</b><small>{t("Percentiles del jugador")}</small></div></button>
-                <button className={reportPage === SIMILARITY_PAGE ? "active" : ""} onClick={() => setReportPage(SIMILARITY_PAGE)}><span>02</span><div><b>{t("Similitud")}</b><small>{t("Jugadores comparables")}</small></div></button>
-                <button className={reportPage === BOARD_PAGE ? "active" : ""} onClick={() => setReportPage(BOARD_PAGE)}><span>★</span><div><b>MALDONADO</b><small>{t("Mesa de detección")}</small></div></button>
-                <button className={reportPage === RUNS_PAGE ? "active" : ""} onClick={() => setReportPage(RUNS_PAGE)}><span>↗</span><div><b>{t("Carreras")}</b><small>{t("Mapa sin balón")}</small></div></button>
-                <button className={reportPage === S360_PAGE ? "active" : ""} onClick={() => setReportPage(S360_PAGE)}><span>360</span><div><b>{t("Contexto 360")}</b><small>{t("Espacio y presión")}</small></div></button>
-                <button className={reportPage === RANK_PAGE ? "active" : ""} onClick={() => setReportPage(RANK_PAGE)}><span>⇅</span><div><b>{t("Ranking")}</b><small>{t("Los mejores por puesto")}</small></div></button>
-                <button className={reportPage === CONTEXT_PAGE ? "active" : ""} onClick={() => setReportPage(CONTEXT_PAGE)}><span>03</span><div><b>{t("Contexto")}</b><small>{t("Dónde destaca y por qué")}</small></div></button>
-                {visualPages.map((page, index) => (
-                  <button key={page} className={reportPage === page ? "active" : ""} onClick={() => setReportPage(page)}>
-                    <span>{String(page).padStart(2, "0")}</span>
-                    <div><b>{tf("Visuales {n}", { n: index + 1 })}</b><small>{t("Mapas, imágenes y texto")}</small></div>
-                  </button>
-                ))}
-                <div className="page-tab-actions">
-                  <button type="button" className="page-tab-add" onClick={addVisualPage}>+ {t("Agregar página")}</button>
-                  {visualPages.length > 1 && reportPage >= FIRST_VISUAL_PAGE && (
-                    <button type="button" className="page-tab-remove" onClick={() => removeVisualPage(reportPage)}>{t("Quitar página")}</button>
-                  )}
-                </div>
-              </nav>
+              {/* Qué datos hay cargados y de dónde. Varias pestañas solo
+                  funcionan con una plataforma concreta, así que conviene
+                  verlo antes de entrar y no descubrirlo con la hoja vacía. */}
+              <div className="datos-barra">
+                <span className="datos-barra-titulo">{t("Datos")}</span>
+                <span className={plataformas.has("wyscout") ? "datos-chip on wyscout" : "datos-chip"}>Wyscout</span>
+                <span className={plataformas.has("statsbomb") ? "datos-chip on statsbomb" : "datos-chip"}>StatsBomb</span>
+                <span className={plataformas.has("skillcorner") ? "datos-chip on skillcorner" : "datos-chip"}>SkillCorner</span>
+                {plataformas.size > 1 && <span className="datos-enlace">{tf("{n} plataformas enlazadas", { n: plataformas.size })}</span>}
+                <small>{tf("{n} jugadores · {b} base(s)", { n: reportRows.length, b: reportSourceCount })}</small>
+                <button type="button" className="datos-conectar" onClick={() => void openApiDialog()}>{t("Conectar API")}</button>
+              </div>
+
+              {/* En Maldonado hay un solo destino: una barra con una pestaña
+                  ya activa es ruido, así que la mesa ocupa la pantalla. */}
+              {espacio === "cavalry" && <nav className="report-page-tabs" aria-label={t("Secciones")}>
+                <>
+                  <div className="tab-grupo">
+                    <span className="tab-grupo-nombre">{t("Explorar")}</span>
+                    <button className={reportPage === RANK_PAGE ? "active" : ""} onClick={() => setReportPage(RANK_PAGE)}>
+                      <b>{t("Ranking")}</b><small>{t("Los mejores por puesto")}</small>
+                    </button>
+                  </div>
+                  <div className="tab-grupo">
+                    <span className="tab-grupo-nombre">{t("Analizar")}</span>
+                    <button className={reportPage === CONTEXT_PAGE ? "active" : ""} onClick={() => setReportPage(CONTEXT_PAGE)}>
+                      <b>{t("Contexto")}</b><small>{t("Dónde destaca y por qué")}</small>
+                    </button>
+                    <button className={reportPage === RUNS_PAGE ? "active" : ""} onClick={() => setReportPage(RUNS_PAGE)}>
+                      <b>{t("Carreras")}<i className="tab-api">API</i></b><small>{t("Mapa sin balón")}</small>
+                    </button>
+                    <button className={reportPage === S360_PAGE ? "active" : ""} onClick={() => setReportPage(S360_PAGE)}>
+                      <b>{t("Contexto 360")}<i className="tab-api">API</i></b><small>{t("Espacio y presión")}</small>
+                    </button>
+                  </div>
+                  <div className="tab-grupo">
+                    <span className="tab-grupo-nombre">{t("Reportar")}</span>
+                    <button className={reportPage === CARD_PAGE ? "active" : ""} onClick={() => setReportPage(CARD_PAGE)}>
+                      <b>{t("Ficha y radar")}</b><small>{t("Percentiles del jugador")}</small>
+                    </button>
+                    <button className={reportPage === SIMILARITY_PAGE ? "active" : ""} onClick={() => setReportPage(SIMILARITY_PAGE)}>
+                      <b>{t("Similitud")}</b><small>{t("Jugadores comparables")}</small>
+                    </button>
+                    {visualPages.map((page, index) => (
+                      <button key={page} className={reportPage === page ? "active" : ""} onClick={() => setReportPage(page)}>
+                        <b>{tf("Visuales {n}", { n: index + 1 })}</b><small>{t("Mapas, imágenes y texto")}</small>
+                      </button>
+                    ))}
+                    <div className="page-tab-actions">
+                      <button type="button" className="page-tab-add" onClick={addVisualPage}>+ {t("Agregar página")}</button>
+                      {visualPages.length > 1 && reportPage >= FIRST_VISUAL_PAGE && (
+                        <button type="button" className="page-tab-remove" onClick={() => removeVisualPage(reportPage)}>{t("Quitar página")}</button>
+                      )}
+                    </div>
+                  </div>
+                </>
+              </nav>}
 
               {(printRun ? printRun.includes(1) : reportPage === 1) ? <div className="report-workspace">
                 <section className="control-panel enrichment-controls">
@@ -1349,19 +1429,23 @@ export default function ScoutStudio() {
                     <span>{t("Nombre sugerido")}</span>
                     <b>{reportExportName}.pdf</b>
                   </div>
-                  {[
-                    { page: CARD_PAGE, title: t("Ficha y radar"), hint: t("Percentiles del jugador") },
-                    { page: SIMILARITY_PAGE, title: t("Similitud"), hint: t("Jugadores comparables") },
-                    { page: CONTEXT_PAGE, title: t("Contexto"), hint: t("Dónde destaca y por qué") },
-                    { page: BOARD_PAGE, title: "MALDONADO", hint: t("Mesa de detección") },
-                    { page: RUNS_PAGE, title: t("Carreras"), hint: t("Mapa sin balón") },
-                    { page: S360_PAGE, title: t("Contexto 360"), hint: t("Espacio y presión") },
-                    { page: RANK_PAGE, title: t("Ranking"), hint: t("Los mejores por puesto") },
-                    ...visualPages.map((page, index) => ({ page, title: tf("Visuales {n}", { n: index + 1 }), hint: t("Mapas, imágenes y texto") })),
-                  ].map(({ page, title, hint }) => (
+                  {/* Solo las hojas del espacio activo: en Cavalry no tiene
+                      sentido ofrecer la mesa de Maldonado, y al revés igual. */}
+                  {(espacio === "maldonado"
+                    ? [{ page: BOARD_PAGE, title: t("Mesa de detección"), hint: t("Perfiles, once ideal y variación") }]
+                    : [
+                      { page: CARD_PAGE, title: t("Ficha y radar"), hint: t("Percentiles del jugador") },
+                      { page: SIMILARITY_PAGE, title: t("Similitud"), hint: t("Jugadores comparables") },
+                      { page: CONTEXT_PAGE, title: t("Contexto"), hint: t("Dónde destaca y por qué") },
+                      { page: RUNS_PAGE, title: t("Carreras"), hint: t("Mapa sin balón") },
+                      { page: S360_PAGE, title: t("Contexto 360"), hint: t("Espacio y presión") },
+                      { page: RANK_PAGE, title: t("Ranking"), hint: t("Los mejores por puesto") },
+                      ...visualPages.map((page, index) => ({ page, title: tf("Visuales {n}", { n: index + 1 }), hint: t("Mapas, imágenes y texto") })),
+                    ]
+                  ).map(({ page, title, hint }) => (
                     <label key={page} className={printPages.includes(page) ? "selected" : ""}>
                       <input type="checkbox" checked={printPages.includes(page)} onChange={() => togglePrintPage(page)} />
-                      <span><b>{String(page === CONTEXT_PAGE ? 3 : page).padStart(2, "0")} · {title}</b><small>{hint}</small></span>
+                      <span><b>{title}</b><small>{hint}</small></span>
                     </label>
                   ))}
                   <div className="print-dialog-actions">
