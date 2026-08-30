@@ -2351,3 +2351,76 @@ body.print-layout-check .ai-error { display: none !important; }
 .rank-arq-card li:hover { background: rgba(255,255,255,.045); }
 .rank-arq-metricas { display: block; margin-top: 8px; color: var(--rk-dim); font-size: 7.5px; line-height: 1.45; }
 @media print { .rank-filters { display: none !important; } }
+
+/* ==========================================================================
+   Paletas por encargo.
+   Cavalry y Maldonado son clientes distintos y el informe no debería salir
+   con el mismo color para los dos. La tercera es neutra, para el trabajo
+   suelto que no va a ninguno de ellos.
+
+   Estos acentos son una propuesta, no los colores oficiales de ningún club:
+   se cambian aquí, en una línea por paleta.
+   ========================================================================== */
+.app-shell[data-paleta="cavalry"] {
+  --acento: #2f9e6f;          /* verde Cavalry */
+  --acento-claro: #63c79a;
+  --acento-suave: rgba(47,158,111,.13);
+  --acento-borde: rgba(47,158,111,.28);
+  --acento-degradado: linear-gradient(145deg,#2f9e6f,#1d7d63);
+  --halo-a: rgba(47,158,111,.14);
+  --halo-b: rgba(99,199,154,.07);
+}
+.app-shell[data-paleta="maldonado"] {
+  --acento: #d98b2b;          /* ámbar Maldonado */
+  --acento-claro: #eeb45f;
+  --acento-suave: rgba(217,139,43,.13);
+  --acento-borde: rgba(217,139,43,.3);
+  --acento-degradado: linear-gradient(145deg,#d98b2b,#b06a1c);
+  --halo-a: rgba(217,139,43,.13);
+  --halo-b: rgba(238,180,95,.06);
+}
+.app-shell[data-paleta="otros"] {
+  --acento: #6b8299;          /* acero neutro */
+  --acento-claro: #9db2c6;
+  --acento-suave: rgba(107,130,153,.14);
+  --acento-borde: rgba(107,130,153,.3);
+  --acento-degradado: linear-gradient(145deg,#6b8299,#4e6377);
+  --halo-a: rgba(107,130,153,.12);
+  --halo-b: rgba(157,178,198,.06);
+}
+
+/* El acento manda sobre los tokens que antes eran azul/violeta fijos. */
+.app-shell[data-paleta] { --green: var(--acento); --green-2: var(--acento-claro); --green-soft: var(--acento-suave); --blue: var(--acento); }
+
+/* Fondo: el halo de la cabecera toma el color del encargo en vez del
+   degradado azul-violeta que traía por defecto. */
+.app-shell[data-paleta]::before {
+  position: fixed; inset: 0; z-index: -2; pointer-events: none; content: "";
+  background:
+    radial-gradient(circle at 74% 9%, var(--halo-b), transparent 26%),
+    radial-gradient(circle at 25% 8%, var(--halo-a), transparent 32%);
+}
+
+/* Piezas que llevaban el degradado azul/violeta escrito a mano. */
+.app-shell[data-paleta] .espacio-switch button.active,
+.app-shell[data-paleta] .studio-brand-mark { background: var(--acento-degradado); }
+.app-shell[data-paleta] .report-page-tabs button.active {
+  border-color: var(--acento-borde);
+  background: var(--acento-suave);
+  color: var(--acento-claro);
+}
+.app-shell[data-paleta] .report-page-tabs button.active .tab-api { color: var(--acento-claro); background: var(--acento-suave); }
+.app-shell[data-paleta] .studio-flow li.current > span,
+.app-shell[data-paleta] .studio-flow li.done > span { background: var(--acento-degradado); }
+.app-shell[data-paleta] .kicker,
+.app-shell[data-paleta] .datos-conectar:hover { color: var(--acento-claro); }
+.app-shell[data-paleta] .datos-conectar:hover { border-color: var(--acento-borde); }
+.app-shell[data-paleta] .button.primary { background: var(--acento-degradado); border-color: var(--acento-borde); }
+.app-shell[data-paleta] .privacy-pill { border-color: var(--acento-borde); color: var(--acento-claro); background: var(--acento-suave); }
+
+/* La firma vive en el pie del informe: se edita como el resto de textos. */
+.firma-nota { margin: 0 0 9px; color: var(--muted); font-size: 8.5px; line-height: 1.45; }
+.firma-temporal { flex-direction: row !important; align-items: flex-start; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); cursor: pointer; }
+.firma-temporal input { width: 14px; height: 14px; margin-top: 1px; flex: none; }
+.firma-temporal b { display: block; font-size: 10px; }
+.firma-temporal small { display: block; margin-top: 2px; color: var(--muted); font-size: 8.5px; line-height: 1.4; }

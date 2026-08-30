@@ -1262,4 +1262,12 @@ const EN: Record<string, string> = {
   "Datos": "Data",
   "{n} plataformas enlazadas": "{n} platforms linked",
   "{n} jugadores · {b} base(s)": "{n} players · {b} database(s)",
+  // ---- Firmas por encargo ----
+  "Tu firma": "Your signature",
+  "Se guarda una firma por encargo. Estás editando la de {cual}.": "One signature is saved per engagement. You are editing the {cual} one.",
+  "un trabajo suelto": "one-off",
+  "Nombre": "Name",
+  "Cargo o pie de firma": "Role or signature line",
+  "Usar firma temporal": "Use a temporary signature",
+  "Para un informe que no es de Cavalry ni de Maldonado. Cambia también a los colores neutros.": "For a report that is not for Cavalry or Maldonado. It also switches to the neutral colours.",
 };

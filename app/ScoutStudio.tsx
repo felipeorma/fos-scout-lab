@@ -64,6 +64,20 @@ const RUNS_PAGE = 92;
 const S360_PAGE = 93;
 // Ranking de la base por posición: quién es el mejor de cada puesto.
 const RANK_PAGE = 94;
+/**
+ * Quién firma el informe. Hay una firma guardada por encargo —Cavalry y
+ * Maldonado son clientes distintos y no se firman igual— más una temporal
+ * para el trabajo suelto que no es de ninguno de los dos.
+ */
+type Firma = { nombre: string; cargo: string };
+type ClaveFirma = "cavalry" | "maldonado" | "temporal";
+const FIRMAS_POR_DEFECTO: Record<ClaveFirma, Firma> = {
+  cavalry: { nombre: "Felipe Ormazabal", cargo: "Scouting · Cavalry FC" },
+  maldonado: { nombre: "Felipe Ormazabal", cargo: "Detección · Deportivo Maldonado" },
+  temporal: { nombre: "Felipe Ormazabal", cargo: "Scouting report" },
+};
+const CLAVE_FIRMAS = "fos-scout-firmas-v1";
+
 type ReportFileMode = "single" | "combine" | "replace";
 type ProfileAssetField = "playerImage" | "clubLogo" | "leagueLogo";
 
@@ -221,6 +235,10 @@ export default function ScoutStudio() {
   // Cavalry y Maldonado son encargos distintos: comparten los datos cargados
   // pero no el flujo. El espacio elegido decide qué pestañas existen.
   const [espacio, setEspacio] = useState<"cavalry" | "maldonado">("cavalry");
+  const [firmas, setFirmas] = useState<Record<ClaveFirma, Firma>>(FIRMAS_POR_DEFECTO);
+  // La firma temporal es un interruptor, no un tercer espacio: sirve para el
+  // informe que no va a ninguno de los dos clubes y arrastra la paleta neutra.
+  const [firmaTemporal, setFirmaTemporal] = useState(false);
   // Vista rápida del reporte desde la mesa de Maldonado: no cambia de página,
   // solo abre el mismo reporte encima en una ventana. Se cierra sola si se
   // recarga el jugador desde la mesa: el clic siguiente ya la deja abierta.
@@ -316,8 +334,38 @@ export default function ScoutStudio() {
 
   useEffect(() => {
     try {
+      const guardado = window.localStorage.getItem(CLAVE_FIRMAS);
+      if (guardado) {
+        const leido = JSON.parse(guardado) as Partial<Record<ClaveFirma, Firma>>;
+        setFirmas((actuales) => ({
+          cavalry: { ...actuales.cavalry, ...(leido.cavalry ?? {}) },
+          maldonado: { ...actuales.maldonado, ...(leido.maldonado ?? {}) },
+          temporal: { ...actuales.temporal, ...(leido.temporal ?? {}) },
+        }));
+      }
+    } catch { /* la firma por defecto sigue sirviendo */ }
+  }, []);
+
+  const claveFirma: ClaveFirma = firmaTemporal ? "temporal" : espacio;
+  const firma = firmas[claveFirma];
+  /** Paleta activa: cada cliente la suya, neutra para el trabajo suelto. */
+  const paleta = firmaTemporal ? "otros" : espacio;
+
+  function editarFirma(campo: keyof Firma, valor: string) {
+    const siguiente = { ...firmas, [claveFirma]: { ...firmas[claveFirma], [campo]: valor } };
+    setFirmas(siguiente);
+    try { window.localStorage.setItem(CLAVE_FIRMAS, JSON.stringify(siguiente)); } catch { /* opcional */ }
+  }
+
+  useEffect(() => {
+    try {
       const guardado = window.localStorage.getItem("fos-scout-espacio");
-      if (guardado === "maldonado" || guardado === "cavalry") setEspacio(guardado);
+      // Restaurar el espacio sin llevar también su página dejaba la ficha de
+      // Cavalry abierta dentro de Maldonado, que no tiene barra para salir.
+      if (guardado === "maldonado" || guardado === "cavalry") {
+        setEspacio(guardado);
+        setReportPage(guardado === "maldonado" ? BOARD_PAGE : CARD_PAGE);
+      }
     } catch { /* preferencia opcional */ }
   }, []);
 
@@ -1075,7 +1123,7 @@ export default function ScoutStudio() {
         <p>{tf("Percentiles por posición · mínimo {m}′ · {n} jugadores en la cohorte · datos por 90 minutos.", { m: minimumMinutes, n: report.cohortSize })}
           {report.metrics.some((metric) => metric.source === "skillcorner") && ` ${t("Los volúmenes de SkillCorner (SC) van por 30 minutos con balón del equipo.")}`}</p>
         <div className="report-signatures">
-          <div className="report-author"><span>{t("ELABORADO POR")}</span><b>FELIPE ORMAZABAL</b><small>SCOUTING REPORT</small></div>
+          <div className="report-author"><span>{t("ELABORADO POR")}</span><b>{firma.nombre || FIRMAS_POR_DEFECTO[claveFirma].nombre}</b><small>{firma.cargo}</small></div>
           <div className="report-recipient">
             {recipientLogoReady ? <ReportImage src={reportRecipientLogoUrl.trim()} alt={recipientName} className="dossier-footer-club-logo" /> : <span className="dossier-footer-club-fallback">{recipientName.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span>}
             <div><span>{t("REPORTE GENERADO PARA")}</span><b><InlineText editKey="recipient" value={reportRecipientName} fallback={t("Club destinatario")} onCommit={setReportRecipientName} /></b></div>
@@ -1086,7 +1134,7 @@ export default function ScoutStudio() {
   ) : null;
 
   return (
-    <div className="app-shell no-sidebar">
+    <div className="app-shell no-sidebar" data-paleta={paleta}>
       <main className="main-area">
         <header className="topbar studio-topbar">
           <div className="studio-brand">
@@ -1301,6 +1349,23 @@ export default function ScoutStudio() {
                   {report && report.metrics.some((metric) => metric.source && metric.source !== "wyscout") && <div className="radar-color-toggle"><span className="field-label">{t("Color del radar")}</span><div className="segmented"><button className={radarColorMode === "groups" ? "active" : ""} onClick={() => setRadarColorMode("groups")}>{t("Por grupo")}</button><button className={radarColorMode === "platform" ? "active" : ""} onClick={() => setRadarColorMode("platform")}>{t("Por plataforma")}</button></div></div>}
                   <div className="radar-color-toggle"><span className="field-label">{t("Textos con IA")}</span><div className="segmented"><button className={!aiControlsHidden ? "active" : ""} onClick={() => { setAiControlsHidden(false); try { window.localStorage.setItem("fos-scout-ai-controls-v2", "shown"); } catch { /* opcional */ } }}>{t("Mostrar")}</button><button className={aiControlsHidden ? "active" : ""} onClick={() => { setAiControlsHidden(true); setAiError(""); try { window.localStorage.setItem("fos-scout-ai-controls-v2", "hidden"); } catch { /* opcional */ } }}>{t("Ocultar")}</button></div></div>
                   <p className="inline-edit-hint">{t("Los textos del informe (etiqueta de la base, lectura rápida, club destinatario) se editan con un clic directamente sobre la vista previa.")}</p>
+                  <details className="profile-details report-recipient-editor">
+                    <summary>{t("Tu firma")}</summary>
+                    <p className="firma-nota">{tf("Se guarda una firma por encargo. Estás editando la de {cual}.", {
+                      cual: claveFirma === "temporal" ? t("un trabajo suelto") : claveFirma === "maldonado" ? "Maldonado" : "Cavalry",
+                    })}</p>
+                    <label><small>{t("Nombre")}</small>
+                      <input value={firma.nombre} maxLength={60} onChange={(event) => editarFirma("nombre", event.target.value)} />
+                    </label>
+                    <label><small>{t("Cargo o pie de firma")}</small>
+                      <input value={firma.cargo} maxLength={70} onChange={(event) => editarFirma("cargo", event.target.value)} />
+                    </label>
+                    <label className="firma-temporal">
+                      <input type="checkbox" checked={firmaTemporal} onChange={(event) => setFirmaTemporal(event.target.checked)} />
+                      <span><b>{t("Usar firma temporal")}</b><small>{t("Para un informe que no es de Cavalry ni de Maldonado. Cambia también a los colores neutros.")}</small></span>
+                    </label>
+                  </details>
+
                   <details className="profile-details report-recipient-editor">
                     <summary>{t("Reporte generado para")}</summary>
                     <label><small>{t("Nombre del club destinatario")}</small><input value={reportRecipientName} maxLength={80} placeholder={t("Ej. Club Deportivo…")} onChange={(event) => setReportRecipientName(event.target.value)} /></label>
