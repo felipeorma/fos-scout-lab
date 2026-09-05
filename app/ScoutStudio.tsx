@@ -22,6 +22,7 @@ import { ContextPage } from "./ContextPage";
 import { ScoutingBoard } from "./ScoutingBoard";
 import { RunsPage } from "./RunsPage";
 import { RankingPage } from "./RankingPage";
+import { PoolPage } from "./PoolPage";
 import { ReportPageDesigner } from "./ReportPageDesigner";
 import { SimilarityStudio } from "./SimilarityStudio";
 import { CLIENT_THEMES, DEFAULT_REPORT_THEME, reportThemeStyle, type ReportTheme } from "./reportTheme";
@@ -61,6 +62,8 @@ const BOARD_PAGE = 91;
 const RUNS_PAGE = 92;
 // Ranking de la base por posición: quién es el mejor de cada puesto.
 const RANK_PAGE = 94;
+// Buscador entre ligas de la API: fondo multi-competición.
+const POOL_PAGE = 95;
 /**
  * Quién firma el informe. Hay una firma guardada por encargo —Cavalry y
  * Maldonado son clientes distintos y no se firman igual— más una temporal
@@ -1310,6 +1313,9 @@ export default function ScoutStudio() {
                     <button className={reportPage === RANK_PAGE ? "active" : ""} onClick={() => setReportPage(RANK_PAGE)}>
                       <b>{t("Ranking")}</b><small>{t("Los mejores por puesto")}</small>
                     </button>
+                    <button className={reportPage === POOL_PAGE ? "active" : ""} onClick={() => setReportPage(POOL_PAGE)}>
+                      <b>{t("Entre ligas")}<i className="tab-api">API</i></b><small>{t("Buscar parecidos")}</small>
+                    </button>
                   </div>
                   <div className="tab-grupo">
                     <span className="tab-grupo-nombre">{t("Analizar")}</span>
@@ -1491,6 +1497,11 @@ export default function ScoutStudio() {
               {report && (printRun ? printRun.includes(RANK_PAGE) : reportPage === RANK_PAGE) && (
                 <div className="legal-page-shell"><RankingPage rows={reportRows} minimumMinutes={minimumMinutes} onSelectPlayer={(indice) => { selectPlayer(indice); setReportPage(CARD_PAGE); }} /></div>
               )}
+              {(printRun ? printRun.includes(POOL_PAGE) : reportPage === POOL_PAGE) && (
+                <div className="legal-page-shell"><PoolPage
+                  baseCargada={reportRows.length ? { nombre: reportFileName, rows: reportRows } : null}
+                /></div>
+              )}
               {boardPreviewOpen && (
                 <div className="board-preview-overlay" role="dialog" aria-modal="true" aria-label={t("Vista rápida del reporte")} onClick={() => setBoardPreviewOpen(false)}>
                   <div className="board-preview-dialog" onClick={(event) => event.stopPropagation()}>
@@ -1536,6 +1547,7 @@ export default function ScoutStudio() {
                       { page: CONTEXT_PAGE, title: t("Contexto"), hint: t("Dónde destaca y por qué") },
                       { page: RUNS_PAGE, title: t("Carreras"), hint: t("Mapa sin balón") },
                       { page: RANK_PAGE, title: t("Ranking"), hint: t("Los mejores por puesto") },
+                    { page: POOL_PAGE, title: t("Entre ligas"), hint: t("Buscar parecidos") },
                       ...visualPages.map((page, index) => ({ page, title: tf("Visuales {n}", { n: index + 1 }), hint: t("Mapas, imágenes y texto") })),
                     ]
                   ).map(({ page, title, hint }) => (

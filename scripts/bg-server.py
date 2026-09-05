@@ -179,6 +179,37 @@ def _skillcorner_auth():
     return (user, password) if user and password else None
 
 
+# El caché en memoria se pierde al reiniciar el puente, y armar un fondo de
+# búsqueda son dieciséis descargas seguidas. Las filas ya montadas de una
+# competición se guardan en disco para que la segunda vez sea instantánea.
+_POOL_CACHE_DIR = Path.home() / ".fos-scouting" / "pool-cache"
+_POOL_TTL_SEGUNDOS = 24 * 3600
+
+
+def _pool_cache_leer(clave: str):
+    import json as _json
+    ruta = _POOL_CACHE_DIR / f"{clave}.json"
+    if not ruta.exists():
+        return None
+    try:
+        if _dt.datetime.now().timestamp() - ruta.stat().st_mtime > _POOL_TTL_SEGUNDOS:
+            return None
+        return _json.loads(ruta.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def _pool_cache_escribir(clave: str, filas):
+    import json as _json
+    try:
+        _POOL_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        destino = _POOL_CACHE_DIR / f"{clave}.json"
+        destino.write_text(_json.dumps(filas, ensure_ascii=False), encoding="utf-8")
+        os.chmod(destino, 0o600)
+    except OSError:
+        pass
+
+
 def _cached_get(key: str, url: str, auth, params=None, ttl_seconds: int = 600):
     now = _dt.datetime.now().timestamp()
     hit = _cache.get(key)
@@ -300,6 +331,11 @@ async def statsbomb_player_stats(competition_id: int, season_id: int):
     auth = _statsbomb_auth()
     if not auth:
         return Response('{"error": "sin credenciales"}', status_code=503, media_type="application/json", headers=cors_headers())
+    clave_disco = f"sb-{competition_id}-{season_id}"
+    guardadas = _pool_cache_leer(clave_disco)
+    if guardadas is not None:
+        return Response(_json.dumps({"rows": guardadas, "provider": "statsbomb", "cache": "disco"}),
+                        media_type="application/json", headers=cors_headers())
     url = f"https://data.statsbomb.com/api/v2/competitions/{competition_id}/seasons/{season_id}/player-stats"
     data = _cached_get(f"sb:{competition_id}:{season_id}", url, auth)
     rows = []
@@ -323,6 +359,7 @@ async def statsbomb_player_stats(competition_id: int, season_id: int):
             value = p.get(field)
             row[column] = round(value * factor, 4) if isinstance(value, (int, float)) else ""
         rows.append(row)
+    _pool_cache_escribir(clave_disco, rows)
     return Response(_json.dumps({"rows": rows, "provider": "statsbomb"}), media_type="application/json", headers=cors_headers())
 
 
