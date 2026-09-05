@@ -1,4 +1,4 @@
-import { cohortOf, findColumn, numeric, percentile, type DataRow } from "@/lib/scouting";
+import { cohortOf, findColumn, headersOf, numeric, percentile, type DataRow } from "@/lib/scouting";
 import { playerPassports } from "@/lib/similarity";
 
 /**
@@ -317,7 +317,7 @@ export function rankingPorArquetipo(
   const grupo = grupoDeCohorte(cohorte);
   if (!grupo) return [];
 
-  const headers = [...new Set(rows.flatMap((fila) => Object.keys(fila)))];
+  const headers = headersOf(rows);
   const columnaPosicion = findColumn(headers, ["position", "posicion especifica", "posicion"]);
   const columnaMinutos = findColumn(headers, ["minutes played", "minutes", "minutos jugados", "minutos"]);
   const columnaPasaporte = findColumn(headers, ["passport country", "birth country", "pais de pasaporte", "pais de nacimiento", "nacionalidad"]);
