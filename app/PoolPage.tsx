@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { t, tf } from "@/lib/i18n";
 import { aggregateDatasets, extractSeason, type DataRow, type SourceDataset } from "@/lib/scouting";
-import { buildSimilaritySearch, similarityOptions, type SimilarityFilters } from "@/lib/similarity";
+import { buildSimilaritySearch, playerPassports, similarityOptions, type SimilarityFilters } from "@/lib/similarity";
 import {
   fetchSkillcornerCompetitions,
   fetchSkillcornerDataset,
@@ -81,23 +81,51 @@ function anioDe(temporada: string) {
   return m ? Number(m[0]) : 0;
 }
 
+/**
+ * La edición de SkillCorner que corresponde a una competición de StatsBomb.
+ *
+ * Se emparejan por nombre y temporada, que es lo único que comparten las dos
+ * plataformas: no hay identificador común. El nombre se compara sin acentos
+ * ni mayúsculas, y la temporada tal cual, porque las dos la escriben igual
+ * cuando cubren la misma competición.
+ *
+ * SkillCorner nunca es la base: entra como capa encima, igual que al cargar
+ * una sola liga. Lo que aporta son las métricas de game intelligence y las
+ * físicas, que es justo lo que da de sí el buscador entre ligas.
+ */
+const sinTildes = (valor: string) => valor.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+
+function ediciónHermana(competicion: ApiCompetition, ediciones: ApiCompetition[]) {
+  const nombre = sinTildes(competicion.name ?? "");
+  const temporada = String(competicion.season ?? "");
+  return ediciones.find((e) => sinTildes(e.name ?? "") === nombre && String(e.season ?? "") === temporada) ?? null;
+}
+
 function claveDe(fuente: Fuente, competicion: ApiCompetition) {
   return fuente === "statsbomb"
     ? `sb:${competicion.competition_id}:${competicion.season_id}`
     : `sc:${competicion.id}`;
 }
 
-export function PoolPage({ baseCargada, onSelectPlayer }: {
+export function PoolPage({ baseCargada, onAbrirInforme }: {
   /** La base del informe, para poder buscar parecidos a un jugador propio. */
   baseCargada?: { nombre: string; rows: DataRow[] } | null;
-  onSelectPlayer?: (indice: number) => void;
+  /**
+   * Abrir la ficha de un jugador del fondo. Recibe las bases con las que se
+   * armó, no solo el índice: el fondo es un conjunto distinto del informe, y
+   * usar el índice contra la base cargada abriría a otro jugador. Quien
+   * recibe esto vuelve a combinar las mismas bases, así que el índice vale.
+   */
+  onAbrirInforme?: (bases: SourceDataset[], indice: number) => void;
 }) {
   const [fuente, setFuente] = useState<Fuente>("statsbomb");
   const [competiciones, setCompeticiones] = useState<Record<Fuente, ApiCompetition[]>>({ statsbomb: [], skillcorner: [] });
   const [elegidas, setElegidas] = useState<string[]>([]);
   const [incluirBase, setIncluirBase] = useState(true);
+  const [enlazarSc, setEnlazarSc] = useState(true);
 
   const [fondo, setFondo] = useState<DataRow[] | null>(null);
+  const [basesDelFondo, setBasesDelFondo] = useState<SourceDataset[]>([]);
   const [progreso, setProgreso] = useState("");
   const [cargando, setCargando] = useState(false);
   const [fallos, setFallos] = useState<string[]>([]);
@@ -107,6 +135,8 @@ export function PoolPage({ baseCargada, onSelectPlayer }: {
   const [minutosMin, setMinutosMin] = useState(600);
   const [edadMax, setEdadMax] = useState(0);
   const [posicion, setPosicion] = useState("");
+  const [pasaporte, setPasaporte] = useState("");
+  const [clubesFuera, setClubesFuera] = useState<string[]>([]);
 
   useEffect(() => {
     let montado = true;
@@ -182,6 +212,7 @@ export function PoolPage({ baseCargada, onSelectPlayer }: {
 
     const bases: SourceDataset[] = [];
     const problemas: string[] = [];
+    const enlazadas: string[] = [];
     if (incluirBase && baseCargada?.rows.length) {
       bases.push({
         fileName: baseCargada.nombre,
@@ -201,6 +232,21 @@ export function PoolPage({ baseCargada, onSelectPlayer }: {
           : await fetchSkillcornerDataset(competicion));
       } catch (error) {
         problemas.push(`${competicion.name}: ${error instanceof Error ? error.message : String(error)}`);
+        continue;
+      }
+      // La capa de SkillCorner encima, si esa liga y temporada la tienen.
+      if (fuente === "statsbomb" && enlazarSc) {
+        const hermana = ediciónHermana(competicion, competiciones.skillcorner);
+        if (hermana) {
+          setProgreso(tf("{n} de {total} · {liga} · enlazando SkillCorner", { n: i + 1, total: seleccion.length, liga: competicion.name }));
+          try {
+            bases.push(await fetchSkillcornerDataset(hermana));
+            enlazadas.push(competicion.name);
+          } catch {
+            // Que falle la capa no invalida la base: se sigue sin ella.
+            problemas.push(`${competicion.name} · SkillCorner: ${t("no se pudo enlazar")}`);
+          }
+        }
       }
     }
 
@@ -208,7 +254,12 @@ export function PoolPage({ baseCargada, onSelectPlayer }: {
       if (!bases.length) throw new Error(t("Ninguna competición devolvió jugadores."));
       const combinado = aggregateDatasets(bases);
       setFondo(combinado.rows);
-      setProgreso(tf("{j} jugadores de {n} competiciones.", { j: combinado.rows.length, n: bases.length }));
+      setBasesDelFondo(bases);
+      setClubesFuera([]);
+      setPasaporte("");
+      setProgreso(enlazadas.length
+        ? tf("{j} jugadores de {n} bases · SkillCorner enlazado en {e}", { j: combinado.rows.length, n: bases.length, e: enlazadas.join(", ") })
+        : tf("{j} jugadores de {n} competiciones.", { j: combinado.rows.length, n: bases.length }));
     } catch (error) {
       setProgreso(error instanceof Error ? error.message : String(error));
     } finally {
@@ -218,6 +269,14 @@ export function PoolPage({ baseCargada, onSelectPlayer }: {
   }
 
   const opciones = useMemo(() => (fondo ? similarityOptions(fondo) : null), [fondo]);
+
+  /** Los clubes del fondo, para poder descartar los inalcanzables. */
+  const clubes = useMemo(
+    () => (fondo
+      ? [...new Set(fondo.map((fila) => String(fila.Team ?? "")).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es"))
+      : []),
+    [fondo],
+  );
 
   const candidatosObjetivo = useMemo(() => {
     if (!fondo || !busqueda.trim()) return [];
@@ -231,18 +290,23 @@ export function PoolPage({ baseCargada, onSelectPlayer }: {
   const resultado = useMemo(() => {
     if (!fondo || objetivo < 0) return null;
     const filtros: SimilarityFilters = {
-      query: "", position: posicion, secondaryRole: "", side: "", passport: "",
+      query: "", position: posicion, secondaryRole: "", side: "", passport: pasaporte,
       minimumMinutes: minutosMin,
       ageMin: null, ageMax: edadMax > 0 ? edadMax : null,
     };
     return buildSimilaritySearch(fondo, objetivo, filtros);
-  }, [fondo, objetivo, posicion, minutosMin, edadMax]);
+  }, [fondo, objetivo, posicion, pasaporte, minutosMin, edadMax]);
 
   const nombreObjetivo = objetivo >= 0 && fondo ? String(fondo[objetivo].Player ?? "") : "";
-  const ordenados = useMemo(
-    () => (resultado ? conCobertura(resultado.candidates, resultado.target.metrics.length) : []),
-    [resultado],
-  );
+  const ordenados = useMemo(() => {
+    if (!resultado) return [];
+    // El descarte de clubes va después del motor: es una decisión de mercado
+    // —a este no llegamos— y no debe cambiar los percentiles de nadie.
+    const vivos = clubesFuera.length
+      ? resultado.candidates.filter((c) => !clubesFuera.includes(c.team))
+      : resultado.candidates;
+    return conCobertura(vivos, resultado.target.metrics.length);
+  }, [resultado, clubesFuera]);
 
   return <section className="pool-page">
     <header>
@@ -295,6 +359,11 @@ export function PoolPage({ baseCargada, onSelectPlayer }: {
         })}
       </p>}
 
+      {fuente === "statsbomb" && <label className="pool-incluir">
+        <input type="checkbox" checked={enlazarSc} onChange={(event) => setEnlazarSc(event.target.checked)} />
+        <span>{t("Enlazar SkillCorner encima donde exista esa liga y temporada. Aporta game intelligence y datos físicos; tarda más en cargar.")}</span>
+      </label>}
+
       {baseCargada?.rows.length ? <label className="pool-incluir">
         <input type="checkbox" checked={incluirBase} onChange={(event) => setIncluirBase(event.target.checked)} />
         <span>{tf("Incluir la base cargada ({n} jugadores) para poder buscar parecidos a un jugador propio", { n: baseCargada.rows.length })}</span>
@@ -333,7 +402,40 @@ export function PoolPage({ baseCargada, onSelectPlayer }: {
         <label><span>{t("Edad máxima")}</span>
           <input type="number" min="0" max="45" value={edadMax || ""} placeholder="—" onChange={(event) => setEdadMax(Number(event.target.value))} />
         </label>
+        <label><span>{t("Pasaporte")}</span>
+          <select value={pasaporte} disabled={!opciones?.passports.length} onChange={(event) => setPasaporte(event.target.value)}>
+            {opciones?.passports.length
+              ? <>
+                <option value="">{t("Todos")}</option>
+                {opciones.passports.map((x) => <option key={x} value={x}>{x}</option>)}
+              </>
+              : <option value="">{t("La base no trae nacionalidad")}</option>}
+          </select>
+        </label>
+        <label><span>{t("Descartar club")}</span>
+          <select
+            value=""
+            onChange={(event) => {
+              const club = event.target.value;
+              if (club) setClubesFuera((actuales) => (actuales.includes(club) ? actuales : [...actuales, club]));
+              event.target.value = "";
+            }}
+          >
+            <option value="">{t("+ Elegir club")}</option>
+            {clubes.filter((x) => !clubesFuera.includes(x)).map((x) => <option key={x} value={x}>{x}</option>)}
+          </select>
+        </label>
       </div>
+
+      {clubesFuera.length > 0 && <div className="pool-descartados">
+        <span>{t("Fuera del alcance")}</span>
+        {clubesFuera.map((club) => (
+          <button key={club} type="button" title={tf("Volver a considerar a {club}", { club })}
+            onClick={() => setClubesFuera((actuales) => actuales.filter((x) => x !== club))}>
+            {club} <i>×</i>
+          </button>
+        ))}
+      </div>}
     </div>}
 
     {/* ---- 3. Resultado ---- */}
@@ -348,8 +450,9 @@ export function PoolPage({ baseCargada, onSelectPlayer }: {
         <tbody>
           {ordenados.slice(0, 40).map((candidato, posicionEnLista) => (
             <tr key={`${candidato.name}-${candidato.team}-${posicionEnLista}`}
-              className={onSelectPlayer ? "clicable" : ""}
-              onClick={() => onSelectPlayer?.(candidato.index)}>
+              className={onAbrirInforme ? "clicable" : ""}
+              title={onAbrirInforme ? t("Abrir su ficha") : undefined}
+              onClick={() => onAbrirInforme?.(basesDelFondo, candidato.index)}>
               <td>{posicionEnLista + 1}</td>
               <td className="pool-name">{candidato.name}</td>
               <td>{candidato.team}</td>

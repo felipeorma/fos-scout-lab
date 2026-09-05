@@ -1279,4 +1279,11 @@ const EN: Record<string, string> = {
   "Elegir…": "Choose…",
   "Quitar del fondo": "Remove from the pool",
   "Lo elegido abarca {anios}. Un jugador comparado consigo mismo entre dos años no dice lo que parece: el que creció sale parecido a su versión anterior. Úsalo a sabiendas.": "Your selection spans {anios}. A player compared with themselves across two years does not mean what it looks like: someone who improved comes out similar to their earlier self. Use it knowingly.",
+  "Abrir su ficha": "Open their report",
+  "Descartar club": "Rule out club",
+  "Fuera del alcance": "Out of reach",
+  "no se pudo enlazar": "could not be linked",
+  "{n} de {total} · {liga} · enlazando SkillCorner": "{n} of {total} · {liga} · linking SkillCorner",
+  "{j} jugadores de {n} bases · SkillCorner enlazado en {e}": "{j} players from {n} sources · SkillCorner linked on {e}",
+  "Enlazar SkillCorner encima donde exista esa liga y temporada. Aporta game intelligence y datos físicos; tarda más en cargar.": "Link SkillCorner on top wherever that league and season exist. It adds game intelligence and physical data; it takes longer to load.",
 };

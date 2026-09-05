@@ -747,7 +747,13 @@ export default function ScoutStudio() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile, profileReady, report?.player, report?.team]);
 
-  function applyDatasets(datasets: SourceDataset[]) {
+  /**
+   * `seleccion` fuerza qué jugador queda abierto. Sin ella, encadenar
+   * applyDatasets con selectPlayer no funciona: selectPlayer lee `reportRows`
+   * de su clausura, que todavía tiene la base anterior, y acaba tomando el
+   * club y el perfil del jugador equivocado.
+   */
+  function applyDatasets(datasets: SourceDataset[], seleccion?: number) {
     const result = aggregateDatasets(datasets);
     // Toda base sin datos físicos dispara la oferta de enlace con SkillCorner;
     // corre en segundo plano y no bloquea la carga del reporte.
@@ -762,7 +768,9 @@ export default function ScoutStudio() {
     setAnalysisLabel(datasets.length > 1 ? "BASES ANALIZADAS" : "BASE ANALIZADA");
     setAnalysisSourceTitle(displayName);
     if (datasets.length > 1) setCombinedBaseName(displayName);
-    const initialSelection = firstPlayerSelection(result.rows);
+    const initialSelection = seleccion !== undefined && result.rows[seleccion]
+      ? { index: seleccion, team: String(result.rows[seleccion].Team ?? "") }
+      : firstPlayerSelection(result.rows);
     setSelectedTeam(initialSelection.team);
     setSelectedPlayer(initialSelection.index);
     const restored = restoreProfile(buildPlayerReport(result.rows, initialSelection.index, minimumMinutes, cohort));
@@ -1500,6 +1508,13 @@ export default function ScoutStudio() {
               {(printRun ? printRun.includes(POOL_PAGE) : reportPage === POOL_PAGE) && (
                 <div className="legal-page-shell"><PoolPage
                   baseCargada={reportRows.length ? { nombre: reportFileName, rows: reportRows } : null}
+                  onAbrirInforme={(bases, indice) => {
+                    // El fondo pasa a ser la base del informe: es la única forma
+                    // de que la ficha del jugador tenga sus percentiles contra
+                    // los mismos rivales con los que se le encontró.
+                    applyDatasets(bases, indice);
+                    setReportPage(CARD_PAGE);
+                  }}
                 /></div>
               )}
               {boardPreviewOpen && (
