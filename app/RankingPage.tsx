@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { buildPlayerReport, type DataRow } from "@/lib/scouting";
 import { t, tf } from "@/lib/i18n";
 import { rankingPorArquetipo } from "@/lib/arquetipos";
+import { playerPassports } from "@/lib/similarity";
 
 /**
  * Ranking de la base por posición.
@@ -39,6 +40,9 @@ type Fila = {
   minutos: number;
   puntuacion: number;
   destacadas: Array<{ label: string; percentile: number }>;
+  /** Todos sus pasaportes, no solo el primero: un canadiense con doble
+   *  nacionalidad tiene que aparecer al filtrar por Canadá. */
+  pasaportes: string[];
 };
 
 function numero(value: unknown) {
@@ -55,6 +59,7 @@ export function RankingPage({ rows, minimumMinutes, onSelectPlayer }: {
   const [minutosMin, setMinutosMin] = useState(minimumMinutes);
   const [edadMax, setEdadMax] = useState(0);
   const [equipo, setEquipo] = useState("TODOS");
+  const [pasaporte, setPasaporte] = useState("TODOS");
   const [vista, setVista] = useState<"indice" | "arquetipos">("indice");
 
   // El informe completo es caro: se calcula una vez por perfil y minutos, y
@@ -80,6 +85,7 @@ export function RankingPage({ rows, minimumMinutes, onSelectPlayer }: {
           .filter((metrica) => metrica.percentile >= 85)
           .sort((a, b) => b.percentile - a.percentile)
           .slice(0, 3),
+        pasaportes: playerPassports(informe.passport),
       });
     }
     return salida.sort((a, b) => b.puntuacion - a.puntuacion);
@@ -90,10 +96,19 @@ export function RankingPage({ rows, minimumMinutes, onSelectPlayer }: {
     [todos],
   );
 
+  // La lista sale de los jugadores de esta posición, no de la base entera:
+  // ofrecer pasaportes que no tiene ningún central al mirar centrales sobra.
+  const pasaportes = useMemo(
+    () => [...new Set(todos.flatMap((fila) => fila.pasaportes).filter((x) => x && x !== "—"))]
+      .sort((a, b) => a.localeCompare(b, "es")),
+    [todos],
+  );
+
   const visibles = useMemo(() => todos.filter((fila) => (
     (equipo === "TODOS" || fila.equipo === equipo)
+    && (pasaporte === "TODOS" || fila.pasaportes.includes(pasaporte))
     && (edadMax <= 0 || (Number.isFinite(fila.edad) && fila.edad <= edadMax))
-  )), [todos, equipo, edadMax]);
+  )), [todos, equipo, pasaporte, edadMax]);
 
   const arquetipos = useMemo(
     () => (vista === "arquetipos" ? rankingPorArquetipo(rows, perfil, minutosMin) : []),
@@ -122,6 +137,12 @@ export function RankingPage({ rows, minimumMinutes, onSelectPlayer }: {
         <select value={equipo} onChange={(event) => setEquipo(event.target.value)}>
           <option value="TODOS">{t("Todos")}</option>
           {equipos.map((nombre) => <option key={nombre} value={nombre}>{nombre}</option>)}
+        </select>
+      </label>
+      <label><span>{t("Pasaporte")}</span>
+        <select value={pasaporte} onChange={(event) => setPasaporte(event.target.value)}>
+          <option value="TODOS">{t("Todos")}</option>
+          {pasaportes.map((nombre) => <option key={nombre} value={nombre}>{nombre}</option>)}
         </select>
       </label>
       <label><span>{t("Mín. minutos")}</span>
@@ -172,6 +193,7 @@ export function RankingPage({ rows, minimumMinutes, onSelectPlayer }: {
             {ranking.jugadores
               .filter((jugador) => (
                 (equipo === "TODOS" || jugador.equipo === equipo)
+                && (pasaporte === "TODOS" || jugador.pasaportes.includes(pasaporte))
                 && (edadMax <= 0 || (Number.isFinite(jugador.edad) && jugador.edad <= edadMax))
               ))
               .slice(0, 10)

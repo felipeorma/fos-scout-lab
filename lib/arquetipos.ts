@@ -1,4 +1,5 @@
 import { cohortOf, findColumn, numeric, percentile, type DataRow } from "@/lib/scouting";
+import { playerPassports } from "@/lib/similarity";
 
 /**
  * Arquetipos por posición, al modo de la serie "Smarter Scouting · Profiling
@@ -279,6 +280,8 @@ export type JugadorArquetipo = {
   nombre: string;
   equipo: string;
   edad: number;
+  /** Todos sus pasaportes: un doble nacional cuenta por los dos. */
+  pasaportes: string[];
   /** Percentil medio ponderado en las métricas del arquetipo. */
   ajuste: number;
   /** Percentil por métrica, para explicar de dónde sale el ajuste. */
@@ -317,6 +320,7 @@ export function rankingPorArquetipo(
   const headers = [...new Set(rows.flatMap((fila) => Object.keys(fila)))];
   const columnaPosicion = findColumn(headers, ["position", "posicion especifica", "posicion"]);
   const columnaMinutos = findColumn(headers, ["minutes played", "minutes", "minutos jugados", "minutos"]);
+  const columnaPasaporte = findColumn(headers, ["passport country", "birth country", "pais de pasaporte", "pais de nacimiento", "nacionalidad"]);
 
   // El grupo de referencia son los jugadores de la misma posición que pasan
   // el mínimo de minutos: los mismos pares que usa el radar.
@@ -374,6 +378,7 @@ export function rankingPorArquetipo(
         nombre: String(fila.Player ?? ""),
         equipo: String(fila.Team ?? ""),
         edad: numeric(fila.Age),
+        pasaportes: playerPassports(columnaPasaporte ? fila[columnaPasaporte] : ""),
         ajuste: Math.round(suma / pesos),
         detalle: detalle.sort((a, b) => b.percentil - a.percentil),
       });
