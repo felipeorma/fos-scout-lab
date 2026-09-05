@@ -676,7 +676,31 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
     // identidad: nombre, club, posición y edad salen de Wyscout/StatsBomb
     // (su club puede estar desactualizado — "York United" por "Inter Toronto").
     const identitySorted = sorted.filter((entry) => entry.provider !== "skillcorner");
-    const latest = (identitySorted.length ? identitySorted : sorted).at(-1)!;
+    const candidatosIdentidad = identitySorted.length ? identitySorted : sorted;
+    /**
+     * De qué registro sale la identidad —club y posición— cuando el jugador
+     * aparece en varias bases.
+     *
+     * Manda la temporada más reciente, porque un traspaso debe mostrar el
+     * club nuevo aunque allí haya jugado menos. Dentro de una misma
+     * temporada manda donde más jugó: un juvenil sale a la vez en el primer
+     * equipo y en el filial, y sin ese desempate ganaba el que se hubiera
+     * cargado antes. Gallatin Sandnes salía como "Seattle Sounders" o como
+     * "Tacoma Defiance" según el orden, cuando jugó 34 minutos en el primero
+     * y 2.016 en el segundo; leído como jugador de la MLS parece otro
+     * jugador. Lo mismo con la posición: la principal es la del sitio donde
+     * de verdad juega, no la del archivo que entró primero.
+     *
+     * El último desempate es el nombre del club, que no depende del orden de
+     * carga. Así dos scouts con los mismos archivos ven lo mismo.
+     */
+    const minutosDe = (fila: DataRow) => numeric(fila[core.minutes]) || 0;
+    const identidadOrdenada = [...candidatosIdentidad].sort((a, b) => (
+      (seasonOrder(b.season) - seasonOrder(a.season))
+      || (minutosDe(b.row) - minutosDe(a.row))
+      || normalizeIdentityText(rowTeam(a.row)).localeCompare(normalizeIdentityText(rowTeam(b.row)))
+    ));
+    const latest = identidadOrdenada[0];
     const seasons = uniqueText(sorted.map(({ season }) => season || ""));
     const output: DataRow = {
       Player: latest.player,
@@ -689,7 +713,7 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
     if (seasons) output.Seasons = seasons;
 
     if (teamColumn) output.Team = rowTeam(latest.row);
-    if (positionColumn) output.Position = mergePlayerPositions([...(identitySorted.length ? identitySorted : sorted)].reverse().map(({ row }) => row[positionColumn]));
+    if (positionColumn) output.Position = mergePlayerPositions(identidadOrdenada.map(({ row }) => row[positionColumn]));
     if (passportColumn) output["Passport country"] = uniqueText(sorted.map(({ row }) => row[passportColumn]));
     if (currentTeamColumn) output["Current Team"] = latest.row[currentTeamColumn] ?? "";
     if (contractColumn) output["Contract expires"] = latest.row[contractColumn] ?? "";
