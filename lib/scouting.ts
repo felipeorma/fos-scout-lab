@@ -1122,6 +1122,57 @@ export function defaultMetricLabels(cohort: string): string[] {
   return (METRICS[cohort] ?? METRICS.OTHER).map((definition) => definition.label);
 }
 
+
+/**
+ * La misma destreza medida por dos plataformas.
+ *
+ * Al enlazar StatsBomb sobre una base de Wyscout —el flujo habitual— entraban
+ * al radar las dos versiones de lo mismo: "Goles /90" y "Goles /90 (SB)", o
+ * "Duelos aéreos ganados, %" y "Aéreos ganados % (SB)". No es solo ruido
+ * visual: el índice es la media de los percentiles, así que esa destreza
+ * pasaba a pesar el doble que cualquier otra. Un delantero bueno de cabeza
+ * subía por partida doble.
+ *
+ * Solo se emparejan las que miden lo mismo Y de la misma forma. Una tasa y un
+ * volumen de la misma acción son métricas distintas: "Regates exitosos, %"
+ * (cuántos completa de los que intenta) y "Regates exitosos (SB)" (cuántos
+ * hace) responden a preguntas diferentes y las dos merecen su sitio.
+ *
+ * Cuando el jugador tiene dato en las dos, se queda la primera del conjunto
+ * de su perfil. Si la base es de StatsBomb, la columna de Wyscout no existe y
+ * se queda la suya sin más: no hace falta saber de qué plataforma viene nada.
+ *
+ * Una elección manual de métricas manda sobre esto: si el scout pide las dos
+ * a propósito, las dos salen.
+ */
+const METRICAS_EQUIVALENTES: string[][] = [
+  ["Goles /90", "Goles /90 (SB)"],
+  ["xG /90", "xG (SB)"],
+  ["Intercepciones /90", "Intercepciones (SB)"],
+  ["Toques en el área /90", "Toques en el área (SB)"],
+  ["Duelos aéreos ganados, %", "Aéreos ganados % (SB)"],
+  ["Pases precisos, %", "Precisión de pase % (SB)"],
+  ["Pases largos precisos, %", "Precisión balón largo % (SB)"],
+  ["Porcentaje de atajadas, %", "Atajadas % (SB)"],
+];
+
+/** Etiqueta → familia, para descartar en una pasada. */
+const FAMILIA_DE_METRICA = new Map<string, number>(
+  METRICAS_EQUIVALENTES.flatMap((grupo, indice) => grupo.map((label) => [label, indice] as const)),
+);
+
+/** Deja una sola métrica por destreza, conservando el orden del perfil. */
+function sinDuplicadosDeDestreza<T extends { label: string }>(metricas: T[]): T[] {
+  const familiasVistas = new Set<number>();
+  return metricas.filter((metrica) => {
+    const familia = FAMILIA_DE_METRICA.get(metrica.label);
+    if (familia === undefined) return true;
+    if (familiasVistas.has(familia)) return false;
+    familiasVistas.add(familia);
+    return true;
+  });
+}
+
 export function buildPlayerReport(rows: DataRow[], selectedIndex: number, minimumMinutes: number, forcedCohort = "AUTO", selectedMetricLabels?: string[] | null): PlayerReport | null {
   const row = rows[selectedIndex];
   if (!row) return null;
@@ -1157,17 +1208,22 @@ export function buildPlayerReport(rows: DataRow[], selectedIndex: number, minimu
     if (!peerValues.length) return [];
     return [{ key, label: definition.label, value, percentile: percentile(value, peerValues, definition.inverse), group: definition.group, colorGroup: definition.colorGroup, inverse: definition.inverse, source: definition.source ?? "wyscout", sample: peerValues.length }];
   });
+  // Una destreza, una métrica: con dos plataformas enlazadas entraban las dos
+  // versiones y esa destreza pesaba el doble en el índice. La elección manual
+  // del scout manda: si pidió las dos, salen las dos.
+  const metricsUnicas = selectedMetricLabels?.length ? metrics : sinDuplicadosDeDestreza(metrics);
+
   // El radar se lee por bloques: las métricas salen agrupadas por categoría
   // (finalización → creación → pase → defensa → portero → físico) para que
   // cada color forme un solo arco continuo en vez de repartirse por todo el
   // círculo. Dentro de cada categoría se respeta el orden de la definición.
   const groupRank = new Map(SIMILARITY_METRIC_GROUPS.map((group, index) => [group.id, index] as const));
-  metrics.sort((a, b) => {
+  metricsUnicas.sort((a, b) => {
     const rankA = groupRank.get(similarityMetricGroup(a, cohort).id) ?? SIMILARITY_METRIC_GROUPS.length;
     const rankB = groupRank.get(similarityMetricGroup(b, cohort).id) ?? SIMILARITY_METRIC_GROUPS.length;
     return rankA - rankB;
   });
-  const score = metrics.length ? Math.round(average(metrics.map((metric) => metric.percentile))) : 0;
+  const score = metricsUnicas.length ? Math.round(average(metricsUnicas.map((metric) => metric.percentile))) : 0;
   const text = (aliases: string[]) => String(field(row, headers, aliases) ?? "").trim();
   const value = (aliases: string[]) => numeric(field(row, headers, aliases));
   return {
@@ -1186,8 +1242,8 @@ export function buildPlayerReport(rows: DataRow[], selectedIndex: number, minimu
     assists: value(["assists", "asistencias"]) || 0,
     cohortSize: peers.length,
     score,
-    metrics,
-    reading: roleReading(cohort, metrics),
+    metrics: metricsUnicas,
+    reading: roleReading(cohort, metricsUnicas),
   };
 }
 
