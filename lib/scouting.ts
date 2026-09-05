@@ -519,12 +519,53 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
     if (!agesA.length || !agesB.length) return true;
     return agesA.some((x) => agesB.some((y) => Math.abs(x - y) <= 1));
   };
+  /**
+   * Índice por apellido, para no comparar cada grupo contra todos.
+   *
+   * El bucle de abajo era cuadrático y con trabajo caro dentro: retokenizaba
+   * los dos nombres en cada comparación. Con nueve ligas juntas —4.343
+   * jugadores— tardaba cincuenta segundos, y el crecimiento era el esperado
+   * de un n²: 644 filas en un segundo, 2.351 en catorce.
+   *
+   * La poda es exacta, no una heurística: compatible() empieza exigiendo que
+   * el apellido coincida, o que difiera en una letra si tiene seis o más. Así
+   * que un par que no comparta apellido —ni un apellido a una letra— nunca
+   * habría pasado igualmente. Para cubrir la errata se indexa también por las
+   * variantes del apellido con una letra menos: dos textos a distancia uno
+   * comparten al menos una de esas variantes.
+   */
+  const tokensPorGrupo = mergedGroups.map((group) => nameTokens(group[0].player));
+  const clavesDeApellido = (apellido: string) => {
+    if (!apellido) return [];
+    const claves = [apellido];
+    // Solo los largos admiten errata, igual que en compatible().
+    if (apellido.length >= 6) {
+      for (let i = 0; i < apellido.length; i += 1) claves.push(apellido.slice(0, i) + apellido.slice(i + 1));
+    }
+    return claves;
+  };
+  const porApellido = new Map<string, number[]>();
+  mergedGroups.forEach((_, indice) => {
+    const tokens = tokensPorGrupo[indice];
+    const apellido = tokens[tokens.length - 1] ?? "";
+    for (const clave of clavesDeApellido(apellido)) {
+      porApellido.set(clave, [...(porApellido.get(clave) ?? []), indice]);
+    }
+  });
+  const absorbidos = new Set<number>();
+
   for (let shortIndex = mergedGroups.length - 1; shortIndex >= 0; shortIndex -= 1) {
+    if (absorbidos.has(shortIndex)) continue;
     const group = mergedGroups[shortIndex];
-    const tokensGrupo = nameTokens(group[0].player);
+    const tokensGrupo = tokensPorGrupo[shortIndex];
     const recortable = isAbbreviated(group[0].player) || tokensGrupo.length >= 2;
     if (!recortable) continue;
-    const candidates = mergedGroups.filter((other) => {
+    const apellidoGrupo = tokensGrupo[tokensGrupo.length - 1] ?? "";
+    const posibles = new Set<number>();
+    for (const clave of clavesDeApellido(apellidoGrupo)) {
+      for (const indice of porApellido.get(clave) ?? []) if (indice !== shortIndex) posibles.add(indice);
+    }
+    const candidates = [...posibles].filter((indice) => !absorbidos.has(indice)).map((indice) => mergedGroups[indice]).filter((other) => {
       if (other === group) return false;
       // Nombre idéntico: son la misma persona aunque una plataforma no traiga
       // la edad y la clave nombre+edad+club los haya separado. Pasa en masa
@@ -545,8 +586,15 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
     });
     if (candidates.length === 1) {
       candidates[0].push(...group);
-      mergedGroups.splice(shortIndex, 1);
+      // Marcar en vez de sacar del array: el índice por apellido apunta a
+      // posiciones, y quitar una los correría todos.
+      absorbidos.add(shortIndex);
     }
+  }
+  if (absorbidos.size) {
+    const vivos = mergedGroups.filter((_, indice) => !absorbidos.has(indice));
+    mergedGroups.length = 0;
+    mergedGroups.push(...vivos);
   }
 
   // Fusión por fecha de nacimiento: "Ballou Tabla" (SkillCorner) y "Ballou
@@ -1094,7 +1142,7 @@ function roleReading(cohort: string, metrics: RadarMetric[]) {
 export type CatalogueMetric = MetricDefinition & { key: string };
 
 export function metricCatalogue(rows: DataRow[], cohort = "OTHER"): CatalogueMetric[] {
-  const headers = [...new Set(rows.flatMap((row) => Object.keys(row)))];
+  const headers = headersOf(rows);
   const seen = new Set<string>();
   const catalogue: CatalogueMetric[] = [];
   // Una misma etiqueta puede estar definida en varios perfiles con distinto
@@ -1173,10 +1221,32 @@ function sinDuplicadosDeDestreza<T extends { label: string }>(metricas: T[]): T[
   });
 }
 
+/**
+ * Las cabeceras de una base, recordadas por base.
+ *
+ * Recorrer todas las filas para juntar sus claves cuesta poco una vez y una
+ * fortuna cuatro mil veces: era el 65% del tiempo de construir un informe, y
+ * la pestaña de rankings construye uno por jugador. Sobre 4.343 filas, esa
+ * sola pasada convertía treinta segundos en diez.
+ *
+ * La memoria se guarda contra el propio array —no contra una copia— y se
+ * invalida si cambia de longitud, que es como crece una base aquí: siempre
+ * se reconstruye entera, nunca se le empujan filas sueltas.
+ */
+const _cabecerasPorBase = new WeakMap<object, { largo: number; cabeceras: string[] }>();
+
+export function headersOf(rows: DataRow[]): string[] {
+  const recordado = _cabecerasPorBase.get(rows);
+  if (recordado && recordado.largo === rows.length) return recordado.cabeceras;
+  const cabeceras = [...new Set(rows.flatMap((row) => Object.keys(row)))];
+  _cabecerasPorBase.set(rows, { largo: rows.length, cabeceras });
+  return cabeceras;
+}
+
 export function buildPlayerReport(rows: DataRow[], selectedIndex: number, minimumMinutes: number, forcedCohort = "AUTO", selectedMetricLabels?: string[] | null): PlayerReport | null {
   const row = rows[selectedIndex];
   if (!row) return null;
-  const headers = [...new Set(rows.flatMap((item) => Object.keys(item)))];
+  const headers = headersOf(rows);
   const core = detectCoreColumns(headers);
   const positionColumn = findColumn(headers, POSITION_ALIASES);
   const sourceCohort = cohortOf(positionColumn ? row[positionColumn] : "");

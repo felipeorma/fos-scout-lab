@@ -4,6 +4,7 @@ import {
   peerCohort,
   detectCoreColumns,
   findColumn,
+  headersOf,
   numeric,
   type DataRow,
   type PlayerReport,
@@ -149,7 +150,7 @@ export function playerPassports(value: unknown) {
 }
 
 export function similarityOptions(rows: DataRow[]): SimilarityOptions {
-  const headers = [...new Set(rows.flatMap((row) => Object.keys(row)))];
+  const headers = headersOf(rows);
   const positionColumn = findColumn(headers, POSITION_ALIASES);
   const passportColumn = findColumn(headers, PASSPORT_ALIASES);
   return {
@@ -167,7 +168,7 @@ export function similarityOptions(rows: DataRow[]): SimilarityOptions {
  * roles que aparecen en posiciones no principales de esos jugadores.
  */
 export function secondaryRoleOptions(rows: DataRow[], primaryRole: string): string[] {
-  const headers = [...new Set(rows.flatMap((row) => Object.keys(row)))];
+  const headers = headersOf(rows);
   const positionColumn = findColumn(headers, POSITION_ALIASES);
   const available = new Set<string>();
   for (const row of rows) {
@@ -202,7 +203,7 @@ export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filt
   const targetRow = rows[targetIndex];
   if (!target || !targetRow || !target.metrics.length) return null;
 
-  const headers = [...new Set(rows.flatMap((row) => Object.keys(row)))];
+  const headers = headersOf(rows);
   const core = detectCoreColumns(headers);
   const playerColumn = core.player || findColumn(headers, PLAYER_ALIASES);
   const teamColumn = findColumn(headers, TEAM_ALIASES);
