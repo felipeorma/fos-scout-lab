@@ -2497,3 +2497,10 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
 .pool-cobertura.baja { color: #d79280; }
 .pool-aviso { margin: 12px 0 0; padding: 9px 11px; border: 1px solid rgba(215,146,128,.28); border-radius: 7px; background: rgba(215,146,128,.07); color: #e0b3a5; font-size: 9px; line-height: 1.5; }
 @media print { .pool-setup, .pool-buscar { display: none !important; } .pool-page { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
+
+/* Aviso de muestra pequeña: el número sigue ahí, pero dice lo que vale. */
+.rank-muestra { margin: 0 0 12px; padding: 9px 11px; border: 1px solid rgba(231,180,90,.28); border-radius: 7px; background: rgba(231,180,90,.07); color: #e0c48a; font-size: 9px; line-height: 1.55; }
+.rank-muestra.grave { border-color: rgba(215,146,128,.34); background: rgba(215,146,128,.08); color: #e0b3a5; }
+.rank-filters select:disabled { opacity: .55; cursor: not-allowed; }
+.pool-ligas button > i { font-style: normal; opacity: .7; }
+.pool-aviso-anios { margin: 11px 0 0; padding: 9px 11px; border: 1px solid rgba(231,180,90,.3); border-radius: 7px; background: rgba(231,180,90,.07); color: #e0c48a; font-size: 9px; line-height: 1.55; }

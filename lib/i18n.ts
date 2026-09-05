@@ -1272,4 +1272,11 @@ const EN: Record<string, string> = {
   "Se parecen a {jugador}": "Similar to {jugador}",
   "Entre ligas": "Cross-league",
   "Buscar parecidos": "Find similar players",
+  "La base no trae nacionalidad": "This database has no nationality",
+  "Solo {n} jugadores de esta posición pasan el filtro de minutos. Los percentiles no dicen nada con una muestra así: el índice ordena, pero no mide. Baja el mínimo de minutos o carga más ligas.": "Only {n} players in this position pass the minutes filter. Percentiles say nothing with a sample that small: the index ranks, but it does not measure. Lower the minutes threshold or load more leagues.",
+  "{n} jugadores en esta posición. Con menos de diez, cada uno queda a diez puntos de percentil del siguiente por aritmética, no por rendimiento: sirve para ordenar, no para comparar con otra base.": "{n} players in this position. With fewer than ten, each sits ten percentile points from the next by arithmetic rather than by performance: useful for ranking, not for comparing against another database.",
+  "Añadir liga y año": "Add league and year",
+  "Elegir…": "Choose…",
+  "Quitar del fondo": "Remove from the pool",
+  "Lo elegido abarca {anios}. Un jugador comparado consigo mismo entre dos años no dice lo que parece: el que creció sale parecido a su versión anterior. Úsalo a sabiendas.": "Your selection spans {anios}. A player compared with themselves across two years does not mean what it looks like: someone who improved comes out similar to their earlier self. Use it knowingly.",
 };

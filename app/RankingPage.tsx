@@ -45,6 +45,21 @@ type Fila = {
   pasaportes: string[];
 };
 
+/**
+ * Cuántos pares hacen falta para que un percentil signifique algo.
+ *
+ * Con diez jugadores en la posición, cada uno queda a diez puntos de
+ * percentil del siguiente por pura aritmética: el número separa por el
+ * tamaño de la muestra, no por el rendimiento. Por debajo de cinco deja de
+ * informar del todo — un percentil 25 con cuatro jugadores solo dice "es el
+ * penúltimo".
+ *
+ * No se ocultan los números: en una liga chica a veces son lo único que hay,
+ * y esconderlos rompería un flujo real. Se avisa de lo que valen.
+ */
+const COHORTE_FIABLE = 10;
+const COHORTE_MINIMA = 5;
+
 function numero(value: unknown) {
   const parsed = typeof value === "number" ? value : Number(String(value ?? "").replace(",", "."));
   return Number.isFinite(parsed) ? parsed : Number.NaN;
@@ -140,9 +155,13 @@ export function RankingPage({ rows, minimumMinutes, onSelectPlayer }: {
         </select>
       </label>
       <label><span>{t("Pasaporte")}</span>
-        <select value={pasaporte} onChange={(event) => setPasaporte(event.target.value)}>
-          <option value="TODOS">{t("Todos")}</option>
-          {pasaportes.map((nombre) => <option key={nombre} value={nombre}>{nombre}</option>)}
+        <select value={pasaporte} disabled={!pasaportes.length} onChange={(event) => setPasaporte(event.target.value)}>
+          {pasaportes.length
+            ? <>
+              <option value="TODOS">{t("Todos")}</option>
+              {pasaportes.map((nombre) => <option key={nombre} value={nombre}>{nombre}</option>)}
+            </>
+            : <option value="TODOS">{t("La base no trae nacionalidad")}</option>}
         </select>
       </label>
       <label><span>{t("Mín. minutos")}</span>
@@ -156,6 +175,14 @@ export function RankingPage({ rows, minimumMinutes, onSelectPlayer }: {
         <button type="button" className={vista === "arquetipos" ? "on" : ""} onClick={() => setVista("arquetipos")}>{t("Por arquetipo")}</button>
       </div>
     </div>
+
+    {todos.length > 0 && todos.length < COHORTE_FIABLE && (
+      <p className={todos.length < COHORTE_MINIMA ? "rank-muestra grave" : "rank-muestra"}>
+        {todos.length < COHORTE_MINIMA
+          ? tf("Solo {n} jugadores de esta posición pasan el filtro de minutos. Los percentiles no dicen nada con una muestra así: el índice ordena, pero no mide. Baja el mínimo de minutos o carga más ligas.", { n: todos.length })
+          : tf("{n} jugadores en esta posición. Con menos de diez, cada uno queda a diez puntos de percentil del siguiente por aritmética, no por rendimiento: sirve para ordenar, no para comparar con otra base.", { n: todos.length })}
+      </p>
+    )}
 
     {!visibles.length && <p className="rank-empty">
       {t("Ningún jugador de esa posición pasa los filtros. Baja el mínimo de minutos o quita el tope de edad.")}

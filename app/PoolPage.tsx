@@ -21,9 +21,11 @@ import {
  *
  * Dos cuidados que no son cosméticos:
  *
- * - **Una sola temporada.** Comparar un 2024 con un 2026 mezcla al jugador con
- *   su propia evolución, así que la temporada se elige primero y solo entran
- *   las competiciones que la tienen.
+ * - **Años comparables.** Comparar un 2024 con un 2026 mezcla al jugador con
+ *   su propia evolución. No se prohíbe —a veces es lo que hay— pero se avisa
+ *   en cuanto lo elegido abarca más de un año. Ojo: "2026" y "2026/2027" son
+ *   el mismo año de arranque, así que una liga de año calendario y una de año
+ *   cruzado sí se pueden juntar.
  * - **Cobertura desigual.** No todas las ligas traen las mismas métricas: unas
  *   tienen game intelligence de SkillCorner y otras no. El motor descarta por
  *   candidato las métricas que le faltan, y aquí se muestra el porcentaje de
@@ -68,10 +70,15 @@ function conCobertura<T extends { similarity: number; coverage: number }>(candid
 
 type Fuente = "statsbomb" | "skillcorner";
 
-/** La temporada tal como la nombra cada plataforma ("2026", "2025/2026"). */
-function temporadasDe(competiciones: ApiCompetition[]) {
-  return [...new Set(competiciones.map((c) => String(c.season ?? "")).filter(Boolean))]
-    .sort((a, b) => b.localeCompare(a, "en", { numeric: true }));
+/**
+ * El año de arranque de una temporada: 2026 tanto en "2026" como en
+ * "2026/2027". Las ligas de año calendario y las de año cruzado nombran
+ * distinto el mismo periodo, y antes eso las dejaba en grupos incompatibles:
+ * no había forma de poner la MLS junto a la Ligue 3 aunque se solapen.
+ */
+function anioDe(temporada: string) {
+  const m = String(temporada).match(/\d{4}/);
+  return m ? Number(m[0]) : 0;
 }
 
 function claveDe(fuente: Fuente, competicion: ApiCompetition) {
@@ -87,7 +94,6 @@ export function PoolPage({ baseCargada, onSelectPlayer }: {
 }) {
   const [fuente, setFuente] = useState<Fuente>("statsbomb");
   const [competiciones, setCompeticiones] = useState<Record<Fuente, ApiCompetition[]>>({ statsbomb: [], skillcorner: [] });
-  const [temporada, setTemporada] = useState("");
   const [elegidas, setElegidas] = useState<string[]>([]);
   const [incluirBase, setIncluirBase] = useState(true);
 
@@ -116,37 +122,58 @@ export function PoolPage({ baseCargada, onSelectPlayer }: {
   }, []);
 
   const disponibles = competiciones[fuente];
-  const temporadas = useMemo(() => temporadasDe(disponibles), [disponibles]);
 
-  // Al cambiar de plataforma o temporada, la selección anterior deja de valer.
-  // Se abre en la temporada del año en curso, no en la primera del listado:
-  // esa es la siguiente, que aún no se ha jugado y daría un fondo vacío.
+  /** Agrupadas por liga, con la temporada más reciente primero dentro de cada una. */
+  const porLiga = useMemo(() => {
+    const grupos = new Map<string, ApiCompetition[]>();
+    for (const c of disponibles) {
+      const nombre = c.country ? `${c.name} · ${c.country}` : c.name;
+      grupos.set(nombre, [...(grupos.get(nombre) ?? []), c]);
+    }
+    return [...grupos.entries()]
+      .map(([nombre, cs]) => ({
+        nombre,
+        entradas: [...cs].sort((a, b) => String(b.season).localeCompare(String(a.season), "en", { numeric: true })),
+      }))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+  }, [disponibles]);
+
+  const porClave = useMemo(() => {
+    const mapa = new Map<string, ApiCompetition>();
+    for (const c of disponibles) mapa.set(claveDe(fuente, c), c);
+    return mapa;
+  }, [disponibles, fuente]);
+
+  // Al cambiar de plataforma la selección anterior deja de valer.
   useEffect(() => {
-    if (!temporadas.length) return;
-    const anio = String(new Date().getFullYear());
-    const enCurso = temporadas.find((x) => x.includes(anio)) ?? temporadas[temporadas.length - 1];
-    setTemporada((actual) => (temporadas.includes(actual) ? actual : enCurso));
-  }, [temporadas]);
-
-  const deLaTemporada = useMemo(
-    () => disponibles.filter((c) => String(c.season ?? "") === temporada),
-    [disponibles, temporada],
-  );
-
-  useEffect(() => {
-    setElegidas(deLaTemporada.map((c) => claveDe(fuente, c)));
+    setElegidas([]);
     setFondo(null);
     setObjetivo(-1);
-  }, [deLaTemporada, fuente]);
+  }, [fuente]);
 
-  function alternar(clave: string) {
-    setElegidas((actuales) => actuales.includes(clave)
-      ? actuales.filter((x) => x !== clave)
-      : [...actuales, clave]);
+  const seleccionadas = useMemo(
+    () => elegidas.map((clave) => porClave.get(clave)).filter(Boolean) as ApiCompetition[],
+    [elegidas, porClave],
+  );
+
+  /** Años distintos entre lo elegido: un 2024 junto a un 2026 mezcla al
+   *  jugador con su propia evolución, así que se avisa. */
+  const aniosMezclados = useMemo(
+    () => [...new Set(seleccionadas.map((c) => anioDe(String(c.season ?? ""))).filter(Boolean))].sort(),
+    [seleccionadas],
+  );
+
+  function agregar(clave: string) {
+    if (!clave) return;
+    setElegidas((actuales) => (actuales.includes(clave) ? actuales : [...actuales, clave]));
+  }
+
+  function quitar(clave: string) {
+    setElegidas((actuales) => actuales.filter((x) => x !== clave));
   }
 
   async function armarFondo() {
-    const seleccion = deLaTemporada.filter((c) => elegidas.includes(claveDe(fuente, c)));
+    const seleccion = seleccionadas;
     if (!seleccion.length) return;
     setCargando(true);
     setFallos([]);
@@ -158,7 +185,7 @@ export function PoolPage({ baseCargada, onSelectPlayer }: {
     if (incluirBase && baseCargada?.rows.length) {
       bases.push({
         fileName: baseCargada.nombre,
-        season: extractSeason(temporada),
+        season: extractSeason(String(seleccion[0]?.season ?? "")),
         headers: Object.keys(baseCargada.rows[0]),
         rows: baseCargada.rows,
         provider: "wyscout",
@@ -232,9 +259,19 @@ export function PoolPage({ baseCargada, onSelectPlayer }: {
             <option value="skillcorner">SkillCorner</option>
           </select>
         </label>
-        <label><span>{t("Temporada")}</span>
-          <select value={temporada} onChange={(event) => setTemporada(event.target.value)}>
-            {temporadas.map((x) => <option key={x} value={x}>{x}</option>)}
+        <label><span>{t("Añadir liga y año")}</span>
+          <select value="" onChange={(event) => { agregar(event.target.value); event.target.value = ""; }}>
+            <option value="">{t("Elegir…")}</option>
+            {porLiga.map((grupo) => (
+              <optgroup key={grupo.nombre} label={grupo.nombre}>
+                {grupo.entradas.map((competicion) => {
+                  const clave = claveDe(fuente, competicion);
+                  return <option key={clave} value={clave} disabled={elegidas.includes(clave)}>
+                    {competicion.season}{elegidas.includes(clave) ? " ✓" : ""}
+                  </option>;
+                })}
+              </optgroup>
+            ))}
           </select>
         </label>
         <button type="button" className="pool-load" disabled={cargando || !elegidas.length} onClick={() => void armarFondo()}>
@@ -242,19 +279,21 @@ export function PoolPage({ baseCargada, onSelectPlayer }: {
         </button>
       </div>
 
-      {deLaTemporada.length > 0 && <div className="pool-ligas">
-        {deLaTemporada.map((competicion) => {
+      {seleccionadas.length > 0 && <div className="pool-ligas">
+        {seleccionadas.map((competicion) => {
           const clave = claveDe(fuente, competicion);
-          return <button
-            key={clave}
-            type="button"
-            className={elegidas.includes(clave) ? "on" : ""}
-            onClick={() => alternar(clave)}
-          >
-            {competicion.name}{competicion.country ? <small>{competicion.country}</small> : null}
+          return <button key={clave} type="button" className="on" onClick={() => quitar(clave)}
+            title={t("Quitar del fondo")}>
+            {competicion.name}<small>{competicion.season}</small><i>×</i>
           </button>;
         })}
       </div>}
+
+      {aniosMezclados.length > 1 && <p className="pool-aviso-anios">
+        {tf("Lo elegido abarca {anios}. Un jugador comparado consigo mismo entre dos años no dice lo que parece: el que creció sale parecido a su versión anterior. Úsalo a sabiendas.", {
+          anios: aniosMezclados.join(", "),
+        })}
+      </p>}
 
       {baseCargada?.rows.length ? <label className="pool-incluir">
         <input type="checkbox" checked={incluirBase} onChange={(event) => setIncluirBase(event.target.checked)} />
