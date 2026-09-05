@@ -114,6 +114,32 @@ function numberFormat(value: number) {
   return new Intl.NumberFormat(numberLocale(), { maximumFractionDigits: 0 }).format(value);
 }
 
+/**
+ * Las competiciones agrupadas por liga, para el desplegable de la API.
+ *
+ * La suscripción pasó de tres competiciones a dieciséis (setenta y una
+ * entradas contando temporadas), y la lista plana en el orden que devuelve la
+ * API dejó de servir: obligaba a recorrer setenta líneas y ponía la temporada
+ * más antigua arriba, cuando la que se quiere casi siempre es la última.
+ *
+ * Se conserva el índice original de cada entrada porque es lo que guarda la
+ * selección; aquí solo cambia el orden en que se dibujan.
+ */
+function competicionesAgrupadas(lista: ApiCompetition[]) {
+  const grupos = new Map<string, Array<{ competition: ApiCompetition; indice: number }>>();
+  lista.forEach((competition, indice) => {
+    const clave = competition.country ? `${competition.name} · ${competition.country}` : competition.name;
+    grupos.set(clave, [...(grupos.get(clave) ?? []), { competition, indice }]);
+  });
+  return [...grupos.entries()]
+    .map(([nombre, entradas]) => ({
+      nombre,
+      // Temporada más reciente primero: es la que se busca a diario.
+      entradas: [...entradas].sort((a, b) => String(b.competition.season).localeCompare(String(a.competition.season), "en", { numeric: true })),
+    }))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+}
+
 const COHORT_LABELS: Record<string, string> = {
   GK: "Porteros",
   CB: "Centrales",
@@ -1188,7 +1214,13 @@ export default function ScoutStudio() {
                     {apiStatus[platform] ? <>
                       <select value={apiSelection[platform]} onChange={(event) => setApiSelection((current) => ({ ...current, [platform]: event.target.value }))}>
                         <option value="">{t("Elegir competición")}…</option>
-                        {apiCompetitions[platform].map((competition, index) => <option key={index} value={index}>{competition.name} · {competition.season}</option>)}
+                        {competicionesAgrupadas(apiCompetitions[platform]).map((grupo) => (
+                          <optgroup key={grupo.nombre} label={grupo.nombre}>
+                            {grupo.entradas.map(({ competition, indice }) => (
+                              <option key={indice} value={indice}>{competition.season}</option>
+                            ))}
+                          </optgroup>
+                        ))}
                       </select>
                       <div className="api-platform-actions">
                         {platform === "statsbomb" && <button className="button primary" disabled={apiLoading || !apiSelection[platform]} onClick={() => void loadApiDataset(platform, "replace")}>{apiLoading ? t("Cargando datos de la plataforma…") : t("Usar como base")}</button>}
