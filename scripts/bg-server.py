@@ -364,8 +364,16 @@ def _paises_guardar(tabla: dict):
         pass
 
 
-def _paises_completar(competition_id: int, season_id: int, auth, faltan: set, tope_partidos: int = 12):
-    """Mira lineups hasta reconocer los países que falten, sin pasarse."""
+def _paises_completar(competition_id: int, season_id: int, auth, faltan: set, tope_partidos: int = 40):
+    """Mira lineups hasta reconocer los países que falten, sin pasarse.
+
+    La muestra se reparte por toda la temporada en vez de tomar los primeros
+    partidos: las primeras jornadas repiten los mismos clubes, y un jugador de
+    un equipo que aún no apareció se quedaba sin nombre. Con doce partidos
+    seguidos faltaban cinco de doscientos cinco en la CPL, todos con country_id
+    en origen. Se corta en cuanto no queda ninguno por reconocer, así que el
+    tope rara vez se alcanza.
+    """
     tabla = _paises_cargar()
     if not faltan:
         return tabla
@@ -378,8 +386,13 @@ def _paises_completar(competition_id: int, season_id: int, auth, faltan: set, to
     except Exception:
         return tabla
     jugados = [m for m in partidos if m.get("match_status") == "available"]
+    # Repartidos por el calendario, no los primeros: así entran todos los
+    # clubes cuanto antes.
+    if len(jugados) > tope_partidos:
+        paso = len(jugados) / tope_partidos
+        jugados = [jugados[int(i * paso)] for i in range(tope_partidos)]
     nuevos = 0
-    for partido in jugados[:tope_partidos]:
+    for partido in jugados:
         if not faltan:
             break
         try:
