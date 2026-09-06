@@ -264,6 +264,28 @@ export default function ScoutStudio() {
   const [lang, setLang] = useState<Lang>("es");
   const [langLoaded, setLangLoaded] = useState(false);
   const [reportPage, setReportPage] = useState<ReportPage>(CARD_PAGE);
+  /**
+   * Las páginas que ya se abrieron alguna vez.
+   *
+   * Antes cada pestaña se desmontaba al salir de ella y volvía en blanco:
+   * los filtros del ranking, el jugador buscado, y sobre todo el fondo del
+   * buscador entre ligas, que cuesta minutos de descarga. Ahora una página
+   * se monta la primera vez que se visita y a partir de ahí solo se oculta,
+   * así que conserva su estado.
+   *
+   * Montarlas todas de entrada sería peor: la pasada de rankings recorre la
+   * base entera, y pagarla por una pestaña que quizá no se abra no tiene
+   * sentido. Por eso se van sumando según se visitan.
+   */
+  const [paginasAbiertas, setPaginasAbiertas] = useState<ReportPage[]>([CARD_PAGE]);
+  useEffect(() => {
+    setPaginasAbiertas((abiertas) => (abiertas.includes(reportPage) ? abiertas : [...abiertas, reportPage]));
+  }, [reportPage]);
+  /** Si la página debe verse ahora: al imprimir manda el juego de páginas. */
+  const paginaVisible = (pagina: ReportPage) => (printRun ? printRun.includes(pagina) : reportPage === pagina);
+  /** Si debe existir en el DOM: ya se visitó, o entra en la impresión. */
+  const paginaMontada = (pagina: ReportPage) => paginasAbiertas.includes(pagina) || Boolean(printRun?.includes(pagina));
+  const claseHoja = (pagina: ReportPage) => `legal-page-shell${paginaVisible(pagina) ? "" : " is-hidden"}`;
   // Cavalry y Maldonado son encargos distintos: comparten los datos cargados
   // pero no el flujo. El espacio elegido decide qué pestañas existen.
   const [espacio, setEspacio] = useState<"cavalry" | "maldonado">("cavalry");
@@ -1574,17 +1596,17 @@ export default function ScoutStudio() {
                 />
               </div>
 
-              {report && (printRun ? printRun.includes(BOARD_PAGE) : reportPage === BOARD_PAGE) && (
-                <div className="legal-page-shell"><ScoutingBoard rows={reportRows} minimumMinutes={minimumMinutes} onSelectPlayer={(indice) => { selectPlayer(indice); setBoardPreviewOpen(true); }} /></div>
+              {report && paginaMontada(BOARD_PAGE) && (
+                <div className={claseHoja(BOARD_PAGE)}><ScoutingBoard rows={reportRows} minimumMinutes={minimumMinutes} onSelectPlayer={(indice) => { selectPlayer(indice); setBoardPreviewOpen(true); }} /></div>
               )}
-              {(printRun ? printRun.includes(RUNS_PAGE) : reportPage === RUNS_PAGE) && (
-                <div className="legal-page-shell"><RunsPage /></div>
+              {paginaMontada(RUNS_PAGE) && (
+                <div className={claseHoja(RUNS_PAGE)}><RunsPage /></div>
               )}
-              {report && (printRun ? printRun.includes(RANK_PAGE) : reportPage === RANK_PAGE) && (
-                <div className="legal-page-shell"><RankingPage rows={reportRows} minimumMinutes={minimumMinutes} onSelectPlayer={(indice) => { selectPlayer(indice); setReportPage(CARD_PAGE); }} /></div>
+              {report && paginaMontada(RANK_PAGE) && (
+                <div className={claseHoja(RANK_PAGE)}><RankingPage rows={reportRows} minimumMinutes={minimumMinutes} onSelectPlayer={(indice) => { selectPlayer(indice); setReportPage(CARD_PAGE); }} /></div>
               )}
-              {(printRun ? printRun.includes(POOL_PAGE) : reportPage === POOL_PAGE) && (
-                <div className="legal-page-shell"><PoolPage
+              {paginaMontada(POOL_PAGE) && (
+                <div className={claseHoja(POOL_PAGE)}><PoolPage
                   baseCargada={reportRows.length ? { nombre: reportFileName, rows: reportRows } : null}
                   onAbrirInforme={(bases, indice) => {
                     // El fondo pasa a ser la base del informe: es la única forma
@@ -1611,8 +1633,8 @@ export default function ScoutStudio() {
                   </div>
                 </div>
               )}
-              {report && (printRun ? printRun.includes(CONTEXT_PAGE) : reportPage === CONTEXT_PAGE) && (
-                <div className="legal-page-shell"><ContextPage report={report} rows={reportRows} minutosFiltro={minimumMinutes} controles={{
+              {report && paginaMontada(CONTEXT_PAGE) && (
+                <div className={claseHoja(CONTEXT_PAGE)}><ContextPage report={report} rows={reportRows} minutosFiltro={minimumMinutes} controles={{
                   equipos: teams, jugadores: teamPlayers, equipo: selectedTeam, jugador: selectedPlayer,
                   cohorte: cohort, minutos: minimumMinutes,
                   onEquipo: selectTeam, onJugador: selectPlayer, onCohorte: setCohort, onMinutos: setMinimumMinutes,
