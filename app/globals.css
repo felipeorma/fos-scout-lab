@@ -2332,14 +2332,15 @@ body.print-layout-check .ai-error { display: none !important; }
    se cambian aquí, en una línea por paleta.
    ========================================================================== */
 .app-shell[data-paleta="cavalry"] {
-  /* Calgary Red, el primario declarado del club y el de su camiseta 25/26. */
-  --acento: #da291c;
-  --acento-claro: #f2695c;
-  --acento-suave: rgba(218,41,28,.14);
-  --acento-borde: rgba(218,41,28,.34);
-  --acento-degradado: linear-gradient(145deg,#da291c,#a81d12);
-  --halo-a: rgba(218,41,28,.13);
-  --halo-b: rgba(51,85,37,.07);   /* Army Green, el secundario */
+  /* Rojo, blanco y negro. El acento tiene que ser el mismo que el del tema
+     del informe (app/reportTheme.ts): si se cambia uno, cambiar el otro. */
+  --acento: #cd2b2b;
+  --acento-claro: #ef6a6a;
+  --acento-suave: rgba(205,43,43,.14);
+  --acento-borde: rgba(205,43,43,.34);
+  --acento-degradado: linear-gradient(145deg,#cd2b2b,#8f1c1c);
+  --halo-a: rgba(205,43,43,.14);
+  --halo-b: rgba(0,0,0,.20);      /* negro, no el verde militar de antes */
 }
 .app-shell[data-paleta="maldonado"] {
   /* Verdirrojo: se toma el verde, que es el que nombra al club y el que lo

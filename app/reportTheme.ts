@@ -22,8 +22,12 @@ export type ReportTheme = {
  * paletas): si se cambia uno, cambiar también el otro.
  */
 export const CLIENT_THEMES: Record<"cavalry" | "maldonado" | "otros", ReportTheme> = {
-  // Calgary Red sobre papel, con el Army Green del club como tono oscuro.
-  cavalry: { name: "Cavalry", canvas: "#efe8e7", paper: "#ffffff", accent: "#da291c", ink: "#1d1513", muted: "#8b7d7b", surface: "#faf5f4", line: "#e9dedc", dark: "#335525" },
+  // Rojo sobre blanco y negro, que es como se presenta el club. El verde
+  // militar quedaba de secundario y se comía la cabecera del informe: la
+  // ficha salía con un panel verde y acentos rojos, que no es la imagen de
+  // Cavalry. Los neutros van sin tinte cálido para que el rojo sea el único
+  // color de la hoja.
+  cavalry: { name: "Cavalry", canvas: "#dedede", paper: "#ffffff", accent: "#cd2b2b", ink: "#121212", muted: "#787878", surface: "#f5f5f5", line: "#e3e3e3", dark: "#101010" },
   // Verdirrojo: manda el verde, que es el que lo separa de Cavalry.
   maldonado: { name: "Maldonado", canvas: "#e7efe9", paper: "#ffffff", accent: "#17804a", ink: "#12211a", muted: "#7d8f85", surface: "#f4f9f6", line: "#dce9e2", dark: "#0f5c34" },
   otros: { name: "Neutro", canvas: "#ecedee", paper: "#ffffff", accent: "#6f747c", ink: "#1c1e21", muted: "#82868d", surface: "#f6f7f8", line: "#e4e6e8", dark: "#3a3d42" },

@@ -462,7 +462,18 @@ export default function ScoutStudio() {
     const timer = window.setTimeout(() => {
       try {
         const stored = window.localStorage.getItem("fos-scout-report-theme-v1");
-        if (stored) setReportTheme({ ...DEFAULT_REPORT_THEME, ...JSON.parse(stored) });
+        if (stored) {
+          const guardado = { ...DEFAULT_REPORT_THEME, ...JSON.parse(stored) } as ReportTheme;
+          /*
+           * Los temas de cliente los manda el código, no la caché. Guardar sus
+           * colores hex congelaba la identidad del club en el navegador: al
+           * corregir los de Cavalry, la ficha seguía saliendo con el verde
+           * militar de antes y no había forma de enterarse. Un tema elegido a
+           * mano —Noche, Arena— sí se respeta tal cual: ese es del scout.
+           */
+          const deCliente = Object.values(CLIENT_THEMES).find((tema) => tema.name === guardado.name);
+          setReportTheme(deCliente ?? guardado);
+        }
       } catch { /* El estilo predeterminado sigue disponible si no hay persistencia local. */ }
       setReportThemeLoaded(true);
     }, 0);
