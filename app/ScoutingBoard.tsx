@@ -209,7 +209,7 @@ export function ScoutingBoard({ rows, minimumMinutes, onSelectPlayer }: {
         minutos: Number.isFinite(minutos) ? minutos : 0,
         perfil: informe.cohort,
         puesto: puestoMaldonado(rows[indice].Position) || informe.cohort,
-        puntuacion: informe.score,
+        puntuacion: informe.indice,
         // Lo que llama la atención: no el que es correcto en todo, sino el que
         // sobresale en algo. Un P90 aislado es una señal de scouting.
         destacadas: informe.metrics.filter((m) => m.percentile >= 88).sort((a, b) => b.percentile - a.percentile).slice(0, 3),

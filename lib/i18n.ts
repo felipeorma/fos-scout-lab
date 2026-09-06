@@ -1222,7 +1222,6 @@ const EN: Record<string, string> = {
   "Ranking": "Ranking",
   "Los mejores por puesto": "Best in each position",
   "Los mejores de cada puesto": "The best in each position",
-  "Quién encabeza cada posición en lo que tienes cargado. El índice es la media de sus percentiles contra los jugadores de su misma posición: el número del centro del radar. Haz clic en cualquiera para abrir su informe.": "Who leads each position in what you have loaded. The index is the average of their percentiles against players in the same position: the number at the centre of the radar. Click any player to open their report.",
   "Posición": "Position",
   "Por índice": "By index",
   "Por arquetipo": "By archetype",
@@ -1286,4 +1285,5 @@ const EN: Record<string, string> = {
   "{n} de {total} · {liga} · enlazando SkillCorner": "{n} of {total} · {liga} · linking SkillCorner",
   "{j} jugadores de {n} bases · SkillCorner enlazado en {e}": "{j} players from {n} sources · SkillCorner linked on {e}",
   "Enlazar SkillCorner encima donde exista esa liga y temporada. Aporta game intelligence y datos físicos; tarda más en cargar.": "Link SkillCorner on top wherever that league and season exist. It adds game intelligence and physical data; it takes longer to load.",
+  "Quién encabeza cada posición en lo que tienes cargado. El índice parte del percentil medio contra los jugadores de su misma posición y lo acerca a sus tres mejores métricas: destacar en algo cuenta, y no solo ser correcto en todo. Haz clic en cualquiera para abrir su informe.": "Who leads each position in what you have loaded. The index starts from the average percentile against players in the same position and pulls it toward their three best metrics: standing out at something counts, not only being adequate at everything. Click any player to open their report.",
 };

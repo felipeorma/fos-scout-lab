@@ -95,7 +95,7 @@ export function RankingPage({ rows, minimumMinutes, onSelectPlayer }: {
         equipo: informe.team,
         edad: numero(rows[indice].Age),
         minutos: Number.isFinite(minutos) ? minutos : 0,
-        puntuacion: informe.score,
+        puntuacion: informe.indice,
         destacadas: informe.metrics
           .filter((metrica) => metrica.percentile >= 85)
           .sort((a, b) => b.percentile - a.percentile)
@@ -137,7 +137,7 @@ export function RankingPage({ rows, minimumMinutes, onSelectPlayer }: {
       <div>
         <span>{t("RANKING DE LA BASE")}</span>
         <h2>{t("Los mejores de cada puesto")}</h2>
-        <p>{t("Quién encabeza cada posición en lo que tienes cargado. El índice es la media de sus percentiles contra los jugadores de su misma posición: el número del centro del radar. Haz clic en cualquiera para abrir su informe.")}</p>
+        <p>{t("Quién encabeza cada posición en lo que tienes cargado. El índice parte del percentil medio contra los jugadores de su misma posición y lo acerca a sus tres mejores métricas: destacar en algo cuenta, y no solo ser correcto en todo. Haz clic en cualquiera para abrir su informe.")}</p>
       </div>
       <b>{tf("{n} jugadores", { n: visibles.length })}</b>
     </header>

@@ -319,7 +319,7 @@ export function ContextPage({ report, rows, controles, minutosFiltro = 0 }: { re
       lista.push({
         nombre,
         equipo: String(rows[indice].Team ?? ""),
-        valor: informe.score,
+        valor: informe.indice,
         esObjetivo: nombre === report.player,
         esCompanero: nombre !== report.player && String(rows[indice].Team ?? "") === report.team,
       });

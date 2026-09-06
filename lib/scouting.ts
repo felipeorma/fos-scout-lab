@@ -55,7 +55,10 @@ export type PlayerReport = {
   goals: number;
   assists: number;
   cohortSize: number;
+  /** Percentil medio, tal cual. Es lo que muestra el centro del radar. */
   score: number;
+  /** Con cuánto peso ordena en un ranking. Ver `indiceDeScouting`. */
+  indice: number;
   metrics: RadarMetric[];
   reading: string;
 };
@@ -1267,6 +1270,38 @@ export function headersOf(rows: DataRow[]): string[] {
   return cabeceras;
 }
 
+
+/**
+ * El número por el que se ordena un ranking de scouting.
+ *
+ * El percentil medio, que es lo que usábamos, premia al parejo por encima del
+ * especialista. Un jugador con tres percentiles de 99 y cuatro de 1 sacaba 43;
+ * uno mediocre en todo, 49. La app prometía justo lo contrario —"el que
+ * sobresale en algo, no el correcto en todo"— y ordenaba por el número que
+ * hace lo opuesto.
+ *
+ * Se corrige acercando la media hacia las tres mejores métricas. Tres, y no
+ * la mejor: un pico aislado suele ser ruido, no talento. Emiliano Chavez daba
+ * percentil 88 en entradas más intercepciones con 5 en recuperaciones y 8 en
+ * OBV defensivo, cosas que deberían ir juntas; con 556 minutos eso es la
+ * muestra hablando, no el jugador. Mirando solo el máximo subía 528 puestos.
+ * Mirando las tres mejores, no: hacen falta varias fuerzas coherentes.
+ *
+ * El peso es 0,35 porque a 0,5 el especialista empata con el titular sólido, y
+ * eso ya es pasarse: destacar en tres cosas no vale tanto como ser bueno en
+ * todas. Sobre la base real mueve 15 puestos de media y deja intacto el 90%
+ * de cada top 10 — reordena el medio de la tabla, que es donde se busca al
+ * infravalorado, no la cabeza.
+ */
+const PESO_DEL_PICO = 0.35;
+
+export function indiceDeScouting(percentiles: number[]): number {
+  if (!percentiles.length) return 0;
+  const media = average(percentiles);
+  const mejores = [...percentiles].sort((a, b) => b - a).slice(0, 3);
+  return Math.round(media + PESO_DEL_PICO * (average(mejores) - media));
+}
+
 export function buildPlayerReport(rows: DataRow[], selectedIndex: number, minimumMinutes: number, forcedCohort = "AUTO", selectedMetricLabels?: string[] | null): PlayerReport | null {
   const row = rows[selectedIndex];
   if (!row) return null;
@@ -1317,7 +1352,8 @@ export function buildPlayerReport(rows: DataRow[], selectedIndex: number, minimu
     const rankB = groupRank.get(similarityMetricGroup(b, cohort).id) ?? SIMILARITY_METRIC_GROUPS.length;
     return rankA - rankB;
   });
-  const score = metricsUnicas.length ? Math.round(average(metricsUnicas.map((metric) => metric.percentile))) : 0;
+  const percentiles = metricsUnicas.map((metric) => metric.percentile);
+  const score = percentiles.length ? Math.round(average(percentiles)) : 0;
   const text = (aliases: string[]) => String(field(row, headers, aliases) ?? "").trim();
   const value = (aliases: string[]) => numeric(field(row, headers, aliases));
   return {
@@ -1336,6 +1372,7 @@ export function buildPlayerReport(rows: DataRow[], selectedIndex: number, minimu
     assists: value(["assists", "asistencias"]) || 0,
     cohortSize: peers.length,
     score,
+    indice: indiceDeScouting(percentiles),
     metrics: metricsUnicas,
     reading: roleReading(cohort, metricsUnicas),
   };
