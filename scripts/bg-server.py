@@ -325,6 +325,85 @@ async def statsbomb_competitions():
     return Response(_json.dumps(comps), media_type="application/json", headers=cors_headers())
 
 
+
+# ---------------------------------------------------------------------------
+# Nacionalidad en StatsBomb.
+#
+# player-stats trae `country_id`, un número, y ninguna versión del endpoint
+# —probadas la 2 y la 7— devuelve el nombre. Tampoco hay ruta de países. Pero
+# los lineups sí: cada jugador llega con `country: {id, name}`.
+#
+# Así que la tabla id→nombre se deriva de los lineups y se guarda en disco.
+# Los identificadores de país no cambian, de modo que la tabla sirve para
+# todas las competiciones y se va completando sola con cada liga nueva.
+# ---------------------------------------------------------------------------
+
+_PAISES_FICHERO = Path.home() / ".fos-scouting" / "statsbomb-paises.json"
+_paises_memoria: dict = {}
+
+
+def _paises_cargar() -> dict:
+    global _paises_memoria
+    if _paises_memoria:
+        return _paises_memoria
+    import json as _json
+    try:
+        _paises_memoria = {int(k): v for k, v in _json.loads(_PAISES_FICHERO.read_text(encoding="utf-8")).items()}
+    except Exception:
+        _paises_memoria = {}
+    return _paises_memoria
+
+
+def _paises_guardar(tabla: dict):
+    import json as _json
+    try:
+        _PAISES_FICHERO.parent.mkdir(parents=True, exist_ok=True)
+        _PAISES_FICHERO.write_text(_json.dumps(tabla, ensure_ascii=False, indent=1), encoding="utf-8")
+        os.chmod(_PAISES_FICHERO, 0o600)
+    except OSError:
+        pass
+
+
+def _paises_completar(competition_id: int, season_id: int, auth, faltan: set, tope_partidos: int = 12):
+    """Mira lineups hasta reconocer los países que falten, sin pasarse."""
+    tabla = _paises_cargar()
+    if not faltan:
+        return tabla
+    try:
+        partidos = _cached_get(
+            f"sb:matches:{competition_id}:{season_id}",
+            f"https://data.statsbomb.com/api/v6/competitions/{competition_id}/seasons/{season_id}/matches",
+            auth, ttl_seconds=1800,
+        )
+    except Exception:
+        return tabla
+    jugados = [m for m in partidos if m.get("match_status") == "available"]
+    nuevos = 0
+    for partido in jugados[:tope_partidos]:
+        if not faltan:
+            break
+        try:
+            equipos = _requests.get(
+                f"https://data.statsbomb.com/api/v5/lineups/{partido['match_id']}",
+                auth=auth, timeout=60,
+            ).json()
+        except Exception:
+            continue
+        for equipo in equipos:
+            for jugador in equipo.get("lineup", []):
+                pais = jugador.get("country") or {}
+                pid, nombre = pais.get("id"), pais.get("name")
+                if pid is None or not nombre:
+                    continue
+                if int(pid) not in tabla:
+                    tabla[int(pid)] = nombre
+                    nuevos += 1
+                faltan.discard(int(pid))
+    if nuevos:
+        _paises_guardar(tabla)
+    return tabla
+
+
 @app.get("/api/statsbomb/player-stats")
 async def statsbomb_player_stats(competition_id: int, season_id: int):
     import json as _json
@@ -338,6 +417,10 @@ async def statsbomb_player_stats(competition_id: int, season_id: int):
                         media_type="application/json", headers=cors_headers())
     url = f"https://data.statsbomb.com/api/v2/competitions/{competition_id}/seasons/{season_id}/player-stats"
     data = _cached_get(f"sb:{competition_id}:{season_id}", url, auth)
+    # La nacionalidad llega como número; el nombre sale de los lineups.
+    vistos = {int(p["country_id"]) for p in data if isinstance(p.get("country_id"), int)}
+    paises = _paises_cargar()
+    paises = _paises_completar(competition_id, season_id, auth, vistos - set(paises))
     rows = []
     for p in data:
         row = {
@@ -348,6 +431,9 @@ async def statsbomb_player_stats(competition_id: int, season_id: int):
             "Birth date": p.get("birth_date") or "",
             "Minutes played": round(p.get("player_season_minutes") or 0),
             "Matches played": p.get("player_season_appearances") or 0,
+            # Mismo nombre de columna que usa Wyscout, para que el filtro de
+            # pasaporte funcione igual venga de donde venga la base.
+            "Passport country": paises.get(int(p["country_id"]), "") if isinstance(p.get("country_id"), int) else "",
         }
         # StatsBomb entrega tasas por 90; los contadores de la tarjeta usan
         # totales, así que se reconstruyen desde minutos jugados.
