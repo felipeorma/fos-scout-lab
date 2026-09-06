@@ -183,16 +183,21 @@ def _skillcorner_auth():
 # búsqueda son dieciséis descargas seguidas. Las filas ya montadas de una
 # competición se guardan en disco para que la segunda vez sea instantánea.
 _POOL_CACHE_DIR = Path.home() / ".fos-scouting" / "pool-cache"
+# La temporada en curso cambia cada jornada, así que un día es lo máximo que
+# se puede guardar sin arriesgarse a mostrar una base vieja. Una temporada
+# cerrada ya no cambia: guardarla tres días ahorra descargas enteras sin
+# arriesgar nada.
 _POOL_TTL_SEGUNDOS = 24 * 3600
+_POOL_TTL_CERRADA = 72 * 3600
 
 
-def _pool_cache_leer(clave: str):
+def _pool_cache_leer(clave: str, ttl: int | None = None):
     import json as _json
     ruta = _POOL_CACHE_DIR / f"{clave}.json"
     if not ruta.exists():
         return None
     try:
-        if _dt.datetime.now().timestamp() - ruta.stat().st_mtime > _POOL_TTL_SEGUNDOS:
+        if _dt.datetime.now().timestamp() - ruta.stat().st_mtime > (ttl or _POOL_TTL_SEGUNDOS):
             return None
         return _json.loads(ruta.read_text(encoding="utf-8"))
     except Exception:
@@ -300,6 +305,14 @@ async def sources_status():
     }
     import json as _json
     return Response(_json.dumps(payload), media_type="application/json", headers=cors_headers())
+
+
+def _sin_tildes(valor: str) -> str:
+    import unicodedata
+
+    return "".join(
+        c for c in unicodedata.normalize("NFD", str(valor)) if unicodedata.category(c) != "Mn"
+    ).strip().lower()
 
 
 def _es_femenina(comp: dict) -> bool:
@@ -441,6 +454,81 @@ def _paises_completar(competition_id: int, season_id: int, auth, faltan: set, to
     return tabla
 
 
+def _temporada_cerrada_sb(competition_id: int, season_id: int, auth) -> bool:
+    """¿Esta temporada ya no va a recibir más partidos?
+
+    El criterio es que exista, en la misma competición, una temporada más
+    nueva que YA tenga partidos publicados. Si la hay, esta quedó atrás y su
+    base no va a cambiar nunca más.
+
+    Se prefiere esto a mirar cuándo se actualizó por última vez: StatsBomb
+    reprocesa temporadas viejas —la Eerste Divisie 2025/2026 acabó en mayo y
+    la tocaron en agosto—, así que "lleva mucho sin moverse" no significa
+    cerrada, y equivocarse en ese sentido es servir una base vieja. Con este
+    criterio, el error posible es el inofensivo: dar por viva una temporada
+    terminada y seguir guardándola solo un día.
+
+    Los nombres se comparan como texto porque dentro de una competición todos
+    llevan el mismo formato —"2025" y "2026", o "2025/2026" y "2026/2027"—, y
+    en ambos casos el orden alfabético es el cronológico.
+    """
+    try:
+        catalogo = _cached_get("sb:comps", "https://data.statsbomb.com/api/v4/competitions", auth, ttl_seconds=3600)
+    except Exception:
+        return False
+    propia = None
+    hermanas = []
+    for c in catalogo:
+        if c.get("competition_id") != competition_id:
+            continue
+        nombre = str(c.get("season_name") or "")
+        if c.get("season_id") == season_id:
+            propia = nombre
+        elif c.get("match_available"):
+            hermanas.append(nombre)
+    if propia is None:
+        return False
+    return any(nombre > propia for nombre in hermanas)
+
+
+def _temporada_cerrada_sc(edition_id: int, auth) -> bool:
+    """Lo mismo para una edición de SkillCorner.
+
+    SkillCorner no dice si una edición tiene partidos, así que no se puede
+    aplicar el criterio directamente: su catálogo lista la temporada que viene
+    igual que la que se juega. Se busca la competición hermana en StatsBomb
+    —por nombre y temporada, que es lo único que comparten— y se hereda su
+    veredicto. Sin hermana, se queda en un día.
+    """
+    try:
+        editions = _cached_get("sc:comps", "https://skillcorner.com/api/competition_editions/", auth,
+                               params={"user": "true", "limit": 300}, ttl_seconds=3600)
+        editions = editions.get("results", editions if isinstance(editions, list) else [])
+    except Exception:
+        return False
+    edicion = next((e for e in editions if e.get("id") == edition_id), None)
+    if not edicion:
+        return False
+    nombre = _sin_tildes(((edicion.get("competition") or {}).get("name")) or edicion.get("name") or "")
+    temporada = str(((edicion.get("season") or {}).get("name")) or "")
+    sb_auth = _statsbomb_auth()
+    if not sb_auth:
+        return False
+    try:
+        catalogo = _cached_get("sb:comps", "https://data.statsbomb.com/api/v4/competitions", sb_auth, ttl_seconds=3600)
+    except Exception:
+        return False
+    hermana = next(
+        (c for c in catalogo
+         if _sin_tildes(str(c.get("competition_name") or "")) == nombre
+         and str(c.get("season_name") or "") == temporada),
+        None,
+    )
+    if not hermana:
+        return False
+    return _temporada_cerrada_sb(hermana["competition_id"], hermana["season_id"], sb_auth)
+
+
 @app.get("/api/statsbomb/player-stats")
 async def statsbomb_player_stats(competition_id: int, season_id: int):
     import json as _json
@@ -448,7 +536,10 @@ async def statsbomb_player_stats(competition_id: int, season_id: int):
     if not auth:
         return Response('{"error": "sin credenciales"}', status_code=503, media_type="application/json", headers=cors_headers())
     clave_disco = f"sb-{competition_id}-{season_id}"
-    guardadas = _pool_cache_leer(clave_disco)
+    guardadas = _pool_cache_leer(
+        clave_disco,
+        _POOL_TTL_CERRADA if _temporada_cerrada_sb(competition_id, season_id, auth) else None,
+    )
     if guardadas is not None:
         return Response(_json.dumps({"rows": guardadas, "provider": "statsbomb", "cache": "disco"}),
                         media_type="application/json", headers=cors_headers())
@@ -686,7 +777,10 @@ async def skillcorner_player_stats(competition_edition_id: int):
     # game intelligence—, y la portada carga ahora dieciocho de golpe. Sin
     # esto, cada arranque repetía todo el viaje.
     clave_disco = f"sc-{competition_edition_id}"
-    guardadas = _pool_cache_leer(clave_disco)
+    guardadas = _pool_cache_leer(
+        clave_disco,
+        _POOL_TTL_CERRADA if _temporada_cerrada_sc(competition_edition_id, auth) else None,
+    )
     if guardadas is not None:
         return Response(_json.dumps({"rows": guardadas, "provider": "skillcorner", "cache": "disco"}),
                         media_type="application/json", headers=cors_headers())
