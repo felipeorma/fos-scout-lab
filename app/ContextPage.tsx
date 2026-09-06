@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { buildPlayerReport, type DataRow, type PlayerReport } from "@/lib/scouting";
+import { buildPlayerReport, type DataRow, type PlayerReport, type SourceDataset } from "@/lib/scouting";
 import { METRIC_SOURCE_COLORS } from "@/lib/similarityMetricGroups";
 import { t, tf } from "@/lib/i18n";
 import { BarrasRanking, BarrasZ, CuadranteMetricas, LeyendaGraficos, SwarmMetric, type BarraRank, type BarraZ, type PuntoCuadrante, type PuntoSwarm } from "./ContextCharts";
@@ -116,7 +116,105 @@ export type ControlesContexto = {
   onMinutos: (minutos: number) => void;
 };
 
-export function ContextPage({ report, rows, controles, minutosFiltro = 0 }: { report: PlayerReport; rows: DataRow[]; controles?: ControlesContexto; minutosFiltro?: number }) {
+/**
+ * La liga detrás de un archivo cargado.
+ *
+ * Los archivos de la API se nombran "StatsBomb · Liga Temporada" y su capa de
+ * SkillCorner "SkillCorner · Liga Temporada". Quitado el proveedor, las dos
+ * caen en la misma etiqueta, que es lo que hace falta: la capa física no es
+ * otra liga, es la misma vista con más columnas. Un Excel de Wyscout se queda
+ * con su nombre de archivo, que es lo único que lo identifica.
+ */
+function ligaDeArchivo(nombre: string) {
+  return nombre.replace(/^(StatsBomb|SkillCorner|Wyscout)\s*·\s*/i, "").trim() || nombre;
+}
+
+export function ContextPage({
+  report: informeCompleto,
+  rows: filasTodas,
+  bases = [],
+  controles,
+  minutosFiltro = 0,
+}: {
+  report: PlayerReport;
+  rows: DataRow[];
+  /** Las bases que se cruzaron para armar `rows`, para poder filtrar por liga. */
+  bases?: SourceDataset[];
+  controles?: ControlesContexto;
+  minutosFiltro?: number;
+}) {
+  /*
+   * Filtro de ligas.
+   *
+   * Con todas las competiciones cargadas, el contexto se calcula contra un
+   * fondo de miles de jugadores de ligas muy distintas, y eso no siempre es lo
+   * que se quiere leer: "cuánto de esto es suyo y cuánto del entorno" cambia
+   * según contra quién se mida. Quitando ligas se estrecha el marco de
+   * comparación sin volver a cargar nada.
+   *
+   * Al quitar una liga NO basta con esconder filas: los percentiles del
+   * informe se calcularon contra el fondo entero. Se recalcula el informe
+   * sobre el subconjunto, respetando el perfil y las métricas elegidas, para
+   * que las barras y los gráficos digan lo mismo.
+   */
+  const ligasDisponibles = useMemo(() => {
+    const grupos = new Map<string, string[]>();
+    for (const base of bases) {
+      const etiqueta = ligaDeArchivo(base.fileName);
+      grupos.set(etiqueta, [...(grupos.get(etiqueta) ?? []), base.fileName]);
+    }
+    return [...grupos.entries()]
+      .map(([etiqueta, archivos]) => ({ etiqueta, archivos }))
+      .sort((a, b) => a.etiqueta.localeCompare(b.etiqueta, "es"));
+  }, [bases]);
+
+  const [ligasFuera, setLigasFuera] = useState<string[]>([]);
+
+  /** La liga del jugador: nunca se puede quitar, porque se quitaría a él. */
+  const ligaPropia = useMemo(() => {
+    const suya = filasTodas.find((fila) => String(fila.Player ?? "") === informeCompleto.player);
+    const fuentes = String(suya?.["Data sources"] ?? "");
+    return ligasDisponibles.find((liga) => liga.archivos.some((archivo) => fuentes.includes(archivo)))?.etiqueta ?? "";
+  }, [filasTodas, informeCompleto.player, ligasDisponibles]);
+
+  /**
+   * Las ligas realmente apagadas.
+   *
+   * Cambiar de jugador puede traer a alguien de una liga que estaba quitada, y
+   * sin él la hoja no tiene nada que contar. En vez de reescribir la elección
+   * —que borraría lo que pidió quien mira—, la liga del jugador se ignora
+   * mientras él esté seleccionado: si luego se vuelve a uno de otra liga, su
+   * exclusión sigue en pie.
+   */
+  const apagadas = useMemo(
+    () => ligasFuera.filter((etiqueta) => etiqueta !== ligaPropia),
+    [ligasFuera, ligaPropia],
+  );
+
+  const archivosFuera = useMemo(
+    () => ligasDisponibles.filter((liga) => apagadas.includes(liga.etiqueta)).flatMap((liga) => liga.archivos),
+    [ligasDisponibles, apagadas],
+  );
+
+  const rows = useMemo(() => {
+    if (!archivosFuera.length) return filasTodas;
+    return filasTodas.filter((fila) => {
+      const fuentes = String(fila["Data sources"] ?? "");
+      // Quien juega en dos de las ligas cargadas se queda mientras una siga
+      // encendida: sigue siendo comparable dentro del marco elegido.
+      return !archivosFuera.some((archivo) => fuentes.includes(archivo))
+        || ligasDisponibles.some((liga) => !apagadas.includes(liga.etiqueta) && liga.archivos.some((archivo) => fuentes.includes(archivo)));
+    });
+  }, [filasTodas, archivosFuera, ligasDisponibles, apagadas]);
+
+  const report = useMemo(() => {
+    if (rows === filasTodas) return informeCompleto;
+    const indice = rows.findIndex((fila) => String(fila.Player ?? "") === informeCompleto.player);
+    if (indice < 0) return informeCompleto;
+    return buildPlayerReport(rows, indice, minutosFiltro, informeCompleto.cohort, informeCompleto.metrics.map((m) => m.label))
+      ?? informeCompleto;
+  }, [rows, filasTodas, informeCompleto, minutosFiltro]);
+
   // Qué visuales se muestran. Se recuerda entre sesiones: cada scout mira
   // cosas distintas y la hoja no debería obligar a todas.
   // Por defecto se muestran los bloques generales más las fichas que responden
@@ -396,6 +494,26 @@ export function ContextPage({ report, rows, controles, minutosFiltro = 0 }: { re
         ))}
       </div>
     </div>
+
+    {ligasDisponibles.length > 1 && <div className="ctx-ligas">
+      <span>{t("Comparar contra")}</span>
+      {ligasDisponibles.map((liga) => {
+        const dentro = !apagadas.includes(liga.etiqueta);
+        const propia = liga.etiqueta === ligaPropia;
+        return <button key={liga.etiqueta} type="button" className={dentro ? "on" : ""} disabled={propia}
+          title={propia ? t("Es la liga del jugador: no se puede quitar") : dentro ? t("Quitar del marco de comparación") : t("Volver a incluirla")}
+          onClick={() => setLigasFuera((actuales) => (
+            actuales.includes(liga.etiqueta) ? actuales.filter((x) => x !== liga.etiqueta) : [...actuales, liga.etiqueta]
+          ))}>
+          {liga.etiqueta}{propia && <i aria-hidden="true">●</i>}
+        </button>;
+      })}
+      {apagadas.length > 0 && <em>
+        {tf("{n} jugadores en el marco · los percentiles están recalculados", { n: rows.length })}
+        {" "}
+        <button type="button" className="ctx-ligas-todas" onClick={() => setLigasFuera([])}>{t("Volver a todas")}</button>
+      </em>}
+    </div>}
 
     {muestra("destacados") && <div className="ctx-grid">
       <section>

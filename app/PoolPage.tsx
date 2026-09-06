@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { t, tf } from "@/lib/i18n";
 import { aggregateDatasets, extractSeason, type DataRow, type SourceDataset } from "@/lib/scouting";
+import { positionSides } from "@/lib/positions";
 import { buildSimilaritySearch, playerPassports, similarityOptions, type SimilarityFilters } from "@/lib/similarity";
 import {
   fetchSkillcornerCompetitions,
@@ -101,6 +102,35 @@ function ediciónHermana(competicion: ApiCompetition, ediciones: ApiCompetition[
   return ediciones.find((e) => sinTildes(e.name ?? "") === nombre && String(e.season ?? "") === temporada) ?? null;
 }
 
+/**
+ * Las competiciones de la temporada en curso.
+ *
+ * Es lo que se carga solo al abrir la pantalla. La más reciente del catálogo
+ * no sirve como criterio: la temporada que viene ya figura listada y aún no se
+ * ha jugado, así que un fondo armado con ella sale vacío o con veinte minutos
+ * por jugador. Si ninguna lleva el año en curso —catálogo histórico— se
+ * devuelve todo y que elija quien mira.
+ */
+function delAnioEnCurso(lista: ApiCompetition[]) {
+  const anio = String(new Date().getFullYear());
+  const enCurso = lista.filter((competicion) => String(competicion.season ?? "").includes(anio));
+  return enCurso.length ? enCurso : lista;
+}
+
+/**
+ * Cómo se nombra la base cargada en el filtro de liga.
+ *
+ * Su nombre es el del archivo —"StatsBomb · Canadian Premier League 2026" o el
+ * Excel de Wyscout que sea—, y puesto tal cual en el desplegable de ligas
+ * parecía una competición más, escrita distinto que todas las demás. Se le
+ * quita el proveedor y se dice lo que es: la base con la que se abrió la
+ * sesión, que puede ser una liga que ya está en el fondo o una que solo existe
+ * en un Excel.
+ */
+function etiquetaDeLaBase(nombre: string) {
+  return `${t("Base cargada")} · ${nombre.replace(/^(StatsBomb|SkillCorner|Wyscout)\s*·\s*/i, "").trim() || nombre}`;
+}
+
 function claveDe(fuente: Fuente, competicion: ApiCompetition) {
   return fuente === "statsbomb"
     ? `sb:${competicion.competition_id}:${competicion.season_id}`
@@ -130,6 +160,10 @@ export function PoolPage({ baseCargada, onAbrirInforme }: {
   const [cargando, setCargando] = useState(false);
   const [fallos, setFallos] = useState<string[]>([]);
 
+  /** De qué liga y año viene cada fila del fondo, para poder filtrar el
+   *  resultado sin volver a cargar nada. Se arma al cruzar las bases. */
+  const [procedencias, setProcedencias] = useState<{ archivo: string; liga: string; anio: number }[]>([]);
+
   const [objetivo, setObjetivo] = useState(-1);
   const [busqueda, setBusqueda] = useState("");
   const [minutosMin, setMinutosMin] = useState(600);
@@ -137,6 +171,9 @@ export function PoolPage({ baseCargada, onAbrirInforme }: {
   const [posicion, setPosicion] = useState("");
   const [pasaporte, setPasaporte] = useState("");
   const [clubesFuera, setClubesFuera] = useState<string[]>([]);
+  const [ligaFiltro, setLigaFiltro] = useState("");
+  const [anioFiltro, setAnioFiltro] = useState(0);
+  const [mismoFlanco, setMismoFlanco] = useState(false);
 
   useEffect(() => {
     let montado = true;
@@ -146,6 +183,10 @@ export function PoolPage({ baseCargada, onAbrirInforme }: {
     ]).then(([sb, sc]) => {
       if (!montado) return;
       setCompeticiones({ statsbomb: sb, skillcorner: sc });
+      // Las ligas entran ya elegidas: llegar a esta pantalla y encontrar el
+      // menú vacío obligaba a añadirlas de una en una antes de poder buscar
+      // nada. Se quitan con un clic las que no interesen.
+      setElegidas(delAnioEnCurso(sb).map((competicion) => claveDe("statsbomb", competicion)));
       if (!sb.length && !sc.length) setProgreso(t("El servidor local no está corriendo. Arranca npm run bg:server y recarga."));
     });
     return () => { montado = false; };
@@ -174,12 +215,32 @@ export function PoolPage({ baseCargada, onAbrirInforme }: {
     return mapa;
   }, [disponibles, fuente]);
 
-  // Al cambiar de plataforma la selección anterior deja de valer.
-  useEffect(() => {
-    setElegidas([]);
+  /**
+   * Cambiar de plataforma rehace la selección: las claves son de otro
+   * proveedor y las anteriores ya no apuntan a nada. Va en el manejador y no
+   * en un efecto porque es consecuencia de lo que hizo quien mira, no una
+   * sincronización: en un efecto habría que distinguir este cambio del primer
+   * render y de la llegada del catálogo, y cualquiera de las dos confusiones
+   * borraría una selección hecha a mano.
+   */
+  function cambiarFuente(nueva: Fuente) {
+    setFuente(nueva);
+    setElegidas(delAnioEnCurso(competiciones[nueva]).map((competicion) => claveDe(nueva, competicion)));
     setFondo(null);
     setObjetivo(-1);
-  }, [fuente]);
+  }
+
+  /** Las competiciones de StatsBomb que además tienen edición en SkillCorner.
+   *  Se marca en el menú porque cambia lo que se puede preguntar: con la capa
+   *  física encima entran los datos de carrera y de game intelligence. */
+  const conSkillcorner = useMemo(() => {
+    const marcadas = new Set<string>();
+    if (fuente !== "statsbomb") return marcadas;
+    for (const competicion of competiciones.statsbomb) {
+      if (ediciónHermana(competicion, competiciones.skillcorner)) marcadas.add(claveDe("statsbomb", competicion));
+    }
+    return marcadas;
+  }, [competiciones, fuente]);
 
   const seleccionadas = useMemo(
     () => elegidas.map((clave) => porClave.get(clave)).filter(Boolean) as ApiCompetition[],
@@ -211,9 +272,12 @@ export function PoolPage({ baseCargada, onAbrirInforme }: {
     setObjetivo(-1);
 
     const bases: SourceDataset[] = [];
+    /** Etiqueta de cada base, para saber luego de dónde salió cada fila. */
+    const marcas: { archivo: string; liga: string; anio: number }[] = [];
     const problemas: string[] = [];
     const enlazadas: string[] = [];
     if (incluirBase && baseCargada?.rows.length) {
+      marcas.push({ archivo: baseCargada.nombre, liga: etiquetaDeLaBase(baseCargada.nombre), anio: anioDe(String(seleccion[0]?.season ?? "")) });
       bases.push({
         fileName: baseCargada.nombre,
         season: extractSeason(String(seleccion[0]?.season ?? "")),
@@ -226,10 +290,13 @@ export function PoolPage({ baseCargada, onAbrirInforme }: {
     for (let i = 0; i < seleccion.length; i += 1) {
       const competicion = seleccion[i];
       setProgreso(tf("{n} de {total} · {liga}", { n: i + 1, total: seleccion.length, liga: competicion.name }));
+      const anio = anioDe(String(competicion.season ?? ""));
       try {
-        bases.push(fuente === "statsbomb"
+        const base = fuente === "statsbomb"
           ? await fetchStatsbombDataset(competicion)
-          : await fetchSkillcornerDataset(competicion));
+          : await fetchSkillcornerDataset(competicion);
+        marcas.push({ archivo: base.fileName, liga: competicion.name, anio });
+        bases.push(base);
       } catch (error) {
         problemas.push(`${competicion.name}: ${error instanceof Error ? error.message : String(error)}`);
         continue;
@@ -240,7 +307,11 @@ export function PoolPage({ baseCargada, onAbrirInforme }: {
         if (hermana) {
           setProgreso(tf("{n} de {total} · {liga} · enlazando SkillCorner", { n: i + 1, total: seleccion.length, liga: competicion.name }));
           try {
-            bases.push(await fetchSkillcornerDataset(hermana));
+            const capa = await fetchSkillcornerDataset(hermana);
+            // La capa lleva la etiqueta de la liga que reviste, no la suya:
+            // quien solo aparece en SkillCorner sigue siendo de esa liga.
+            marcas.push({ archivo: capa.fileName, liga: competicion.name, anio });
+            bases.push(capa);
             enlazadas.push(competicion.name);
           } catch {
             // Que falle la capa no invalida la base: se sigue sin ella.
@@ -255,8 +326,12 @@ export function PoolPage({ baseCargada, onAbrirInforme }: {
       const combinado = aggregateDatasets(bases);
       setFondo(combinado.rows);
       setBasesDelFondo(bases);
+      setProcedencias(marcas);
       setClubesFuera([]);
       setPasaporte("");
+      setLigaFiltro("");
+      setAnioFiltro(0);
+      setMismoFlanco(false);
       setProgreso(enlazadas.length
         ? tf("{j} jugadores de {n} bases · SkillCorner enlazado en {e}", { j: combinado.rows.length, n: bases.length, e: enlazadas.join(", ") })
         : tf("{j} jugadores de {n} competiciones.", { j: combinado.rows.length, n: bases.length }));
@@ -278,6 +353,60 @@ export function PoolPage({ baseCargada, onAbrirInforme }: {
     [fondo],
   );
 
+  /**
+   * La liga y el año de cada fila del fondo.
+   *
+   * Al cruzar las bases cada jugador se queda con la columna "Data sources",
+   * que nombra los archivos de los que salió. Como sabemos con qué liga y qué
+   * año entró cada archivo, basta buscar el nombre dentro de esa cadena: es
+   * exacto y no depende de separar por comas, que rompería con cualquier liga
+   * que llevara una en el nombre.
+   *
+   * Un jugador puede tener dos ligas si cambió de competición dentro del año;
+   * en ese caso vale con que una coincida con el filtro.
+   */
+  const origenPorFila = useMemo(() => {
+    if (!fondo) return null;
+    return fondo.map((fila) => {
+      const fuentes = String(fila["Data sources"] ?? "");
+      const ligas: string[] = [];
+      const anios: number[] = [];
+      for (const marca of procedencias) {
+        if (!fuentes.includes(marca.archivo)) continue;
+        if (!ligas.includes(marca.liga)) ligas.push(marca.liga);
+        if (marca.anio && !anios.includes(marca.anio)) anios.push(marca.anio);
+      }
+      return { ligas, anios };
+    });
+  }, [fondo, procedencias]);
+
+  const ligasDelFondo = useMemo(
+    () => [...new Set(procedencias.map((marca) => marca.liga))].sort((a, b) => a.localeCompare(b, "es")),
+    [procedencias],
+  );
+  const aniosDelFondo = useMemo(
+    () => [...new Set(procedencias.map((marca) => marca.anio).filter(Boolean))].sort(),
+    [procedencias],
+  );
+
+  /**
+   * El flanco del jugador de referencia.
+   *
+   * "Mismo perfil de banda" solo tiene sentido cuando el jugador tiene uno:
+   * un mediocentro es "center" y un extremo que juega por las dos bandas sale
+   * con las dos, así que en esos casos la casilla se deshabilita en vez de
+   * filtrar por algo que no significa nada.
+   */
+  const flancoObjetivo = useMemo<"" | "left" | "right">(() => {
+    if (!fondo || objetivo < 0) return "";
+    const lados = positionSides(fondo[objetivo].Position);
+    const izquierda = lados.includes("left");
+    const derecha = lados.includes("right");
+    if (izquierda && !derecha) return "left";
+    if (derecha && !izquierda) return "right";
+    return "";
+  }, [fondo, objetivo]);
+
   const candidatosObjetivo = useMemo(() => {
     if (!fondo || !busqueda.trim()) return [];
     const q = busqueda.trim().toLowerCase();
@@ -290,23 +419,36 @@ export function PoolPage({ baseCargada, onAbrirInforme }: {
   const resultado = useMemo(() => {
     if (!fondo || objetivo < 0) return null;
     const filtros: SimilarityFilters = {
-      query: "", position: posicion, secondaryRole: "", side: "", passport: pasaporte,
+      query: "", position: posicion, secondaryRole: "",
+      side: mismoFlanco ? flancoObjetivo : "",
+      passport: pasaporte,
       minimumMinutes: minutosMin,
       ageMin: null, ageMax: edadMax > 0 ? edadMax : null,
     };
     return buildSimilaritySearch(fondo, objetivo, filtros);
-  }, [fondo, objetivo, posicion, pasaporte, minutosMin, edadMax]);
+  }, [fondo, objetivo, posicion, pasaporte, minutosMin, edadMax, mismoFlanco, flancoObjetivo]);
 
   const nombreObjetivo = objetivo >= 0 && fondo ? String(fondo[objetivo].Player ?? "") : "";
   const ordenados = useMemo(() => {
     if (!resultado) return [];
-    // El descarte de clubes va después del motor: es una decisión de mercado
-    // —a este no llegamos— y no debe cambiar los percentiles de nadie.
-    const vivos = clubesFuera.length
-      ? resultado.candidates.filter((c) => !clubesFuera.includes(c.team))
-      : resultado.candidates;
-    return conCobertura(vivos, resultado.target.metrics.length);
-  }, [resultado, clubesFuera]);
+    /*
+     * Primero se corrige por cobertura sobre TODOS los candidatos y solo
+     * después se aplican los filtros de mercado —club descartado, liga, año—.
+     * El orden importa: la corrección encoge hacia la media del conjunto, así
+     * que si se filtrara antes, tachar un club movería el parecido de todos
+     * los demás. Un filtro de mercado esconde jugadores; no puede reescribir
+     * el número de los que quedan.
+     */
+    const todos = conCobertura(resultado.candidates, resultado.target.metrics.length);
+    return todos
+      .map((candidato) => ({ ...candidato, origen: origenPorFila?.[candidato.index] ?? { ligas: [], anios: [] } }))
+      .filter((candidato) => {
+        if (clubesFuera.includes(candidato.team)) return false;
+        if (ligaFiltro && !candidato.origen.ligas.includes(ligaFiltro)) return false;
+        if (anioFiltro && !candidato.origen.anios.includes(anioFiltro)) return false;
+        return true;
+      });
+  }, [resultado, clubesFuera, ligaFiltro, anioFiltro, origenPorFila]);
 
   return <section className="pool-page">
     <header>
@@ -318,7 +460,7 @@ export function PoolPage({ baseCargada, onAbrirInforme }: {
     <div className="pool-setup">
       <div className="pool-row">
         <label><span>{t("Plataforma")}</span>
-          <select value={fuente} onChange={(event) => setFuente(event.target.value as Fuente)}>
+          <select value={fuente} onChange={(event) => cambiarFuente(event.target.value as Fuente)}>
             <option value="statsbomb">StatsBomb</option>
             <option value="skillcorner">SkillCorner</option>
           </select>
@@ -331,7 +473,7 @@ export function PoolPage({ baseCargada, onAbrirInforme }: {
                 {grupo.entradas.map((competicion) => {
                   const clave = claveDe(fuente, competicion);
                   return <option key={clave} value={clave} disabled={elegidas.includes(clave)}>
-                    {competicion.season}{elegidas.includes(clave) ? " ✓" : ""}
+                    {competicion.season}{conSkillcorner.has(clave) ? " · SkillCorner" : ""}{elegidas.includes(clave) ? " ✓" : ""}
                   </option>;
                 })}
               </optgroup>
@@ -343,12 +485,26 @@ export function PoolPage({ baseCargada, onAbrirInforme }: {
         </button>
       </div>
 
+      <div className="pool-atajos">
+        <button type="button" onClick={() => setElegidas(delAnioEnCurso(disponibles).map((c) => claveDe(fuente, c)))}>
+          {t("Todas las de la temporada en curso")}
+        </button>
+        <button type="button" disabled={!elegidas.length} onClick={() => setElegidas([])}>{t("Vaciar")}</button>
+        {conSkillcorner.size > 0 && <span>
+          {tf("{n} de las elegidas tienen SkillCorner encima", {
+            n: elegidas.filter((clave) => conSkillcorner.has(clave)).length,
+          })}
+        </span>}
+      </div>
+
       {seleccionadas.length > 0 && <div className="pool-ligas">
         {seleccionadas.map((competicion) => {
           const clave = claveDe(fuente, competicion);
           return <button key={clave} type="button" className="on" onClick={() => quitar(clave)}
             title={t("Quitar del fondo")}>
-            {competicion.name}<small>{competicion.season}</small><i>×</i>
+            {competicion.name}<small>{competicion.season}</small>
+            {conSkillcorner.has(clave) && <em title={t("Tiene edición de SkillCorner: entra con datos físicos y de game intelligence")}>SC</em>}
+            <i>×</i>
           </button>;
         })}
       </div>}
@@ -412,6 +568,18 @@ export function PoolPage({ baseCargada, onAbrirInforme }: {
               : <option value="">{t("La base no trae nacionalidad")}</option>}
           </select>
         </label>
+        {ligasDelFondo.length > 1 && <label><span>{t("Liga")}</span>
+          <select value={ligaFiltro} onChange={(event) => setLigaFiltro(event.target.value)}>
+            <option value="">{t("Todas")}</option>
+            {ligasDelFondo.map((liga) => <option key={liga} value={liga}>{liga}</option>)}
+          </select>
+        </label>}
+        {aniosDelFondo.length > 1 && <label><span>{t("Año")}</span>
+          <select value={anioFiltro || ""} onChange={(event) => setAnioFiltro(Number(event.target.value))}>
+            <option value="">{t("Todos")}</option>
+            {aniosDelFondo.map((anio) => <option key={anio} value={anio}>{anio}</option>)}
+          </select>
+        </label>}
         <label><span>{t("Descartar club")}</span>
           <select
             value=""
@@ -427,6 +595,14 @@ export function PoolPage({ baseCargada, onAbrirInforme }: {
         </label>
       </div>
 
+      <label className={flancoObjetivo ? "pool-incluir" : "pool-incluir apagada"}>
+        <input type="checkbox" checked={mismoFlanco && Boolean(flancoObjetivo)} disabled={!flancoObjetivo}
+          onChange={(event) => setMismoFlanco(event.target.checked)} />
+        <span>{flancoObjetivo
+          ? tf("Solo jugadores del mismo flanco ({lado})", { lado: flancoObjetivo === "left" ? t("izquierda") : t("derecha") })
+          : t("Mismo flanco: no aplica. El jugador de referencia es central o juega por las dos bandas.")}</span>
+      </label>
+
       {clubesFuera.length > 0 && <div className="pool-descartados">
         <span>{t("Fuera del alcance")}</span>
         {clubesFuera.map((club) => (
@@ -440,11 +616,11 @@ export function PoolPage({ baseCargada, onAbrirInforme }: {
 
     {/* ---- 3. Resultado ---- */}
     {resultado && <div className="pool-resultado">
-      <h3>{tf("Se parecen a {jugador}", { jugador: nombreObjetivo })} <i>{resultado.candidates.length}</i></h3>
+      <h3>{tf("Se parecen a {jugador}", { jugador: nombreObjetivo })} <i>{ordenados.length}</i></h3>
       <p>{t("El parecido está corregido por cobertura: con pocas métricas en común el número se acerca a la media del conjunto hasta que haya evidencia que lo separe. Sin esa corrección los jugadores de ligas con menos datos salían primeros solo por compararse en menos dimensiones. La columna Bruto es el parecido sin corregir.")}</p>
       <table>
         <thead><tr>
-          <th>#</th><th>{t("Jugador")}</th><th>{t("Equipo")}</th>
+          <th>#</th><th>{t("Jugador")}</th><th>{t("Equipo")}</th><th>{t("Liga")}</th>
           <th>{t("Edad")}</th><th>{t("Min")}</th><th>{t("Parecido")}</th><th>{t("Bruto")}</th><th>{t("Cobertura")}</th>
         </tr></thead>
         <tbody>
@@ -456,6 +632,7 @@ export function PoolPage({ baseCargada, onAbrirInforme }: {
               <td>{posicionEnLista + 1}</td>
               <td className="pool-name">{candidato.name}</td>
               <td>{candidato.team}</td>
+              <td className="pool-liga">{candidato.origen.ligas.join(" · ") || "—"}</td>
               <td>{candidato.age ?? "—"}</td>
               <td>{Math.round(candidato.minutes)}</td>
               <td><b>{candidato.ajustado}%</b></td>

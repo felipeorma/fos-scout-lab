@@ -1634,7 +1634,7 @@ export default function ScoutStudio() {
                 </div>
               )}
               {report && paginaMontada(CONTEXT_PAGE) && (
-                <div className={claseHoja(CONTEXT_PAGE)}><ContextPage report={report} rows={reportRows} minutosFiltro={minimumMinutes} controles={{
+                <div className={claseHoja(CONTEXT_PAGE)}><ContextPage report={report} rows={reportRows} bases={sourceDatasets} minutosFiltro={minimumMinutes} controles={{
                   equipos: teams, jugadores: teamPlayers, equipo: selectedTeam, jugador: selectedPlayer,
                   cohorte: cohort, minutos: minimumMinutes,
                   onEquipo: selectTeam, onJugador: selectPlayer, onCohorte: setCohort, onMinutos: setMinimumMinutes,

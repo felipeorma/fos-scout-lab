@@ -2511,3 +2511,25 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
 .pool-descartados > button > i { font-style: normal; opacity: .8; }
 .carga-total { margin-top: 14px; padding: 9px 12px; border: 1px solid var(--acento-borde, rgba(255,255,255,.16)); border-radius: 7px; background: var(--acento-suave, rgba(255,255,255,.05)); color: var(--acento-claro, inherit); font-size: 10px; }
 .legal-page-shell.is-hidden { display: none !important; }
+
+/* Buscador entre ligas: atajos del menú, marca de solape y columna de liga. */
+.pool-atajos { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.pool-atajos > button { padding: 4px 10px; border: 1px solid rgba(255,255,255,.14); border-radius: 999px; background: none; color: var(--pl-dim); font-family: inherit; font-size: 9px; cursor: pointer; }
+.pool-atajos > button:hover:not(:disabled) { border-color: var(--acento-borde, rgba(255,255,255,.3)); color: var(--acento-claro, var(--pl-ink)); }
+.pool-atajos > button:disabled { opacity: .4; cursor: not-allowed; }
+.pool-atajos > span { color: var(--pl-dim); font-size: 8.5px; }
+.pool-ligas button > em { padding: 1px 5px; border-radius: 999px; background: var(--acento-suave, rgba(255,255,255,.12)); color: var(--acento-claro, var(--pl-ink)); font-style: normal; font-size: 7px; font-weight: 700; letter-spacing: .06em; }
+.pool-liga { color: var(--pl-dim); font-size: 9px; }
+.pool-incluir.apagada > span { opacity: .5; }
+.pool-incluir.apagada { cursor: default; }
+
+/* Contexto: marco de comparación por ligas. */
+.ctx-ligas { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 14px; }
+.ctx-ligas > span { color: var(--pl-dim); font-size: 7.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.ctx-ligas > button { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border: 1px solid rgba(255,255,255,.12); border-radius: 999px; background: none; color: var(--pl-dim); font-family: inherit; font-size: 9px; cursor: pointer; opacity: .55; }
+.ctx-ligas > button.on { border-color: var(--acento-borde, rgba(255,255,255,.32)); background: var(--acento-suave, rgba(255,255,255,.07)); color: var(--acento-claro, var(--pl-ink)); opacity: 1; }
+.ctx-ligas > button:disabled { cursor: default; }
+.ctx-ligas > button > i { font-style: normal; font-size: 6px; opacity: .7; }
+.ctx-ligas > em { color: var(--pl-dim); font-size: 8.5px; font-style: normal; }
+.ctx-ligas-todas { border: none; background: none; color: var(--acento-claro, var(--pl-ink)); font-family: inherit; font-size: 8.5px; text-decoration: underline; cursor: pointer; padding: 0; }
+@media print { .ctx-ligas { display: none !important; } }

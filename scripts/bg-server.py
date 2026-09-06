@@ -302,6 +302,24 @@ async def sources_status():
     return Response(_json.dumps(payload), media_type="application/json", headers=cors_headers())
 
 
+def _es_femenina(comp: dict) -> bool:
+    """Descarta competiciones femeninas.
+
+    StatsBomb expone ``competition_gender`` ("male" / "female"); es el campo
+    autoritativo. El nombre con "(W)" queda como red de seguridad para
+    proveedores que no lo traen.
+    """
+    import re
+
+    genero = str(comp.get("competition_gender") or "").strip().lower()
+    if genero in {"female", "women", "womens", "w"}:
+        return True
+    if genero in {"male", "men", "mens", "m"}:
+        return False
+    nombre = str(comp.get("competition_name") or comp.get("name") or "")
+    return bool(re.search(r"\((?:W|F)\)|\bWomen'?s?\b|\bFemenin", nombre, re.IGNORECASE))
+
+
 @app.get("/api/statsbomb/competitions")
 async def statsbomb_competitions():
     import json as _json
@@ -319,6 +337,7 @@ async def statsbomb_competitions():
                 "country": c.get("country_name"),
             }
             for c in data
+            if not _es_femenina(c)
         ],
         key=lambda c: (str(c["name"]), str(c["season"])),
     )
@@ -612,6 +631,12 @@ async def skillcorner_competitions():
                 "season": (e.get("season") or {}).get("name") or "",
             }
             for e in editions
+            if not _es_femenina(
+                {
+                    "competition_gender": ((e.get("competition") or {}).get("gender")),
+                    "competition_name": ((e.get("competition") or {}).get("name") or e.get("name")),
+                }
+            )
         ],
         # Mismo orden que StatsBomb: liga alfabética y, dentro, año ascendente.
         key=lambda c: (str(c["name"]).lower(), str(c["season"])),

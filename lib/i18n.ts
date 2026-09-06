@@ -1305,4 +1305,22 @@ const EN: Record<string, string> = {
   "Cruzando las bases…": "Merging the databases…",
   "Todas las ligas · {anio}": "Every league · {anio}",
   "No se pudieron cargar: {ligas}.": "Could not load: {ligas}.",
+
+  // Buscador entre ligas: menú de ligas y filtros del resultado.
+  "Todas las de la temporada en curso": "All of the current season",
+  "Vaciar": "Clear",
+  "{n} de las elegidas tienen SkillCorner encima": "{n} of the selected ones have SkillCorner on top",
+  "Tiene edición de SkillCorner: entra con datos físicos y de game intelligence": "Has a SkillCorner edition: comes in with physical and game intelligence data",
+  "Año": "Year",
+  "Solo jugadores del mismo flanco ({lado})": "Same flank only ({lado})",
+  "izquierda": "left",
+  "derecha": "right",
+  "Mismo flanco: no aplica. El jugador de referencia es central o juega por las dos bandas.": "Same flank: not applicable. The reference player is central or plays on both flanks.",
+  // Contexto: marco de comparación por ligas.
+  "Comparar contra": "Compare against",
+  "Es la liga del jugador: no se puede quitar": "This is the player's league: it cannot be removed",
+  "Quitar del marco de comparación": "Remove from the comparison frame",
+  "Volver a incluirla": "Bring it back in",
+  "{n} jugadores en el marco · los percentiles están recalculados": "{n} players in the frame · percentiles recalculated",
+  "Volver a todas": "Back to all",
 };
