@@ -70,13 +70,26 @@ const AGE_ALIASES = ["age", "edad"];
 const POSITION_ALIASES = ["position", "posicion especifica", "posicion"];
 const TEAM_ALIASES = ["team within selected timeframe", "equipo durante el periodo seleccionado", "team", "equipo"];
 
+/**
+ * Los nombres de columna son pocos —unos cientos— y se normalizan miles de
+ * veces: cada búsqueda de columna recorre las cabeceras enteras. Con memoria
+ * el acierto es prácticamente del 100% y el mapa nunca crece, así que aquí no
+ * hace falta tope.
+ */
+const memoCabecera = new Map<string, string>();
+
 export function normalizeHeader(value: unknown) {
-  return String(value ?? "")
+  const bruto = String(value ?? "");
+  const recordado = memoCabecera.get(bruto);
+  if (recordado !== undefined) return recordado;
+  const limpio = bruto
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9%]+/g, " ")
     .trim();
+  memoCabecera.set(bruto, limpio);
+  return limpio;
 }
 
 export function extractSeason(fileName: string) {
@@ -116,8 +129,23 @@ const HOMOGLIFOS: Record<string, string> = {
   "\u039D": "N", "\u039F": "O", "\u03A1": "P", "\u03A4": "T", "\u03A7": "X", "\u03BF": "o",
 };
 
+/**
+ * Memoria de nombres ya normalizados.
+ *
+ * Normalizar es puro y carísimo: cinco pasadas de expresión regular más un
+ * normalize() por llamada, y en un cruce de dieciséis ligas se lleva la mitad
+ * del tiempo total. No es que sea lento de más, es que se llama miles de veces
+ * sobre los mismos nombres: cada candidato a fusión se compara contra todos
+ * los de su vecindad de apellido, y en cada comparación se vuelve a normalizar
+ * a los dos. A partir de la segunda vez esto es una búsqueda en un Map.
+ */
+const memoIdentidad = new Map<string, string>();
+
 function normalizeIdentityText(value: CellValue) {
-  return String(value ?? "")
+  const bruto = String(value ?? "");
+  const recordado = memoIdentidad.get(bruto);
+  if (recordado !== undefined) return recordado;
+  const limpio = bruto
     .replace(/[\u0400-\u04FF\u0370-\u03FF]/g, (letra) => HOMOGLIFOS[letra] ?? letra)
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -125,6 +153,12 @@ function normalizeIdentityText(value: CellValue) {
     .replace(/[^a-z0-9]+/g, " ")
     .trim()
     .replace(/\s+/g, " ");
+  // Tope por si una sesión larga encadena bases muy distintas. Se vacía entera
+  // en lugar de llevar cuentas de uso: rehacer el trabajo perdido cuesta menos
+  // que administrar un desalojo fino.
+  if (memoIdentidad.size > 200_000) memoIdentidad.clear();
+  memoIdentidad.set(bruto, limpio);
+  return limpio;
 }
 
 /**
@@ -477,7 +511,18 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
   // "Sébastien Dewaele" (StatsBomb) son el mismo jugador si comparten club,
   // apellido e inicial, con edad compatible. Solo se fusiona cuando el
   // candidato es único, para no mezclar homónimos.
-  const nameTokens = (value: string) => normalizeIdentityText(value).split(" ").filter(Boolean);
+  // Igual que la normalización, y por el mismo motivo: los mismos nombres se
+  // parten en palabras una y otra vez. La memoria muere con el cruce, así que
+  // no hace falta tope. Nadie muta el array que se devuelve; si algún día
+  // alguien lo ordena o le añade algo, tendrá que copiarlo antes.
+  const memoTokens = new Map<string, string[]>();
+  const nameTokens = (value: string) => {
+    const recordado = memoTokens.get(value);
+    if (recordado) return recordado;
+    const tokens = normalizeIdentityText(value).split(" ").filter(Boolean);
+    memoTokens.set(value, tokens);
+    return tokens;
+  };
   const isAbbreviated = (value: string) => {
     const tokens = nameTokens(value);
     return tokens.length >= 2 && tokens[0].length === 1;

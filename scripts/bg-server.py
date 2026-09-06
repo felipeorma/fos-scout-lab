@@ -585,34 +585,61 @@ _SC_GI = {
 }
 
 
+def _sc_gi_ruta(edition: int, auth, route_key: str, path: str):
+    """Una ruta de game intelligence, con sus páginas."""
+    # Estas rutas no aceptan page_size (solo limit/offset); con limit=1000 una
+    # liga entra en una página y "next" cubre el resto por si acaso.
+    params = {"competition_edition": edition, "group_by": "player,team", "limit": 1000}
+    if route_key == "off_ball_runs":
+        params["variants"] = "obr_type"
+    data = _cached_get(
+        f"sc:{edition}:gi:{route_key}",
+        f"https://skillcorner.com/api/metrics/game_intelligence/{path}",
+        auth,
+        params=params,
+        ttl_seconds=1800,
+    )
+    results = list(data.get("results", []))
+    next_url = data.get("next")
+    pages = 0
+    while next_url and pages < 10:
+        data = _cached_get(f"sc:gi:next:{next_url}", next_url, auth, ttl_seconds=1800)
+        results.extend(data.get("results", []))
+        next_url = data.get("next")
+        pages += 1
+    return results
+
+
 def _sc_gi_data(edition: int, auth):
-    """Trae las 5 rutas de game intelligence indexadas por player_id."""
+    """Trae las 5 rutas de game intelligence indexadas por player_id.
+
+    Las cinco van en paralelo. Son peticiones independientes contra la misma
+    competición y encadenadas sumaban casi todo lo que tarda una liga de
+    SkillCorner: el mismo número de llamadas, pero esperando una sola vez en
+    vez de cinco. El índice se arma después, en el hilo principal, para no
+    tener que razonar sobre escrituras concurrentes.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    rutas = list(_SC_GI_ROUTES.items())
+    por_ruta: dict = {}
+    with ThreadPoolExecutor(max_workers=len(rutas)) as pool:
+        futuros = {
+            pool.submit(_sc_gi_ruta, edition, auth, route_key, path): route_key
+            for route_key, path in rutas
+        }
+        for futuro, route_key in futuros.items():
+            try:
+                por_ruta[route_key] = futuro.result()
+            except Exception:
+                # Que falle una ruta no invalida las otras cuatro.
+                continue
+
     indexed: dict = {}
-    for route_key, path in _SC_GI_ROUTES.items():
-        # Estas rutas no aceptan page_size (solo limit/offset); con limit=1000
-        # una liga entra en una página y "next" cubre el resto por si acaso.
-        params = {"competition_edition": edition, "group_by": "player,team", "limit": 1000}
-        if route_key == "off_ball_runs":
-            params["variants"] = "obr_type"
-        try:
-            data = _cached_get(
-                f"sc:{edition}:gi:{route_key}",
-                f"https://skillcorner.com/api/metrics/game_intelligence/{path}",
-                auth,
-                params=params,
-                ttl_seconds=1800,
-            )
-            results = list(data.get("results", []))
-            next_url = data.get("next")
-            pages = 0
-            while next_url and pages < 10:
-                data = _cached_get(f"sc:gi:next:{next_url}", next_url, auth, ttl_seconds=1800)
-                results.extend(data.get("results", []))
-                next_url = data.get("next")
-                pages += 1
-        except Exception:
-            continue
-        for entry in results:
+    # Se recorre en el orden del catálogo, no en el de llegada: así el
+    # resultado no depende de cuál conteste antes.
+    for route_key, _ in rutas:
+        for entry in por_ruta.get(route_key, []):
             pid = entry.get("player_id")
             if pid is None:
                 continue
