@@ -526,6 +526,14 @@ async def skillcorner_player_stats(competition_edition_id: int):
     auth = _skillcorner_auth()
     if not auth:
         return Response('{"error": "sin credenciales"}', status_code=503, media_type="application/json", headers=cors_headers())
+    # Montar una competición son siete peticiones —dos de físico y cinco de
+    # game intelligence—, y la portada carga ahora dieciocho de golpe. Sin
+    # esto, cada arranque repetía todo el viaje.
+    clave_disco = f"sc-{competition_edition_id}"
+    guardadas = _pool_cache_leer(clave_disco)
+    if guardadas is not None:
+        return Response(_json.dumps({"rows": guardadas, "provider": "skillcorner", "cache": "disco"}),
+                        media_type="application/json", headers=cors_headers())
     base_params = {
         "competition_edition": competition_edition_id,
         "possession": "all",
@@ -620,6 +628,7 @@ async def skillcorner_player_stats(competition_edition_id: int):
         row.update(gi_columns(pid))
         if row["Player"]:
             rows.append(row)
+    _pool_cache_escribir(clave_disco, rows)
     return Response(_json.dumps({"rows": rows, "provider": "skillcorner"}), media_type="application/json", headers=cors_headers())
 
 

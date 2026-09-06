@@ -282,6 +282,7 @@ export default function ScoutStudio() {
   const [sourceDatasets, setSourceDatasets] = useState<SourceDataset[]>([]);
   const [apiDialogOpen, setApiDialogOpen] = useState(false);
   const [apiStatus, setApiStatus] = useState<SourcesStatus | null | "offline">(null);
+  const [cargaTotal, setCargaTotal] = useState("");
   const [apiCompetitions, setApiCompetitions] = useState<{ statsbomb: ApiCompetition[]; skillcorner: ApiCompetition[] }>({ statsbomb: [], skillcorner: [] });
   const [apiSelection, setApiSelection] = useState<{ statsbomb: string; skillcorner: string }>({ statsbomb: "", skillcorner: "" });
   const [apiLoading, setApiLoading] = useState(false);
@@ -780,6 +781,74 @@ export default function ScoutStudio() {
     setAssetSourceStatus("");
   }
 
+  /**
+   * Cargar de una vez todas las ligas de la temporada en curso, con la capa
+   * física de SkillCorner encima donde exista.
+   *
+   * La portada preguntaba qué base usar antes de dejar hacer nada, y con
+   * dieciséis competiciones contratadas esa pregunta sobra casi siempre: lo
+   * normal es querer trabajar con todo lo que hay. Se cargan de golpe y
+   * después ya se elige qué hacer.
+   *
+   * SkillCorner no es base, se enlaza encima: aporta game intelligence y
+   * físico a las ligas que también cubre. La segunda vez es rápido porque el
+   * puente guarda en disco las filas ya montadas de cada competición.
+   */
+  async function cargarTodasLasLigas() {
+    setReportLoading(true);
+    setReportError("");
+    setCargaTotal(t("Leyendo el catálogo de competiciones…"));
+    try {
+      const [sb, sc] = await Promise.all([
+        fetchStatsbombCompetitions().catch(() => [] as ApiCompetition[]),
+        fetchSkillcornerCompetitions().catch(() => [] as ApiCompetition[]),
+      ]);
+      if (!sb.length) throw new Error(t("El servidor local no respondió. Arranca npm run bg:server y reintenta."));
+
+      // La temporada en curso, no la más reciente del listado: esa es la que
+      // viene y aún no se ha jugado.
+      const anio = String(new Date().getFullYear());
+      const delAnio = sb.filter((competicion) => String(competicion.season ?? "").includes(anio));
+      const objetivo = delAnio.length ? delAnio : sb;
+      if (!objetivo.length) throw new Error(t("No hay competiciones para la temporada en curso."));
+
+      const sinTildes = (valor: string) => valor.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+      const datasets: SourceDataset[] = [];
+      const fallidas: string[] = [];
+      for (let i = 0; i < objetivo.length; i += 1) {
+        const competicion = objetivo[i];
+        setCargaTotal(tf("{n} de {total} · {liga}", { n: i + 1, total: objetivo.length, liga: competicion.name }));
+        try {
+          datasets.push(await fetchStatsbombDataset(competicion));
+        } catch {
+          fallidas.push(competicion.name);
+          continue;
+        }
+        const hermana = sc.find((edicion) => (
+          sinTildes(edicion.name ?? "") === sinTildes(competicion.name ?? "")
+          && String(edicion.season ?? "") === String(competicion.season ?? "")
+        ));
+        if (!hermana) continue;
+        setCargaTotal(tf("{n} de {total} · {liga} · físicos de SkillCorner", { n: i + 1, total: objetivo.length, liga: competicion.name }));
+        try {
+          datasets.push(await fetchSkillcornerDataset(hermana));
+        } catch {
+          // Sin la capa física la liga sigue sirviendo: no se aborta por esto.
+        }
+      }
+      if (!datasets.length) throw new Error(t("Ninguna competición devolvió jugadores."));
+      setCargaTotal(t("Cruzando las bases…"));
+      setCombinedBaseName(tf("Todas las ligas · {anio}", { anio }));
+      applyDatasets(datasets);
+      if (fallidas.length) setReportError(tf("No se pudieron cargar: {ligas}.", { ligas: fallidas.join(", ") }));
+    } catch (error) {
+      setReportError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setCargaTotal("");
+      setReportLoading(false);
+    }
+  }
+
   async function openApiDialog() {
     setApiDialogOpen(true);
     setApiError("");
@@ -1276,25 +1345,34 @@ export default function ScoutStudio() {
 
             {!dataReady ? (
               <section className="dataset-onboarding database-gate">
-                <span className="dataset-step">{t("PASO 01 · FUENTE DEL INFORME")}</span>
-                <span className="dataset-icon"><FileSpreadsheet size={30} /></span>
-                <h2>{t("¿Qué base de datos utilizará el informe?")}</h2>
-                <p>{t("Elige una base individual o combina automáticamente dos o más archivos antes de seleccionar al jugador.")}</p>
-                <label className="temporary-source-name">
-                  <span><b>{t("Nombre temporal de la combinación")}</b><small>{t("Se usará para identificar todos los archivos dentro del reporte.")}</small></span>
-                  <input value={combinedBaseName} maxLength={80} onChange={(event) => setCombinedBaseName(event.target.value)} placeholder={t("Ej. MLS Next Pro · 2025–2026")} aria-label={t("Nombre temporal de la combinación")} />
-                </label>
+                <h2>{t("¿Qué quieres hacer?")}</h2>
+                <p>{t("Lo habitual es trabajar con todo lo contratado a la vez. Las ligas de Wyscout que no están en la API —las de Maldonado, por ejemplo— siguen entrando por archivo.")}</p>
+
                 <div className="database-choice-grid">
-                  <button className="database-choice" onClick={() => singleReportInputRef.current?.click()} disabled={reportLoading}>
-                    <span className="database-choice-tag">{t("1 ARCHIVO")}</span><span className="database-choice-icon"><FileSpreadsheet size={25} /></span><b>{t("Usar una base")}</b><small>{t("Una liga o una temporada en un archivo Excel.")}</small><em>{reportLoading ? t("Leyendo datos…") : t("Seleccionar Excel")}<Upload size={14} /></em>
+                  <button className="database-choice featured" onClick={() => void cargarTodasLasLigas()} disabled={reportLoading}>
+                    <span className="database-choice-tag">{t("RECOMENDADO")}</span>
+                    <span className="database-choice-icon"><Sparkles size={25} /></span>
+                    <b>{t("Trabajar con todas las ligas")}</b>
+                    <small>{t("Todas las competiciones de la temporada en curso, con los datos físicos de SkillCorner encima donde existan.")}</small>
+                    <em>{reportLoading ? t("Cargando…") : t("Cargar todo")}<Sparkles size={14} /></em>
                   </button>
-                  <button className="database-choice featured" onClick={() => combinedReportInputRef.current?.click()} disabled={reportLoading}>
-                    <span className="database-choice-tag">{t("2+ ARCHIVOS")}</span><span className="database-choice-icon"><Merge size={25} /></span><b>{t("Combinar bases")}</b><small>{t("Une todas las ligas o temporadas seleccionadas y usa el resultado directamente.")}</small><em>{reportLoading ? t("Combinando datos…") : t("Elegir archivos")}<Files size={14} /></em>
+                  <button className="database-choice" onClick={() => singleReportInputRef.current?.click()} disabled={reportLoading}>
+                    <span className="database-choice-tag">{t("EXCEL")}</span>
+                    <span className="database-choice-icon"><FileSpreadsheet size={25} /></span>
+                    <b>{t("Subir un archivo de Wyscout")}</b>
+                    <small>{t("Para las ligas que no están en la API. Puedes elegir varios y se combinan solos.")}</small>
+                    <em>{reportLoading ? t("Leyendo datos…") : t("Seleccionar Excel")}<Upload size={14} /></em>
                   </button>
                   <button className="database-choice" onClick={() => void openApiDialog()} disabled={reportLoading}>
-                    <span className="database-choice-tag">API</span><span className="database-choice-icon"><Sparkles size={25} /></span><b>{t("Conectar API")}</b><small>{t("StatsBomb y SkillCorner con tus credenciales, vía el servidor local.")}</small><em>{t("Elegir competición")}<Search size={14} /></em>
+                    <span className="database-choice-tag">{t("UNA LIGA")}</span>
+                    <span className="database-choice-icon"><Search size={25} /></span>
+                    <b>{t("Elegir una competición")}</b>
+                    <small>{t("Cuando solo interesa una liga y una temporada concretas.")}</small>
+                    <em>{t("Elegir competición")}<ChevronDown size={14} /></em>
                   </button>
                 </div>
+
+                {cargaTotal && <div className="carga-total" aria-live="polite">{cargaTotal}</div>}
                 <small>{t(".XLSX, .XLS o .CSV · primera hoja · clave: nombre + edad + club · procesamiento local")}</small>
                 {reportError && <div className="inline-error">{reportError}</div>}
               </section>

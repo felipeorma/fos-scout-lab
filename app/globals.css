@@ -2509,3 +2509,4 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
 .pool-descartados > button { display: flex; align-items: center; gap: 5px; padding: 3px 9px; border: 1px solid rgba(228,112,94,.4); border-radius: 999px; background: rgba(228,112,94,.08); color: #e4a99e; font-family: inherit; font-size: 9px; cursor: pointer; }
 .pool-descartados > button:hover { background: rgba(228,112,94,.16); }
 .pool-descartados > button > i { font-style: normal; opacity: .8; }
+.carga-total { margin-top: 14px; padding: 9px 12px; border: 1px solid var(--acento-borde, rgba(255,255,255,.16)); border-radius: 7px; background: var(--acento-suave, rgba(255,255,255,.05)); color: var(--acento-claro, inherit); font-size: 10px; }

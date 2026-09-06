@@ -1302,6 +1302,62 @@ export function indiceDeScouting(percentiles: number[]): number {
   return Math.round(media + PESO_DEL_PICO * (average(mejores) - media));
 }
 
+
+/**
+ * El grupo de pares de una cohorte, recordado por base.
+ *
+ * buildPlayerReport lo recalculaba en cada llamada, recorriendo la base
+ * entera para quedarse con los de la misma posición. Eso convierte una
+ * pasada de ranking en cuadrática: con la base grande de "todas las ligas"
+ * —once mil setecientos jugadores— la pantalla se quedaba veinte segundos
+ * congelada. En una pasada todos los jugadores de una cohorte comparten el
+ * mismo grupo, así que se calcula una vez.
+ *
+ * La clave incluye el mínimo de minutos porque cambiarlo cambia quién entra.
+ */
+const _paresPorBase = new WeakMap<DataRow[], { largo: number; grupos: Map<string, DataRow[]> }>();
+
+function paresDeCohorte(rows: DataRow[], peerGroup: string, positionColumn: string, columnaMinutos: string, minimumMinutes: number) {
+  let entrada = _paresPorBase.get(rows);
+  if (!entrada || entrada.largo !== rows.length) {
+    entrada = { largo: rows.length, grupos: new Map() };
+    _paresPorBase.set(rows, entrada);
+  }
+  const clave = `${peerGroup}|${minimumMinutes}`;
+  const recordado = entrada.grupos.get(clave);
+  if (recordado) return recordado;
+  const pares = rows.filter((candidate) => (
+    cohortOf(positionColumn ? candidate[positionColumn] : "") === peerGroup
+    && (minimumMinutes <= 0 || numeric(candidate[columnaMinutos]) >= minimumMinutes)
+  ));
+  entrada.grupos.set(clave, pares);
+  return pares;
+}
+
+
+/**
+ * Los valores de una métrica dentro de un grupo de pares, recordados.
+ *
+ * Es el mismo caso que el grupo de pares: en una pasada de ranking, los mil
+ * delanteros de la base comparten exactamente la misma población para cada
+ * métrica, y se reconstruía entera por jugador y por métrica. Con la base de
+ * todas las ligas eso era el grueso del tiempo.
+ */
+const _poblacionesPorPares = new WeakMap<DataRow[], Map<string, number[]>>();
+
+function poblacionDeMetrica(peers: DataRow[], key: string) {
+  let cache = _poblacionesPorPares.get(peers);
+  if (!cache) {
+    cache = new Map();
+    _poblacionesPorPares.set(peers, cache);
+  }
+  const recordada = cache.get(key);
+  if (recordada) return recordada;
+  const valores = peers.map((candidate) => numeric(candidate[key])).filter(Number.isFinite);
+  cache.set(key, valores);
+  return valores;
+}
+
 export function buildPlayerReport(rows: DataRow[], selectedIndex: number, minimumMinutes: number, forcedCohort = "AUTO", selectedMetricLabels?: string[] | null): PlayerReport | null {
   const row = rows[selectedIndex];
   if (!row) return null;
@@ -1322,10 +1378,7 @@ export function buildPlayerReport(rows: DataRow[], selectedIndex: number, minimu
   // la vez la lente de métricas y los pares: mirar a un portero "como delantero"
   // solo significa algo si se le compara contra delanteros.
   const peerGroup = peerCohort(cohort);
-  const peers = rows.filter((candidate) => (
-    cohortOf(positionColumn ? candidate[positionColumn] : "") === peerGroup
-    && (minimumMinutes <= 0 || numeric(candidate[core.minutes]) >= minimumMinutes)
-  ));
+  const peers = paresDeCohorte(rows, peerGroup, positionColumn, core.minutes, minimumMinutes);
   const metrics = !peers.length ? [] : definitions.flatMap((definition) => {
     const key = findColumn(headers, definition.aliases);
     if (!key) return [];
@@ -1333,7 +1386,7 @@ export function buildPlayerReport(rows: DataRow[], selectedIndex: number, minimu
     if (!Number.isFinite(value)) return [];
     // Sin muestra real en la cohorte, el percentil no significa nada: la
     // métrica se omite en lugar de dibujarse contra un grupo vacío.
-    const peerValues = peers.map((candidate) => numeric(candidate[key])).filter(Number.isFinite);
+    const peerValues = poblacionDeMetrica(peers, key);
     if (!peerValues.length) return [];
     return [{ key, label: definition.label, value, percentile: percentile(value, peerValues, definition.inverse), group: definition.group, colorGroup: definition.colorGroup, inverse: definition.inverse, source: definition.source ?? "wyscout", sample: peerValues.length }];
   });

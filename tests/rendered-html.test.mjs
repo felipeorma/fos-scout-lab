@@ -85,10 +85,12 @@ test("la primera pantalla trae el conmutador de encargo y las puertas de entrada
   for (const paso of ["Cargar datos", "Elegir jugador", "Construir reporte"]) {
     assert.match(texto, new RegExp(paso), `falta el paso "${paso}"`);
   }
-  // Las tres formas de traer datos. Si se cae una, el usuario se queda fuera.
-  assert.match(texto, /Usar una base/);
-  assert.match(texto, /Combinar bases/);
-  assert.match(texto, /Conectar API/);
+  // La portada pregunta qué hacer, no qué base cargar.
+  assert.match(texto, /¿Qué quieres hacer\?/);
+  // Las tres puertas de entrada. Si se cae una, el usuario se queda fuera.
+  assert.match(texto, /Trabajar con todas las ligas/);
+  assert.match(texto, /Subir un archivo de Wyscout/);
+  assert.match(texto, /Elegir una competición/);
   // Bilingüe desde el primer momento.
   assert.match(texto, /\bES\b/);
   assert.match(texto, /\bEN\b/);
