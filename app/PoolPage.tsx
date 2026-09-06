@@ -10,6 +10,7 @@ import {
   fetchSkillcornerDataset,
   fetchStatsbombCompetitions,
   fetchStatsbombDataset,
+  temporadasUtiles,
   type ApiCompetition,
 } from "@/lib/remoteData";
 
@@ -103,21 +104,6 @@ function ediciónHermana(competicion: ApiCompetition, ediciones: ApiCompetition[
 }
 
 /**
- * Las competiciones de la temporada en curso.
- *
- * Es lo que se carga solo al abrir la pantalla. La más reciente del catálogo
- * no sirve como criterio: la temporada que viene ya figura listada y aún no se
- * ha jugado, así que un fondo armado con ella sale vacío o con veinte minutos
- * por jugador. Si ninguna lleva el año en curso —catálogo histórico— se
- * devuelve todo y que elija quien mira.
- */
-function delAnioEnCurso(lista: ApiCompetition[]) {
-  const anio = String(new Date().getFullYear());
-  const enCurso = lista.filter((competicion) => String(competicion.season ?? "").includes(anio));
-  return enCurso.length ? enCurso : lista;
-}
-
-/**
  * Cómo se nombra la base cargada en el filtro de liga.
  *
  * Su nombre es el del archivo —"StatsBomb · Canadian Premier League 2026" o el
@@ -153,6 +139,9 @@ export function PoolPage({ baseCargada, onAbrirInforme }: {
   const [elegidas, setElegidas] = useState<string[]>([]);
   const [incluirBase, setIncluirBase] = useState(true);
   const [enlazarSc, setEnlazarSc] = useState(true);
+  /** Las que entraron con una temporada anterior porque la actual aún no tiene
+   *  partidos publicados. Se dice, porque mezcla años sin haberlo pedido. */
+  const [rezagadas, setRezagadas] = useState<string[]>([]);
 
   const [fondo, setFondo] = useState<DataRow[] | null>(null);
   const [basesDelFondo, setBasesDelFondo] = useState<SourceDataset[]>([]);
@@ -186,7 +175,9 @@ export function PoolPage({ baseCargada, onAbrirInforme }: {
       // Las ligas entran ya elegidas: llegar a esta pantalla y encontrar el
       // menú vacío obligaba a añadirlas de una en una antes de poder buscar
       // nada. Se quitan con un clic las que no interesen.
-      setElegidas(delAnioEnCurso(sb).map((competicion) => claveDe("statsbomb", competicion)));
+      const utiles = temporadasUtiles(sb);
+      setElegidas(utiles.elegidas.map((competicion) => claveDe("statsbomb", competicion)));
+      setRezagadas(utiles.rezagadas.map((competicion) => `${competicion.name} ${competicion.season}`));
       if (!sb.length && !sc.length) setProgreso(t("El servidor local no está corriendo. Arranca npm run bg:server y recarga."));
     });
     return () => { montado = false; };
@@ -225,7 +216,9 @@ export function PoolPage({ baseCargada, onAbrirInforme }: {
    */
   function cambiarFuente(nueva: Fuente) {
     setFuente(nueva);
-    setElegidas(delAnioEnCurso(competiciones[nueva]).map((competicion) => claveDe(nueva, competicion)));
+    const utiles = temporadasUtiles(competiciones[nueva]);
+    setElegidas(utiles.elegidas.map((competicion) => claveDe(nueva, competicion)));
+    setRezagadas(utiles.rezagadas.map((competicion) => `${competicion.name} ${competicion.season}`));
     setFondo(null);
     setObjetivo(-1);
   }
@@ -486,7 +479,11 @@ export function PoolPage({ baseCargada, onAbrirInforme }: {
       </div>
 
       <div className="pool-atajos">
-        <button type="button" onClick={() => setElegidas(delAnioEnCurso(disponibles).map((c) => claveDe(fuente, c)))}>
+        <button type="button" onClick={() => {
+          const utiles = temporadasUtiles(disponibles);
+          setElegidas(utiles.elegidas.map((c) => claveDe(fuente, c)));
+          setRezagadas(utiles.rezagadas.map((c) => `${c.name} ${c.season}`));
+        }}>
           {t("Todas las de la temporada en curso")}
         </button>
         <button type="button" disabled={!elegidas.length} onClick={() => setElegidas([])}>{t("Vaciar")}</button>
@@ -508,6 +505,12 @@ export function PoolPage({ baseCargada, onAbrirInforme }: {
           </button>;
         })}
       </div>}
+
+      {rezagadas.length > 0 && <p className="pool-aviso-anios">
+        {tf("Sin partidos publicados todavía en su temporada de este año, así que entran con la anterior: {ligas}. Es dato bueno, pero de un curso ya cerrado.", {
+          ligas: rezagadas.join(", "),
+        })}
+      </p>}
 
       {aniosMezclados.length > 1 && <p className="pool-aviso-anios">
         {tf("Lo elegido abarca {anios}. Un jugador comparado consigo mismo entre dos años no dice lo que parece: el que creció sale parecido a su versión anterior. Úsalo a sabiendas.", {

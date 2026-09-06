@@ -1,10 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { buildPlayerReport, type DataRow } from "@/lib/scouting";
+import { type DataRow, type SourceDataset } from "@/lib/scouting";
+import { ligasDeBases, origenPorFila } from "@/lib/procedencia";
+import { rankingDeCohorte } from "@/lib/ranking";
 import { t, tf } from "@/lib/i18n";
 import { rankingPorArquetipo } from "@/lib/arquetipos";
-import { playerPassports } from "@/lib/similarity";
 
 /**
  * Ranking de la base por posición.
@@ -32,18 +33,6 @@ const PERFILES = [
   { id: "CF", nombre: "Delanteros" },
 ];
 
-type Fila = {
-  indice: number;
-  jugador: string;
-  equipo: string;
-  edad: number;
-  minutos: number;
-  puntuacion: number;
-  destacadas: Array<{ label: string; percentile: number }>;
-  /** Todos sus pasaportes, no solo el primero: un canadiense con doble
-   *  nacionalidad tiene que aparecer al filtrar por Canadá. */
-  pasaportes: string[];
-};
 
 /**
  * Cuántos pares hacen falta para que un percentil signifique algo.
@@ -60,13 +49,11 @@ type Fila = {
 const COHORTE_FIABLE = 10;
 const COHORTE_MINIMA = 5;
 
-function numero(value: unknown) {
-  const parsed = typeof value === "number" ? value : Number(String(value ?? "").replace(",", "."));
-  return Number.isFinite(parsed) ? parsed : Number.NaN;
-}
 
-export function RankingPage({ rows, minimumMinutes, onSelectPlayer }: {
+export function RankingPage({ rows, bases = [], minimumMinutes, onSelectPlayer }: {
   rows: DataRow[];
+  /** Las bases que se cruzaron, para poder filtrar por liga y por año. */
+  bases?: SourceDataset[];
   minimumMinutes: number;
   onSelectPlayer?: (indice: number) => void;
 }) {
@@ -76,35 +63,37 @@ export function RankingPage({ rows, minimumMinutes, onSelectPlayer }: {
   const [equipo, setEquipo] = useState("TODOS");
   const [pasaporte, setPasaporte] = useState("TODOS");
   const [vista, setVista] = useState<"indice" | "arquetipos">("indice");
+  const [liga, setLiga] = useState("TODAS");
+  const [anio, setAnio] = useState(0);
+
+  /*
+   * Liga y año filtran DESPUÉS del índice, igual que el equipo y el pasaporte
+   * que tienen al lado. El número que se ve sigue siendo el percentil contra
+   * todos los jugadores de esa posición en lo que hay cargado, no contra los
+   * de la liga elegida: mirar la Ligue 3 sola y ver un 90 recalculado contra
+   * la propia Ligue 3 diría algo muy distinto de un 90 contra dieciséis ligas,
+   * y esto último es lo que sirve para fichar. Estrechan a quién ves, no cómo
+   * se le mide.
+   */
+  const procedencias = useMemo(() => ligasDeBases(bases), [bases]);
+  const origenes = useMemo(
+    () => (procedencias.length > 1 ? origenPorFila(rows, procedencias) : null),
+    [rows, procedencias],
+  );
+  const ligas = useMemo(
+    () => [...new Set(procedencias.map((x) => x.liga))].sort((a, b) => a.localeCompare(b, "es")),
+    [procedencias],
+  );
+  const anios = useMemo(
+    () => [...new Set(procedencias.map((x) => x.anio).filter(Boolean))].sort(),
+    [procedencias],
+  );
 
   // El informe completo es caro: se calcula una vez por perfil y minutos, y
   // los filtros de edad y equipo se aplican después sobre el resultado.
-  const todos = useMemo(() => {
-    const salida: Fila[] = [];
-    for (let indice = 0; indice < rows.length; indice += 1) {
-      // "AUTO" y no `perfil`: forzar la cohorte se la asigna a todos, y el
-      // filtro de abajo dejaría pasar a la base entera como si fuera de esa
-      // posición. Con AUTO cada jugador trae la suya y se compara con sus pares.
-      const informe = buildPlayerReport(rows, indice, minutosMin, "AUTO");
-      if (!informe || informe.cohort !== perfil || informe.metrics.length < 4) continue;
-      const minutos = numero(rows[indice]["Minutes played"]);
-      if (Number.isFinite(minutos) && minutosMin > 0 && minutos < minutosMin) continue;
-      salida.push({
-        indice,
-        jugador: informe.player,
-        equipo: informe.team,
-        edad: numero(rows[indice].Age),
-        minutos: Number.isFinite(minutos) ? minutos : 0,
-        puntuacion: informe.indice,
-        destacadas: informe.metrics
-          .filter((metrica) => metrica.percentile >= 85)
-          .sort((a, b) => b.percentile - a.percentile)
-          .slice(0, 3),
-        pasaportes: playerPassports(informe.passport),
-      });
-    }
-    return salida.sort((a, b) => b.puntuacion - a.puntuacion);
-  }, [rows, perfil, minutosMin]);
+  // El informe completo es caro: se calcula una vez por perfil y minutos, y
+  // los filtros de edad y equipo se aplican después sobre el resultado.
+  const todos = useMemo(() => rankingDeCohorte(rows, perfil, minutosMin), [rows, perfil, minutosMin]);
 
   const equipos = useMemo(
     () => [...new Set(todos.map((fila) => fila.equipo).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es")),
@@ -122,8 +111,10 @@ export function RankingPage({ rows, minimumMinutes, onSelectPlayer }: {
   const visibles = useMemo(() => todos.filter((fila) => (
     (equipo === "TODOS" || fila.equipo === equipo)
     && (pasaporte === "TODOS" || fila.pasaportes.includes(pasaporte))
+    && (liga === "TODAS" || Boolean(origenes?.[fila.indice]?.ligas.includes(liga)))
+    && (!anio || Boolean(origenes?.[fila.indice]?.anios.includes(anio)))
     && (edadMax <= 0 || (Number.isFinite(fila.edad) && fila.edad <= edadMax))
-  )), [todos, equipo, pasaporte, edadMax]);
+  )), [todos, equipo, pasaporte, edadMax, liga, anio, origenes]);
 
   const arquetipos = useMemo(
     () => (vista === "arquetipos" ? rankingPorArquetipo(rows, perfil, minutosMin) : []),
@@ -164,6 +155,18 @@ export function RankingPage({ rows, minimumMinutes, onSelectPlayer }: {
             : <option value="TODOS">{t("La base no trae nacionalidad")}</option>}
         </select>
       </label>
+      {ligas.length > 1 && <label><span>{t("Liga")}</span>
+        <select value={liga} onChange={(event) => setLiga(event.target.value)}>
+          <option value="TODAS">{t("Todas")}</option>
+          {ligas.map((nombre) => <option key={nombre} value={nombre}>{nombre}</option>)}
+        </select>
+      </label>}
+      {anios.length > 1 && <label><span>{t("Año")}</span>
+        <select value={anio || ""} onChange={(event) => setAnio(Number(event.target.value))}>
+          <option value="">{t("Todos")}</option>
+          {anios.map((x) => <option key={x} value={x}>{x}</option>)}
+        </select>
+      </label>}
       <label><span>{t("Mín. minutos")}</span>
         <input type="number" min="0" step="100" value={minutosMin} onChange={(event) => setMinutosMin(Number(event.target.value))} />
       </label>
@@ -221,6 +224,8 @@ export function RankingPage({ rows, minimumMinutes, onSelectPlayer }: {
               .filter((jugador) => (
                 (equipo === "TODOS" || jugador.equipo === equipo)
                 && (pasaporte === "TODOS" || jugador.pasaportes.includes(pasaporte))
+                && (liga === "TODAS" || Boolean(origenes?.[jugador.indice]?.ligas.includes(liga)))
+                && (!anio || Boolean(origenes?.[jugador.indice]?.anios.includes(anio)))
                 && (edadMax <= 0 || (Number.isFinite(jugador.edad) && jugador.edad <= edadMax))
               ))
               .slice(0, 10)

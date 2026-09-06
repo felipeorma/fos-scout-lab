@@ -1323,4 +1323,6 @@ const EN: Record<string, string> = {
   "Volver a incluirla": "Bring it back in",
   "{n} jugadores en el marco · los percentiles están recalculados": "{n} players in the frame · percentiles recalculated",
   "Volver a todas": "Back to all",
+  "Sin partidos publicados todavía en su temporada de este año, así que entran con la anterior: {ligas}. Es dato bueno, pero de un curso ya cerrado.": "No matches published yet for this year's season, so they come in with the previous one: {ligas}. Good data, but from a season already closed.",
+  "Entran con su temporada anterior, porque la de este año aún no tiene partidos publicados: {ligas}.": "These come in with their previous season, because this year's has no published matches yet: {ligas}.",
 };

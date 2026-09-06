@@ -41,7 +41,7 @@ import {
 import { profileStorageKey, readStoredJson, type TransfermarktProfile } from "@/lib/transfermarkt";
 import { formatPlayerPositions, selectedCohortPosition } from "@/lib/positions";
 import { removePlayerImageBackground } from "@/lib/playerImageBackground";
-import { fetchAiSummary, type AiMetricFact, type AiPlayerFacts, fetchSkillcornerCompetitions, fetchSkillcornerDataset, fetchSourcesStatus, fetchStatsbombCompetitions, fetchStatsbombDataset, fetchTransfermarktProfile, type ApiCompetition, type SourcesStatus } from "@/lib/remoteData";
+import { fetchAiSummary, type AiMetricFact, type AiPlayerFacts, fetchSkillcornerCompetitions, fetchSkillcornerDataset, fetchSourcesStatus, fetchStatsbombCompetitions, fetchStatsbombDataset, fetchTransfermarktProfile, temporadasUtiles, type ApiCompetition, type SourcesStatus } from "@/lib/remoteData";
 import { reportExportBaseName } from "@/lib/reportExportName";
 import { canonicalizeRow } from "@/lib/wyscoutHeaders";
 import { METRIC_SOURCE_COLORS, SIMILARITY_METRIC_GROUPS, similarityMetricGroup } from "@/lib/similarityMetricGroups";
@@ -828,10 +828,11 @@ export default function ScoutStudio() {
       if (!sb.length) throw new Error(t("El servidor local no respondió. Arranca npm run bg:server y reintenta."));
 
       // La temporada en curso, no la más reciente del listado: esa es la que
-      // viene y aún no se ha jugado.
+      // viene y aún no se ha jugado. Y de las de este año, solo las que ya
+      // tienen partidos publicados: la NCAA arranca en agosto y su curso 2026
+      // entraba con cero jugadores sin decirlo, que es peor que no entrar.
       const anio = String(new Date().getFullYear());
-      const delAnio = sb.filter((competicion) => String(competicion.season ?? "").includes(anio));
-      const objetivo = delAnio.length ? delAnio : sb;
+      const { elegidas: objetivo, rezagadas } = temporadasUtiles(sb);
       if (!objetivo.length) throw new Error(t("No hay competiciones para la temporada en curso."));
 
       const sinTildes = (valor: string) => valor.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
@@ -862,7 +863,15 @@ export default function ScoutStudio() {
       setCargaTotal(t("Cruzando las bases…"));
       setCombinedBaseName(tf("Todas las ligas · {anio}", { anio }));
       applyDatasets(datasets);
-      if (fallidas.length) setReportError(tf("No se pudieron cargar: {ligas}.", { ligas: fallidas.join(", ") }));
+      const avisos = [
+        fallidas.length ? tf("No se pudieron cargar: {ligas}.", { ligas: fallidas.join(", ") }) : "",
+        rezagadas.length
+          ? tf("Entran con su temporada anterior, porque la de este año aún no tiene partidos publicados: {ligas}.", {
+            ligas: rezagadas.map((competicion) => `${competicion.name} ${competicion.season}`).join(", "),
+          })
+          : "",
+      ].filter(Boolean);
+      if (avisos.length) setReportError(avisos.join(" "));
     } catch (error) {
       setReportError(error instanceof Error ? error.message : String(error));
     } finally {
@@ -1603,7 +1612,7 @@ export default function ScoutStudio() {
                 <div className={claseHoja(RUNS_PAGE)}><RunsPage /></div>
               )}
               {report && paginaMontada(RANK_PAGE) && (
-                <div className={claseHoja(RANK_PAGE)}><RankingPage rows={reportRows} minimumMinutes={minimumMinutes} onSelectPlayer={(indice) => { selectPlayer(indice); setReportPage(CARD_PAGE); }} /></div>
+                <div className={claseHoja(RANK_PAGE)}><RankingPage rows={reportRows} bases={sourceDatasets} minimumMinutes={minimumMinutes} onSelectPlayer={(indice) => { selectPlayer(indice); setReportPage(CARD_PAGE); }} /></div>
               )}
               {paginaMontada(POOL_PAGE) && (
                 <div className={claseHoja(POOL_PAGE)}><PoolPage

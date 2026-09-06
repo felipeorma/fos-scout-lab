@@ -335,6 +335,11 @@ async def statsbomb_competitions():
                 "name": c.get("competition_name"),
                 "season": c.get("season_name"),
                 "country": c.get("country_name"),
+                # Si StatsBomb ha publicado partidos de esta temporada. Sin
+                # esto la portada elegía la temporada por el año del
+                # calendario y cargaba en vacío las que aún no han empezado:
+                # la NCAA 2026 salía con cero jugadores sin decirlo.
+                "hasMatches": bool(c.get("match_available")),
             }
             for c in data
             if not _es_femenina(c)

@@ -759,6 +759,18 @@ export function cohortOf(value: CellValue) {
   return roleCohort(primaryPositionRole(value));
 }
 
+/**
+ * La columna de posición de una base.
+ *
+ * Para quien necesite saber la cohorte de una fila sin construirle el informe
+ * entero: el ranking descarta miles de jugadores por posición antes de
+ * calcular nada, y calcularles el informe para luego tirarlo costaba un orden
+ * de magnitud más.
+ */
+export function positionColumnOf(headers: string[]) {
+  return findColumn(headers, POSITION_ALIASES);
+}
+
 type MetricDefinition = { label: string; aliases: string[]; group: number; colorGroup: MetricColorGroup; inverse?: boolean; source?: MetricSource };
 
 // Sets de métricas por rol según la especificación del cuaderno de análisis.

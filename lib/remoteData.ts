@@ -119,6 +119,8 @@ import { OPTA_URL, type FotoMensual, type OptaLiga } from "./maldonado";
 
 const LOCAL_BRIDGE = "http://127.0.0.1:7001";
 
+export { temporadasUtiles } from "./temporadas.ts";
+
 export type SourcesStatus = { statsbomb: boolean; skillcorner: boolean };
 
 export type ApiCompetition = {
@@ -128,7 +130,11 @@ export type ApiCompetition = {
   name: string;
   season: string;
   country?: string;
+  /** Si el proveedor ya publicó partidos de esta temporada. Solo StatsBomb lo
+   *  informa; en SkillCorner viene indefinido y se asume que sí. */
+  hasMatches?: boolean;
 };
+
 
 async function bridgeJson<T>(path: string, timeoutMs = 60_000): Promise<T> {
   const response = await fetch(`${LOCAL_BRIDGE}${path}`, { signal: AbortSignal.timeout(timeoutMs) });
