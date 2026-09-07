@@ -2298,7 +2298,7 @@ body.print-layout-check .ai-error { display: none !important; }
 .rank-tabs button { padding: 5px 12px; border: 1px solid rgba(255,255,255,.16); border-radius: 999px; background: none; color: var(--rk-dim); font-family: inherit; font-size: 9px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; cursor: pointer; }
 .rank-tabs button.on { border-color: var(--rk-green); background: color-mix(in srgb, var(--rk-green) 18%, transparent); color: var(--rk-green); }
 .rank-list { margin: 0; padding: 0; list-style: none; }
-.rank-list > li { display: grid; grid-template-columns: 22px minmax(120px, 1.5fr) minmax(60px, 1fr) 26px minmax(0, 1.6fr); align-items: center; gap: 9px; padding: 5px 6px; border-bottom: 1px solid rgba(255,255,255,.05); }
+.rank-list > li { display: grid; grid-template-columns: 22px minmax(120px, 1.5fr) minmax(60px, 1fr) 44px minmax(0, 1.6fr); align-items: center; gap: 9px; padding: 5px 6px; border-bottom: 1px solid rgba(255,255,255,.05); }
 .rank-list > li.clicable { cursor: pointer; }
 .rank-list > li.clicable:hover { background: rgba(255,255,255,.045); }
 .rank-pos { color: var(--rk-dim); font-size: 9px; text-align: right; }
@@ -2545,3 +2545,9 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
 .api-platform-head .logo-plataforma { border-radius: 4px; }
 .pool-marcas { display: inline-flex; align-items: center; gap: 3px; margin-left: 1px; }
 .pool-marcas .logo-plataforma { border-radius: 3px; }
+
+/* Índice corregido por cobertura, con el crudo al lado en pequeño. */
+.rank-list > li > b { display: flex; align-items: baseline; justify-content: flex-end; gap: 3px; }
+.rank-list > li > b > u { color: var(--pl-dim); font-size: 7.5px; font-weight: 600; text-decoration: none; cursor: help; }
+.rank-cobertura { margin: 0 0 12px; padding: 9px 11px; border: 1px solid rgba(255,255,255,.1); border-radius: 7px; background: rgba(255,255,255,.03); color: var(--pl-dim); font-size: 9px; line-height: 1.55; }
+@media print { .rank-cobertura { display: none !important; } }

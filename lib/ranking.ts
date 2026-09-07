@@ -7,6 +7,7 @@ import {
   type DataRow,
 } from "./scouting.ts";
 import { playerPassports } from "./similarity.ts";
+import { encogerHaciaLaMedia } from "./cobertura.ts";
 
 /**
  * El ranking de una cohorte: quién encabeza un puesto en la base cargada.
@@ -22,7 +23,12 @@ export type FilaRanking = {
   equipo: string;
   edad: number;
   minutos: number;
+  /** El índice corregido por cobertura: es el que ordena la lista. */
   puntuacion: number;
+  /** El índice tal cual sale del informe, sin corregir. */
+  puntuacionCruda: number;
+  /** Con cuántas métricas se calculó, que es lo que sostiene el número. */
+  metricas: number;
   destacadas: Array<{ label: string; percentile: number }>;
   /** Todos sus pasaportes, no solo el primero: un canadiense con doble
    *  nacionalidad tiene que aparecer al filtrar por Canadá. */
@@ -74,6 +80,8 @@ export function rankingDeCohorte(rows: DataRow[], perfil: string, minutosMin: nu
       edad: numero(fila.Age),
       minutos: Number.isFinite(minutos) ? minutos : 0,
       puntuacion: informe.indice,
+      puntuacionCruda: informe.indice,
+      metricas: informe.metrics.length,
       destacadas: informe.metrics
         .filter((metrica) => metrica.percentile >= 85)
         .sort((a, b) => b.percentile - a.percentile)
@@ -81,5 +89,22 @@ export function rankingDeCohorte(rows: DataRow[], perfil: string, minutosMin: nu
       pasaportes: playerPassports(informe.passport),
     });
   }
-  return salida.sort((a, b) => b.puntuacion - a.puntuacion);
+  /*
+   * Corrección por cobertura, la misma que usa el buscador entre ligas.
+   *
+   * En un ranking con todas las ligas cargadas conviven jugadores medidos con
+   * diecisiete métricas y con siete, según su liga tenga o no la capa de
+   * SkillCorner. Tener menos no sube la nota —la correlación es de 0,1— pero
+   * la vuelve más inestable, y como esta lista se lee por arriba, los
+   * inestables asoman en la cima más de lo que les toca: en porteros ocupaban
+   * el 90% del top-20 siendo el 80% de la base.
+   *
+   * Se ordena por el número corregido y se conserva el crudo, porque el ajuste
+   * comprime el rango y sin el original se pierde la escala a la que uno está
+   * acostumbrado.
+   */
+  const ajustados = encogerHaciaLaMedia(salida.map((f) => f.puntuacion), salida.map((f) => f.metricas));
+  return salida
+    .map((fila, i) => ({ ...fila, puntuacion: Math.round(ajustados[i]) }))
+    .sort((a, b) => b.puntuacion - a.puntuacion || b.metricas - a.metricas);
 }

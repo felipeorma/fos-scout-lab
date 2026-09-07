@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { t, tf } from "@/lib/i18n";
 import { aggregateDatasets, extractSeason, type DataRow, type SourceDataset } from "@/lib/scouting";
+import { encogerHaciaLaMedia } from "@/lib/cobertura";
 import { positionSides } from "@/lib/positions";
 import { LogoPlataforma } from "./LogosPlataforma";
-import { buildSimilaritySearch, playerPassports, similarityOptions, type SimilarityFilters } from "@/lib/similarity";
+import { buildSimilaritySearch, similarityOptions, type SimilarityFilters } from "@/lib/similarity";
 import {
   fetchSkillcornerCompetitions,
   fetchSkillcornerDataset,
@@ -53,22 +54,17 @@ import {
  * empujaba hacia las ligas de las que menos se sabe, que es justo lo contrario
  * de lo que uno quiere al fichar.
  *
- * La corrección es un encogimiento hacia la media: el parecido de un candidato
- * pesa según cuántas métricas lo sostienen, y lo que falta se rellena con el
- * parecido medio del conjunto. Con cobertura completa no cambia nada; con
- * media docena de métricas el número se acerca a la media hasta que haya
- * evidencia que lo separe de ella.
+ * El encogimiento vive en lib/cobertura.ts porque el ranking sufre lo mismo y
+ * tienen que corregirlo igual: dos copias del mismo ajuste acabarían dando
+ * órdenes distintos para la misma base.
  */
-const METRICAS_PARA_CONFIAR = 8;
-
 function conCobertura<T extends { similarity: number; coverage: number }>(candidatos: T[], totalMetricas: number) {
   if (!candidatos.length) return [];
-  const media = candidatos.reduce((suma, c) => suma + c.similarity, 0) / candidatos.length;
-  return candidatos.map((candidato) => {
-    const usadas = Math.max(0, Math.round((candidato.coverage / 100) * totalMetricas));
-    const ajustado = (usadas * candidato.similarity + METRICAS_PARA_CONFIAR * media) / (usadas + METRICAS_PARA_CONFIAR);
-    return { ...candidato, ajustado: Math.round(ajustado) };
-  }).sort((a, b) => b.ajustado - a.ajustado || b.coverage - a.coverage);
+  const usadas = candidatos.map((c) => Math.max(0, Math.round((c.coverage / 100) * totalMetricas)));
+  const ajustados = encogerHaciaLaMedia(candidatos.map((c) => c.similarity), usadas);
+  return candidatos
+    .map((candidato, i) => ({ ...candidato, ajustado: Math.round(ajustados[i]) }))
+    .sort((a, b) => b.ajustado - a.ajustado || b.coverage - a.coverage);
 }
 
 type Fuente = "statsbomb" | "skillcorner";

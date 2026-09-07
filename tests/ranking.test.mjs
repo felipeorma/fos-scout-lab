@@ -68,8 +68,9 @@ function rankingIngenuo(rows, perfil, minutosMin) {
 test("el atajo por posición devuelve lo mismo que calcular toda la base", () => {
   const filas = base();
   for (const perfil of ["GK", "CB", "FB", "DMF", "AM", "WING", "CF"]) {
-    const rapido = rankingDeCohorte(filas, perfil, 600).map((f) => [f.indice, f.puntuacion]);
-    const lento = rankingIngenuo(filas, perfil, 600).map((f) => [f.indice, f.puntuacion]);
+    const porFila = (xs) => [...xs].sort((a, b) => a[0] - b[0]);
+    const rapido = porFila(rankingDeCohorte(filas, perfil, 600).map((f) => [f.indice, f.puntuacionCruda]));
+    const lento = porFila(rankingIngenuo(filas, perfil, 600).map((f) => [f.indice, f.puntuacion]));
     assert.deepEqual(rapido, lento, `difieren en ${perfil}`);
   }
 });
@@ -104,3 +105,31 @@ test("cada fila trae todos sus pasaportes y viene ordenada por índice", () => {
   }
   assert.ok(filas.some((f) => f.pasaportes.includes("Canada")));
 });
+
+test("el ranking corrige por cobertura y conserva el índice crudo", () => {
+  const filas = base();
+  const r = rankingDeCohorte(filas, "CB", 0);
+  assert.ok(r.length > 3);
+  for (const f of r) {
+    assert.equal(typeof f.puntuacionCruda, "number", "el índice sin corregir viaja con cada fila");
+    assert.ok(f.metricas >= 4, "y también con cuántas métricas se calculó");
+  }
+  // Ordena por el corregido, no por el crudo.
+  for (let i = 1; i < r.length; i += 1) {
+    assert.ok(r[i - 1].puntuacion >= r[i].puntuacion);
+  }
+});
+
+test("el corregido siempre cae entre el crudo y la media del puesto", () => {
+  // La propiedad que define un encogimiento: nunca empuja más allá de la
+  // media ni deja el valor donde estaba, salvo que ya estuviera en la media.
+  const r = rankingDeCohorte(base(), "CB", 0);
+  assert.ok(r.length > 3);
+  const media = r.reduce((s, f) => s + f.puntuacionCruda, 0) / r.length;
+  for (const f of r) {
+    const [bajo, alto] = f.puntuacionCruda <= media ? [f.puntuacionCruda, media] : [media, f.puntuacionCruda];
+    assert.ok(f.puntuacion >= Math.floor(bajo) && f.puntuacion <= Math.ceil(alto),
+      `${f.jugador}: corregido ${f.puntuacion} fuera de [${bajo.toFixed(1)}, ${alto.toFixed(1)}]`);
+  }
+});
+

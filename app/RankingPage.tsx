@@ -122,6 +122,14 @@ export function RankingPage({ rows, bases = [], minimumMinutes, onSelectPlayer }
   );
 
   const maximo = visibles[0]?.puntuacion ?? 100;
+  /* El aviso solo cuando la cobertura es desigual de verdad: si toda la base
+     viene de la misma plataforma, el ajuste no mueve a nadie y explicarlo
+     sería ruido. */
+  const hayCoberturaDesigual = useMemo(() => {
+    if (todos.length < 2) return false;
+    const metricas = todos.map((fila) => fila.metricas);
+    return Math.max(...metricas) - Math.min(...metricas) >= 3;
+  }, [todos]);
 
   return <section className="rank-page">
     <header>
@@ -179,6 +187,10 @@ export function RankingPage({ rows, bases = [], minimumMinutes, onSelectPlayer }
       </div>
     </div>
 
+    {hayCoberturaDesigual && <p className="rank-cobertura">
+      {t("El índice está corregido por cobertura: no todas las ligas traen las mismas métricas —sólo algunas tienen SkillCorner encima— y quien se mide con menos da un número más inestable, que asomaba en la cima más de lo que le tocaba. El ajuste acerca a la media a quien se apoya en poco, hasta que haya con qué separarlo de ella. El número pequeño de al lado es el índice sin corregir.")}
+    </p>}
+
     {todos.length > 0 && todos.length < COHORTE_FIABLE && (
       <p className={todos.length < COHORTE_MINIMA ? "rank-muestra grave" : "rank-muestra"}>
         {todos.length < COHORTE_MINIMA
@@ -204,7 +216,7 @@ export function RankingPage({ rows, bases = [], minimumMinutes, onSelectPlayer }
             <small>{fila.equipo}{Number.isFinite(fila.edad) ? ` · ${fila.edad}` : ""}{fila.minutos ? ` · ${Math.round(fila.minutos)}′` : ""}</small>
           </span>
           <i className="rank-barra"><em style={{ width: `${Math.max(2, (fila.puntuacion / maximo) * 100)}%` }} /></i>
-          <b>{fila.puntuacion}</b>
+          <b>{fila.puntuacion}<u title={tf("Índice sin corregir: {c} · calculado con {m} métricas", { c: fila.puntuacionCruda, m: fila.metricas })}>{fila.puntuacionCruda}</u></b>
           <span className="rank-flags">
             {fila.destacadas.length
               ? fila.destacadas.map((metrica) => <em key={metrica.label}>{t(metrica.label)} <u>P{metrica.percentile}</u></em>)
