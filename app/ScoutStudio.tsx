@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import {
   BarChart3,
@@ -27,6 +27,7 @@ import { ReportPageDesigner } from "./ReportPageDesigner";
 import { SimilarityStudio } from "./SimilarityStudio";
 import { CLIENT_THEMES, DEFAULT_REPORT_THEME, reportThemeStyle, type ReportTheme } from "./reportTheme";
 import { LOGOS_PLATAFORMA, LogoPlataforma } from "./LogosPlataforma";
+import { ligasDeBases, origenPorFila } from "@/lib/procedencia";
 import {
   aggregateDatasets,
   buildPlayerReport,
@@ -355,10 +356,56 @@ export default function ScoutStudio() {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const players = useMemo(() => playerOptionsFor(reportRows), [reportRows, lang]);
-  const teams = useMemo(() => [...new Set(players.map((player) => player.team))].sort(alphabeticCollator.compare), [players]);
+
+  /*
+   * Filtro de liga y año para elegir jugador.
+   *
+   * Con las dieciséis ligas cargadas, el desplegable de equipos pasa de ocho
+   * clubes a más de doscientos y encontrar el tuyo es imposible. Estos dos
+   * selectores acotan la lista; no tocan el informe, que se sigue calculando
+   * contra la base entera. Es la misma decisión que en el ranking: acotan a
+   * quién ves, no cómo se le mide, porque un percentil recalculado contra una
+   * sola liga diría algo muy distinto del que estabas leyendo.
+   */
+  const procedencias = useMemo(() => ligasDeBases(sourceDatasets), [sourceDatasets]);
+  const origenes = useMemo(
+    () => (procedencias.length > 1 ? origenPorFila(reportRows, procedencias) : null),
+    [reportRows, procedencias],
+  );
+  const ligasDisponibles = useMemo(
+    () => [...new Set(procedencias.map((x) => x.liga))].sort(alphabeticCollator.compare),
+    [procedencias],
+  );
+  const aniosDisponibles = useMemo(
+    () => [...new Set(procedencias.map((x) => x.anio).filter(Boolean))].sort(),
+    [procedencias],
+  );
+  const [ligaElegida, setLigaElegida] = useState("TODAS");
+  const [anioElegido, setAnioElegido] = useState(0);
+
+  const filtrarJugadores = useCallback((liga: string, anio: number) => {
+    if (!origenes || (liga === "TODAS" && !anio)) return players;
+    return players.filter((player) => {
+      const origen = origenes[player.index];
+      if (!origen) return false;
+      if (liga !== "TODAS" && !origen.ligas.includes(liga)) return false;
+      if (anio && !origen.anios.includes(anio)) return false;
+      return true;
+    });
+  }, [players, origenes]);
+
+  const jugadoresVisibles = useMemo(
+    () => filtrarJugadores(ligaElegida, anioElegido),
+    [filtrarJugadores, ligaElegida, anioElegido],
+  );
+
+  const teams = useMemo(
+    () => [...new Set(jugadoresVisibles.map((player) => player.team))].sort(alphabeticCollator.compare),
+    [jugadoresVisibles],
+  );
   const teamPlayers = useMemo(
-    () => players.filter((player) => player.team === selectedTeam).sort((a, b) => alphabeticCollator.compare(a.player, b.player)),
-    [players, selectedTeam],
+    () => jugadoresVisibles.filter((player) => player.team === selectedTeam).sort((a, b) => alphabeticCollator.compare(a.player, b.player)),
+    [jugadoresVisibles, selectedTeam],
   );
   const report = useMemo(
     () => {
@@ -1121,8 +1168,34 @@ export default function ScoutStudio() {
 
   function selectTeam(team: string) {
     setSelectedTeam(team);
-    const firstPlayer = players.find((player) => player.team === team);
+    const firstPlayer = jugadoresVisibles.find((player) => player.team === team)
+      ?? players.find((player) => player.team === team);
     if (firstPlayer) selectPlayer(firstPlayer.index);
+  }
+
+  /**
+   * Al estrechar el filtro, el equipo elegido puede quedarse fuera.
+   *
+   * Se recoloca aquí y no en un efecto porque hace falta la lista con los
+   * valores NUEVOS, y el `useMemo` todavía no se ha recalculado cuando corre
+   * el manejador. Si el equipo sobrevive al cambio no se toca nada: cambiar de
+   * año no debería sacarte del club que estabas mirando.
+   */
+  function reencuadrarSeleccion(liga: string, anio: number) {
+    const visibles = filtrarJugadores(liga, anio);
+    if (!visibles.length || visibles.some((player) => player.team === selectedTeam)) return;
+    setSelectedTeam(visibles[0].team);
+    selectPlayer(visibles[0].index);
+  }
+
+  function elegirLiga(liga: string) {
+    setLigaElegida(liga);
+    reencuadrarSeleccion(liga, anioElegido);
+  }
+
+  function elegirAnio(anio: number) {
+    setAnioElegido(anio);
+    reencuadrarSeleccion(ligaElegida, anio);
   }
 
   function updateAnalysisSourceName(value: string) {
@@ -1493,6 +1566,39 @@ export default function ScoutStudio() {
                   {reportError && <div className="inline-error">{reportError}</div>}
                   <div className="control-divider" />
                   <div className="panel-title player-section-title"><div><span className="mini-icon"><Search size={17} /></span><div><h2>{t("2. Equipo y jugador")}</h2><p>{t("Selecciona en orden")}</p></div></div></div>
+                  {/* Acotar por liga y año antes de buscar el club: con todas
+                      las competiciones cargadas el desplegable de equipos pasa
+                      de ocho clubes a más de doscientos. */}
+                  {ligasDisponibles.length > 1 && <div className="player-scope">
+                    <label className="field-group"><FieldLabel>{t("Liga")}</FieldLabel>
+                      <span className="select-wrap"><Files size={16} />
+                        <select value={ligaElegida} disabled={backgroundRemoving} onChange={(event) => elegirLiga(event.target.value)}>
+                          <option value="TODAS">{t("Todas")}</option>
+                          {ligasDisponibles.map((liga) => <option key={liga} value={liga}>{liga}</option>)}
+                        </select>
+                        <ChevronDown size={16} />
+                      </span>
+                    </label>
+                    {aniosDisponibles.length > 1 && <label className="field-group"><FieldLabel>{t("Año")}</FieldLabel>
+                      <span className="select-wrap"><Files size={16} />
+                        <select value={anioElegido || ""} disabled={backgroundRemoving} onChange={(event) => elegirAnio(Number(event.target.value))}>
+                          <option value="">{t("Todos")}</option>
+                          {aniosDisponibles.map((anio) => <option key={anio} value={anio}>{anio}</option>)}
+                        </select>
+                        <ChevronDown size={16} />
+                      </span>
+                    </label>}
+                    {/* Sin nadie dentro, el desplegable de equipos se queda
+                        vacío y la ficha sigue mostrando al jugador anterior:
+                        más vale decir por qué. Pasa, por ejemplo, al pedir una
+                        liga y un año que no se cargaron juntos. */}
+                    {jugadoresVisibles.length
+                      ? <small>{tf("{n} jugadores en el filtro", { n: jugadoresVisibles.length })}</small>
+                      : <small className="player-scope-vacio">
+                          {t("Ninguno de los jugadores cargados cumple ese filtro; la ficha sigue mostrando al anterior. Prueba con otro año o vuelve a Todas.")}
+                        </small>}
+                  </div>}
+
                   <div className="player-selector-flow">
                     <label className="field-group selection-step"><span className="selection-step-title"><FieldLabel>{t("Equipo")}</FieldLabel></span><span className="select-wrap"><Files size={16} /><select value={selectedTeam} disabled={backgroundRemoving} onChange={(event) => selectTeam(event.target.value)}>{teams.map((team) => <option key={team || "__sin_equipo__"} value={team}>{team || t("Equipo no disponible")}</option>)}</select><ChevronDown size={16} /></span></label>
                     <span className="selection-flow-line" aria-hidden="true" />

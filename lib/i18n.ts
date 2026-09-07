@@ -1035,6 +1035,8 @@ const EN: Record<string, string> = {
   "{n} jugadores · índice descontado por liga": "{n} players · index discounted by league",
   "{n} jugadores · índice sin descontar": "{n} players · undiscounted index",
   "Base cargada": "Loaded database",
+  "{n} jugadores en el filtro": "{n} players in the filter",
+  "Ninguno de los jugadores cargados cumple ese filtro; la ficha sigue mostrando al anterior. Prueba con otro año o vuelve a Todas.": "No loaded player matches that filter; the card still shows the previous one. Try another year or go back to All.",
   "{n}/11": "{n}/11",
   "sin candidato": "no candidate",
   "Candidatos por puesto": "Candidates per slot",
