@@ -36,6 +36,8 @@ type SimilarityStudioProps = {
   onMinimumMinutes?: (minutos: number) => void;
   /** Conjunto de métricas asignado en la ficha de la Página 1 */
   reportCohort?: string;
+  /** Las ligas de cada fila, para poder medir contra la propia competición. */
+  ligasPorFila?: string[][] | null;
   targets: TargetOption[];
   theme: ReportTheme;
   targetProfile: TransfermarktProfile;
@@ -561,7 +563,7 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
   return canvas.toDataURL("image/png");
 }
 
-export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es", aiControlsHidden = false, metricLabels = null, minimumMinutes: minutosBase, onMinimumMinutes, reportCohort = "AUTO", targets, theme, targetProfile, recipientName, recipientLogoUrl, onSelectTarget, onTargetProfileChange, onRecipientNameChange, onRecipientLogoChange, onOpenReports }: SimilarityStudioProps) {
+export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es", aiControlsHidden = false, metricLabels = null, minimumMinutes: minutosBase, onMinimumMinutes, reportCohort = "AUTO", ligasPorFila = null, targets, theme, targetProfile, recipientName, recipientLogoUrl, onSelectTarget, onTargetProfileChange, onRecipientNameChange, onRecipientLogoChange, onOpenReports }: SimilarityStudioProps) {
   const [query, setQuery] = useState("");
   const [ageMin, setAgeMin] = useState("");
   const [ageMax, setAgeMax] = useState("");
@@ -579,6 +581,19 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
   const [position, setPosition] = useState("");
   const [secondaryRole, setSecondaryRole] = useState("");
   const [side, setSide] = useState<"" | "left" | "right">("");
+  /*
+   * Contra qué se miden los percentiles.
+   *
+   * "Combinado" es lo de siempre: un solo grupo con todas las ligas cargadas,
+   * y el parecido dice quién produce lo mismo. "Por liga" mide a cada uno
+   * contra su propia competición, y entonces lo que sale es parecido de ROL:
+   * quién hace el mismo papel donde juega. Hay que llamarlo distinto porque
+   * mide otra cosa —el modo por liga esconde el nivel: un P90 de la CPL y uno
+   * de la MLS salen iguales sin serlo—.
+   */
+  const [baseDePercentiles, setBaseDePercentiles] = useState<"combinado" | "liga">("combinado");
+  const porLiga = baseDePercentiles === "liga" && ligasPorFila?.length ? { ligasPorFila } : null;
+
   const [selectedCandidateIndex, setSelectedCandidateIndex] = useState<number | null>(null);
   const [candidateProfileState, setCandidateProfileState] = useState<TransfermarktProfile>(() => createEmptyTransfermarktProfile());
   const [candidateProfileKey, setCandidateProfileKey] = useState("");
@@ -630,7 +645,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     side,
   }), [ageMax, ageMin, minimumMinutes, passport, position, query, secondaryRole, side]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const search = useMemo(() => buildSimilaritySearch(rows, selectedIndex, filters, metricWeights, reportCohort, metricLabels), [filters, metricWeights, rows, selectedIndex, lang, reportCohort, metricLabels]);
+  const search = useMemo(() => buildSimilaritySearch(rows, selectedIndex, filters, metricWeights, reportCohort, metricLabels, porLiga), [filters, metricWeights, rows, selectedIndex, lang, reportCohort, metricLabels, porLiga]);
   const candidates = search?.candidates ?? [];
   const activeMetricWeights = search?.target.metrics.filter((metric) => (metricWeights[metric.key] ?? 1) !== 1).length ?? 0;
   const selectedCandidate = candidates.find((candidate) => candidate.index === selectedCandidateIndex) ?? candidates[0] ?? null;
@@ -1027,15 +1042,43 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
 
 
   return <div className="page-content similarity-page similarity-report-theme" style={reportThemeStyle(theme)}>
-    {!rows.length || !search ? <section className="dataset-onboarding similarity-empty"><span className="dataset-step">{t("SECCIÓN DE SIMILITUD")}</span><span className="dataset-icon"><Search size={30} /></span><h2>{t("Primero carga una base de datos")}</h2><p>{t("La comparación usa la base activa, ya sea una liga, temporada o combinación.")}</p><button className="button primary" onClick={onOpenReports}>{t("Ir a cargar datos")}</button></section> : <>
+    {rows.length > 0 && !search && porLiga ? <section className="dataset-onboarding similarity-empty">
+      <span className="dataset-step">{t("SIN COHORTE EN SU LIGA")}</span>
+      <span className="dataset-icon"><Search size={30} /></span>
+      <h2>{t("Su liga no tiene suficientes jugadores de este puesto")}</h2>
+      <p>{t("Para medir por liga hacen falta al menos diez del mismo puesto en esa competición; con menos, cada uno queda a diez puntos de percentil del siguiente por aritmética y el número no significa nada. Vuelve a medir contra todas las ligas juntas, o elige un jugador de una competición con más muestra.")}</p>
+      <button className="button primary" onClick={() => setBaseDePercentiles("combinado")}>{t("Medir contra todas las ligas")}</button>
+    </section> : rows.length > 0 && !search ? <section className="dataset-onboarding similarity-empty">
+      {/* La base está cargada: lo que falla es este jugador concreto. Decir
+          "primero carga una base de datos" con siete mil filas dentro manda a
+          buscar un problema que no existe. */}
+      <span className="dataset-step">{t("SIN COMPARACIÓN POSIBLE")}</span>
+      <span className="dataset-icon"><Search size={30} /></span>
+      <h2>{t("Este jugador no se puede comparar")}</h2>
+      <p>{t("No llega al mínimo de minutos, o su base no trae suficientes métricas de su puesto. Baja el mínimo de minutos o elige a otro jugador.")}</p>
+    </section> : !rows.length || !search ? <section className="dataset-onboarding similarity-empty"><span className="dataset-step">{t("SECCIÓN DE SIMILITUD")}</span><span className="dataset-icon"><Search size={30} /></span><h2>{t("Primero carga una base de datos")}</h2><p>{t("La comparación usa la base activa, ya sea una liga, temporada o combinación.")}</p><button className="button primary" onClick={onOpenReports}>{t("Ir a cargar datos")}</button></section> : <>
       <section className="similarity-target-bar">
         <div className="similarity-target-copy"><span>{t("JUGADOR OBJETIVO")}</span><b>{search.target.player}</b><small>{tf("{team} · {pos} · {age} años", { team: search.target.team, pos: search.target.position, age: search.target.age })}</small></div>
         <div className="similarity-target-selectors">
           <label><span>{t("1 · Club")}</span><select value={selectedTargetTeam} onChange={(event) => chooseTargetTeam(event.target.value)}>{targetTeams.map((team) => <option key={team || "__sin_equipo__"} value={team}>{team || t("Equipo no disponible")}</option>)}</select></label>
           <label><span>{t("2 · Jugador")}</span><select value={selectedIndex} onChange={(event) => chooseTarget(Number(event.target.value))}>{targetPlayers.map((target) => <option key={`${target.index}-${target.player}`} value={target.index}>{target.player}</option>)}</select></label>
         </div>
-        <div className="similarity-model-badge"><Sparkles size={16} /><span><b>{t("BASELINE ESTADÍSTICO")}</b><small>{t("Percentiles + contexto de edad y rol")}</small></span></div>
+        {ligasPorFila?.length ? <label className="similarity-base-modo">
+          <span>{t("3 · Medir contra")}</span>
+          <select value={baseDePercentiles} onChange={(event) => setBaseDePercentiles(event.target.value as "combinado" | "liga")}>
+            <option value="combinado">{t("Todas las ligas juntas")}</option>
+            <option value="liga">{t("Su propia liga")}</option>
+          </select>
+        </label> : null}
+        <div className="similarity-model-badge"><Sparkles size={16} /><span>
+          <b>{porLiga ? t("PARECIDO DE ROL") : t("BASELINE ESTADÍSTICO")}</b>
+          <small>{porLiga ? t("Cada uno contra su liga") : t("Percentiles + contexto de edad y rol")}</small>
+        </span></div>
       </section>
+
+      {porLiga && <p className="similarity-aviso-rol">
+        {t("Cada jugador se mide contra los de SU liga en su puesto, no contra los de todas. Eso responde a “quién hace el mismo papel donde juega”, pero esconde el nivel: un percentil 90 de la Canadian Premier League y uno de la MLS salen idénticos y no lo son. Por eso esto es parecido de rol, no parecido a secas. Quedan fuera los jugadores cuya liga no llegue a diez en su puesto, porque ahí un percentil no dice nada.")}
+      </p>}
 
       <section className={`similarity-weight-panel${pesosVisibles ? "" : " plegado"}`}>
         <header>

@@ -2557,3 +2557,9 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
 .player-scope:has(> label:only-of-type) { grid-template-columns: 1fr; }
 .player-scope > small { grid-column: 1 / -1; color: var(--pl-dim); font-size: 8.5px; }
 .player-scope-vacio { color: #e0c48a !important; line-height: 1.5; }
+
+/* Similitud: contra qué se miden los percentiles. */
+.similarity-base-modo { display: flex; flex-direction: column; gap: 4px; min-width: 168px; }
+.similarity-base-modo > span { color: var(--pl-dim); font-size: 8px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
+.similarity-aviso-rol { margin: 0 0 14px; padding: 10px 12px; border: 1px solid rgba(231,180,90,.3); border-radius: 8px; background: rgba(231,180,90,.07); color: #e0c48a; font-size: 9.5px; line-height: 1.6; }
+@media print { .similarity-base-modo { display: none !important; } }

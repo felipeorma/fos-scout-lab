@@ -372,6 +372,11 @@ export default function ScoutStudio() {
     () => (procedencias.length > 1 ? origenPorFila(reportRows, procedencias) : null),
     [reportRows, procedencias],
   );
+  /** Las ligas de cada fila, para que la similitud pueda medir por liga. */
+  const ligasPorFila = useMemo(
+    () => (origenes ? origenes.map((origen) => origen.ligas) : null),
+    [origenes],
+  );
   const ligasDisponibles = useMemo(
     () => [...new Set(procedencias.map((x) => x.liga))].sort(alphabeticCollator.compare),
     [procedencias],
@@ -1707,6 +1712,7 @@ export default function ScoutStudio() {
               <div className={`similarity-page-host ${(printRun ? printRun.includes(SIMILARITY_PAGE) : reportPage === SIMILARITY_PAGE) ? "" : "is-hidden"}`}>
                 <SimilarityStudio
                   aiControlsHidden={aiControlsHidden}
+                  ligasPorFila={ligasPorFila}
                   metricLabels={report ? metricPicks[report.cohort] ?? null : null}
                   minimumMinutes={minimumMinutes}
                   onMinimumMinutes={setMinimumMinutes}

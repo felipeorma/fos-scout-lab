@@ -187,7 +187,40 @@ function metricWeight(key: string, weights: SimilarityMetricWeights) {
   return Number.isFinite(value) ? Math.max(0, Math.min(3, value)) : 1;
 }
 
-export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filters: SimilarityFilters, metricWeights: SimilarityMetricWeights = {}, reportCohort = "AUTO", selectedMetricLabels?: string[] | null): SimilaritySearchResult | null {
+/**
+ * Percentiles contra la propia liga de cada jugador, en vez de contra el fondo
+ * entero.
+ *
+ * Las dos formas responden a preguntas distintas. Con un solo grupo, un
+ * percentil dice "produce esto comparado con todos": sirve para reemplazar a
+ * alguien y para juzgar nivel. Contra su liga dice "hace este papel en su
+ * contexto": sirve para buscar un perfil, porque quita el efecto de la liga.
+ * La diferencia no es cosmética —en un central de la CPL medimos 16 puntos de
+ * percentil de media y hasta 56 en una métrica— así que no puede quedar
+ * implícita.
+ *
+ * El precio de medir por liga hay que decirlo: esconde el nivel. Un P90 de la
+ * CPL y un P90 de la MLS salen idénticos y no lo son, así que lo que sale de
+ * aquí es parecido DE ROL, no parecido a secas.
+ *
+ * A quien jugó en dos ligas se le mide contra las dos juntas: es lo único
+ * coherente con "su contexto" cuando su contexto fueron dos.
+ */
+export type BaseDePercentiles = {
+  /** Las ligas de cada fila, en el mismo orden que `rows`. */
+  ligasPorFila: string[][];
+  /**
+   * Por debajo de esto un percentil no dice nada: con cuatro interiores en la
+   * CPL, cada uno cae a veinticinco puntos del siguiente por aritmética. Los
+   * jugadores cuya liga no llegue quedan fuera en vez de salir con un número
+   * inventado.
+   */
+  minimoCohorte?: number;
+};
+
+export const MINIMO_COHORTE_POR_LIGA = 10;
+
+export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filters: SimilarityFilters, metricWeights: SimilarityMetricWeights = {}, reportCohort = "AUTO", selectedMetricLabels?: string[] | null, porLiga?: BaseDePercentiles | null): SimilaritySearchResult | null {
   // Si el usuario filtra por un rol, la comparación usa el set de métricas de
   // ese rol (p. ej. filtrar por Delanteros compara con métricas de CF aunque
   // el jugador objetivo sea extremo). Sin filtro, se usa su cohorte natural.
@@ -213,17 +246,56 @@ export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filt
   // El grupo de referencia de los percentiles es el mismo que usa la ficha:
   // los jugadores de la cohorte del reporte con el piso de minutos del filtro.
   // Nunca toda la base — un portero no se mide contra jugadores de campo.
-  const cohortPeers = rows.filter((row) => (
-    cohortOf(positionColumn ? row[positionColumn] : "") === peerCohort(target.cohort)
-    && (filters.minimumMinutes <= 0 || numeric(row[core.minutes]) >= filters.minimumMinutes)
-  ));
+  // Se guardan los índices y no solo las filas: el modo por liga necesita
+  // saber de qué fila viene cada par para consultar su procedencia, y
+  // buscarla después con indexOf convertiría el filtro en cuadrático.
+  const indicesDeCohorte: number[] = [];
+  rows.forEach((row, indice) => {
+    if (cohortOf(positionColumn ? row[positionColumn] : "") !== peerCohort(target.cohort)) return;
+    if (filters.minimumMinutes > 0 && numeric(row[core.minutes]) < filters.minimumMinutes) return;
+    indicesDeCohorte.push(indice);
+  });
+  const cohortPeers = indicesDeCohorte.map((indice) => rows[indice]);
   const metricInverse = new Map(target.metrics.map((metric) => [metric.key, Boolean(metric.inverse)] as const));
-  const metricPopulations = new Map(target.metrics.map((metric) => [
+
+  const poblacionesDe = (filas: DataRow[]) => new Map(target.metrics.map((metric) => [
     metric.key,
-    cohortPeers.map((row) => numeric(row[metric.key])).filter(Number.isFinite).sort((a, b) => a - b),
+    filas.map((row) => numeric(row[metric.key])).filter(Number.isFinite).sort((a, b) => a - b),
   ]));
+  const metricPopulations = poblacionesDe(cohortPeers);
+
+  /*
+   * En modo por liga, cada jugador se mide contra los de su propia
+   * competición. Las poblaciones se calculan una vez por conjunto de ligas —no
+   * por jugador— porque casi todos comparten el mismo conjunto y recalcularlas
+   * por fila multiplicaría el coste por mil.
+   */
+  const minimoCohorte = porLiga?.minimoCohorte ?? MINIMO_COHORTE_POR_LIGA;
+  const cachePorLiga = new Map<string, { poblaciones: Map<string, number[]>; tamano: number } | null>();
+  const paresDeSuLiga = (indice: number) => {
+    if (!porLiga) return null;
+    const ligas = porLiga.ligasPorFila[indice] ?? [];
+    if (!ligas.length) return null;
+    const clave = [...ligas].sort().join("|");
+    if (cachePorLiga.has(clave)) return cachePorLiga.get(clave) ?? null;
+    const suyos = indicesDeCohorte
+      .filter((i) => (porLiga.ligasPorFila[i] ?? []).some((liga) => ligas.includes(liga)))
+      .map((i) => rows[i]);
+    const resultado = suyos.length >= minimoCohorte
+      ? { poblaciones: poblacionesDe(suyos), tamano: suyos.length }
+      : null;
+    cachePorLiga.set(clave, resultado);
+    return resultado;
+  };
+
+  const baseObjetivo = porLiga ? paresDeSuLiga(targetIndex) : null;
+  // Sin cohorte suficiente en su liga, el modo por liga no se puede sostener
+  // para este jugador: se dice que no en vez de devolver números inventados.
+  if (porLiga && !baseObjetivo) return null;
+  const poblacionesObjetivo = baseObjetivo?.poblaciones ?? metricPopulations;
+
   const targetRanks = new Map(target.metrics.flatMap((metric) => {
-    const rank = percentileRank(numeric(targetRow[metric.key]), metricPopulations.get(metric.key) ?? [], metricInverse.get(metric.key));
+    const rank = percentileRank(numeric(targetRow[metric.key]), poblacionesObjetivo.get(metric.key) ?? [], metricInverse.get(metric.key));
     return rank === null ? [] : [[metric.key, rank] as const];
   }));
   const normalizedQuery = normalizeSearch(filters.query);
@@ -257,10 +329,17 @@ export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filt
     if (filters.side && !positionSides(rawPosition).includes(filters.side)) return [];
     if (normalizedQuery && !normalizeSearch(`${name} ${team}`).includes(normalizedQuery)) return [];
 
+    // Cada candidato contra su propia liga cuando el modo está activo; si su
+    // cohorte no llega al mínimo, queda fuera en lugar de colarse medido con
+    // otra regla.
+    const suBase = porLiga ? paresDeSuLiga(index) : null;
+    if (porLiga && !suBase) return [];
+    const poblacionesCandidato = suBase?.poblaciones ?? metricPopulations;
+
     const metrics = target.metrics.flatMap((metric) => {
       const candidateValue = numeric(row[metric.key]);
       const targetPercentile = targetRanks.get(metric.key);
-      const candidatePercentile = percentileRank(candidateValue, metricPopulations.get(metric.key) ?? [], metricInverse.get(metric.key));
+      const candidatePercentile = percentileRank(candidateValue, poblacionesCandidato.get(metric.key) ?? [], metricInverse.get(metric.key));
       if (targetPercentile === undefined || candidatePercentile === null) return [];
       return [{
         key: metric.key,
