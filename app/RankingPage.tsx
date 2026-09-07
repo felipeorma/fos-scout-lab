@@ -1,9 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { type DataRow, type SourceDataset } from "@/lib/scouting";
-import { ligasDeBases, origenPorFila } from "@/lib/procedencia";
 import { rankingDeCohorte } from "@/lib/ranking";
+import { PERFILES } from "@/lib/perfiles";
+import { useBaseActiva } from "./BaseActiva";
+import { BarraDeFiltros } from "./BarraDeFiltros";
 import { t, tf } from "@/lib/i18n";
 import { rankingPorArquetipo } from "@/lib/arquetipos";
 
@@ -21,17 +22,6 @@ import { rankingPorArquetipo } from "@/lib/arquetipos";
  * base cargada.
  */
 
-const PERFILES = [
-  { id: "GK", nombre: "Porteros" },
-  { id: "CB", nombre: "Centrales" },
-  { id: "FB", nombre: "Laterales" },
-  { id: "DMF", nombre: "Pivotes / mediocentros" },
-  { id: "B2B", nombre: "Interiores (box-to-box)" },
-  { id: "WING", nombre: "Extremos" },
-  { id: "DWING", nombre: "Extremos directos" },
-  { id: "AM", nombre: "Mediapuntas" },
-  { id: "CF", nombre: "Delanteros" },
-];
 
 
 /**
@@ -50,71 +40,28 @@ const COHORTE_FIABLE = 10;
 const COHORTE_MINIMA = 5;
 
 
-export function RankingPage({ rows, bases = [], minimumMinutes, onSelectPlayer }: {
-  rows: DataRow[];
-  /** Las bases que se cruzaron, para poder filtrar por liga y por año. */
-  bases?: SourceDataset[];
-  minimumMinutes: number;
+export function RankingPage({ onSelectPlayer }: {
   onSelectPlayer?: (indice: number) => void;
 }) {
   const [perfil, setPerfil] = useState("CF");
-  const [minutosMin, setMinutosMin] = useState(minimumMinutes);
-  const [edadMax, setEdadMax] = useState(0);
-  const [equipo, setEquipo] = useState("TODOS");
-  const [pasaporte, setPasaporte] = useState("TODOS");
   const [vista, setVista] = useState<"indice" | "arquetipos">("indice");
-  const [liga, setLiga] = useState("TODAS");
-  const [anio, setAnio] = useState(0);
-
   /*
-   * Liga y año filtran DESPUÉS del índice, igual que el equipo y el pasaporte
-   * que tienen al lado. El número que se ve sigue siendo el percentil contra
-   * todos los jugadores de esa posición en lo que hay cargado, no contra los
-   * de la liga elegida: mirar la Ligue 3 sola y ver un 90 recalculado contra
-   * la propia Ligue 3 diría algo muy distinto de un 90 contra dieciséis ligas,
-   * y esto último es lo que sirve para fichar. Estrechan a quién ves, no cómo
-   * se le mide.
+   * Los filtros vienen de la barra compartida: liga, año, club, pasaporte,
+   * edad y minutos son los mismos en toda la plataforma, y lo que elijas aquí
+   * sigue puesto al cambiar de pestaña. El puesto se queda local porque en
+   * esta pantalla no acota: decide QUÉ ranking se calcula.
    */
-  const procedencias = useMemo(() => ligasDeBases(bases), [bases]);
-  const origenes = useMemo(
-    () => (procedencias.length > 1 ? origenPorFila(rows, procedencias) : null),
-    [rows, procedencias],
-  );
-  const ligas = useMemo(
-    () => [...new Set(procedencias.map((x) => x.liga))].sort((a, b) => a.localeCompare(b, "es")),
-    [procedencias],
-  );
-  const anios = useMemo(
-    () => [...new Set(procedencias.map((x) => x.anio).filter(Boolean))].sort(),
-    [procedencias],
-  );
+  const { rows, filtros, pasaFiltros } = useBaseActiva();
+  const minutosMin = filtros.minutosMin;
 
   // El informe completo es caro: se calcula una vez por perfil y minutos, y
-  // los filtros de edad y equipo se aplican después sobre el resultado.
-  // El informe completo es caro: se calcula una vez por perfil y minutos, y
-  // los filtros de edad y equipo se aplican después sobre el resultado.
+  // los filtros de mercado se aplican después sobre el resultado.
   const todos = useMemo(() => rankingDeCohorte(rows, perfil, minutosMin), [rows, perfil, minutosMin]);
 
-  const equipos = useMemo(
-    () => [...new Set(todos.map((fila) => fila.equipo).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es")),
-    [todos],
+  const visibles = useMemo(
+    () => todos.filter((fila) => pasaFiltros(fila.indice)),
+    [todos, pasaFiltros],
   );
-
-  // La lista sale de los jugadores de esta posición, no de la base entera:
-  // ofrecer pasaportes que no tiene ningún central al mirar centrales sobra.
-  const pasaportes = useMemo(
-    () => [...new Set(todos.flatMap((fila) => fila.pasaportes).filter((x) => x && x !== "—"))]
-      .sort((a, b) => a.localeCompare(b, "es")),
-    [todos],
-  );
-
-  const visibles = useMemo(() => todos.filter((fila) => (
-    (equipo === "TODOS" || fila.equipo === equipo)
-    && (pasaporte === "TODOS" || fila.pasaportes.includes(pasaporte))
-    && (liga === "TODAS" || Boolean(origenes?.[fila.indice]?.ligas.includes(liga)))
-    && (!anio || Boolean(origenes?.[fila.indice]?.anios.includes(anio)))
-    && (edadMax <= 0 || (Number.isFinite(fila.edad) && fila.edad <= edadMax))
-  )), [todos, equipo, pasaporte, edadMax, liga, anio, origenes]);
 
   const arquetipos = useMemo(
     () => (vista === "arquetipos" ? rankingPorArquetipo(rows, perfil, minutosMin) : []),
@@ -141,45 +88,15 @@ export function RankingPage({ rows, bases = [], minimumMinutes, onSelectPlayer }
       <b>{tf("{n} jugadores", { n: visibles.length })}</b>
     </header>
 
+    {/* La red de filtros es la compartida: el puesto se queda aparte porque
+        aquí no acota, decide QUÉ ranking se calcula. */}
+    <BarraDeFiltros campos={["liga", "anio", "equipo", "pasaporte", "minutos", "edad"]} resultado={visibles.length} />
+
     <div className="rank-filters">
       <label><span>{t("Posición")}</span>
         <select value={perfil} onChange={(event) => setPerfil(event.target.value)}>
           {PERFILES.map((item) => <option key={item.id} value={item.id}>{t(item.nombre)}</option>)}
         </select>
-      </label>
-      <label><span>{t("Equipo")}</span>
-        <select value={equipo} onChange={(event) => setEquipo(event.target.value)}>
-          <option value="TODOS">{t("Todos")}</option>
-          {equipos.map((nombre) => <option key={nombre} value={nombre}>{nombre}</option>)}
-        </select>
-      </label>
-      <label><span>{t("Pasaporte")}</span>
-        <select value={pasaporte} disabled={!pasaportes.length} onChange={(event) => setPasaporte(event.target.value)}>
-          {pasaportes.length
-            ? <>
-              <option value="TODOS">{t("Todos")}</option>
-              {pasaportes.map((nombre) => <option key={nombre} value={nombre}>{nombre}</option>)}
-            </>
-            : <option value="TODOS">{t("La base no trae nacionalidad")}</option>}
-        </select>
-      </label>
-      {ligas.length > 1 && <label><span>{t("Liga")}</span>
-        <select value={liga} onChange={(event) => setLiga(event.target.value)}>
-          <option value="TODAS">{t("Todas")}</option>
-          {ligas.map((nombre) => <option key={nombre} value={nombre}>{nombre}</option>)}
-        </select>
-      </label>}
-      {anios.length > 1 && <label><span>{t("Año")}</span>
-        <select value={anio || ""} onChange={(event) => setAnio(Number(event.target.value))}>
-          <option value="">{t("Todos")}</option>
-          {anios.map((x) => <option key={x} value={x}>{x}</option>)}
-        </select>
-      </label>}
-      <label><span>{t("Mín. minutos")}</span>
-        <input type="number" min="0" step="100" value={minutosMin} onChange={(event) => setMinutosMin(Number(event.target.value))} />
-      </label>
-      <label><span>{t("Edad máxima")}</span>
-        <input type="number" min="0" max="45" value={edadMax || ""} placeholder="—" onChange={(event) => setEdadMax(Number(event.target.value))} />
       </label>
       <div className="rank-tabs">
         <button type="button" className={vista === "indice" ? "on" : ""} onClick={() => setVista("indice")}>{t("Por índice")}</button>
@@ -233,13 +150,7 @@ export function RankingPage({ rows, bases = [], minimumMinutes, onSelectPlayer }
           <p>{t(ranking.arquetipo.resumen)}</p>
           <ol>
             {ranking.jugadores
-              .filter((jugador) => (
-                (equipo === "TODOS" || jugador.equipo === equipo)
-                && (pasaporte === "TODOS" || jugador.pasaportes.includes(pasaporte))
-                && (liga === "TODAS" || Boolean(origenes?.[jugador.indice]?.ligas.includes(liga)))
-                && (!anio || Boolean(origenes?.[jugador.indice]?.anios.includes(anio)))
-                && (edadMax <= 0 || (Number.isFinite(jugador.edad) && jugador.edad <= edadMax))
-              ))
+              .filter((jugador) => pasaFiltros(jugador.indice))
               .slice(0, 10)
               .map((jugador, posicion) => (
                 <li key={jugador.indice} onClick={() => onSelectPlayer?.(jugador.indice)}

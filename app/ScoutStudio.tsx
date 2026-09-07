@@ -28,6 +28,7 @@ import { SimilarityStudio } from "./SimilarityStudio";
 import { CLIENT_THEMES, DEFAULT_REPORT_THEME, reportThemeStyle, type ReportTheme } from "./reportTheme";
 import { LOGOS_PLATAFORMA, LogoPlataforma } from "./LogosPlataforma";
 import { ligasDeBases, origenPorFila } from "@/lib/procedencia";
+import { ProveedorDeBase } from "./BaseActiva";
 import {
   aggregateDatasets,
   buildPlayerReport,
@@ -1362,6 +1363,13 @@ export default function ScoutStudio() {
   ) : null;
 
   return (
+    <ProveedorDeBase
+      rows={reportRows}
+      datasets={sourceDatasets}
+      nombre={reportFileName}
+      minutosMin={minimumMinutes}
+      onMinutosMin={setMinimumMinutes}
+    >
     <div className="app-shell no-sidebar" data-paleta={paleta}>
       <main className="main-area">
         <header className="topbar studio-topbar">
@@ -1736,19 +1744,10 @@ export default function ScoutStudio() {
                 <div className={claseHoja(RUNS_PAGE)}><RunsPage /></div>
               )}
               {report && paginaMontada(RANK_PAGE) && (
-                <div className={claseHoja(RANK_PAGE)}><RankingPage rows={reportRows} bases={sourceDatasets} minimumMinutes={minimumMinutes} onSelectPlayer={(indice) => { selectPlayer(indice); setReportPage(CARD_PAGE); }} /></div>
+                <div className={claseHoja(RANK_PAGE)}><RankingPage onSelectPlayer={(indice) => { selectPlayer(indice); setReportPage(CARD_PAGE); }} /></div>
               )}
               {paginaMontada(POOL_PAGE) && (
-                <div className={claseHoja(POOL_PAGE)}><PoolPage
-                  baseCargada={reportRows.length ? { nombre: reportFileName, rows: reportRows } : null}
-                  onAbrirInforme={(bases, indice) => {
-                    // El fondo pasa a ser la base del informe: es la única forma
-                    // de que la ficha del jugador tenga sus percentiles contra
-                    // los mismos rivales con los que se le encontró.
-                    applyDatasets(bases, indice);
-                    setReportPage(CARD_PAGE);
-                  }}
-                /></div>
+                <div className={claseHoja(POOL_PAGE)}><PoolPage onAbrirJugador={(indice) => { selectPlayer(indice); setReportPage(CARD_PAGE); }} /></div>
               )}
               {boardPreviewOpen && (
                 <div className="board-preview-overlay" role="dialog" aria-modal="true" aria-label={t("Vista rápida del reporte")} onClick={() => setBoardPreviewOpen(false)}>
@@ -1816,5 +1815,6 @@ export default function ScoutStudio() {
           </div>
       </main>
     </div>
+    </ProveedorDeBase>
   );
 }
