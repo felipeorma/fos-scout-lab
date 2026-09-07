@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
+import { type CSSProperties, type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDownToLine, Printer, RotateCcw, Search, Sparkles, Upload } from "./Icons";
 import { reportThemeStyle, type ReportTheme } from "./reportTheme";
 import { SimilarityReportMain, similarityStarColor, similarityStarGlow, type SimilarityReportPayload } from "./SimilarityReport";
@@ -36,8 +36,12 @@ type SimilarityStudioProps = {
   onMinimumMinutes?: (minutos: number) => void;
   /** Conjunto de métricas asignado en la ficha de la Página 1 */
   reportCohort?: string;
-  /** Las ligas de cada fila, para poder medir contra la propia competición. */
-  ligasPorFila?: string[][] | null;
+  /**
+   * La liga y el año de cada fila. Sirve para dos cosas distintas: acotar por
+   * competición a quién se elige —objetivo y candidatos— y medir los
+   * percentiles contra la propia liga.
+   */
+  procedenciaPorFila?: Array<{ ligas: string[]; anios: number[] }> | null;
   targets: TargetOption[];
   theme: ReportTheme;
   targetProfile: TransfermarktProfile;
@@ -563,7 +567,7 @@ async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer
   return canvas.toDataURL("image/png");
 }
 
-export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es", aiControlsHidden = false, metricLabels = null, minimumMinutes: minutosBase, onMinimumMinutes, reportCohort = "AUTO", ligasPorFila = null, targets, theme, targetProfile, recipientName, recipientLogoUrl, onSelectTarget, onTargetProfileChange, onRecipientNameChange, onRecipientLogoChange, onOpenReports }: SimilarityStudioProps) {
+export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es", aiControlsHidden = false, metricLabels = null, minimumMinutes: minutosBase, onMinimumMinutes, reportCohort = "AUTO", procedenciaPorFila = null, targets, theme, targetProfile, recipientName, recipientLogoUrl, onSelectTarget, onTargetProfileChange, onRecipientNameChange, onRecipientLogoChange, onOpenReports }: SimilarityStudioProps) {
   const [query, setQuery] = useState("");
   const [ageMin, setAgeMin] = useState("");
   const [ageMax, setAgeMax] = useState("");
@@ -592,7 +596,41 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
    * de la MLS salen iguales sin serlo—.
    */
   const [baseDePercentiles, setBaseDePercentiles] = useState<"combinado" | "liga">("combinado");
+  const ligasPorFila = useMemo(
+    () => (procedenciaPorFila ? procedenciaPorFila.map((x) => x.ligas) : null),
+    [procedenciaPorFila],
+  );
   const porLiga = baseDePercentiles === "liga" && ligasPorFila?.length ? { ligasPorFila } : null;
+
+  /*
+   * Acotar por competición, a los dos lados.
+   *
+   * Con dieciséis ligas cargadas, el desplegable de clubes del objetivo pasa
+   * de ocho a más de doscientos, y la lista de candidatos mezcla competiciones
+   * que quizá no interesan. Estos filtros no tocan el cálculo: acotan a quién
+   * se elige y a quién se muestra, igual que en el ranking y en la ficha.
+   */
+  const ligasDelFondo = useMemo(
+    () => [...new Set((procedenciaPorFila ?? []).flatMap((x) => x.ligas))].sort(alphabeticCollator.compare),
+    [procedenciaPorFila],
+  );
+  const aniosDelFondo = useMemo(
+    () => [...new Set((procedenciaPorFila ?? []).flatMap((x) => x.anios))].filter(Boolean).sort(),
+    [procedenciaPorFila],
+  );
+  const [ligaObjetivo, setLigaObjetivo] = useState("TODAS");
+  const [anioObjetivo, setAnioObjetivo] = useState(0);
+  const [ligaCandidato, setLigaCandidato] = useState("TODAS");
+  const [anioCandidato, setAnioCandidato] = useState(0);
+
+  const encaja = useCallback((indice: number, liga: string, anio: number) => {
+    if (liga === "TODAS" && !anio) return true;
+    const origen = procedenciaPorFila?.[indice];
+    if (!origen) return false;
+    if (liga !== "TODAS" && !origen.ligas.includes(liga)) return false;
+    if (anio && !origen.anios.includes(anio)) return false;
+    return true;
+  }, [procedenciaPorFila]);
 
   const [selectedCandidateIndex, setSelectedCandidateIndex] = useState<number | null>(null);
   const [candidateProfileState, setCandidateProfileState] = useState<TransfermarktProfile>(() => createEmptyTransfermarktProfile());
@@ -630,10 +668,14 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
   const reportSheetRef = useRef<HTMLElement>(null);
   const options = useMemo(() => similarityOptions(rows), [rows]);
   const secondaryOptions = useMemo(() => secondaryRoleOptions(rows, position), [rows, position]);
-  const targetTeams = useMemo(() => [...new Set(targets.map((target) => target.team))].sort(alphabeticCollator.compare), [targets]);
+  const objetivosVisibles = useMemo(
+    () => targets.filter((target) => encaja(target.index, ligaObjetivo, anioObjetivo)),
+    [targets, encaja, ligaObjetivo, anioObjetivo],
+  );
+  const targetTeams = useMemo(() => [...new Set(objetivosVisibles.map((target) => target.team))].sort(alphabeticCollator.compare), [objetivosVisibles]);
   const selectedTarget = targets.find((target) => target.index === selectedIndex);
   const selectedTargetTeam = selectedTarget?.team ?? targetTeams[0] ?? "";
-  const targetPlayers = useMemo(() => targets.filter((target) => target.team === selectedTargetTeam).sort((a, b) => alphabeticCollator.compare(a.player, b.player)), [selectedTargetTeam, targets]);
+  const targetPlayers = useMemo(() => objetivosVisibles.filter((target) => target.team === selectedTargetTeam).sort((a, b) => alphabeticCollator.compare(a.player, b.player)), [selectedTargetTeam, objetivosVisibles]);
   const filters = useMemo<SimilarityFilters>(() => ({
     query,
     ageMin: optionalNumber(ageMin),
@@ -646,7 +688,16 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
   }), [ageMax, ageMin, minimumMinutes, passport, position, query, secondaryRole, side]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const search = useMemo(() => buildSimilaritySearch(rows, selectedIndex, filters, metricWeights, reportCohort, metricLabels, porLiga), [filters, metricWeights, rows, selectedIndex, lang, reportCohort, metricLabels, porLiga]);
-  const candidates = search?.candidates ?? [];
+  /*
+   * Los candidatos se acotan DESPUÉS del motor. La liga es una decisión de
+   * mercado —"de aquí no vamos a fichar"— y no puede cambiar el percentil de
+   * nadie: filtrando antes, cerrar una competición movería el parecido de
+   * todos los demás, porque el grupo de referencia sería otro.
+   */
+  const candidates = useMemo(
+    () => (search?.candidates ?? []).filter((candidate) => encaja(candidate.index, ligaCandidato, anioCandidato)),
+    [search, encaja, ligaCandidato, anioCandidato],
+  );
   const activeMetricWeights = search?.target.metrics.filter((metric) => (metricWeights[metric.key] ?? 1) !== 1).length ?? 0;
   const selectedCandidate = candidates.find((candidate) => candidate.index === selectedCandidateIndex) ?? candidates[0] ?? null;
 
@@ -764,8 +815,20 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
   }
 
   function chooseTargetTeam(team: string) {
-    const firstPlayer = targets.filter((target) => target.team === team).sort((a, b) => alphabeticCollator.compare(a.player, b.player))[0];
+    const firstPlayer = objetivosVisibles.filter((target) => target.team === team).sort((a, b) => alphabeticCollator.compare(a.player, b.player))[0];
     if (firstPlayer) chooseTarget(firstPlayer.index);
+  }
+
+  /**
+   * Al acotar la competición del objetivo, el jugador elegido puede quedarse
+   * fuera; entonces se salta al primero que quede. Se recoloca aquí y no en un
+   * efecto porque hace falta la lista con los valores nuevos, y el useMemo aún
+   * no se ha recalculado cuando corre el manejador.
+   */
+  function reencuadrarObjetivo(liga: string, anio: number) {
+    const visibles = targets.filter((target) => encaja(target.index, liga, anio));
+    if (!visibles.length || visibles.some((target) => target.index === selectedIndex)) return;
+    chooseTarget(visibles[0].index);
   }
 
   function resetFilters() {
@@ -777,6 +840,8 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     setPosition("");
     setSecondaryRole("");
     setSide("");
+    setLigaCandidato("TODAS");
+    setAnioCandidato(0);
   }
 
   function updateMetricWeight(key: string, percentage: number) {
@@ -1060,11 +1125,23 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
       <section className="similarity-target-bar">
         <div className="similarity-target-copy"><span>{t("JUGADOR OBJETIVO")}</span><b>{search.target.player}</b><small>{tf("{team} · {pos} · {age} años", { team: search.target.team, pos: search.target.position, age: search.target.age })}</small></div>
         <div className="similarity-target-selectors">
-          <label><span>{t("1 · Club")}</span><select value={selectedTargetTeam} onChange={(event) => chooseTargetTeam(event.target.value)}>{targetTeams.map((team) => <option key={team || "__sin_equipo__"} value={team}>{team || t("Equipo no disponible")}</option>)}</select></label>
-          <label><span>{t("2 · Jugador")}</span><select value={selectedIndex} onChange={(event) => chooseTarget(Number(event.target.value))}>{targetPlayers.map((target) => <option key={`${target.index}-${target.player}`} value={target.index}>{target.player}</option>)}</select></label>
+          {ligasDelFondo.length > 1 && <label><span>{t("1 · Liga")}</span>
+            <select value={ligaObjetivo} onChange={(event) => { setLigaObjetivo(event.target.value); reencuadrarObjetivo(event.target.value, anioObjetivo); }}>
+              <option value="TODAS">{t("Todas")}</option>
+              {ligasDelFondo.map((liga) => <option key={liga} value={liga}>{liga}</option>)}
+            </select>
+          </label>}
+          {aniosDelFondo.length > 1 && <label><span>{t("2 · Año")}</span>
+            <select value={anioObjetivo || ""} onChange={(event) => { const a = Number(event.target.value); setAnioObjetivo(a); reencuadrarObjetivo(ligaObjetivo, a); }}>
+              <option value="">{t("Todos")}</option>
+              {aniosDelFondo.map((anio) => <option key={anio} value={anio}>{anio}</option>)}
+            </select>
+          </label>}
+          <label><span>{ligasDelFondo.length > 1 ? t("3 · Club") : t("1 · Club")}</span><select value={selectedTargetTeam} onChange={(event) => chooseTargetTeam(event.target.value)}>{targetTeams.map((team) => <option key={team || "__sin_equipo__"} value={team}>{team || t("Equipo no disponible")}</option>)}</select></label>
+          <label><span>{ligasDelFondo.length > 1 ? t("4 · Jugador") : t("2 · Jugador")}</span><select value={selectedIndex} onChange={(event) => chooseTarget(Number(event.target.value))}>{targetPlayers.map((target) => <option key={`${target.index}-${target.player}`} value={target.index}>{target.player}</option>)}</select></label>
         </div>
         {ligasPorFila?.length ? <label className="similarity-base-modo">
-          <span>{t("3 · Medir contra")}</span>
+          <span>{t("5 · Medir contra")}</span>
           <select value={baseDePercentiles} onChange={(event) => setBaseDePercentiles(event.target.value as "combinado" | "liga")}>
             <option value="combinado">{t("Todas las ligas juntas")}</option>
             <option value="liga">{t("Su propia liga")}</option>
@@ -1108,6 +1185,18 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
           <label><span>{t("Buscar jugador o club")}</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("Escribe un nombre…")} /></label>
           <div className="similarity-age-fields"><label><span>{t("Edad mínima")}</span><input type="number" min="14" max="50" value={ageMin} onChange={(event) => setAgeMin(event.target.value)} placeholder={t("Todas")} /></label><label><span>{t("Edad máxima")}</span><input type="number" min="14" max="50" value={ageMax} onChange={(event) => setAgeMax(event.target.value)} placeholder={t("Todas")} /></label></div>
           <label><span>{t("Mínimo de minutos")}</span><input type="number" min="0" step="100" value={minimumMinutes} onChange={(event) => cambiarMinutos(event.target.value)} /></label>
+          {ligasDelFondo.length > 1 && <label><span>{t("Liga del candidato")}</span>
+            <select value={ligaCandidato} onChange={(event) => setLigaCandidato(event.target.value)}>
+              <option value="TODAS">{t("Todas")}</option>
+              {ligasDelFondo.map((liga) => <option key={liga} value={liga}>{liga}</option>)}
+            </select>
+          </label>}
+          {aniosDelFondo.length > 1 && <label><span>{t("Año del candidato")}</span>
+            <select value={anioCandidato || ""} onChange={(event) => setAnioCandidato(Number(event.target.value))}>
+              <option value="">{t("Todos")}</option>
+              {aniosDelFondo.map((anio) => <option key={anio} value={anio}>{anio}</option>)}
+            </select>
+          </label>}
           <label><span>{t("Pasaporte · principal o secundario")}</span><select value={passport} onChange={(event) => setPassport(event.target.value)}><option value="">{t("Todos los pasaportes")}</option>{options.passports.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
           <label><span>{t("Rol principal")}</span><select value={position} onChange={(event) => { setPosition(event.target.value); setSecondaryRole(""); }}><option value="">{t("Todos los roles")}</option>{options.positions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
           <label><span>{t("Rol secundario · según el primer filtro")}</span><select value={secondaryRole} onChange={(event) => setSecondaryRole(event.target.value)} disabled={!secondaryOptions.length}><option value="">{t("Cualquiera")}</option>{secondaryOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
