@@ -26,6 +26,7 @@ import { PoolPage } from "./PoolPage";
 import { ReportPageDesigner } from "./ReportPageDesigner";
 import { SimilarityStudio } from "./SimilarityStudio";
 import { CLIENT_THEMES, DEFAULT_REPORT_THEME, reportThemeStyle, type ReportTheme } from "./reportTheme";
+import { LOGOS_PLATAFORMA, LogoPlataforma } from "./LogosPlataforma";
 import {
   aggregateDatasets,
   buildPlayerReport,
@@ -1332,7 +1333,7 @@ export default function ScoutStudio() {
                   {apiStatus === null && <p>{t("Comprobando el servidor local…")}</p>}
                   {apiStatus === "offline" && <p className="inline-error">{t("El servidor local no está corriendo. Arranca npm run bg:server y reintenta.")}</p>}
                   {apiStatus && apiStatus !== "offline" && (["statsbomb", "skillcorner"] as const).map((platform) => <div key={platform} className="api-platform-row" style={{ "--platform-color": METRIC_SOURCE_COLORS[platform].color } as React.CSSProperties}>
-                    <div className="api-platform-head"><i /><b>{METRIC_SOURCE_COLORS[platform].label}</b><small>{apiStatus[platform] ? `${apiCompetitions[platform].length} ${t("competiciones disponibles")}` : t("Sin credenciales")}</small></div>
+                    <div className="api-platform-head"><LogoPlataforma plataforma={platform} alto={19} conTexto /><b>{METRIC_SOURCE_COLORS[platform].label}</b><small>{apiStatus[platform] ? `${apiCompetitions[platform].length} ${t("competiciones disponibles")}` : t("Sin credenciales")}</small></div>
                     {apiStatus[platform] ? <>
                       <select value={apiSelection[platform]} onChange={(event) => setApiSelection((current) => ({ ...current, [platform]: event.target.value }))}>
                         <option value="">{t("Elegir competición")}…</option>
@@ -1424,9 +1425,14 @@ export default function ScoutStudio() {
                   verlo antes de entrar y no descubrirlo con la hoja vacía. */}
               <div className="datos-barra">
                 <span className="datos-barra-titulo">{t("Datos")}</span>
-                <span className={plataformas.has("wyscout") ? "datos-chip on wyscout" : "datos-chip"}>Wyscout</span>
-                <span className={plataformas.has("statsbomb") ? "datos-chip on statsbomb" : "datos-chip"}>StatsBomb</span>
-                <span className={plataformas.has("skillcorner") ? "datos-chip on skillcorner" : "datos-chip"}>SkillCorner</span>
+                {(["wyscout", "statsbomb", "skillcorner"] as const).map((plataforma) => (
+                  <span key={plataforma} className={plataformas.has(plataforma) ? `datos-chip on ${plataforma}` : "datos-chip"}>
+                    <LogoPlataforma plataforma={plataforma} alto={12} conTexto={LOGOS_PLATAFORMA[plataforma].esLogotipo !== true} />
+                    {/* El logotipo de Wyscout ya lleva el nombre dentro; los
+                        otros dos son símbolos y necesitan la etiqueta. */}
+                    {!LOGOS_PLATAFORMA[plataforma].esLogotipo && METRIC_SOURCE_COLORS[plataforma].label}
+                  </span>
+                ))}
                 {plataformas.size > 1 && <span className="datos-enlace">{tf("{n} plataformas enlazadas", { n: plataformas.size })}</span>}
                 <small>{tf("{n} jugadores · {b} base(s)", { n: reportRows.length, b: reportSourceCount })}</small>
                 <button type="button" className="datos-conectar" onClick={() => void openApiDialog()}>{t("Conectar API")}</button>

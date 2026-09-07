@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { t, tf } from "@/lib/i18n";
 import { aggregateDatasets, extractSeason, type DataRow, type SourceDataset } from "@/lib/scouting";
 import { positionSides } from "@/lib/positions";
+import { LogoPlataforma } from "./LogosPlataforma";
 import { buildSimilaritySearch, playerPassports, similarityOptions, type SimilarityFilters } from "@/lib/similarity";
 import {
   fetchSkillcornerCompetitions,
@@ -500,7 +501,13 @@ export function PoolPage({ baseCargada, onAbrirInforme }: {
           return <button key={clave} type="button" className="on" onClick={() => quitar(clave)}
             title={t("Quitar del fondo")}>
             {competicion.name}<small>{competicion.season}</small>
-            {conSkillcorner.has(clave) && <em title={t("Tiene edición de SkillCorner: entra con datos físicos y de game intelligence")}>SC</em>}
+            {/* Las marcas de lo que trae la liga: la plataforma que la sirve y,
+                si la hay, la capa de SkillCorner encima. Se ve de un vistazo
+                cuáles vienen con datos físicos y de game intelligence. */}
+            <span className="pool-marcas">
+              <LogoPlataforma plataforma={fuente} alto={12} />
+              {conSkillcorner.has(clave) && <LogoPlataforma plataforma="skillcorner" alto={12} />}
+            </span>
             <i>×</i>
           </button>;
         })}

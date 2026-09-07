@@ -2534,3 +2534,14 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
 .ctx-ligas > em { color: var(--pl-dim); font-size: 8.5px; font-style: normal; }
 .ctx-ligas-todas { border: none; background: none; color: var(--acento-claro, var(--pl-ink)); font-family: inherit; font-size: 8.5px; text-decoration: underline; cursor: pointer; padding: 0; }
 @media print { .ctx-ligas { display: none !important; } }
+
+/* Marcas de plataforma: saber qué trae cada liga antes de cargarla. */
+.logo-plataforma { display: block; flex: none; object-fit: contain; }
+/* Apagadas mientras la plataforma no esté en la base, para que el chip
+   encendido se distinga a un metro de la pantalla. */
+.datos-chip { display: inline-flex; align-items: center; gap: 5px; }
+.datos-chip .logo-plataforma { filter: grayscale(1); opacity: .5; }
+.datos-chip.on .logo-plataforma { filter: none; opacity: 1; }
+.api-platform-head .logo-plataforma { border-radius: 4px; }
+.pool-marcas { display: inline-flex; align-items: center; gap: 3px; margin-left: 1px; }
+.pool-marcas .logo-plataforma { border-radius: 3px; }
