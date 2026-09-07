@@ -7,6 +7,7 @@ import { t, tf } from "@/lib/i18n";
 import { BarrasRanking, BarrasZ, CuadranteMetricas, LeyendaGraficos, SwarmMetric, type BarraRank, type BarraZ, type PuntoCuadrante, type PuntoSwarm } from "./ContextCharts";
 import { CATALOGO, DEFINICIONES, type FichaContexto } from "./ContextCatalog";
 import { Arquetipos } from "./Arquetipos";
+import { BarraDeFiltros } from "./BarraDeFiltros";
 
 /**
  * Página de contexto: sitúa al jugador dentro de su equipo y de la liga.
@@ -428,6 +429,12 @@ export function ContextPage({
   return <article className="context-page">
     {/* Los mismos filtros de la Página 01, sobre el mismo estado: cambiar aquí
         cambia el informe entero. Evita ir y volver de pestaña para comparar. */}
+    {/* La red compartida acota a quién puedes elegir en los selectores de
+        abajo. Es distinta del "comparar contra" de más abajo, que no acota
+        sino que cambia el marco contra el que se mide: dos preguntas
+        distintas, cada una con su control. */}
+    <BarraDeFiltros campos={["liga", "anio", "puesto", "pasaporte", "minutos", "edad"]} />
+
     {controles && <div className="ctx-controls">
       <label><span>{t("Equipo")}</span>
         <select value={controles.equipo} onChange={(event) => controles.onEquipo(event.target.value)}>

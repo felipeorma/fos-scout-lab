@@ -61,7 +61,7 @@ export type OpcionesDeFiltro = {
   pasaportes: string[];
 };
 
-type BaseActiva = {
+export type BaseActiva = {
   /** Las filas ya cruzadas. */
   rows: DataRow[];
   /** Las bases que se cruzaron para armarlas. */
@@ -111,13 +111,21 @@ export function useBaseActiva() {
   return useContext(Contexto) ?? VACIA;
 }
 
-export function ProveedorDeBase({
+/**
+ * El estado de la base activa, como hook.
+ *
+ * Está separado del proveedor porque quien lo reparte también lo necesita: la
+ * pantalla que envuelve a todas las demás no puede consumir su propio
+ * contexto, y duplicar el cálculo daría dos verdades que se irían separando.
+ * Así hay una sola: se llama al hook, se usa lo que hace falta y se pasa el
+ * mismo valor al proveedor para los hijos.
+ */
+export function useEstadoDeBase({
   rows,
   datasets,
   nombre,
   minutosMin,
   onMinutosMin,
-  children,
 }: {
   rows: DataRow[];
   datasets: SourceDataset[];
@@ -126,8 +134,7 @@ export function ProveedorDeBase({
    *  pantallas lo escriben; aquí solo se refleja. */
   minutosMin: number;
   onMinutosMin: (minutos: number) => void;
-  children: ReactNode;
-}) {
+}): BaseActiva {
   const [filtros, setFiltros] = useState<FiltrosGlobales>(FILTROS_VACIOS);
 
   const competiciones = useMemo(() => ligasDeBases(datasets), [datasets]);
@@ -212,7 +219,7 @@ export function ProveedorDeBase({
     setFiltros({ ...FILTROS_VACIOS, minutosMin });
   }, [minutosMin]);
 
-  const valor = useMemo<BaseActiva>(() => ({
+  return useMemo<BaseActiva>(() => ({
     rows,
     datasets,
     nombre,
@@ -226,6 +233,9 @@ export function ProveedorDeBase({
     pasaFiltros,
     indicesVisibles,
   }), [rows, datasets, nombre, procedencia, competiciones, filtros, minutosMin, cambiarFiltros, limpiarFiltros, filtrosActivos, opciones, pasaFiltros, indicesVisibles]);
+}
 
+/** Reparte a las pantallas el estado que ya calculó `useEstadoDeBase`. */
+export function ProveedorDeBase({ valor, children }: { valor: BaseActiva; children: ReactNode }) {
   return <Contexto.Provider value={valor}>{children}</Contexto.Provider>;
 }

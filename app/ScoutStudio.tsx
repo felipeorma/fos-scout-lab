@@ -28,7 +28,8 @@ import { SimilarityStudio } from "./SimilarityStudio";
 import { CLIENT_THEMES, DEFAULT_REPORT_THEME, reportThemeStyle, type ReportTheme } from "./reportTheme";
 import { LOGOS_PLATAFORMA, LogoPlataforma } from "./LogosPlataforma";
 import { ligasDeBases, origenPorFila } from "@/lib/procedencia";
-import { ProveedorDeBase } from "./BaseActiva";
+import { ProveedorDeBase, useEstadoDeBase } from "./BaseActiva";
+import { BarraDeFiltros } from "./BarraDeFiltros";
 import {
   aggregateDatasets,
   buildPlayerReport,
@@ -359,6 +360,19 @@ export default function ScoutStudio() {
   const players = useMemo(() => playerOptionsFor(reportRows), [reportRows, lang]);
 
   /*
+   * La base activa y su red de filtros. Se llama al hook aquí porque esta
+   * pantalla también los necesita —el selector de club y jugador se acota con
+   * ellos— y no puede consumir el contexto que ella misma reparte.
+   */
+  const base = useEstadoDeBase({
+    rows: reportRows,
+    datasets: sourceDatasets,
+    nombre: reportFileName,
+    minutosMin: minimumMinutes,
+    onMinutosMin: setMinimumMinutes,
+  });
+
+  /*
    * Filtro de liga y año para elegir jugador.
    *
    * Con las dieciséis ligas cargadas, el desplegable de equipos pasa de ocho
@@ -384,20 +398,14 @@ export default function ScoutStudio() {
   const [ligaElegida, setLigaElegida] = useState("TODAS");
   const [anioElegido, setAnioElegido] = useState(0);
 
-  const filtrarJugadores = useCallback((liga: string, anio: number) => {
-    if (!origenes || (liga === "TODAS" && !anio)) return players;
-    return players.filter((player) => {
-      const origen = origenes[player.index];
-      if (!origen) return false;
-      if (liga !== "TODAS" && !origen.ligas.includes(liga)) return false;
-      if (anio && !origen.anios.includes(anio)) return false;
-      return true;
-    });
-  }, [players, origenes]);
-
+  /*
+   * A quién se puede elegir. Sale de los filtros globales, así que acotar por
+   * liga en el ranking deja también acotado el selector de club de la ficha:
+   * es la misma pregunta y ahora tiene una sola respuesta.
+   */
   const jugadoresVisibles = useMemo(
-    () => filtrarJugadores(ligaElegida, anioElegido),
-    [filtrarJugadores, ligaElegida, anioElegido],
+    () => players.filter((player) => base.pasaFiltros(player.index)),
+    [players, base],
   );
 
   const teams = useMemo(
@@ -1175,29 +1183,22 @@ export default function ScoutStudio() {
   }
 
   /**
-   * Al estrechar el filtro, el equipo elegido puede quedarse fuera.
-   *
-   * Se recoloca aquí y no en un efecto porque hace falta la lista con los
-   * valores NUEVOS, y el `useMemo` todavía no se ha recalculado cuando corre
-   * el manejador. Si el equipo sobrevive al cambio no se toca nada: cambiar de
+   * Al estrechar los filtros, el equipo elegido puede quedarse fuera; entonces
+   * se salta al primero que quede. Si sobrevive no se toca nada: acotar por
    * año no debería sacarte del club que estabas mirando.
    */
-  function reencuadrarSeleccion(liga: string, anio: number) {
-    const visibles = filtrarJugadores(liga, anio);
-    if (!visibles.length || visibles.some((player) => player.team === selectedTeam)) return;
-    setSelectedTeam(visibles[0].team);
-    selectPlayer(visibles[0].index);
-  }
-
-  function elegirLiga(liga: string) {
-    setLigaElegida(liga);
-    reencuadrarSeleccion(liga, anioElegido);
-  }
-
-  function elegirAnio(anio: number) {
-    setAnioElegido(anio);
-    reencuadrarSeleccion(ligaElegida, anio);
-  }
+  useEffect(() => {
+    if (!jugadoresVisibles.length) return;
+    if (jugadoresVisibles.some((player) => player.team === selectedTeam)) return;
+    // Reaccionar al filtro es justo lo que toca aquí: el cambio nace en otra
+    // pantalla —la barra es compartida— así que no hay manejador local donde
+    // recolocar la selección. La guarda de arriba corta la cadena en cuanto el
+    // club elegido vuelve a estar dentro.
+    // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
+    setSelectedTeam(jugadoresVisibles[0].team);
+    selectPlayer(jugadoresVisibles[0].index);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jugadoresVisibles]);
 
   function updateAnalysisSourceName(value: string) {
     setAnalysisSourceTitle(value);
@@ -1363,13 +1364,7 @@ export default function ScoutStudio() {
   ) : null;
 
   return (
-    <ProveedorDeBase
-      rows={reportRows}
-      datasets={sourceDatasets}
-      nombre={reportFileName}
-      minutosMin={minimumMinutes}
-      onMinutosMin={setMinimumMinutes}
-    >
+    <ProveedorDeBase valor={base}>
     <div className="app-shell no-sidebar" data-paleta={paleta}>
       <main className="main-area">
         <header className="topbar studio-topbar">
@@ -1574,38 +1569,10 @@ export default function ScoutStudio() {
                   {reportError && <div className="inline-error">{reportError}</div>}
                   <div className="control-divider" />
                   <div className="panel-title player-section-title"><div><span className="mini-icon"><Search size={17} /></span><div><h2>{t("2. Equipo y jugador")}</h2><p>{t("Selecciona en orden")}</p></div></div></div>
-                  {/* Acotar por liga y año antes de buscar el club: con todas
-                      las competiciones cargadas el desplegable de equipos pasa
-                      de ocho clubes a más de doscientos. */}
-                  {ligasDisponibles.length > 1 && <div className="player-scope">
-                    <label className="field-group"><FieldLabel>{t("Liga")}</FieldLabel>
-                      <span className="select-wrap"><Files size={16} />
-                        <select value={ligaElegida} disabled={backgroundRemoving} onChange={(event) => elegirLiga(event.target.value)}>
-                          <option value="TODAS">{t("Todas")}</option>
-                          {ligasDisponibles.map((liga) => <option key={liga} value={liga}>{liga}</option>)}
-                        </select>
-                        <ChevronDown size={16} />
-                      </span>
-                    </label>
-                    {aniosDisponibles.length > 1 && <label className="field-group"><FieldLabel>{t("Año")}</FieldLabel>
-                      <span className="select-wrap"><Files size={16} />
-                        <select value={anioElegido || ""} disabled={backgroundRemoving} onChange={(event) => elegirAnio(Number(event.target.value))}>
-                          <option value="">{t("Todos")}</option>
-                          {aniosDisponibles.map((anio) => <option key={anio} value={anio}>{anio}</option>)}
-                        </select>
-                        <ChevronDown size={16} />
-                      </span>
-                    </label>}
-                    {/* Sin nadie dentro, el desplegable de equipos se queda
-                        vacío y la ficha sigue mostrando al jugador anterior:
-                        más vale decir por qué. Pasa, por ejemplo, al pedir una
-                        liga y un año que no se cargaron juntos. */}
-                    {jugadoresVisibles.length
-                      ? <small>{tf("{n} jugadores en el filtro", { n: jugadoresVisibles.length })}</small>
-                      : <small className="player-scope-vacio">
-                          {t("Ninguno de los jugadores cargados cumple ese filtro; la ficha sigue mostrando al anterior. Prueba con otro año o vuelve a Todas.")}
-                        </small>}
-                  </div>}
+                  {/* La red de filtros compartida: acota a quién puedes elegir.
+                      El club y el jugador se quedan como selectores porque ahí
+                      no filtras, navegas. */}
+                  <BarraDeFiltros campos={["liga", "anio", "puesto", "pasaporte", "minutos", "edad"]} resultado={jugadoresVisibles.length} />
 
                   <div className="player-selector-flow">
                     <label className="field-group selection-step"><span className="selection-step-title"><FieldLabel>{t("Equipo")}</FieldLabel></span><span className="select-wrap"><Files size={16} /><select value={selectedTeam} disabled={backgroundRemoving} onChange={(event) => selectTeam(event.target.value)}>{teams.map((team) => <option key={team || "__sin_equipo__"} value={team}>{team || t("Equipo no disponible")}</option>)}</select><ChevronDown size={16} /></span></label>
