@@ -1,7 +1,8 @@
 "use client";
 
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
-import { cohortOf, detectCoreColumns, headersOf, positionColumnOf, type DataRow, type SourceDataset } from "@/lib/scouting";
+import { type DataRow, type SourceDataset } from "@/lib/scouting";
+import { FILTROS_VACIOS, cuantosFiltrosActivos, pasaLosFiltros, resumirFilas, type FiltrosGlobales } from "@/lib/filtros";
 import { playerPassports } from "@/lib/similarity";
 import { ligasDeBases, origenPorFila, type Procedencia } from "@/lib/procedencia";
 import { tf } from "@/lib/i18n";
@@ -28,32 +29,11 @@ import { tf } from "@/lib/i18n";
  *   Es el mismo criterio en la ficha, en el ranking y en la similitud.
  */
 
-export type FiltrosGlobales = {
-  /** "TODAS" o el nombre de la liga. */
-  liga: string;
-  /** 0 = todos los años. */
-  anio: number;
-  /** "TODOS" o el nombre del club. */
-  equipo: string;
-  /** "TODOS" o el pasaporte; cuenta también el secundario. */
-  pasaporte: string;
-  /** "" = sin filtrar por puesto; si no, la cohorte (CB, WING…). */
-  puesto: string;
-  /** Entra en el grupo de referencia, no solo en la vista. */
-  minutosMin: number;
-  /** 0 = sin tope. */
-  edadMax: number;
-};
-
-export const FILTROS_VACIOS: FiltrosGlobales = {
-  liga: "TODAS",
-  anio: 0,
-  equipo: "TODOS",
-  pasaporte: "TODOS",
-  puesto: "",
-  minutosMin: 500,
-  edadMax: 0,
-};
+/* El tipo y los valores por defecto viven en lib/filtros.ts, donde se pueden
+   probar sin montar React. Se reexportan para que las pantallas sigan
+   importándolos de un solo sitio. */
+export type { FiltrosGlobales };
+export { FILTROS_VACIOS };
 
 export type OpcionesDeFiltro = {
   ligas: string[];
@@ -156,8 +136,6 @@ export function useEstadoDeBase({
   );
 
   const opciones = useMemo<OpcionesDeFiltro>(() => {
-    const headers = headersOf(rows);
-    const core = detectCoreColumns(headers);
     const equipos = new Set<string>();
     const pasaportes = new Map<string, string>();
     for (const fila of rows) {
@@ -168,7 +146,6 @@ export function useEstadoDeBase({
         if (clave && !pasaportes.has(clave)) pasaportes.set(clave, pasaporte.trim());
       }
     }
-    void core;
     return {
       ligas: [...new Set(competiciones.map((c) => c.liga))].sort((a, b) => a.localeCompare(b, "es")),
       anios: [...new Set(competiciones.map((c) => c.anio).filter(Boolean))].sort(),
@@ -177,35 +154,12 @@ export function useEstadoDeBase({
     };
   }, [rows, competiciones]);
 
-  /** Índice de apoyo para no releer la fila entera en cada comprobación. */
-  const resumen = useMemo(() => {
-    const headers = headersOf(rows);
-    const core = detectCoreColumns(headers);
-    const columnaPuesto = positionColumnOf(headers);
-    return rows.map((fila) => ({
-      equipo: String(fila.Team ?? "").trim(),
-      pasaportes: playerPassports(fila["Passport country"]).map((x) => x.trim().toLowerCase()),
-      puesto: cohortOf(columnaPuesto ? fila[columnaPuesto] : ""),
-      edad: Number(String(fila.Age ?? "").replace(",", ".")),
-      minutos: Number(String(fila[core.minutes] ?? "").replace(",", ".")),
-    }));
-  }, [rows]);
+  const resumen = useMemo(() => resumirFilas(rows), [rows]);
 
-  const pasaFiltros = useCallback((indice: number) => {
-    const fila = resumen[indice];
-    if (!fila) return false;
-    if (filtros.equipo !== "TODOS" && fila.equipo !== filtros.equipo) return false;
-    if (filtros.puesto && fila.puesto !== filtros.puesto) return false;
-    if (filtros.pasaporte !== "TODOS" && !fila.pasaportes.includes(filtros.pasaporte.toLowerCase())) return false;
-    if (filtros.edadMax > 0 && !(Number.isFinite(fila.edad) && fila.edad <= filtros.edadMax)) return false;
-    if (filtros.liga !== "TODAS" || filtros.anio) {
-      const origen = procedencia?.[indice];
-      if (!origen) return false;
-      if (filtros.liga !== "TODAS" && !origen.ligas.includes(filtros.liga)) return false;
-      if (filtros.anio && !origen.anios.includes(filtros.anio)) return false;
-    }
-    return true;
-  }, [resumen, filtros, procedencia]);
+  const pasaFiltros = useCallback(
+    (indice: number) => pasaLosFiltros(resumen[indice], procedencia?.[indice], { ...filtros, minutosMin }),
+    [resumen, procedencia, filtros, minutosMin],
+  );
 
   const indicesVisibles = useMemo(() => {
     const salida: number[] = [];
@@ -213,14 +167,7 @@ export function useEstadoDeBase({
     return salida;
   }, [rows.length, pasaFiltros]);
 
-  const filtrosActivos = useMemo(() => (
-    (filtros.liga !== "TODAS" ? 1 : 0)
-    + (filtros.anio ? 1 : 0)
-    + (filtros.equipo !== "TODOS" ? 1 : 0)
-    + (filtros.pasaporte !== "TODOS" ? 1 : 0)
-    + (filtros.puesto ? 1 : 0)
-    + (filtros.edadMax > 0 ? 1 : 0)
-  ), [filtros]);
+  const filtrosActivos = useMemo(() => cuantosFiltrosActivos(filtros), [filtros]);
 
   const cambiarFiltros = useCallback((cambio: Partial<FiltrosGlobales>) => {
     if (cambio.minutosMin !== undefined) onMinutosMin(Math.max(0, cambio.minutosMin));

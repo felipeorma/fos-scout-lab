@@ -368,6 +368,28 @@ function mismaSecuenciaConSiglas(a: string[], b: string[]): boolean {
 
 const clubTokens = (value: string) => value.split(" ").filter((token) => token && !CLUB_STOPWORDS.has(token));
 
+/**
+ * ¿Son clubes CLARAMENTE distintos?
+ *
+ * Más débil que `clubsMatch` a propósito. Exigir que dos clubes casen del
+ * todo para juntar a un jugador partía ochocientas fusiones buenas: los dos
+ * proveedores escriben los nombres de formas que la regla estricta no
+ * reconoce —"Vancouver Whitecaps II" contra "Whitecaps FC 2"— y ahí sí es el
+ * mismo sitio.
+ *
+ * Lo que sí distingue: no compartir NI UNA palabra distintiva. "FC Paris 13
+ * Atletico" y "FC Supra du Québec" solo comparten "FC", que no cuenta. Sirve
+ * para cortar una fusión que solo se sostiene en el nombre y la edad, sin
+ * partir las que difieren en la grafía.
+ */
+export function clubesSinNadaEnComun(a: string, b: string) {
+  if (!a || !b) return false;
+  const ta = clubTokens(a);
+  const tb = clubTokens(b);
+  if (!ta.length || !tb.length) return false;
+  return !ta.some((token) => tb.includes(token));
+}
+
 export function clubsMatch(a: string, b: string) {
   if (!a || !b) return false;
   if (a === b) return true;
@@ -481,6 +503,22 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
     player: String(row[core.player] ?? "").trim(),
     ageIdentity: normalizeIdentityAge(ageColumn ? row[ageColumn] : ""),
     clubIdentity: normalizeIdentityText(rowTeam(row)),
+    /*
+     * De qué competición sale, sin el proveedor ni la temporada.
+     * "StatsBomb · National League 2026/2027" y su capa de SkillCorner dan
+     * las dos "national league": describen el mismo torneo. Hace falta para
+     * distinguir un traspaso de un homónimo, que es lo único que los separa
+     * cuando comparten nombre y edad.
+     */
+    competencia: normalizeIdentityText(
+      dataset.fileName
+        .replace(/^(StatsBomb|SkillCorner|Wyscout)\s*·\s*/i, "")
+        // La extensión primero: sin quitarla, el año no queda al final y
+        // "CPL 2024.xlsx" y "CPL 2025.xlsx" pasaban por competiciones
+        // distintas, lo que partía al mismo jugador entre temporadas.
+        .replace(/\.(xlsx|xls|csv|tsv|txt)$/i, "")
+        .replace(/\s+\d{4}(?:\s*[/-]\s*\d{2,4})?$/, ""),
+    ),
     birthIdentity: birthIdentity(row),
   }))).filter((entry) => entry.player);
 
@@ -509,8 +547,59 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
     for (const group of groups) {
       const groupSources = new Set(group.map((entry) => entry.sourceIndex));
       const groupAges = group.map((entry) => edadComparable(entry.ageIdentity)).filter(Number.isFinite);
+      /*
+       * Además del club. Esta etapa juntaba por nombre exacto y edad
+       * compatible, sin mirar dónde jugaba cada uno, y eso permitía una
+       * cadena que fusionaba a dos personas distintas: un Ibrahim Koné de
+       * 27 años en el Paris 13 Atletico y otro de 36 en el FC Supra du
+       * Québec acababan siendo la misma fila. El puente era una tercera
+       * entrada que compartía nombre con el primero y edad con el segundo,
+       * de modo que ninguno de los dos se comparó nunca con el otro.
+       *
+       * Con el club dentro, esa cadena se corta: dos homónimos de la misma
+       * edad en clubes que no casan ya no se juntan. Los nombres de club se
+       * comparan con la misma regla que el resto del cruce, así que
+       * "Vancouver FC" y "Vancouver Football Club" siguen siendo el mismo
+       * sitio.
+       */
+      const groupClubs = [...new Set(group.map((entry) => entry.clubIdentity).filter(Boolean))];
       const target = clusters.find((cluster) => {
         if (cluster.some((entry) => groupSources.has(entry.sourceIndex))) return false;
+        const clusterClubs = [...new Set(cluster.map((entry) => entry.clubIdentity).filter(Boolean))];
+        /*
+         * No se exige que los clubes CASEN —eso partía ochocientas fusiones
+         * buenas, porque los dos proveedores escriben los nombres distinto—
+         * sino que no sean claramente ajenos: basta con que compartan una
+         * palabra distintiva. Es lo justo para cortar la cadena de los
+         * homónimos sin castigar las diferencias de grafía.
+         */
+        /*
+         * El club solo veta ENTRE COMPETICIONES DISTINTAS.
+         *
+         * Dentro de una misma liga, dos filas con el mismo nombre y la misma
+         * edad en clubes distintos son un traspaso de invierno: medido sobre
+         * la base real, 543 de 550 casos. Exigirles el club los partía todos.
+         *
+         * Entre competiciones distintas no. Un Ibrahim Koné de 36 años en el
+         * FC Supra du Québec y otro en el Paris 13 Atletico no son el mismo
+         * hombre que cambió de club: son dos personas en dos continentes. Ahí
+         * el club sí tiene que decir algo, y basta con que compartan una
+         * palabra distintiva para no castigar las grafías de cada proveedor.
+         */
+        /*
+         * Y solo cuando se SABE de qué competición viene cada uno.
+         *
+         * El nombre de un archivo de la API lo dice —"StatsBomb · National
+         * League 2026/2027"— pero el de un Excel subido es lo que el scout
+         * haya escrito: "canadians.xlsx" no es una competición distinta de
+         * la CPL, es un archivo sin etiquetar. Aplicarles la regla partía al
+         * mismo jugador entre su liga y una lista suelta.
+         */
+        const competicionConocida = (entrada: typeof group[number]) => entrada.provider !== "wyscout";
+        const sePuedeComparar = group.every(competicionConocida) && cluster.every(competicionConocida);
+        const mismaCompeticion = group.some((a) => cluster.some((b) => a.competencia === b.competencia));
+        if (sePuedeComparar && !mismaCompeticion && groupClubs.length && clusterClubs.length
+          && groupClubs.every((a) => clusterClubs.every((b) => clubesSinNadaEnComun(a, b)))) return false;
         const clusterAges = cluster.map((entry) => edadComparable(entry.ageIdentity)).filter(Number.isFinite);
         if (!groupAges.length || !clusterAges.length) return true;
         return groupAges.some((a) => clusterAges.some((b) => Math.abs(a - b) <= 1));

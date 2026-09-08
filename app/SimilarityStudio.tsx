@@ -737,6 +737,20 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     };
   }, [porLiga, ligasPorFila, rows, selectedIndex, filters, metricWeights, rolMetricas, reportCohort, metricLabels]);
 
+  /*
+   * La posición que se enseña bajo el nombre.
+   *
+   * Al elegir "Métricas de: Delanteros" para un extremo, el radar y todos los
+   * percentiles pasan a ser los de delantero, pero el rótulo seguía diciendo
+   * "Extremo": el informe se contradecía consigo mismo. Si se ha elegido un
+   * puesto a mano, manda ése; si no, la posición natural del jugador.
+   */
+  const posicionMostrada = (natural: string, cohorteNatural: string) => (
+    rolMetricas ? selectedCohortPosition(rolMetricas, natural) : (
+      reportCohort !== "AUTO" ? selectedCohortPosition(cohorteNatural, natural) : natural
+    )
+  );
+
   const search = useMemo(() => buildSimilaritySearch(rows, selectedIndex, filters, metricWeights, rolMetricas || reportCohort, metricLabels, porLiga), [filters, metricWeights, rows, selectedIndex, lang, reportCohort, metricLabels, porLiga]);
   /*
    * Los candidatos se acotan DESPUÉS del motor. La liga es una decisión de
@@ -818,7 +832,9 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
         team: search.target.team,
         // Solo se sustituye la posición real por la genérica cuando el usuario
         // forzó un rol (filtro o cohorte de la ficha); si no, se muestra la real.
-        position: position || reportCohort !== "AUTO" ? selectedCohortPosition(search.target.cohort, search.target.position) : search.target.position,
+        // La misma posición que se enseña en pantalla: si el informe dijera
+        // una y la ficha otra, el que lo lee no sabe con qué se le midió.
+        position: posicionMostrada(search.target.position, search.target.cohort),
         age: search.target.age,
         passport: search.target.passport,
         color: targetColor,
@@ -1186,7 +1202,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     </section> : !rows.length || !search ? <section className="dataset-onboarding similarity-empty"><span className="dataset-step">{t("SECCIÓN DE SIMILITUD")}</span><span className="dataset-icon"><Search size={30} /></span><h2>{t("Primero carga una base de datos")}</h2><p>{t("La comparación usa la base activa, ya sea una liga, temporada o combinación.")}</p><button className="button primary" onClick={onOpenReports}>{t("Ir a cargar datos")}</button></section> : <>
       <Paso numero={1}>A quién te quieres parecer</Paso>
       <section className="similarity-target-bar">
-        <div className="similarity-target-copy"><span>{t("JUGADOR OBJETIVO")}</span><b>{search.target.player}</b><small>{tf("{team} · {pos} · {age} años", { team: search.target.team, pos: search.target.position, age: search.target.age })}</small></div>
+        <div className="similarity-target-copy"><span>{t("JUGADOR OBJETIVO")}</span><b>{search.target.player}</b><small>{tf("{team} · {pos} · {age} años", { team: search.target.team, pos: posicionMostrada(search.target.position, search.target.cohort), age: search.target.age })}</small></div>
         <div className="similarity-target-selectors">
           {ligasDelFondo.length > 1 && <label><span>{t("1 · Liga")}</span>
             <select value={ligaObjetivo} onChange={(event) => { setLigaObjetivo(event.target.value); reencuadrarObjetivo(event.target.value, anioObjetivo); }}>

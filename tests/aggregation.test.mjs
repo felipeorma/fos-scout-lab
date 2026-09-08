@@ -117,3 +117,40 @@ test("archivo sin año en el nombre cuenta como el más reciente", () => {
   assert.equal(result.rows[0].Team, "Cavalry FC");
   assert.equal(result.rows[0]["Contract expires"], "2027-12-31");
 });
+
+test("dos personas con el mismo nombre en ligas distintas no se fusionan", () => {
+  const headers = ["Player", "Team", "Age", "Matches played", "Minutes played"];
+  /*
+   * El caso real que lo motivó. Había tres entradas de "Ibrahim Koné": dos de
+   * la Ligue 3 —una por proveedor, con edades que no coinciden entre ellos— y
+   * una de la CPL. Ninguna de las dos personas se comparó nunca con la otra:
+   * la de la CPL entró por la edad de una y el nombre de la otra, y acabaron
+   * siendo una sola fila con los minutos sumados de dos hombres distintos.
+   */
+  const result = aggregateDatasets([
+    { fileName: "SkillCorner · Ligue 3 2026/2027", season: 2026, headers, provider: "skillcorner",
+      rows: [{ Player: "Ibrahim Koné", Team: "FC Paris 13 Atletico", Age: 36, "Matches played": 6, "Minutes played": 199 }] },
+    { fileName: "StatsBomb · Ligue 3 2026/2027", season: 2026, headers, provider: "statsbomb",
+      rows: [{ Player: "Ibrahim Koné", Team: "Paris 13 Atletico", Age: 27, "Matches played": 9, "Minutes played": 494 }] },
+    { fileName: "SkillCorner · Canadian Premier League 2026", season: 2026, headers, provider: "skillcorner",
+      rows: [{ Player: "Ibrahim Koné", Team: "FC Supra du Québec", Age: 36, "Matches played": 2, "Minutes played": 60 }] },
+  ]);
+  const konesEnQuebec = result.rows.filter((r) => String(r["Data sources"]).includes("Canadian Premier League"));
+  assert.equal(konesEnQuebec.length, 1, "el de Québec tiene que quedar en su propia fila");
+  assert.equal(String(konesEnQuebec[0]["Data sources"]).includes("Ligue 3"), false,
+    "y no puede arrastrar las fuentes del francés");
+});
+
+test("un traspaso dentro de la misma liga sí se fusiona", () => {
+  const headers = ["Player", "Team", "Age", "Matches played", "Minutes played"];
+  // El reverso: dentro de una competición, mismo nombre y misma edad en dos
+  // clubes es un traspaso de invierno. Medido sobre la base real, 543 de 550
+  // casos. La regla del club no puede alcanzarlos.
+  const result = aggregateDatasets([
+    { fileName: "StatsBomb · National League 2026/2027", season: 2026, headers, provider: "statsbomb",
+      rows: [{ Player: "Aaron Drewe", Team: "Woking", Age: 25, "Matches played": 12, "Minutes played": 900 }] },
+    { fileName: "SkillCorner · National League 2026/2027", season: 2026, headers, provider: "skillcorner",
+      rows: [{ Player: "Aaron Drewe", Team: "Fylde", Age: 25, "Matches played": 10, "Minutes played": 800 }] },
+  ]);
+  assert.equal(result.rows.length, 1, "es el mismo jugador que cambió de club dentro de su liga");
+});
