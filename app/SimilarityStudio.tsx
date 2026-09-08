@@ -709,6 +709,34 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     side,
   }), [ageMax, ageMin, minimumMinutes, passport, position, query, secondaryRole, side]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  /*
+   * Cuánto cambia de verdad medir contra su liga.
+   *
+   * Sin esto el interruptor parece roto: se acciona y los mismos jugadores
+   * siguen arriba con porcentajes casi iguales. Y es correcto, no un fallo —a
+   * un extremo que está en P98 entre todas las ligas no le queda sitio para
+   * subir dentro de la suya— pero no se puede pedir a nadie que lo deduzca.
+   * Así que se calcula la otra versión y se dice el efecto: cuánto se mueve
+   * el perfil del jugador y cuántas caras cambian arriba.
+   */
+  const comparativaDeModo = useMemo(() => {
+    if (!porLiga || !ligasPorFila?.length) return null;
+    const otra = buildSimilaritySearch(rows, selectedIndex, filters, metricWeights, rolMetricas || reportCohort, metricLabels, null);
+    const esta = buildSimilaritySearch(rows, selectedIndex, filters, metricWeights, rolMetricas || reportCohort, metricLabels, porLiga);
+    if (!otra?.candidates.length || !esta?.candidates.length) return null;
+    const perfilA = new Map(otra.candidates[0].metrics.map((m) => [m.key, m.targetPercentile]));
+    const perfilB = new Map(esta.candidates[0].metrics.map((m) => [m.key, m.targetPercentile]));
+    const difs = [...perfilA.keys()].filter((k) => perfilB.has(k)).map((k) => Math.abs((perfilA.get(k) ?? 0) - (perfilB.get(k) ?? 0)));
+    if (!difs.length) return null;
+    const antes = otra.candidates.slice(0, 10).map((c) => c.name);
+    const ahora = esta.candidates.slice(0, 10).map((c) => c.name);
+    return {
+      medio: Math.round((difs.reduce((x, y) => x + y, 0) / difs.length) * 10) / 10,
+      maximo: Math.max(...difs),
+      nuevos: ahora.filter((n) => !antes.includes(n)).length,
+    };
+  }, [porLiga, ligasPorFila, rows, selectedIndex, filters, metricWeights, rolMetricas, reportCohort, metricLabels]);
+
   const search = useMemo(() => buildSimilaritySearch(rows, selectedIndex, filters, metricWeights, rolMetricas || reportCohort, metricLabels, porLiga), [filters, metricWeights, rows, selectedIndex, lang, reportCohort, metricLabels, porLiga]);
   /*
    * Los candidatos se acotan DESPUÉS del motor. La liga es una decisión de
@@ -1202,6 +1230,14 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
           <small>{porLiga ? t("Cada uno contra su liga") : t("Percentiles + contexto de edad y rol")}</small>
         </span></div>
       </section>
+
+      {porLiga && comparativaDeModo && <p className="similarity-efecto-modo">
+        {comparativaDeModo.medio < 3 && comparativaDeModo.nuevos === 0
+          ? t("Medir contra su liga apenas cambia nada aquí, y eso ya dice algo: este jugador ocupa el mismo sitio en su competición que entre todas. Suele pasar con los que están muy arriba, porque no les queda margen para subir.")
+          : tf("Contra su liga, el perfil del jugador se mueve {medio} puntos de percentil de media y hasta {maximo} en una métrica; {nuevos} de los diez primeros son distintos.", {
+            medio: comparativaDeModo.medio, maximo: comparativaDeModo.maximo, nuevos: comparativaDeModo.nuevos,
+          })}
+      </p>}
 
       {porLiga && <p className="similarity-aviso-rol">
         {t("Cada jugador se mide contra los de SU liga en su puesto, no contra los de todas. Eso responde a “quién hace el mismo papel donde juega”, pero esconde el nivel: un percentil 90 de la Canadian Premier League y uno de la MLS salen idénticos y no lo son. Por eso esto es parecido de rol, no parecido a secas. Quedan fuera los jugadores cuya liga no llegue a diez en su puesto, porque ahí un percentil no dice nada.")}

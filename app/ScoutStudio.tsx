@@ -1680,14 +1680,17 @@ export default function ScoutStudio() {
 
               {(printRun ? printRun.includes(1) : reportPage === 1) ? <div className="report-workspace">
                 <section className="control-panel enrichment-controls">
-                  <div className="panel-title"><div><span className="mini-icon"><FileSpreadsheet size={17} /></span><div><h2>{t("1. Base de datos activa")}</h2><p>{tDefault(reportFileName)}</p></div></div><span className="tiny-state">{t("LISTO")}</span></div>
-                  <button className="upload-box compact" onClick={() => setReportPage(DATA_PAGE)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); onReportFiles(event.dataTransfer.files); }}>
-                    <span className="upload-icon"><Upload size={18} /></span><span><b>{reportLoading ? t("Leyendo bases…") : t("Reemplazar archivos")}</b><small>{tf("{n} base{s} · {m} jugadores", { n: reportSourceCount, s: reportSourceCount === 1 ? "" : "s", m: reportRows.length })}</small></span>
+                  {/* La base activa ya tiene su etapa: aquí solo se recuerda
+                      qué hay puesto y se sale hacia allí. Antes se repetía el
+                      panel entero —nombre del archivo, subir, conectar API— y
+                      preguntaba dos veces por lo mismo en dos sitios. */}
+                  <button type="button" className="base-recordatorio" onClick={() => setReportPage(DATA_PAGE)}>
+                    <span><b>{tDefault(reportFileName)}</b>
+                    <small>{tf("{n} jugadores · {b} base(s)", { n: reportRows.length, b: reportSourceCount })}</small></span>
+                    <em>{t("Cambiar")}</em>
                   </button>
-                  <button className="api-connect-button" onClick={() => setReportPage(DATA_PAGE)}><Sparkles size={14} /> {t("Cargar o cambiar datos")} · StatsBomb / SkillCorner</button>
                   {reportError && <div className="inline-error">{reportError}</div>}
-                  <div className="control-divider" />
-                  <div className="panel-title player-section-title"><div><span className="mini-icon"><Search size={17} /></span><div><h2>{t("2. Equipo y jugador")}</h2><p>{t("Selecciona en orden")}</p></div></div></div>
+                  <div className="panel-title player-section-title"><div><span className="mini-icon"><Search size={17} /></span><div><h2>{t("Equipo y jugador")}</h2><p>{t("Selecciona en orden")}</p></div></div></div>
                   {/* La red de filtros compartida: acota a quién puedes elegir.
                       El club y el jugador se quedan como selectores porque ahí
                       no filtras, navegas. */}

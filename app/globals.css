@@ -3147,3 +3147,13 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
 .app-shell[data-tema="claro"] .rank-tabs button.on,
 .app-shell[data-tema="claro"] .ctx-picker button.on,
 .app-shell[data-tema="claro"] .ctx-source button.on { color: var(--ink); background: var(--acento-suave, rgba(0,0,0,.06)); }
+.app-shell .similarity-efecto-modo { margin: var(--sp-3) 0 0; padding: var(--sp-3) var(--sp-4); border: 1px solid var(--acento-borde, rgba(255,255,255,.16)); border-radius: var(--radio-sm); background: var(--acento-suave, rgba(255,255,255,.04)); color: var(--acento-claro, inherit); font-size: var(--ui-body); line-height: 1.55; }
+.app-shell[data-tema="claro"] .similarity-efecto-modo { border-color: var(--line); background: var(--canvas); color: var(--ink); }
+
+/* Recordatorio de la base activa en la barra lateral. Sustituye al panel que
+   repetía, con otro aspecto, lo que ya hace la etapa "1 · Datos". */
+.app-shell .base-recordatorio { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); width: 100%; min-height: var(--toque); margin-bottom: var(--sp-3); padding: var(--sp-2) var(--sp-3); border: 1px solid var(--line); border-radius: var(--radio-sm); background: none; color: inherit; font-family: inherit; text-align: left; cursor: pointer; transition: border-color var(--transicion), background var(--transicion); }
+.app-shell .base-recordatorio:hover { border-color: var(--acento-borde, rgba(255,255,255,.3)); background: var(--acento-suave, rgba(255,255,255,.04)); }
+.app-shell .base-recordatorio b { display: block; font-size: var(--ui-label); }
+.app-shell .base-recordatorio small { display: block; color: var(--muted); font-size: var(--ui-micro); }
+.app-shell .base-recordatorio em { flex: none; color: var(--acento-claro, inherit); font-size: var(--ui-micro); font-style: normal; font-weight: 700; }
