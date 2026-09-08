@@ -308,6 +308,10 @@ const DIMINUTIVOS: Record<string, string> = {
   nacho: "ignacio", chema: "josemaria", lalo: "eduardo", memo: "guillermo",
   toni: "antonio", tony: "anthony", chuck: "charles", hank: "henry", jim: "james",
   sully: "sullivan", jerry: "gerald", larry: "lawrence", terry: "terence",
+  // Vistos sin enlazar en la base real: SkillCorner escribe el nombre corto y
+  // StatsBomb el de registro.
+  manny: "emmanuel", dany: "daniel", danny: "daniel", nando: "fernando",
+  gigi: "luigi", mo: "mohamed", momo: "mohamed",
 };
 function nombresDePilaEquivalentes(a: string, b: string) {
   if (a === b) return true;
@@ -316,6 +320,16 @@ function nombresDePilaEquivalentes(a: string, b: string) {
   // Recorte por delante: "Tomiwa" de "Oluwatomiwa". Se pide más longitud que
   // en el prefijo porque una terminación común engaña más fácil.
   if (corto.length >= 5 && largo.endsWith(corto)) return true;
+  /*
+   * Cuatro letras bastan cuando lo que se recorta es largo de verdad.
+   *
+   * Es el patrón yoruba: "Femi" de "Oluwafemi", "Timi" de "Oluwarotimi". Con
+   * el umbral en cinco se quedaban sin enlazar, y son la misma persona con el
+   * mismo club y la misma edad. Se exige que el nombre largo tenga nueve
+   * letras o más para que la coincidencia no pueda ser casual: dos nombres
+   * cortos que acaben igual no valen.
+   */
+  if (corto.length >= 4 && largo.length >= 9 && largo.endsWith(corto)) return true;
   return DIMINUTIVOS[corto] === largo || DIMINUTIVOS[largo] === corto;
 }
 

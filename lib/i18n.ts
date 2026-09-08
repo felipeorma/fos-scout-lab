@@ -1035,6 +1035,8 @@ const EN: Record<string, string> = {
   "{n} jugadores · índice descontado por liga": "{n} players · index discounted by league",
   "{n} jugadores · índice sin descontar": "{n} players · undiscounted index",
   "Base cargada": "Loaded database",
+  "Métricas de": "Metrics for",
+  "Su propio puesto": "Their own position",
   "Años": "Years",
   "{n} ligas": "{n} leagues",
   "Usar las competiciones de {anio}": "Use the {anio} competitions",

@@ -1,5 +1,7 @@
 "use client";
 import { Interruptor } from "./Interruptor";
+import { colorContrastante } from "@/lib/colores";
+import { PERFILES_FILTRO } from "@/lib/perfiles";
 
 import { type CSSProperties, type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDownToLine, Printer, RotateCcw, Search, Sparkles, Upload } from "./Icons";
@@ -56,6 +58,7 @@ type SimilarityStudioProps = {
 };
 
 const PLAYER_PALETTE = ["#1f5fd6", "#e95b3f", "#43a8a0", "#9e07ae", "#d7a62c", "#16a34a", "#0f172a", "#f97316"];
+
 const alphabeticCollator = new Intl.Collator("es", { sensitivity: "base", numeric: true });
 const TRANSFERMARKT_LOGO = process.env.NEXT_PUBLIC_GITHUB_PAGES === "true"
   ? "/fos-scout-lab/tm_logo.svg"
@@ -596,6 +599,17 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
    * mide otra cosa —el modo por liga esconde el nivel: un P90 de la CPL y uno
    * de la MLS salen iguales sin serlo—.
    */
+  /*
+   * Con qué set de métricas se dibuja el radar.
+   *
+   * Iba pegado al filtro de "rol principal": elegir por dónde buscar cambiaba
+   * también con qué se mide, y no hay motivo para que sean lo mismo. Se puede
+   * querer ver a un lateral con las métricas de central —para saber si aguanta
+   * ahí— sin dejar de buscar entre laterales. Vacío significa el puesto del
+   * propio jugador.
+   */
+  const [rolMetricas, setRolMetricas] = useState("");
+
   const [baseDePercentiles, setBaseDePercentiles] = useState<"combinado" | "liga">("combinado");
   /* Para MEDIR se usa la clave liga+año, no la liga sola: si no, dos
      temporadas de la misma competición caerían en el mismo grupo y comparar a
@@ -694,7 +708,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     side,
   }), [ageMax, ageMin, minimumMinutes, passport, position, query, secondaryRole, side]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const search = useMemo(() => buildSimilaritySearch(rows, selectedIndex, filters, metricWeights, reportCohort, metricLabels, porLiga), [filters, metricWeights, rows, selectedIndex, lang, reportCohort, metricLabels, porLiga]);
+  const search = useMemo(() => buildSimilaritySearch(rows, selectedIndex, filters, metricWeights, rolMetricas || reportCohort, metricLabels, porLiga), [filters, metricWeights, rows, selectedIndex, lang, reportCohort, metricLabels, porLiga]);
   /*
    * Los candidatos se acotan DESPUÉS del motor. La liga es una decisión de
    * mercado —"de aquí no vamos a fichar"— y no puede cambiar el percentil de
@@ -744,7 +758,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     ? candidateProfileState
     : (selectedCandidate && typeof window !== "undefined" ? loadStoredProfile(selectedCandidate) : candidateProfileSeed(selectedCandidate));
   const targetColor = targetColorChoice || theme.accent;
-  const candidateColor = candidateColorChoice || "#e95b3f";
+  const candidateColor = candidateColorChoice || colorContrastante(targetColor);
   const targetLabelColor = targetLabelColorChoice || targetColor;
   const candidateLabelColor = candidateLabelColorChoice || candidateColor;
   const paletteColors = useMemo(() => [...new Set([theme.accent, theme.dark, ...PLAYER_PALETTE])], [theme.accent, theme.dark]);
@@ -1156,6 +1170,12 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
             año, y no contra la mezcla de los dos. */}
         {ligasPorFila?.length ? <div className="similarity-base-modo">
           <span>{t("5 · Medir contra")}</span>
+          <label className="similarity-rol-metricas"><span>{t("Métricas de")}</span>
+            <select value={rolMetricas} onChange={(event) => setRolMetricas(event.target.value)}>
+              <option value="">{t("Su propio puesto")}</option>
+              {PERFILES_FILTRO.map((perfil) => <option key={perfil.id} value={perfil.id}>{t(perfil.nombre)}</option>)}
+            </select>
+          </label>
           <Interruptor
             activo={baseDePercentiles === "liga"}
             onCambio={(porSuLiga) => setBaseDePercentiles(porSuLiga ? "liga" : "combinado")}

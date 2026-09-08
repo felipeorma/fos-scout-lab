@@ -130,3 +130,42 @@ test("aguanta una lista vacía y soportes que faltan", () => {
   assert.equal(r.length, 2);
   assert.ok(r.every((x) => Math.abs(x - 60) < 1e-9), "sin soporte, todo a la media");
 });
+
+test("nombres cortos del mismo jugador entre plataformas", async () => {
+  const { aggregateDatasets } = await import("../lib/scouting.ts");
+  const fila = (nombre, edad, extra = {}) => ({
+    Player: nombre, Team: "Boreham Wood", Position: "CB", Age: edad,
+    "Minutes played": 1800, "Matches played": 20,
+    "Defensive duels won %": 55, "Aerial duels won %": 60, "Interceptions per 90": 5,
+    "Accurate passes %": 80, ...extra,
+  });
+  const cruzar = (a, b) => aggregateDatasets([
+    { fileName: "StatsBomb · Liga 2026", season: 2026, headers: Object.keys(a), rows: [a], provider: "statsbomb" },
+    { fileName: "SkillCorner · Liga 2026", season: 2026, headers: Object.keys(b), rows: [b], provider: "skillcorner" },
+  ]).rows;
+
+  // Casos vistos sin enlazar en la base real: el nombre de registro contra el
+  // corto, mismo club y misma edad.
+  assert.equal(cruzar(fila("Oluwafemi Ilesanmi", 35), fila("Femi Ilesanmi", 35)).length, 1);
+  assert.equal(cruzar(fila("Oluwarotimi Mark Odusina", 26), fila("Timi Odusina", 26)).length, 1);
+  assert.equal(cruzar(fila("Emmanuel Omrore", 27), fila("Manny Omrore", 27)).length, 1);
+  assert.equal(cruzar(fila("Paulin Daniel Goprou", 27), fila("Dany Goprou", 27)).length, 1);
+});
+
+test("dos personas distintas con el mismo apellido siguen separadas", async () => {
+  const { aggregateDatasets } = await import("../lib/scouting.ts");
+  const fila = (nombre, edad) => ({
+    Player: nombre, Team: "Vancouver Whitecaps II", Position: "CB", Age: edad,
+    "Minutes played": 1200, "Matches played": 15,
+    "Defensive duels won %": 55, "Aerial duels won %": 60, "Interceptions per 90": 5,
+    "Accurate passes %": 80,
+  });
+  const cruzar = (a, b) => aggregateDatasets([
+    { fileName: "StatsBomb · Liga 2026", season: 2026, headers: Object.keys(a), rows: [a], provider: "statsbomb" },
+    { fileName: "SkillCorner · Liga 2026", season: 2026, headers: Object.keys(b), rows: [b], provider: "skillcorner" },
+  ]).rows;
+  // Ampliar la regla de nombres cortos no puede juntar a estos: son dos
+  // jugadores del mismo club con diecinueve años de diferencia.
+  assert.equal(cruzar(fila("Liam Campagna", 17), fila("Luigi Campagna", 36)).length, 2);
+  assert.equal(cruzar(fila("Lowell Wright", 23), fila("Tre Wright", 22)).length, 2);
+});
