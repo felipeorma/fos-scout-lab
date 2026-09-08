@@ -333,6 +333,49 @@ def _es_femenina(comp: dict) -> bool:
     return bool(re.search(r"\((?:W|F)\)|\bWomen'?s?\b|\bFemenin", nombre, re.IGNORECASE))
 
 
+@app.get("/api/transfermarkt")
+async def transfermarkt(url: str):
+    """Trae una ficha de Transfermarkt desde esta máquina.
+
+    Transfermarkt está detrás de un cortafuegos de AWS que bloquea las IPs de
+    centros de datos, y eso incluye a todos los proxies CORS públicos que
+    usaba la versión publicada: Jina devuelve 200 pero con el muro de
+    verificación en vez de la página, y los otros dos ni conectan. Desde la
+    IP de casa la misma petición devuelve la ficha entera, así que va por
+    aquí, igual que StatsBomb y SkillCorner.
+
+    Se devuelve el HTML tal cual y lo interpreta el navegador con el mismo
+    analizador de siempre: el puente no necesita saber qué es una ficha.
+    """
+    import json as _json
+    from urllib.parse import urlparse
+
+    # Solo Transfermarkt. Sin esto, cualquier página abierta en el navegador
+    # podría pedirle al puente que trajera una URL interna de la red local:
+    # el puente vive en localhost pero atiende a quien le hable.
+    anfitrion = (urlparse(url).hostname or "").lower()
+    if not (anfitrion == "transfermarkt.com" or anfitrion.endswith(".transfermarkt.com")
+            or anfitrion == "transfermarkt.es" or anfitrion.endswith(".transfermarkt.es")
+            or anfitrion == "transfermarkt.us" or anfitrion.endswith(".transfermarkt.us")
+            or anfitrion == "transfermarkt.de" or anfitrion.endswith(".transfermarkt.de")):
+        return Response(_json.dumps({"error": "solo se aceptan URLs de Transfermarkt"}),
+                        status_code=400, media_type="application/json", headers=cors_headers())
+
+    try:
+        respuesta = _requests.get(url, timeout=30, headers={
+            "User-Agent": ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+                           "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"),
+            "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
+        })
+        respuesta.raise_for_status()
+    except Exception as error:
+        return Response(_json.dumps({"error": f"no se pudo leer la ficha: {error}"}),
+                        status_code=502, media_type="application/json", headers=cors_headers())
+
+    return Response(_json.dumps({"html": respuesta.text}),
+                    media_type="application/json", headers=cors_headers())
+
+
 @app.get("/api/statsbomb/competitions")
 async def statsbomb_competitions():
     import json as _json

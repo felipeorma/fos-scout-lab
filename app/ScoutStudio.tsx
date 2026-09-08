@@ -1708,7 +1708,7 @@ export default function ScoutStudio() {
                       panel entero —nombre del archivo, subir, conectar API— y
                       preguntaba dos veces por lo mismo en dos sitios. */}
                   <button type="button" className="base-recordatorio" onClick={() => setReportPage(DATA_PAGE)}>
-                    <span><b>{tDefault(reportFileName)}</b>
+                    <span><b>{base.descripcion || tDefault(reportFileName)}</b>
                     <small>{tf("{n} jugadores · {b} base(s)", { n: reportRows.length, b: reportSourceCount })}</small></span>
                     <em>{t("Cambiar")}</em>
                   </button>
@@ -1833,7 +1833,10 @@ export default function ScoutStudio() {
                   onMinimumMinutes={setMinimumMinutes}
                   rows={reportRows}
                   selectedIndex={selectedPlayer}
-                  sourceName={reportFileName}
+                  // Qué ligas y qué temporada, en vez de "Combinación
+                  // temporal 01": ese nombre no dice nada de lo que se está
+                  // mirando y acaba impreso en un informe.
+                  sourceName={base.descripcion || reportFileName}
                   lang={lang}
                   reportCohort={cohort}
                   targets={players}

@@ -69,12 +69,40 @@ export async function fetchTransfermarktProfile(url: string): Promise<Partial<Tr
     return result;
   }
 
-  const html = await fetchHtmlThroughCorsProxy(target.href);
+  /*
+   * El puente local primero.
+   *
+   * Transfermarkt está detrás de un cortafuegos de AWS que bloquea las IPs de
+   * centros de datos, y eso incluye a TODOS los proxies CORS públicos de
+   * abajo: Jina responde 200 pero devuelve el muro de verificación en vez de
+   * la ficha, y los otros dos ni llegan a conectar. Desde la IP de casa la
+   * misma petición trae la página entera, así que se intenta por el puente
+   * —que ya corre para StatsBomb y SkillCorner— antes de recurrir a ellos.
+   *
+   * Los proxies se quedan como respaldo para quien abra el sitio sin el
+   * puente levantado: hoy no funcionan, pero esto cambia según lo que
+   * Transfermarkt bloquee cada temporada, y no cuesta nada dejarlos.
+   */
+  const html = await fetchHtmlThroughLocalBridge(target.href) ?? await fetchHtmlThroughCorsProxy(target.href);
   const profile = parseTransfermarktProfile(html, target.href);
   if (!profile.name) {
     throw new Error(t("No pudimos reconocer el perfil. Revisa que sea la página principal del jugador."));
   }
   return profile;
+}
+
+async function fetchHtmlThroughLocalBridge(url: string) {
+  try {
+    const respuesta = await fetch(`${LOCAL_BRIDGE}/api/transfermarkt?url=${encodeURIComponent(url)}`, {
+      signal: AbortSignal.timeout(35_000),
+    });
+    if (!respuesta.ok) return null;
+    const datos = await respuesta.json() as { html?: string };
+    return datos.html?.trim() ? datos.html : null;
+  } catch {
+    // Sin puente levantado no es un error: se sigue por los proxies.
+    return null;
+  }
 }
 
 // Transfermarkt bloquea las IPs de la mayoría de proxies CORS públicos; el

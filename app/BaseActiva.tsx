@@ -68,6 +68,16 @@ export type BaseActiva = {
   datasets: SourceDataset[];
   /** Nombre visible de la base activa. */
   nombre: string;
+  /**
+   * Qué hay cargado, dicho en una línea.
+   *
+   * El nombre interno de una base cruzada es "Combinación temporal 01", que
+   * no dice nada de lo que estás mirando: ni qué ligas ni de qué temporada.
+   * En un informe que se enseña a un director deportivo eso es peor que no
+   * poner nada. Con una o dos competiciones se nombran; con más se cuentan,
+   * porque una lista de dieciséis no cabe ni se lee.
+   */
+  descripcion: string;
   /** Liga y año de cada fila, alineado con `rows`. */
   procedencia: Array<{ ligas: string[]; anios: number[] }> | null;
   /** Las competiciones cargadas, con sus archivos. */
@@ -96,6 +106,7 @@ const VACIA: BaseActiva = {
   rows: [],
   datasets: [],
   nombre: "",
+  descripcion: "",
   procedencia: null,
   competiciones: [],
   filtros: FILTROS_VACIOS,
@@ -219,10 +230,20 @@ export function useEstadoDeBase({
     setFiltros({ ...FILTROS_VACIOS, minutosMin });
   }, [minutosMin]);
 
+  const descripcion = useMemo(() => {
+    if (!competiciones.length) return nombre;
+    const anios = [...new Set(competiciones.map((c) => c.anio).filter(Boolean))].sort();
+    const temporada = anios.length > 1 ? `${anios[0]}–${anios[anios.length - 1]}` : String(anios[0] ?? "");
+    const ligas = [...new Set(competiciones.map((c) => c.liga))];
+    if (ligas.length <= 2) return [ligas.join(" · "), temporada].filter(Boolean).join(" · ");
+    return [`${ligas.length} ${ligas.length === 1 ? "competición" : "competiciones"}`, temporada].filter(Boolean).join(" · ");
+  }, [competiciones, nombre]);
+
   return useMemo<BaseActiva>(() => ({
     rows,
     datasets,
     nombre,
+    descripcion,
     procedencia,
     competiciones,
     filtros: { ...filtros, minutosMin },
@@ -232,7 +253,7 @@ export function useEstadoDeBase({
     opciones,
     pasaFiltros,
     indicesVisibles,
-  }), [rows, datasets, nombre, procedencia, competiciones, filtros, minutosMin, cambiarFiltros, limpiarFiltros, filtrosActivos, opciones, pasaFiltros, indicesVisibles]);
+  }), [rows, datasets, nombre, descripcion, procedencia, competiciones, filtros, minutosMin, cambiarFiltros, limpiarFiltros, filtrosActivos, opciones, pasaFiltros, indicesVisibles]);
 }
 
 /** Reparte a las pantallas el estado que ya calculó `useEstadoDeBase`. */
