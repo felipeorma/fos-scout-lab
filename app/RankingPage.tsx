@@ -85,7 +85,6 @@ export function RankingPage({ onSelectPlayer }: {
         <h2>{t("Los mejores de cada puesto")}</h2>
         <p>{t("Quién encabeza cada posición en lo que tienes cargado. El índice parte del percentil medio contra los jugadores de su misma posición y lo acerca a sus tres mejores métricas: destacar en algo cuenta, y no solo ser correcto en todo. Haz clic en cualquiera para abrir su informe.")}</p>
       </div>
-      <b>{tf("{n} jugadores", { n: visibles.length })}</b>
     </header>
 
     {/* La red de filtros es la compartida: el puesto se queda aparte porque

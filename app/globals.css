@@ -2603,3 +2603,97 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
 .datos-accion > small { color: var(--pl-dim); font-size: 9px; line-height: 1.5; }
 .datos-cargando { display: flex; align-items: center; gap: 7px; margin-top: 14px; color: var(--acento-claro, inherit); font-size: 10px; }
 @media print { .datos-page { display: none !important; } }
+
+/* =====================================================================
+   Sistema de diseño de la interfaz
+   =====================================================================
+
+   Se aplica al chrome —navegación, paneles, filtros, tablas, botones— y
+   deliberadamente NO al informe impreso. Ahí los tamaños diminutos no son
+   un descuido: la hoja se compone a escala de PDF y subirlos rompería la
+   maquetación de la página. Por eso todo lo de abajo cuelga de .app-shell
+   y el informe queda fuera.
+
+   El problema que arregla: la interfaz tenía 43 reglas a 7px y 18 a 6,5px,
+   texto que hay que acercarse a leer, y los espaciados iban en 9, 11, 13 y
+   22 px sin ritmo. Aquí hay una escala y se usa esa.
+
+   Tres principios, en el orden en que mandan: el contenido primero, la
+   interfaz no compite con él, y la profundidad se hace con capas y no con
+   bordes duros. */
+.app-shell {
+  /* Tipografía: la base sube a 12px y las etiquetas a 9,5. Sigue siendo
+     una interfaz densa —es una herramienta de datos, no una portada— pero
+     por encima del umbral de tener que forzar la vista. */
+  --ui-micro: 9.5px;
+  --ui-label: 10.5px;
+  --ui-body: 12px;
+  --ui-lead: 14px;
+  --ui-title: 19px;
+  --ui-hero: 26px;
+
+  /* Ritmo de 4: todo espaciado sale de aquí. */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+
+  --radio-sm: 8px;
+  --radio-md: 12px;
+  --radio-lg: 16px;
+  --radio-pill: 980px;
+
+  /* Altura mínima de lo que se pincha. 30px era demasiado poco incluso
+     con ratón. */
+  --toque: 34px;
+
+  --curva: cubic-bezier(.25,.1,.25,1);
+  --transicion: .18s var(--curva);
+}
+
+/* ---- Tipografía del chrome ---- */
+.app-shell .filtros-barra > label > span,
+.app-shell .datos-cifra > span,
+.app-shell .datos-lista-titulo,
+.app-shell .datos-lista th,
+.app-shell .tab-grupo-nombre { font-size: var(--ui-micro); letter-spacing: .08em; }
+
+.app-shell .filtros-barra select,
+.app-shell .filtros-barra input,
+.app-shell .datos-lista td,
+.app-shell .datos-accion > small,
+.app-shell .datos-page > header > p { font-size: var(--ui-body); }
+
+.app-shell .datos-accion > b { font-size: var(--ui-lead); }
+.app-shell .datos-page > header > h2 { font-size: var(--ui-title); letter-spacing: -.01em; }
+.app-shell .datos-cifra > b { font-size: var(--ui-hero); letter-spacing: -.02em; }
+
+/* ---- Altura de lo que se pincha ---- */
+.app-shell .filtros-barra select,
+.app-shell .filtros-barra input { min-height: var(--toque); border-radius: var(--radio-sm); }
+.app-shell .filtros-barra-cola > button,
+.app-shell .datos-conectar,
+.app-shell .api-connect-button { min-height: var(--toque); border-radius: var(--radio-pill); padding: 0 var(--sp-4); }
+
+/* ---- Ritmo y profundidad ---- */
+.app-shell .filtros-barra { gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); margin-bottom: var(--sp-5); border-radius: var(--radio-md); }
+.app-shell .datos-resumen { gap: var(--sp-6); padding: var(--sp-4) var(--sp-5); margin-bottom: var(--sp-5); border-radius: var(--radio-md); }
+.app-shell .datos-acciones { gap: var(--sp-3); }
+.app-shell .datos-accion { padding: var(--sp-5); border-radius: var(--radio-lg); gap: var(--sp-2); }
+.app-shell .datos-lista td,
+.app-shell .datos-lista th { padding: var(--sp-2) var(--sp-3); }
+
+/* ---- Micro-interacción: sutil, nunca brusca ---- */
+.app-shell .filtros-barra select,
+.app-shell .filtros-barra input,
+.app-shell .datos-accion,
+.app-shell .filtros-barra-cola > button { transition: border-color var(--transicion), background var(--transicion), transform var(--transicion); }
+.app-shell .datos-accion:hover:not(:disabled) { transform: translateY(-1px); }
+.app-shell .filtros-barra-cola > button:hover { transform: translateY(-1px); }
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell * { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+}
