@@ -3545,3 +3545,155 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
    invierte: es monocromo, de modo que invertirlo lo devuelve al negro del
    original sin tocar los otros dos, que llevan color propio. */
 .app-shell[data-tema="claro"] .logo-plataforma[title="Wyscout"] { filter: invert(1); }
+
+/* =====================================================================
+   Patrones de iOS
+   =====================================================================
+   Faltaban los dos que hacen que una interfaz se lea como de iOS aunque
+   nadie sepa nombrarlos:
+
+   - El control segmentado: un carril hundido con las opciones dentro y un
+     pulgar que se desliza. No son botones sueltos con borde, es UNA pieza
+     con varias posiciones, que es exactamente lo que significa elegir entre
+     opciones excluyentes.
+   - La lista agrupada: filas sin borde exterior, separadas por una línea
+     que no llega al margen izquierdo, dentro de una tarjeta redondeada. La
+     tabla deja de parecer una hoja de cálculo y pasa a leerse como una
+     lista. */
+
+/* ---- Control segmentado ---- */
+.app-shell :is(.rank-tabs, .ctx-source, .espacio-switch, .board-once-tabs) {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 0;
+  border-radius: var(--r-control);
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+}
+.app-shell :is(.rank-tabs, .ctx-source, .espacio-switch, .board-once-tabs) > button {
+  min-height: 28px;
+  padding: 0 var(--sp-3);
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: var(--ui-micro);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transicion), color var(--transicion), box-shadow var(--transicion);
+}
+.app-shell :is(.rank-tabs, .ctx-source, .espacio-switch, .board-once-tabs) > button:is(.on, .active) {
+  color: var(--ink);
+  background: var(--paper);
+  box-shadow: var(--elev-1);
+}
+.app-shell[data-tema="claro"] :is(.rank-tabs, .ctx-source, .espacio-switch, .board-once-tabs) > button:is(.on, .active) {
+  background: #fff;
+}
+
+/* ---- Lista agrupada ---- */
+.app-shell :is(.datos-lista, .pool-resultado) table {
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+  border-radius: var(--r-tarjeta);
+  background: color-mix(in srgb, var(--ink) 3%, transparent);
+}
+.app-shell :is(.datos-lista, .pool-resultado) :is(th, td) { border: 0; }
+.app-shell :is(.datos-lista, .pool-resultado) thead th {
+  padding-top: var(--sp-3);
+  padding-bottom: var(--sp-3);
+  background: none;
+}
+/* La línea no llega al margen: separa las filas sin dibujar una rejilla. */
+.app-shell :is(.datos-lista, .pool-resultado) tbody tr + tr td { box-shadow: inset 0 1px 0 var(--linea); }
+.app-shell :is(.datos-lista, .pool-resultado) tbody tr + tr td:first-child { box-shadow: none; }
+.app-shell :is(.datos-lista, .pool-resultado) tbody tr:hover td {
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+}
+
+/* ---- El interruptor, a la medida real de iOS ---- */
+.app-shell .interruptor-pista { width: 51px; height: 31px; }
+.app-shell .interruptor-pista > i { width: 27px; height: 27px; box-shadow: 0 3px 8px rgba(0,0,0,.15), 0 1px 1px rgba(0,0,0,.16); }
+.app-shell .interruptor.on .interruptor-pista > i { transform: translateX(20px); }
+.app-shell .interruptor-pista { transition: background .22s var(--curva); }
+.app-shell .interruptor-pista > i { transition: transform .22s var(--curva); }
+
+/* ---- Al pulsar, la pieza cede: es el gesto que da sensación de materia ---- */
+.app-shell :is(.datos-accion, .database-choice, .datos-anio, .interruptor):active {
+  transform: scale(.985);
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-shell :is(.datos-accion, .database-choice, .datos-anio, .interruptor):active { transform: none; }
+}
+
+/* ---- Listado de similitud: compacto, con la cabecera fija --------------
+   Ocupaba 525px de alto y crecía con los resultados, así que para volver a
+   los filtros o al jugador objetivo había que subir toda la lista. Ahora se
+   queda en una altura fija con su propio scroll y la cabecera pegada
+   arriba: las columnas siguen visibles al bajar, que es lo que hace
+   legible una tabla larga.
+
+   Las filas se aprietan un punto respecto al resto de la plataforma. Aquí
+   la densidad sí ayuda: es una lista para recorrer con la vista, no para
+   leer con calma, y una pantalla que muestra veinte candidatos en lugar de
+   ocho ahorra un scroll por consulta. */
+.app-shell .similarity-table-wrap {
+  max-height: min(58vh, 520px);
+  overflow: auto;
+  border-radius: var(--r-control);
+  overscroll-behavior: contain;
+}
+.app-shell .similarity-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: var(--sp-2) var(--sp-3);
+  background: color-mix(in srgb, var(--paper) 94%, transparent);
+  backdrop-filter: blur(12px);
+  font-size: var(--ui-micro);
+}
+.app-shell[data-tema="claro"] .similarity-table thead th { background: color-mix(in srgb, #fff 94%, transparent); }
+.app-shell .similarity-table tbody td {
+  padding: 5px var(--sp-3);
+  font-size: var(--ui-label);
+  line-height: 1.35;
+}
+.app-shell .similarity-table tbody tr { cursor: pointer; }
+.app-shell .similarity-table tbody tr:hover td { background: color-mix(in srgb, var(--ink) 4%, transparent); }
+.app-shell .similarity-table tbody tr.seleccionado td,
+.app-shell .similarity-table tbody tr[aria-selected="true"] td {
+  background: var(--acento-suave, color-mix(in srgb, var(--ink) 7%, transparent));
+}
+/* La barra de scroll, discreta y solo cuando hace falta. */
+.app-shell .similarity-table-wrap::-webkit-scrollbar { width: 10px; }
+.app-shell .similarity-table-wrap::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: var(--radio-pill);
+  background-clip: content-box;
+  background-color: color-mix(in srgb, var(--ink) 22%, transparent);
+}
+.app-shell .similarity-table-wrap::-webkit-scrollbar-track { background: transparent; }
+
+/* Correcciones tras pasar los conmutadores a control segmentado.
+   El activo llevaba texto blanco porque antes se apoyaba en un degradado de
+   color; ahora se apoya en papel, así que el blanco lo dejaba invisible. Va
+   después y con más peso que aquella regla. */
+.app-shell :is(.espacio-switch, .rank-tabs, .ctx-source, .board-once-tabs) > button:is(.on, .active),
+.app-shell[data-tema="claro"] :is(.espacio-switch, .rank-tabs, .ctx-source, .board-once-tabs) > button:is(.on, .active) {
+  color: var(--ink);
+}
+.app-shell .espacio-switch > button:is(.on, .active) {
+  box-shadow: var(--elev-1), inset 0 0 0 1px color-mix(in srgb, var(--acento, var(--ink)) 30%, transparent);
+}
+
+/* Los desplegables y campos: el texto tiene que ser tinta, no el gris de la
+   etiqueta. Se leían casi en blanco sobre papel. */
+.app-shell :is(select, input, textarea) { color: var(--ink); }
+.app-shell :is(select, input)::placeholder { color: var(--muted); }
+.app-shell :is(select, input):disabled { color: var(--muted); }
+
+/* Y las cabeceras de los paneles, que heredaban un blanco del tema oscuro. */
+.app-shell :is(.similarity-weight-panel, .similarity-filter-panel, .similarity-ranking-card) :is(h2, b) { color: var(--ink); }
+.app-shell :is(.similarity-weight-panel, .similarity-filter-panel) :is(span, small, p) { color: var(--muted); }
