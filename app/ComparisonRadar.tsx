@@ -58,6 +58,15 @@ function radarLabelLines(label: string) {
 
 export function ComparisonRadar({ metrics, metricCohort, targetName, candidateName, targetColor, candidateColor, targetLabelColor, candidateLabelColor, targetLabelTransparency, candidateLabelTransparency }: { metrics: SimilarityMetricComparison[]; metricCohort: string; targetName: string; candidateName: string; targetColor: string; candidateColor: string; targetLabelColor: string; candidateLabelColor: string; targetLabelTransparency: number; candidateLabelTransparency: number }) {
   if (metrics.length < 3) return null;
+  /*
+   * Un sufijo estable por pareja de jugadores. Los <defs> del SVG viven en un
+   * espacio de nombres global del documento, así que dos radares en la misma
+   * página —el de pantalla y el de la hoja de impresión— se pisarían los
+   * degradados si compartieran identificador. Sale de los nombres, no de un
+   * contador ni de un aleatorio, para que el marcado del servidor y el del
+   * navegador coincidan.
+   */
+  const sufijo = `${targetName}-${candidateName}`.replace(/[^a-zA-Z0-9]+/g, "").slice(0, 28).toLowerCase() || "radar";
   const step = Math.PI * 2 / metrics.length;
   const labelRadius = 292;
   const target = shortName(targetName);
@@ -68,6 +77,28 @@ export function ComparisonRadar({ metrics, metricCohort, targetName, candidateNa
   return <div className="comparison-radar-wrap" style={{ "--comparison-target": targetColor, "--comparison-candidate": candidateColor, "--comparison-target-label": targetLabelColor, "--comparison-candidate-label": candidateLabelColor, "--comparison-target-label-opacity": targetLabelOpacity, "--comparison-candidate-label-opacity": candidateLabelOpacity } as CSSProperties}>
     <div className="comparison-radar-legend" aria-hidden="true"><span className="target"><i />{target}</span><span className="candidate"><i />{candidate}</span></div>
     <svg className="comparison-radar" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-labelledby="comparison-radar-title comparison-radar-description">
+      {/* Degradado y brillo por jugador.
+          Las dos áreas eran planas y del mismo peso, así que superpuestas
+          costaba ver dónde acababa una. Con el relleno más denso en el
+          centro y un halo suave en el borde, cada figura se lee como un
+          cuerpo y no como una silueta, y la de delante deja ver la de
+          detrás. Los identificadores llevan sufijo porque puede haber dos
+          radares en la misma página —pantalla y hoja de impresión— y unos
+          <defs> repetidos se pisarían. */}
+      <defs>
+        <radialGradient id={`radar-relleno-objetivo-${sufijo}`} cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="var(--comparison-target)" stopOpacity=".42" />
+          <stop offset="100%" stopColor="var(--comparison-target)" stopOpacity=".14" />
+        </radialGradient>
+        <radialGradient id={`radar-relleno-candidato-${sufijo}`} cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="var(--comparison-candidate)" stopOpacity=".38" />
+          <stop offset="100%" stopColor="var(--comparison-candidate)" stopOpacity=".12" />
+        </radialGradient>
+        <filter id={`radar-brillo-${sufijo}`} x="-25%" y="-25%" width="150%" height="150%">
+          <feGaussianBlur stdDeviation="5" result="halo" />
+          <feMerge><feMergeNode in="halo" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+      </defs>
       <title id="comparison-radar-title">{tf("Radar comparativo de {a} y {b}", { a: targetName, b: candidateName })}</title>
       <desc id="comparison-radar-description">{tf("Comparación de percentiles P0 a P100. {a} aparece con círculos y {b} con cuadrados.", { a: targetName, b: candidateName })}</desc>
       {[25, 50, 75, 100].map((level) => <polygon key={level} className="comparison-radar-grid" points={metrics.map((_, index) => { const value = point(index, metrics.length, RADIUS * level / 100); return `${value.x},${value.y}`; }).join(" ")} />)}
@@ -77,8 +108,10 @@ export function ComparisonRadar({ metrics, metricCohort, targetName, candidateNa
         const end = -Math.PI / 2 + (index + 0.5) * step + step * .43;
         return <path key={`ring-${metric.key}`} d={arcPath(start, end, RADIUS + 18)} fill="none" stroke={similarityMetricGroup(metric, metricCohort).color} className="comparison-radar-group" />;
       })}
-      <polygon className="comparison-radar-area target" points={polygon(metrics, "targetPercentile")} />
-      <polygon className="comparison-radar-area candidate" points={polygon(metrics, "candidatePercentile")} />
+      <polygon className="comparison-radar-area target" points={polygon(metrics, "targetPercentile")}
+        fill={`url(#radar-relleno-objetivo-${sufijo})`} filter={`url(#radar-brillo-${sufijo})`} />
+      <polygon className="comparison-radar-area candidate" points={polygon(metrics, "candidatePercentile")}
+        fill={`url(#radar-relleno-candidato-${sufijo})`} filter={`url(#radar-brillo-${sufijo})`} />
       {metrics.map((metric, index) => {
         const targetPoint = point(index, metrics.length, RADIUS * metric.targetPercentile / 100);
         const candidatePoint = point(index, metrics.length, RADIUS * metric.candidatePercentile / 100);
