@@ -3322,3 +3322,128 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
 .app-shell .datos-lista td:first-child,
 .app-shell .pool-name { font-weight: 600; }
 .app-shell :is(.datos-lista, .pool-resultado, .similarity-table) :is(td, th) { border-color: var(--linea); }
+
+/* =====================================================================
+   Mesa de detección y diseñador visual
+   =====================================================================
+   Las dos zonas que quedaban fuera del sistema. Se escribieron antes y
+   tienen sus propios radios, bordes y grises, así que al lado del resto
+   parecían de otra aplicación. Aquí entran en la misma escala.
+
+   Lo que NO se toca: las hojas del informe —.visual-block ya montado en la
+   página, .legal-page-shell y todo lo que va dentro del PDF—, porque eso se
+   compone sobre papel y su medida está atada al tamaño de página. Lo que
+   cambia es el chrome que las rodea. */
+
+/* ---- Mesa de detección ---- */
+.app-shell :is(.board-group, .board-teams, .board-ligas, .board-escudos,
+  .board-onces, .board-variacion, .board-opta, .board-respaldo, .board-best) {
+  border-radius: var(--r-tarjeta);
+  border: 1px solid var(--linea);
+  background: var(--material);
+  box-shadow: var(--elev-1);
+}
+.app-shell :is(.board-filters, .board-once-tabs, .board-excluidos,
+  .board-escudo-acciones, .board-fotos-acciones) {
+  gap: var(--sp-2);
+}
+.app-shell :is(.board-filters, .board-teams, .board-ligas) :is(select, input) {
+  min-height: var(--toque);
+  border-radius: var(--r-control);
+  border: 1px solid var(--linea);
+  background: var(--material-alto);
+  font-size: var(--ui-body);
+}
+.app-shell :is(.board-once-tabs, .board-escudo-acciones, .board-fotos-acciones) button,
+.app-shell .board-excluidos button {
+  min-height: 30px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--radio-pill);
+  font-size: var(--ui-micro);
+}
+.app-shell .board-escudo { border-radius: var(--r-control); }
+.app-shell :is(.board-aviso, .board-como, .board-empty, .board-descuento) {
+  border-radius: var(--r-control);
+  font-size: var(--ui-body);
+  line-height: 1.55;
+}
+.app-shell :is(.board-name, .board-flags) { font-size: var(--ui-body); }
+
+/* ---- Diseñador visual ---- */
+.app-shell :is(.designer-controls, .designer-section, .asset-source-editor, .asset-grid) {
+  border-radius: var(--r-tarjeta);
+  border: 1px solid var(--linea);
+  background: var(--material);
+}
+.app-shell .designer-toolbar {
+  gap: var(--sp-2);
+  padding: var(--sp-2);
+  border-radius: var(--r-tarjeta);
+  border: 1px solid var(--linea);
+  background: var(--material);
+  box-shadow: var(--elev-1);
+}
+.app-shell .designer-toolbar button,
+.app-shell :is(.add-block-buttons, .align-buttons, .order-buttons) button {
+  min-height: 30px;
+  border-radius: var(--radio-pill);
+  font-size: var(--ui-micro);
+}
+.app-shell :is(.designer-title-field, .designer-textarea, .asset-upload) {
+  border-radius: var(--r-control);
+  border: 1px solid var(--linea);
+  background: var(--material-alto);
+  font-size: var(--ui-body);
+}
+.app-shell .designer-section-title,
+.app-shell .designer-panel-head { font-size: var(--ui-micro); letter-spacing: .1em; }
+.app-shell .empty-designer-page {
+  border-radius: var(--r-tarjeta);
+  border: 1px dashed var(--linea);
+  font-size: var(--ui-body);
+}
+.app-shell :is(.asset-source-heading, .asset-source-name, .asset-help) { font-size: var(--ui-micro); }
+.app-shell .asset-preview { border-radius: var(--r-control); }
+
+/* ---- Tema claro para las dos ---- */
+.app-shell[data-tema="claro"] :is(.board-group, .board-teams, .board-ligas,
+  .board-escudos, .board-onces, .board-variacion, .board-opta, .board-respaldo,
+  .board-best, .designer-controls, .designer-section, .designer-toolbar,
+  .asset-source-editor, .asset-grid) {
+  border-color: var(--linea);
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: var(--elev-1);
+}
+.app-shell[data-tema="claro"] .designer-stage { background: var(--canvas); }
+
+/* La mesa de detección, en el sistema y en los dos temas.
+   Fijaba su tinta a un blanco roto y su verde propio, heredados de cuando
+   solo había tema oscuro; sobre papel quedaba invisible, y al lado del resto
+   de la plataforma parecía de otra aplicación. */
+.app-shell .scouting-board {
+  border-radius: var(--r-contenedor);
+  border: 1px solid var(--linea);
+  background: var(--material);
+  box-shadow: var(--elev-2);
+}
+.app-shell .scouting-board > header {
+  padding-bottom: var(--sp-4);
+  margin-bottom: var(--sp-5);
+  border-bottom: 1px solid var(--linea);
+}
+.app-shell .scouting-board > header span { font-size: var(--ui-micro); letter-spacing: .14em; }
+.app-shell .scouting-board > header h2 { font-size: var(--ui-hero); font-weight: 600; letter-spacing: -.022em; }
+.app-shell .scouting-board > header p { font-size: var(--ui-body); line-height: 1.55; }
+.app-shell[data-tema="claro"] .scouting-board {
+  --brd-ink: var(--ink);
+  --brd-dim: var(--muted);
+  --brd-green: var(--acento, var(--ink));
+  color: var(--ink);
+  background: var(--paper);
+}
+.app-shell[data-tema="claro"] .scouting-board :is(td, th, li, b, small, span, p) { color: inherit; }
+.app-shell[data-tema="claro"] .scouting-board :is(small, th, .board-como, .board-aviso) { color: var(--muted); }
+.app-shell[data-tema="claro"] .scouting-board :is(select, input) {
+  border-color: var(--linea); background: var(--canvas); color: var(--ink);
+}
