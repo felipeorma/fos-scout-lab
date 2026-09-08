@@ -1577,6 +1577,29 @@ export default function ScoutStudio() {
 
             {!dataReady ? (
               <section className="dataset-onboarding database-gate">
+                {/* La portada es lo primero que ve quien abre esto, y hasta
+                    ahora empezaba con una pregunta sin decir dónde estabas ni
+                    con qué trabajas. Ahora se presenta: de quién es la mesa,
+                    para qué clubes y con qué proveedores. */}
+                <div className="portada-marca">
+                  <span className="portada-firma">Felipe Ormazabal</span>
+                  <h1>{t("Mesa de scouting")}</h1>
+                  <p className="portada-lema">{t("Datos de StatsBomb, SkillCorner y Wyscout cruzados en una sola base, para decidir con números y no con impresiones.")}</p>
+                  <div className="portada-clientes">
+                    {([["cavalry", "Cavalry FC", "#cd2b2b"], ["maldonado", "Deportivo Maldonado", "#17804a"]] as const).map(([id, nombre, color]) => (
+                      <span key={id} className="portada-cliente" style={{ "--club": color } as React.CSSProperties}>
+                        <i aria-hidden="true">{nombre.slice(0, 1)}</i>{nombre}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="portada-plataformas">
+                    <span>{t("Datos de")}</span>
+                    {(["statsbomb", "skillcorner", "wyscout"] as const).map((plataforma) => (
+                      <LogoPlataforma key={plataforma} plataforma={plataforma} alto={16} />
+                    ))}
+                  </div>
+                </div>
+
                 <h2>{t("¿Qué quieres hacer?")}</h2>
                 <p>{t("Lo habitual es trabajar con todo lo contratado a la vez. Las ligas de Wyscout que no están en la API —las de Maldonado, por ejemplo— siguen entrando por archivo.")}</p>
 

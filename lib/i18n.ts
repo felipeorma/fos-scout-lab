@@ -1035,6 +1035,9 @@ const EN: Record<string, string> = {
   "{n} jugadores · índice descontado por liga": "{n} players · index discounted by league",
   "{n} jugadores · índice sin descontar": "{n} players · undiscounted index",
   "Base cargada": "Loaded database",
+  "Mesa de scouting": "Scouting desk",
+  "Datos de StatsBomb, SkillCorner y Wyscout cruzados en una sola base, para decidir con números y no con impresiones.": "StatsBomb, SkillCorner and Wyscout data merged into a single database, to decide with numbers rather than impressions.",
+  "Datos de": "Data from",
 
   "Medir contra su liga apenas cambia nada aquí, y eso ya dice algo: este jugador ocupa el mismo sitio en su competición que entre todas. Suele pasar con los que están muy arriba, porque no les queda margen para subir.": "Measuring against their own league barely changes anything here, and that itself says something: this player holds the same standing in their competition as across all of them. It happens with players near the top, who have no room left to climb.",
   "Contra su liga, el perfil del jugador se mueve {medio} puntos de percentil de media y hasta {maximo} en una métrica; {nuevos} de los diez primeros son distintos.": "Against their own league the player's profile moves {medio} percentile points on average and up to {maximo} on one metric; {nuevos} of the top ten are different.",

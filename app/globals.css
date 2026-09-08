@@ -3447,3 +3447,101 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
 .app-shell[data-tema="claro"] .scouting-board :is(select, input) {
   border-color: var(--linea); background: var(--canvas); color: var(--ink);
 }
+
+/* =====================================================================
+   Portada
+   =====================================================================
+   Empezaba con "¿Qué quieres hacer?" sin decir dónde estabas ni con qué se
+   trabaja. Ahora se presenta primero —de quién es la mesa, para qué clubes
+   y con qué proveedores— y luego pregunta.
+
+   La animación entra escalonada, de abajo a arriba y con seis fotogramas de
+   diferencia entre elementos. Es la única de la plataforma y dura menos de
+   medio segundo: en una herramienta que se abre veinte veces al día, una
+   entrada larga se convierte en una espera. Bajo prefers-reduced-motion no
+   se mueve nada. */
+.app-shell .portada-marca { max-width: 62ch; margin: 0 auto var(--sp-7); text-align: center; }
+.app-shell .portada-firma {
+  display: block; margin-bottom: var(--sp-2);
+  color: var(--acento-claro, var(--muted));
+  font-size: var(--ui-label); font-weight: 700; letter-spacing: .28em; text-transform: uppercase;
+}
+.app-shell .portada-marca h1 {
+  margin: 0 0 var(--sp-3);
+  font-size: clamp(34px, 5vw, 52px); font-weight: 600; letter-spacing: -.03em; line-height: 1.04;
+}
+.app-shell .portada-lema {
+  margin: 0 auto var(--sp-5); max-width: 54ch;
+  color: var(--muted); font-size: var(--ui-lead); line-height: 1.5;
+}
+.app-shell .portada-clientes { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); margin-bottom: var(--sp-4); }
+.app-shell .portada-cliente {
+  display: inline-flex; align-items: center; gap: var(--sp-2);
+  min-height: var(--toque); padding: 0 var(--sp-4) 0 var(--sp-2);
+  border: 1px solid color-mix(in srgb, var(--club) 40%, transparent);
+  border-radius: var(--radio-pill);
+  background: color-mix(in srgb, var(--club) 10%, transparent);
+  font-size: var(--ui-body); font-weight: 600;
+}
+.app-shell .portada-cliente > i {
+  display: grid; place-items: center; width: 24px; height: 24px;
+  border-radius: 50%; background: var(--club); color: #fff;
+  font-style: normal; font-size: var(--ui-micro); font-weight: 800;
+}
+.app-shell .portada-plataformas {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--sp-3);
+  padding-top: var(--sp-4); border-top: 1px solid var(--linea);
+}
+.app-shell .portada-plataformas > span { color: var(--muted); font-size: var(--ui-micro); font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.app-shell .portada-plataformas .logo-plataforma { border-radius: var(--radio-sm); opacity: .9; }
+
+@keyframes portada-entra { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.app-shell .portada-firma,
+.app-shell .portada-marca h1,
+.app-shell .portada-lema,
+.app-shell .portada-clientes,
+.app-shell .portada-plataformas,
+.app-shell .database-gate > h2,
+.app-shell .database-gate > p,
+.app-shell .database-choice-grid {
+  animation: portada-entra .42s var(--curva) both;
+}
+.app-shell .portada-marca h1 { animation-delay: .06s; }
+.app-shell .portada-lema { animation-delay: .12s; }
+.app-shell .portada-clientes { animation-delay: .18s; }
+.app-shell .portada-plataformas { animation-delay: .24s; }
+.app-shell .database-gate > h2 { animation-delay: .3s; }
+.app-shell .database-gate > p { animation-delay: .34s; }
+.app-shell .database-choice-grid { animation-delay: .38s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell .portada-firma, .app-shell .portada-marca h1, .app-shell .portada-lema,
+  .app-shell .portada-clientes, .app-shell .portada-plataformas,
+  .app-shell .database-gate > h2, .app-shell .database-gate > p,
+  .app-shell .database-choice-grid { animation: none; }
+}
+
+/* La portada pintaba su propio degradado oscuro por encima del fondo del
+   tema, así que en claro quedaba una isla negra con el título en tinta
+   oscura: 1,17:1. Aquí el degradado se cambia por uno claro y el texto
+   vuelve a los tokens. */
+.app-shell[data-tema="claro"] :is(.dataset-onboarding, .database-gate, .landing-page) {
+  background-image: radial-gradient(circle at 50% 0, color-mix(in srgb, var(--acento, #888) 7%, transparent), transparent 62%);
+  color: var(--ink);
+}
+.app-shell[data-tema="claro"] :is(.database-gate > h2, .portada-marca h1) { color: var(--ink); }
+.app-shell[data-tema="claro"] :is(.database-gate > p, .portada-lema) { color: var(--muted); }
+.app-shell[data-tema="claro"] .portada-cliente { color: var(--ink); }
+.app-shell[data-tema="claro"] .portada-plataformas { border-color: var(--linea); }
+
+/* Y en oscuro, que el título y las pastillas usen la tinta del tema en vez
+   de heredar de donde caiga. */
+.app-shell .portada-marca h1 { color: var(--ink); }
+.app-shell .portada-cliente { color: var(--ink); }
+.app-shell .database-gate > h2 { color: var(--ink); }
+
+/* El logotipo de Wyscout se guardó en blanco sobre transparente, que es lo
+   que necesita el tema oscuro. Sobre papel desaparece, así que en claro se
+   invierte: es monocromo, de modo que invertirlo lo devuelve al negro del
+   original sin tocar los otros dos, que llevan color propio. */
+.app-shell[data-tema="claro"] .logo-plataforma[title="Wyscout"] { filter: invert(1); }
