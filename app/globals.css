@@ -3050,3 +3050,58 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
 /* El interruptor de "medir contra" necesita aire y una etiqueta encima. */
 .app-shell .similarity-base-modo { display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-1); }
 .app-shell .similarity-base-modo > span { color: var(--muted); font-size: var(--ui-micro); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+
+/* Los pasos de la similitud: la página tenía cuatro bloques del mismo peso y
+   no decía en qué orden se usan. Un rótulo por paso basta para ordenarla. */
+.app-shell .similarity-paso { display: flex; align-items: baseline; gap: var(--sp-2); margin: var(--sp-6) 0 var(--sp-3); color: var(--muted); font-size: var(--ui-label); }
+.app-shell .similarity-paso:first-of-type { margin-top: 0; }
+.app-shell .similarity-paso > b { display: inline-grid; place-items: center; min-width: 54px; min-height: 22px; padding: 0 var(--sp-2); border-radius: var(--radio-pill); background: var(--acento-suave, rgba(255,255,255,.08)); color: var(--acento-claro, var(--ink)); font-size: var(--ui-micro); font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.app-shell .similarity-weight-panel { margin-top: var(--sp-6); }
+.app-shell .similarity-weight-panel.plegado { opacity: .75; }
+.app-shell .similarity-weight-panel.plegado:hover { opacity: 1; }
+
+/* Los años de la base: los que están, y los que se pueden pedir. */
+.app-shell .datos-anios { margin-bottom: var(--sp-5); }
+.app-shell .datos-anios-fila { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.app-shell .datos-anio { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 1px; min-height: var(--toque); padding: var(--sp-1) var(--sp-3); border: 1px solid var(--line); border-radius: var(--radio-sm); background: none; color: var(--muted); font-family: inherit; font-size: var(--ui-body); font-variant-numeric: tabular-nums; cursor: pointer; transition: border-color var(--transicion), background var(--transicion), color var(--transicion); }
+.app-shell .datos-anio > small { font-size: var(--ui-micro); opacity: .8; }
+.app-shell .datos-anio.on { border-color: var(--acento-borde, rgba(255,255,255,.35)); background: var(--acento-suave, rgba(255,255,255,.07)); color: var(--acento-claro, var(--ink)); }
+.app-shell .datos-anio.nuevo { border-style: dashed; }
+.app-shell .datos-anio:hover:not(:disabled) { border-color: var(--acento-borde, rgba(255,255,255,.3)); }
+.app-shell .datos-anio:disabled { opacity: .45; cursor: wait; }
+
+/* ---- Tema claro: las superficies de similitud -------------------------
+   Estas se habían quedado en cristal oscuro y sobre papel formaban islas
+   negras con texto blanco encima. Se pasan a papel con línea, como el resto
+   del chrome. */
+.app-shell[data-tema="claro"] .similarity-target-bar,
+.app-shell[data-tema="claro"] .similarity-filter-panel,
+.app-shell[data-tema="claro"] .similarity-ranking-card,
+.app-shell[data-tema="claro"] .similarity-weight-panel,
+.app-shell[data-tema="claro"] .similarity-comparison-card {
+  border-color: var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+.app-shell[data-tema="claro"] .similarity-target-copy,
+.app-shell[data-tema="claro"] .similarity-target-copy b,
+.app-shell[data-tema="claro"] .similarity-results-head b,
+.app-shell[data-tema="claro"] .similarity-panel-title b,
+.app-shell[data-tema="claro"] .similarity-table td { color: var(--ink); }
+.app-shell[data-tema="claro"] .similarity-target-copy > span,
+.app-shell[data-tema="claro"] .similarity-target-copy small,
+.app-shell[data-tema="claro"] .similarity-results-head span,
+.app-shell[data-tema="claro"] .similarity-panel-title small,
+.app-shell[data-tema="claro"] .similarity-table th { color: var(--muted); }
+.app-shell[data-tema="claro"] .similarity-table tr { border-color: var(--line); }
+.app-shell[data-tema="claro"] .similarity-table tbody tr:hover { background: rgba(0,0,0,.035); }
+.app-shell[data-tema="claro"] .similarity-model-badge { border-color: var(--line); background: var(--canvas); color: var(--muted); }
+.app-shell[data-tema="claro"] .similarity-weight-grid label { border-color: var(--line); background: var(--canvas); }
+.app-shell[data-tema="claro"] .similarity-paso > b { background: var(--acento-suave, rgba(0,0,0,.06)); }
+.app-shell[data-tema="claro"] .similarity-results-head,
+.app-shell[data-tema="claro"] .similarity-results-head h2,
+.app-shell[data-tema="claro"] .similarity-results-head b { color: var(--ink); background: var(--paper); }
+.app-shell[data-tema="claro"] .similarity-table thead tr,
+.app-shell[data-tema="claro"] .similarity-table thead th { background: var(--canvas); color: var(--muted); border-color: var(--line); }
+.app-shell[data-tema="claro"] .similarity-table tbody td { color: var(--ink); }

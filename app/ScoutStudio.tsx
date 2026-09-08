@@ -878,6 +878,28 @@ export default function ScoutStudio() {
    */
   const [ligasApagadas, setLigasApagadas] = useState<string[]>([]);
 
+  /**
+   * Los años que se pueden pedir enteros.
+   *
+   * Sale del catálogo de StatsBomb, no de una lista escrita a mano, porque
+   * las temporadas contratadas cambian. Se ofrecen los cinco últimos con
+   * partidos publicados: más atrás la comparación deja de decir gran cosa y
+   * la lista se vuelve inmanejable.
+   */
+  const [aniosParaCargar, setAniosParaCargar] = useState<string[]>([]);
+  useEffect(() => {
+    let vivo = true;
+    void fetchStatsbombCompetitions().then((comps) => {
+      if (!vivo) return;
+      const anios = [...new Set(comps
+        .filter((c) => c.hasMatches !== false)
+        .map((c) => String(c.season ?? "").match(/\d{4}/)?.[0])
+        .filter(Boolean) as string[])].sort().reverse().slice(0, 5);
+      setAniosParaCargar(anios);
+    }).catch(() => { /* sin puente, no se ofrece cargar por año */ });
+    return () => { vivo = false; };
+  }, []);
+
   function alternarCompeticion(archivos: string[], encender: boolean) {
     const siguiente = encender
       ? ligasApagadas.filter((archivo) => !archivos.includes(archivo))
@@ -956,7 +978,13 @@ export default function ScoutStudio() {
    * físico a las ligas que también cubre. La segunda vez es rápido porque el
    * puente guarda en disco las filas ya montadas de cada competición.
    */
-  async function cargarTodasLasLigas() {
+  /**
+   * @param anioPedido temporada a cargar. Sin él, la que está en curso.
+   *   Sirve para traer un año anterior entero y poder comparar a un jugador
+   *   con su propia versión de la temporada pasada.
+   * @param sumar si es `true`, se añade a lo que ya hay en vez de sustituirlo.
+   */
+  async function cargarTodasLasLigas(anioPedido?: string, sumar = false) {
     setReportLoading(true);
     setReportError("");
     setCargaTotal(t("Leyendo el catálogo de competiciones…"));
@@ -971,7 +999,7 @@ export default function ScoutStudio() {
       // viene y aún no se ha jugado. Y de las de este año, solo las que ya
       // tienen partidos publicados: la NCAA arranca en agosto y su curso 2026
       // entraba con cero jugadores sin decirlo, que es peor que no entrar.
-      const anio = String(new Date().getFullYear());
+      const anio = anioPedido ?? String(new Date().getFullYear());
       const { elegidas: objetivo, rezagadas } = temporadasUtiles(sb);
       if (!objetivo.length) throw new Error(t("No hay competiciones para la temporada en curso."));
 
@@ -1001,8 +1029,11 @@ export default function ScoutStudio() {
       }
       if (!datasets.length) throw new Error(t("Ninguna competición devolvió jugadores."));
       setCargaTotal(t("Cruzando las bases…"));
-      setCombinedBaseName(tf("Todas las ligas · {anio}", { anio }));
-      applyDatasets(datasets);
+      const finales = sumar ? [...sourceDatasets, ...datasets] : datasets;
+      setCombinedBaseName(sumar
+        ? tf("Todas las ligas · {anio}", { anio: [...new Set(finales.map((d) => d.season))].sort().join(" + ") })
+        : tf("Todas las ligas · {anio}", { anio }));
+      applyDatasets(finales);
       const avisos = [
         fallidas.length ? tf("No se pudieron cargar: {ligas}.", { ligas: fallidas.join(", ") }) : "",
         rezagadas.length
@@ -1805,6 +1836,8 @@ export default function ScoutStudio() {
                   apagadas={ligasApagadas}
                   onAlternarCompeticion={alternarCompeticion}
                   onCargarTodo={() => void cargarTodasLasLigas()}
+                  onCargarAnio={(anio) => void cargarTodasLasLigas(anio, true)}
+                  aniosDisponibles={aniosParaCargar}
                   onSubirArchivo={() => reportInputRef.current?.click()}
                   onConectarApi={() => void openApiDialog()}
                 /></div>

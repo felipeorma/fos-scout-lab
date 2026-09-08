@@ -20,6 +20,7 @@ import { Interruptor } from "./Interruptor";
 export function DatosPage({
   cargando, onCargarTodo, onSubirArchivo, onConectarApi,
   onQuitarCompeticion, apagadas = [], onAlternarCompeticion,
+  onCargarAnio, aniosDisponibles = [],
 }: {
   cargando?: boolean;
   onCargarTodo: () => void;
@@ -31,9 +32,13 @@ export function DatosPage({
   /** Archivos apagados: siguen descargados pero fuera del cruce. */
   apagadas?: string[];
   onAlternarCompeticion?: (archivos: string[], encender: boolean) => void;
+  /** Traer una temporada entera y sumarla a lo que ya hay. */
+  onCargarAnio?: (anio: string) => void;
+  aniosDisponibles?: string[];
 }) {
   const { rows, competiciones, datasets, nombre } = useBaseActiva();
 
+  const aniosDelFondo = [...new Set(competiciones.map((c) => c.anio).filter(Boolean))].sort();
   const plataformas = (["wyscout", "statsbomb", "skillcorner"] as const)
     .filter((p) => datasets.some((d) => (d.provider ?? "wyscout") === p));
 
@@ -53,6 +58,33 @@ export function DatosPage({
             <LogoPlataforma plataforma={p} alto={12} conTexto={!LOGOS_PLATAFORMA[p].esLogotipo} />
             {!LOGOS_PLATAFORMA[p].esLogotipo && METRIC_SOURCE_COLORS[p].label}
           </span>)}
+        </div>
+      </div>
+
+      {/* Los años: encender y apagar los que ya están, y pedir otro entero.
+          Comparar a un jugador con su versión del año pasado necesita las dos
+          temporadas dentro, y hasta ahora solo entraba la del curso. */}
+      <div className="datos-anios">
+        <span className="datos-lista-titulo">{t("Años")}</span>
+        <div className="datos-anios-fila">
+          {aniosDelFondo.map((anio) => {
+            const suyas = competiciones.filter((c) => c.anio === anio);
+            const encendido = suyas.some((c) => !c.archivos.every((a) => apagadas.includes(a)));
+            return <button key={anio} type="button"
+              className={encendido ? "datos-anio on" : "datos-anio"}
+              disabled={!onAlternarCompeticion}
+              title={tf("Usar las competiciones de {anio}", { anio })}
+              onClick={() => onAlternarCompeticion?.(suyas.flatMap((c) => c.archivos), !encendido)}>
+              {anio}<small>{tf("{n} ligas", { n: suyas.length })}</small>
+            </button>;
+          })}
+          {onCargarAnio && aniosDisponibles.filter((a) => !aniosDelFondo.includes(Number(a))).map((anio) => (
+            <button key={anio} type="button" className="datos-anio nuevo" disabled={cargando}
+              title={tf("Cargar todas las ligas de {anio} y sumarlas", { anio })}
+              onClick={() => onCargarAnio(anio)}>
+              + {anio}
+            </button>
+          ))}
         </div>
       </div>
 
