@@ -588,7 +588,7 @@ body { color-scheme: dark; background: radial-gradient(circle at 74% 9%, rgba(25
 .rule-symbol.sum { color: #59d2bd; background: rgba(69,198,186,.1); }.rule-symbol.avg { color: #77a3ff; background: var(--acento-suave, rgba(79,124,255,.12)); }.rule-symbol.weight { color: #f3c062; background: rgba(243,182,76,.1); }.rule-symbol.pct { color: #ff9a74; background: rgba(255,138,91,.1); }.rule-symbol.latest { color: #a492ff; background: rgba(137,112,255,.1); }
 .result-empty { color: #647084; }.empty-merge-icon { color: #839fff; background: var(--acento-suave, rgba(79,124,255,.12)); }.result-empty b { color: #b9c4d5; }
 .result-empty > div span { border-color: rgba(255,255,255,.1); color: #778398; background: rgba(255,255,255,.025); }.result-empty > div i { background: rgba(255,255,255,.08); }
-.table-scroll { border-color: rgba(255,255,255,.075); } table { color: #97a2b5; } th { color: #6e7a8e; background: rgba(255,255,255,.035); } td { border-color: rgba(255,255,255,.055); color: #9da8ba; } td:first-child { color: #d7dfed; } tbody tr:hover { background: rgba(79,124,255,.045); }
+.table-scroll { border-color: var(--linea, rgba(255,255,255,.075)); } table { color: var(--ink); } th { color: var(--muted); background: color-mix(in srgb, var(--ink) 4%, transparent); } td { border-color: var(--linea, rgba(255,255,255,.055)); color: var(--ink); } td:first-child { color: var(--ink); font-weight: 600; } tbody tr:hover { background: color-mix(in srgb, var(--ink) 4%, transparent); }
 .table-footer { border-color: rgba(255,255,255,.075); color: #626e82; background: rgba(255,255,255,.025); }
 
 .designer-section-title { color: #9aa6b9; }.designer-section-title > small { color: #606b7e; }
@@ -3157,3 +3157,168 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
 .app-shell .base-recordatorio b { display: block; font-size: var(--ui-label); }
 .app-shell .base-recordatorio small { display: block; color: var(--muted); font-size: var(--ui-micro); }
 .app-shell .base-recordatorio em { flex: none; color: var(--acento-claro, inherit); font-size: var(--ui-micro); font-style: normal; font-weight: 700; }
+
+/* =====================================================================
+   Sistema de superficies · una sola escala para toda la interfaz
+   =====================================================================
+
+   El diagnóstico antes de escribir esto: catorce radios distintos en uso
+   —3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13 px—, sesenta y dos superficies con
+   su propio borde y fondo, y setenta y dos sombras diferentes. No era un
+   sistema: eran setenta y dos decisiones sueltas tomadas en momentos
+   distintos, y por eso dos tarjetas contiguas nunca acababan de parecer de
+   la misma aplicación.
+
+   Aquí hay una escala y todo se pliega a ella:
+
+   - Tres radios: control, tarjeta y contenedor. Más que eso no se
+     distingue y menos se nota rígido.
+   - Una escalera de elevación de tres peldaños, con sombras grandes y muy
+     suaves. La profundidad la hace la capa, no un borde duro.
+   - Un solo material: fondo translúcido con desenfoque detrás y una línea
+     de un píxel. Es lo que separa una superficie de la de abajo sin
+     dibujar una caja.
+
+   Sigue fuera el informe impreso: se compone sobre papel y no tiene capas.
+   ===================================================================== */
+.app-shell {
+  --r-control: 10px;
+  --r-tarjeta: 16px;
+  --r-contenedor: 22px;
+
+  --elev-1: 0 1px 2px rgba(0,0,0,.16);
+  --elev-2: 0 8px 28px -12px rgba(0,0,0,.45);
+  --elev-3: 0 24px 64px -24px rgba(0,0,0,.6);
+
+  --linea: rgba(255,255,255,.09);
+  --material: rgba(255,255,255,.035);
+  --material-alto: rgba(255,255,255,.055);
+}
+.app-shell[data-tema="claro"] {
+  --elev-1: 0 1px 2px rgba(0,0,0,.06);
+  --elev-2: 0 8px 28px -14px rgba(0,0,0,.18);
+  --elev-3: 0 24px 64px -28px rgba(0,0,0,.22);
+  --linea: rgba(0,0,0,.09);
+  --material: #ffffff;
+  --material-alto: #ffffff;
+}
+
+/* ---- Contenedores: lo que sostiene una sección entera ---- */
+.app-shell :is(.datos-page, .rank-page, .pool-page, .context-page, .runs-page,
+  .landing-hero, .board-page) {
+  border-radius: var(--r-contenedor);
+  border: 1px solid var(--linea);
+  background: var(--material);
+  box-shadow: var(--elev-2);
+}
+
+/* ---- Tarjetas: los bloques dentro de una sección ---- */
+.app-shell :is(.control-panel, .filtros-barra, .datos-resumen, .datos-accion,
+  .database-choice, .similarity-target-bar, .similarity-filter-panel,
+  .similarity-ranking-card, .similarity-weight-panel, .similarity-comparison-card,
+  .rank-arq-card, .arq-card, .once-card, .ctx-grid > section, .runs-kpis,
+  .api-dialog, .board-preview-dialog, .capability-card) {
+  border-radius: var(--r-tarjeta);
+  border: 1px solid var(--linea);
+  background: var(--material);
+  box-shadow: var(--elev-1);
+}
+
+/* ---- Controles: lo que se pincha o se escribe ---- */
+.app-shell :is(select, input[type="number"], input[type="text"], input[type="search"], textarea) {
+  border-radius: var(--r-control);
+}
+.app-shell :is(.filtros-barra, .rank-filters, .runs-controls, .ctx-controls,
+  .similarity-filter-panel, .similarity-target-bar, .player-selector-flow) :is(select, input) {
+  border: 1px solid var(--linea);
+  background: var(--material-alto);
+}
+
+/* ---- Diálogos: la capa de más arriba ---- */
+.app-shell :is(.api-dialog, .board-preview-dialog, .print-dialog) {
+  border-radius: var(--r-contenedor);
+  box-shadow: var(--elev-3);
+  backdrop-filter: blur(24px) saturate(1.4);
+}
+
+/* ---- Pastillas: lo que es una etiqueta o un estado, no una caja ---- */
+.app-shell :is(.datos-chip, .privacy-pill, .datos-anio, .interruptor-pista,
+  .filtros-barra-cola > button, .rank-tabs button, .ctx-picker button,
+  .pool-ligas button, .datos-quitar > button) {
+  border-radius: var(--r-control);
+}
+.app-shell :is(.datos-chip, .privacy-pill, .interruptor-pista,
+  .filtros-barra-cola > button, .rank-tabs button, .ctx-picker button) {
+  border-radius: var(--radio-pill);
+}
+
+/* =====================================================================
+   Cabeceras de sección
+   =====================================================================
+   Cada pantalla tenía la suya: un rótulo en versalitas, un título de 24px
+   y un párrafo, con espaciados distintos en cada una. Aquí van todas a la
+   misma jerarquía —rótulo pequeño, título grande y ligero, párrafo de
+   apoyo— que es lo que hace que dos pantallas parezcan la misma
+   aplicación. El título va con tracking negativo, que es lo que separa un
+   titular de un texto grande. */
+.app-shell :is(.datos-page, .rank-page, .pool-page, .context-page, .runs-page) > header {
+  padding: 0 0 var(--sp-4);
+  margin-bottom: var(--sp-5);
+  border-bottom: 1px solid var(--linea);
+}
+.app-shell :is(.datos-page, .rank-page, .pool-page, .context-page, .runs-page) > header span:first-child {
+  display: block;
+  margin-bottom: var(--sp-1);
+  color: var(--muted);
+  font-size: var(--ui-micro);
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.app-shell :is(.datos-page, .rank-page, .pool-page, .context-page, .runs-page) > header :is(h2, b) {
+  display: block;
+  margin: 0 0 var(--sp-2);
+  font-size: var(--ui-hero);
+  font-weight: 600;
+  letter-spacing: -.022em;
+  line-height: 1.12;
+}
+.app-shell :is(.datos-page, .rank-page, .pool-page, .context-page, .runs-page) > header p {
+  margin: 0;
+  max-width: 68ch;
+  color: var(--muted);
+  font-size: var(--ui-body);
+  line-height: 1.55;
+}
+
+/* La navegación: pestañas que se apoyan en el material, no botones con
+   caja. El activo se distingue por fondo, no por borde. */
+.app-shell .report-page-tabs {
+  padding: var(--sp-2);
+  border-radius: var(--r-tarjeta);
+  border: 1px solid var(--linea);
+  background: var(--material);
+  box-shadow: var(--elev-1);
+}
+.app-shell .report-page-tabs button { border: 0; background: none; }
+.app-shell .report-page-tabs button.active { background: var(--material-alto); box-shadow: var(--elev-1); }
+.app-shell[data-tema="claro"] .report-page-tabs button.active { background: rgba(0,0,0,.055); box-shadow: none; }
+
+/* La barra superior: material, no un bloque opaco. */
+.app-shell .topbar {
+  border-bottom: 1px solid var(--linea);
+  background: color-mix(in srgb, var(--canvas) 78%, transparent);
+  backdrop-filter: blur(22px) saturate(1.5);
+}
+
+/* ---- Contraste del texto en las superficies claras ---------------------
+   La regla de heredar se rompe en cuanto un elemento intermedio lleva el
+   color escrito a mano: los hijos heredan de ÉL y no del contenedor con
+   tema. Pasaba en las tablas —el texto quedaba a 2,6:1 sobre papel, muy por
+   debajo del 4,5 que pide AA— así que aquí se fija de forma explícita en
+   lugar de confiar en la cadena. */
+.app-shell :is(.datos-lista, .pool-resultado, .similarity-table, .rank-list) :is(td, li) { color: var(--ink); }
+.app-shell :is(.datos-lista, .pool-resultado, .similarity-table) th { color: var(--muted); }
+.app-shell .datos-lista td:first-child,
+.app-shell .pool-name { font-weight: 600; }
+.app-shell :is(.datos-lista, .pool-resultado, .similarity-table) :is(td, th) { border-color: var(--linea); }
