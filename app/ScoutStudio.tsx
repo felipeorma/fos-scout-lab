@@ -31,6 +31,7 @@ import { ligasDeBases, origenPorFila } from "@/lib/procedencia";
 import { ProveedorDeBase, useEstadoDeBase } from "./BaseActiva";
 import { BarraDeFiltros } from "./BarraDeFiltros";
 import { DatosPage } from "./DatosPage";
+import { Interruptor } from "./Interruptor";
 import {
   aggregateDatasets,
   buildPlayerReport,
@@ -337,6 +338,24 @@ export default function ScoutStudio() {
   const [analysisSourceTitle, setAnalysisSourceTitle] = useState("");
   const [reportRecipientName, setReportRecipientName] = useState("");
   const [reportRecipientLogoUrl, setReportRecipientLogoUrl] = useState("");
+  /*
+   * Claro u oscuro. La paleta clara ya existía en el CSS pero estaba muerta:
+   * un segundo :root la pisaba entera, así que nadie la había visto nunca.
+   * Ahora cuelga de data-tema y se recuerda entre sesiones.
+   */
+  const [tema, setTema] = useState<"oscuro" | "claro">("oscuro");
+  useEffect(() => {
+    try {
+      const guardado = window.localStorage.getItem("fos-scout-tema");
+      if (guardado === "claro" || guardado === "oscuro") setTema(guardado);
+    } catch { /* la preferencia es opcional */ }
+  }, []);
+  function cambiarTema(claro: boolean) {
+    const siguiente = claro ? "claro" : "oscuro";
+    setTema(siguiente);
+    try { window.localStorage.setItem("fos-scout-tema", siguiente); } catch { /* opcional */ }
+  }
+
   const [reportTheme, setReportTheme] = useState<ReportTheme>(DEFAULT_REPORT_THEME);
   const [reportThemeLoaded, setReportThemeLoaded] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState("");
@@ -849,6 +868,22 @@ export default function ScoutStudio() {
    * de su clausura, que todavía tiene la base anterior, y acaba tomando el
    * club y el perfil del jugador equivocado.
    */
+  /**
+   * Quitar una competición de la base activa.
+   *
+   * Se podían añadir ligas de tres formas y no había ninguna de sacarlas: la
+   * única salida era restablecer y volver a montarlo todo. Se quita por
+   * archivos —una competición son una o dos bases, la de StatsBomb y su capa
+   * de SkillCorner— y se vuelve a cruzar lo que queda, así que los percentiles
+   * se recalculan contra el fondo nuevo, que es lo correcto: si sacas la MLS,
+   * ya no se compara contra ella.
+   */
+  function quitarCompeticion(archivos: string[]) {
+    const quedan = sourceDatasets.filter((dataset) => !archivos.includes(dataset.fileName));
+    if (!quedan.length) { resetReport(); return; }
+    applyDatasets(quedan);
+  }
+
   function applyDatasets(datasets: SourceDataset[], seleccion?: number) {
     const result = aggregateDatasets(datasets);
     // Toda base sin datos físicos dispara la oferta de enlace con SkillCorner;
@@ -1370,7 +1405,7 @@ export default function ScoutStudio() {
 
   return (
     <ProveedorDeBase valor={base}>
-    <div className="app-shell no-sidebar" data-paleta={paleta}>
+    <div className="app-shell no-sidebar" data-paleta={paleta} data-tema={tema}>
       <main className="main-area">
         <header className="topbar studio-topbar">
           <div className="studio-brand">
@@ -1393,10 +1428,20 @@ export default function ScoutStudio() {
           </ol>}
 
           <div className="top-actions">
-            <div className="lang-switch-inline" role="group" aria-label={t("Idioma del estudio y del reporte")}>
-              <button className={lang === "es" ? "active" : ""} onClick={() => setLang("es")} aria-pressed={lang === "es"}>ES</button>
-              <button className={lang === "en" ? "active" : ""} onClick={() => setLang("en")} aria-pressed={lang === "en"}>EN</button>
-            </div>
+            <Interruptor
+              activo={lang === "en"}
+              onCambio={(ingles) => setLang(ingles ? "en" : "es")}
+              etiquetaApagado="ES"
+              etiquetaEncendido="EN"
+              titulo={t("Idioma del estudio y del reporte")}
+            />
+            <Interruptor
+              activo={tema === "claro"}
+              onCambio={cambiarTema}
+              etiquetaApagado="☾"
+              etiquetaEncendido="☀"
+              titulo={t("Tema claro u oscuro")}
+            />
             <span className="privacy-pill" title={t("Los datos nunca salen del navegador")}><LockKeyhole size={14} /> {t("Solo tú")}</span>
             {dataReady && <button className="button secondary compact" onClick={resetReport}><RotateCcw size={15} /> {t("Restablecer")}</button>}
             <button className="button primary compact" onClick={() => { setPrintLayoutError(""); setPrintDialogOpen(true); }} disabled={!report || !dataReady}><Printer size={15} /> {t("Imprimir / PDF")}</button>
@@ -1724,6 +1769,7 @@ export default function ScoutStudio() {
               {paginaMontada(DATA_PAGE) && (
                 <div className={claseHoja(DATA_PAGE)}><DatosPage
                   cargando={reportLoading}
+                  onQuitarCompeticion={quitarCompeticion}
                   onCargarTodo={() => void cargarTodasLasLigas()}
                   onSubirArchivo={() => reportInputRef.current?.click()}
                   onConectarApi={() => void openApiDialog()}

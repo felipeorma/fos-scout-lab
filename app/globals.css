@@ -2848,3 +2848,118 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
   outline-offset: 2px;
   border-radius: var(--radio-sm);
 }
+
+/* =====================================================================
+   Interruptor de dos posiciones
+   ===================================================================== */
+.app-shell .interruptor { display: inline-flex; align-items: center; gap: var(--sp-2); min-height: var(--toque); padding: 0 var(--sp-2); border: 0; background: none; color: var(--muted); font-family: inherit; font-size: var(--ui-micro); font-weight: 700; letter-spacing: .06em; cursor: pointer; }
+.app-shell .interruptor-lado { transition: color var(--transicion); }
+.app-shell .interruptor .interruptor-lado:first-of-type { color: var(--ink); }
+.app-shell .interruptor.on .interruptor-lado:first-of-type { color: var(--muted); }
+.app-shell .interruptor.on .interruptor-lado:last-of-type { color: var(--ink); }
+.app-shell .interruptor-pista { position: relative; width: 40px; height: 24px; flex: none; border-radius: var(--radio-pill); background: rgba(120,130,150,.34); transition: background var(--transicion); }
+.app-shell .interruptor.on .interruptor-pista { background: var(--acento, #34c759); }
+.app-shell .interruptor-pista > i { position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: transform var(--transicion); }
+.app-shell .interruptor.on .interruptor-pista > i { transform: translateX(16px); }
+.app-shell .interruptor:focus-visible { outline: 2px solid var(--acento-claro, #7aa7ff); outline-offset: 3px; border-radius: var(--radio-pill); }
+
+/* =====================================================================
+   Tema claro
+   =====================================================================
+   La paleta clara ya existía al principio del archivo pero estaba muerta:
+   un segundo :root la pisaba entera. Aquí revive colgada de data-tema, con
+   los valores ajustados para que el contraste aguante sobre papel. */
+.app-shell[data-tema="claro"] {
+  --navy: #ffffff;
+  --navy-2: #f5f5f7;
+  --ink: #1d1d1f;
+  --muted: #6b6f76;
+  --line: rgba(0,0,0,.10);
+  --paper: #ffffff;
+  --canvas: #f5f5f7;
+  --shadow: 0 4px 24px rgba(0,0,0,.07);
+  --pl-ink: #1d1d1f;
+  --pl-dim: #6b6f76;
+  color: var(--ink);
+  background: var(--canvas);
+}
+.app-shell[data-tema="claro"] .interruptor-pista { background: rgba(0,0,0,.18); }
+
+/* Las superficies del chrome, que iban a base de blancos translúcidos
+   pensados para fondo oscuro y sobre papel desaparecían. */
+.app-shell[data-tema="claro"] .filtros-barra,
+.app-shell[data-tema="claro"] .datos-resumen,
+.app-shell[data-tema="claro"] .control-panel,
+.app-shell[data-tema="claro"] .datos-accion,
+.app-shell[data-tema="claro"] .database-choice,
+.app-shell[data-tema="claro"] .datos-barra {
+  border-color: var(--line);
+  background: var(--paper);
+  box-shadow: var(--shadow);
+}
+.app-shell[data-tema="claro"] .filtros-barra select,
+.app-shell[data-tema="claro"] .filtros-barra input,
+.app-shell[data-tema="claro"] .field-group select,
+.app-shell[data-tema="claro"] .field-group input {
+  border-color: var(--line);
+  background: var(--canvas);
+  color: var(--ink);
+}
+.app-shell[data-tema="claro"] .datos-lista th,
+.app-shell[data-tema="claro"] .datos-lista td { border-color: var(--line); }
+.app-shell[data-tema="claro"] .rank-list > li { border-color: var(--line); }
+.app-shell[data-tema="claro"] .rank-list > li.clicable:hover { background: rgba(0,0,0,.035); }
+.app-shell[data-tema="claro"] .report-page-tabs button { color: var(--muted); }
+.app-shell[data-tema="claro"] .report-page-tabs button.active { color: var(--ink); background: rgba(0,0,0,.05); }
+.app-shell[data-tema="claro"] .datos-accion:hover:not(:disabled),
+.app-shell[data-tema="claro"] .database-choice:hover:not(:disabled) { background: var(--canvas); }
+
+/* Quitar una competición: discreto hasta que se pasa por la fila. */
+.app-shell .datos-quitar { width: 1%; text-align: right; }
+.app-shell .datos-quitar > button { min-height: 26px; padding: 0 var(--sp-2); border: 1px solid transparent; border-radius: var(--radio-pill); background: none; color: var(--muted); font-family: inherit; font-size: var(--ui-micro); cursor: pointer; opacity: 0; transition: opacity var(--transicion), border-color var(--transicion), color var(--transicion); }
+.app-shell .datos-lista tr:hover .datos-quitar > button,
+.app-shell .datos-quitar > button:focus-visible { opacity: 1; }
+.app-shell .datos-quitar > button:hover { border-color: rgba(228,112,94,.45); color: #e4a99e; }
+
+/* ---- Tema claro: los textos y superficies que estaban fijados para oscuro
+   Buena parte del chrome llevaba el color escrito a mano —#dce4f2, #a8b4b7,
+   blancos translúcidos— porque solo existía un tema. Sobre papel eso queda
+   ilegible, así que aquí se reconducen a los tokens. */
+.app-shell[data-tema="claro"] .datos-lista td,
+.app-shell[data-tema="claro"] .datos-page,
+.app-shell[data-tema="claro"] .rank-page,
+.app-shell[data-tema="claro"] .context-page,
+.app-shell[data-tema="claro"] .pool-page,
+.app-shell[data-tema="claro"] .studio-brand b,
+.app-shell[data-tema="claro"] .panel-title h2,
+.app-shell[data-tema="claro"] .database-choice,
+.app-shell[data-tema="claro"] .rank-list > li { color: var(--ink); }
+
+.app-shell[data-tema="claro"] .datos-lista th,
+.app-shell[data-tema="claro"] .datos-cifra > span,
+.app-shell[data-tema="claro"] .datos-lista-titulo,
+.app-shell[data-tema="claro"] .studio-brand small,
+.app-shell[data-tema="claro"] .panel-title p,
+.app-shell[data-tema="claro"] .tab-grupo-nombre,
+.app-shell[data-tema="claro"] .datos-page > header > p,
+.app-shell[data-tema="claro"] .database-choice > small,
+.app-shell[data-tema="claro"] .filtros-barra > label > span { color: var(--muted); }
+
+/* La barra superior y la de pestañas eran cristal oscuro: sobre papel se
+   convierten en papel con una línea. */
+.app-shell[data-tema="claro"] .topbar,
+.app-shell[data-tema="claro"] .report-page-tabs {
+  border-color: var(--line);
+  background: var(--paper);
+  box-shadow: var(--shadow);
+}
+.app-shell[data-tema="claro"] .app-shell::before,
+.app-shell[data-tema="claro"]::before { opacity: .35; }
+.app-shell[data-tema="claro"] .studio-flow li > span { color: #fff; }
+.app-shell[data-tema="claro"] .studio-flow li:not(.current):not(.done) > span { color: var(--muted); background: rgba(0,0,0,.07); }
+.app-shell[data-tema="claro"] .pool-page { background: var(--paper); }
+.app-shell[data-tema="claro"] .pool-resultado th,
+.app-shell[data-tema="claro"] .pool-resultado td { border-color: var(--line); }
+.app-shell[data-tema="claro"] .datos-vacio { border-color: rgba(0,0,0,.16); }
+.app-shell[data-tema="claro"] .rank-cobertura,
+.app-shell[data-tema="claro"] .pool-aviso-anios { border-color: var(--line); background: rgba(0,0,0,.03); color: var(--muted); }

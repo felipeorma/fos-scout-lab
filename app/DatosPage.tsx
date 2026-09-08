@@ -16,11 +16,14 @@ import { FileSpreadsheet, Merge, Sparkles, Upload } from "./Icons";
  * Aquí se ve el inventario y se sale a cualquiera de las tres acciones.
  */
 
-export function DatosPage({ cargando, onCargarTodo, onSubirArchivo, onConectarApi }: {
+export function DatosPage({ cargando, onCargarTodo, onSubirArchivo, onConectarApi, onQuitarCompeticion }: {
   cargando?: boolean;
   onCargarTodo: () => void;
   onSubirArchivo: () => void;
   onConectarApi: () => void;
+  /** Sacar una competición de la base. Recibe sus archivos: una liga son una
+   *  o dos bases, la de StatsBomb y su capa de SkillCorner. */
+  onQuitarCompeticion?: (archivos: string[]) => void;
 }) {
   const { rows, competiciones, datasets, nombre } = useBaseActiva();
 
@@ -49,7 +52,7 @@ export function DatosPage({ cargando, onCargarTodo, onSubirArchivo, onConectarAp
       <div className="datos-lista">
         <span className="datos-lista-titulo">{tf("Lo que hay cargado · {nombre}", { nombre })}</span>
         <table>
-          <thead><tr><th>{t("Competición")}</th><th>{t("Año")}</th><th>{t("Procedencia")}</th></tr></thead>
+          <thead><tr><th>{t("Competición")}</th><th>{t("Año")}</th><th>{t("Procedencia")}</th><th /></tr></thead>
           <tbody>
             {competiciones.map((c) => (
               <tr key={`${c.liga}-${c.anio}`}>
@@ -61,6 +64,13 @@ export function DatosPage({ cargando, onCargarTodo, onSubirArchivo, onConectarAp
                       : /^StatsBomb/i.test(archivo) ? "statsbomb" : "wyscout";
                     return <LogoPlataforma key={archivo} plataforma={proveedor} alto={12} />;
                   })}
+                </td>
+                <td className="datos-quitar">
+                  {onQuitarCompeticion && competiciones.length > 1 && <button type="button"
+                    title={tf("Quitar {liga} de la base", { liga: c.liga })}
+                    onClick={() => onQuitarCompeticion(c.archivos)}>
+                    {t("Quitar")}
+                  </button>}
                 </td>
               </tr>
             ))}
