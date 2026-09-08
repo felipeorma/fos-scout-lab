@@ -869,6 +869,37 @@ export default function ScoutStudio() {
    * club y el perfil del jugador equivocado.
    */
   /**
+   * Competiciones apagadas: siguen descargadas pero fuera del cruce.
+   *
+   * Es distinto de quitarlas. Apagar la MLS para mirar un rato sin ella y
+   * volver a encenderla no debería costar otra descarga de la API; quitarla
+   * sí la saca del todo. Se guarda por nombre de archivo porque es lo que
+   * identifica a una base dentro de la sesión.
+   */
+  const [ligasApagadas, setLigasApagadas] = useState<string[]>([]);
+
+  function alternarCompeticion(archivos: string[], encender: boolean) {
+    const siguiente = encender
+      ? ligasApagadas.filter((archivo) => !archivos.includes(archivo))
+      : [...new Set([...ligasApagadas, ...archivos])];
+    const activos = sourceDatasets.filter((dataset) => !siguiente.includes(dataset.fileName));
+    // Apagarlas todas dejaría la plataforma sin nada que mirar.
+    if (!activos.length) return;
+    setLigasApagadas(siguiente);
+    aplicarActivos(activos);
+  }
+
+  /** Rehace el cruce con las bases encendidas, sin tocar el inventario. */
+  function aplicarActivos(activos: SourceDataset[]) {
+    const result = aggregateDatasets(activos);
+    setReportRows(result.rows);
+    setReportSourceCount(activos.length);
+    const seleccion = firstPlayerSelection(result.rows);
+    setSelectedTeam(seleccion.team);
+    setSelectedPlayer(seleccion.index);
+  }
+
+  /**
    * Quitar una competición de la base activa.
    *
    * Se podían añadir ligas de tres formas y no había ninguna de sacarlas: la
@@ -881,6 +912,7 @@ export default function ScoutStudio() {
   function quitarCompeticion(archivos: string[]) {
     const quedan = sourceDatasets.filter((dataset) => !archivos.includes(dataset.fileName));
     if (!quedan.length) { resetReport(); return; }
+    setLigasApagadas((apagadas) => apagadas.filter((archivo) => !archivos.includes(archivo)));
     applyDatasets(quedan);
   }
 
@@ -1770,6 +1802,8 @@ export default function ScoutStudio() {
                 <div className={claseHoja(DATA_PAGE)}><DatosPage
                   cargando={reportLoading}
                   onQuitarCompeticion={quitarCompeticion}
+                  apagadas={ligasApagadas}
+                  onAlternarCompeticion={alternarCompeticion}
                   onCargarTodo={() => void cargarTodasLasLigas()}
                   onSubirArchivo={() => reportInputRef.current?.click()}
                   onConectarApi={() => void openApiDialog()}

@@ -4,7 +4,8 @@ import { t, tf } from "@/lib/i18n";
 import { METRIC_SOURCE_COLORS } from "@/lib/similarityMetricGroups";
 import { LOGOS_PLATAFORMA, LogoPlataforma } from "./LogosPlataforma";
 import { useBaseActiva } from "./BaseActiva";
-import { FileSpreadsheet, Merge, Sparkles, Upload } from "./Icons";
+import { FileSpreadsheet, Merge, Sparkles, Trash, Upload } from "./Icons";
+import { Interruptor } from "./Interruptor";
 
 /**
  * La base activa: qué hay cargado y cómo cambiarlo.
@@ -16,7 +17,10 @@ import { FileSpreadsheet, Merge, Sparkles, Upload } from "./Icons";
  * Aquí se ve el inventario y se sale a cualquiera de las tres acciones.
  */
 
-export function DatosPage({ cargando, onCargarTodo, onSubirArchivo, onConectarApi, onQuitarCompeticion }: {
+export function DatosPage({
+  cargando, onCargarTodo, onSubirArchivo, onConectarApi,
+  onQuitarCompeticion, apagadas = [], onAlternarCompeticion,
+}: {
   cargando?: boolean;
   onCargarTodo: () => void;
   onSubirArchivo: () => void;
@@ -24,6 +28,9 @@ export function DatosPage({ cargando, onCargarTodo, onSubirArchivo, onConectarAp
   /** Sacar una competición de la base. Recibe sus archivos: una liga son una
    *  o dos bases, la de StatsBomb y su capa de SkillCorner. */
   onQuitarCompeticion?: (archivos: string[]) => void;
+  /** Archivos apagados: siguen descargados pero fuera del cruce. */
+  apagadas?: string[];
+  onAlternarCompeticion?: (archivos: string[], encender: boolean) => void;
 }) {
   const { rows, competiciones, datasets, nombre } = useBaseActiva();
 
@@ -51,11 +58,20 @@ export function DatosPage({ cargando, onCargarTodo, onSubirArchivo, onConectarAp
 
       <div className="datos-lista">
         <span className="datos-lista-titulo">{tf("Lo que hay cargado · {nombre}", { nombre })}</span>
+        <p className="datos-lista-ayuda">{t("El interruptor deja una liga fuera de los cálculos sin perderla: se vuelve a encender sin descargarla otra vez. Quitar la saca del todo.")}</p>
         <table>
-          <thead><tr><th>{t("Competición")}</th><th>{t("Año")}</th><th>{t("Procedencia")}</th><th /></tr></thead>
+          <thead><tr><th>{t("En uso")}</th><th>{t("Competición")}</th><th>{t("Año")}</th><th>{t("Procedencia")}</th><th /></tr></thead>
           <tbody>
-            {competiciones.map((c) => (
-              <tr key={`${c.liga}-${c.anio}`}>
+            {competiciones.map((c) => {
+              const encendida = !c.archivos.every((archivo) => apagadas.includes(archivo));
+              return <tr key={`${c.liga}-${c.anio}`} className={encendida ? "" : "apagada"}>
+                <td className="datos-encendido">
+                  {onAlternarCompeticion && <Interruptor
+                    activo={encendida}
+                    onCambio={(on) => onAlternarCompeticion(c.archivos, on)}
+                    titulo={tf("Usar {liga} en los cálculos", { liga: c.liga })}
+                  />}
+                </td>
                 <td>{c.liga}</td>
                 <td>{c.anio || "—"}</td>
                 <td className="datos-origen">
@@ -69,11 +85,11 @@ export function DatosPage({ cargando, onCargarTodo, onSubirArchivo, onConectarAp
                   {onQuitarCompeticion && competiciones.length > 1 && <button type="button"
                     title={tf("Quitar {liga} de la base", { liga: c.liga })}
                     onClick={() => onQuitarCompeticion(c.archivos)}>
-                    {t("Quitar")}
+                    <Trash size={13} /><span>{t("Quitar")}</span>
                   </button>}
                 </td>
-              </tr>
-            ))}
+              </tr>;
+            })}
           </tbody>
         </table>
       </div>

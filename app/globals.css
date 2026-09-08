@@ -2916,9 +2916,7 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
 
 /* Quitar una competición: discreto hasta que se pasa por la fila. */
 .app-shell .datos-quitar { width: 1%; text-align: right; }
-.app-shell .datos-quitar > button { min-height: 26px; padding: 0 var(--sp-2); border: 1px solid transparent; border-radius: var(--radio-pill); background: none; color: var(--muted); font-family: inherit; font-size: var(--ui-micro); cursor: pointer; opacity: 0; transition: opacity var(--transicion), border-color var(--transicion), color var(--transicion); }
-.app-shell .datos-lista tr:hover .datos-quitar > button,
-.app-shell .datos-quitar > button:focus-visible { opacity: 1; }
+.app-shell .datos-quitar > button { display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 0 var(--sp-3); border: 1px solid var(--line); border-radius: var(--radio-pill); background: none; color: var(--muted); font-family: inherit; font-size: var(--ui-micro); cursor: pointer; transition: border-color var(--transicion), color var(--transicion), background var(--transicion); }
 .app-shell .datos-quitar > button:hover { border-color: rgba(228,112,94,.45); color: #e4a99e; }
 
 /* ---- Tema claro: los textos y superficies que estaban fijados para oscuro
@@ -2963,3 +2961,10 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
 .app-shell[data-tema="claro"] .datos-vacio { border-color: rgba(0,0,0,.16); }
 .app-shell[data-tema="claro"] .rank-cobertura,
 .app-shell[data-tema="claro"] .pool-aviso-anios { border-color: var(--line); background: rgba(0,0,0,.03); color: var(--muted); }
+
+/* Encender y apagar una competición, sin perderla. */
+.app-shell .datos-encendido { width: 1%; padding-right: var(--sp-3); }
+.app-shell .datos-encendido .interruptor { padding: 0; }
+.app-shell .datos-lista tr.apagada > td:not(.datos-encendido) { opacity: .42; }
+.app-shell .datos-lista-ayuda { margin: 0 0 var(--sp-3); max-width: 74ch; color: var(--muted); font-size: var(--ui-micro); line-height: 1.55; }
+.app-shell .datos-quitar > button:hover { border-color: rgba(228,112,94,.5); color: #e4a99e; background: rgba(228,112,94,.08); }
