@@ -51,3 +51,27 @@ test("una liga con coma en el nombre no se parte", () => {
   const [fila] = origenPorFila([{ "Data sources": "StatsBomb · Liga Pro, Serie A 2026" }], procedencias);
   assert.deepEqual(fila.ligas, ["Liga Pro, Serie A"]);
 });
+
+test("la clave de medición separa temporadas de la misma liga", () => {
+  // El caso que lo motiva: comparar a un jugador con su versión del año
+  // pasado. Si la clave fuera solo la liga, los dos caerían en el mismo grupo
+  // y se medirían contra la mezcla de ambas temporadas.
+  const procedencias = ligasDeBases([
+    base("StatsBomb · Eerste Divisie 2025/2026"),
+    base("StatsBomb · Eerste Divisie 2026/2027"),
+  ]);
+  const [viejo, nuevo] = origenPorFila([
+    { "Data sources": "StatsBomb · Eerste Divisie 2025/2026" },
+    { "Data sources": "StatsBomb · Eerste Divisie 2026/2027" },
+  ], procedencias);
+  assert.deepEqual(viejo.ligas, nuevo.ligas, "la liga es la misma, y para filtrar eso está bien");
+  assert.notDeepEqual(viejo.claves, nuevo.claves, "pero para medir tienen que ser grupos distintos");
+  assert.deepEqual(viejo.claves, ["Eerste Divisie 2025"]);
+  assert.deepEqual(nuevo.claves, ["Eerste Divisie 2026"]);
+});
+
+test("sin año, la clave es la liga a secas", () => {
+  const procedencias = ligasDeBases([base("Maldonado enero.xlsx")]);
+  const [fila] = origenPorFila([{ "Data sources": "Maldonado enero.xlsx" }], procedencias);
+  assert.deepEqual(fila.claves, ["Maldonado enero.xlsx"]);
+});

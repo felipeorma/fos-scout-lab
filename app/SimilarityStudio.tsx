@@ -1,4 +1,5 @@
 "use client";
+import { Interruptor } from "./Interruptor";
 
 import { type CSSProperties, type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDownToLine, Printer, RotateCcw, Search, Sparkles, Upload } from "./Icons";
@@ -41,7 +42,7 @@ type SimilarityStudioProps = {
    * competición a quién se elige —objetivo y candidatos— y medir los
    * percentiles contra la propia liga.
    */
-  procedenciaPorFila?: Array<{ ligas: string[]; anios: number[] }> | null;
+  procedenciaPorFila?: Array<{ ligas: string[]; anios: number[]; claves?: string[] }> | null;
   targets: TargetOption[];
   theme: ReportTheme;
   targetProfile: TransfermarktProfile;
@@ -596,8 +597,13 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
    * de la MLS salen iguales sin serlo—.
    */
   const [baseDePercentiles, setBaseDePercentiles] = useState<"combinado" | "liga">("combinado");
+  /* Para MEDIR se usa la clave liga+año, no la liga sola: si no, dos
+     temporadas de la misma competición caerían en el mismo grupo y comparar a
+     un jugador con su propia versión del año pasado los mediría a los dos
+     contra la mezcla. Los FILTROS siguen usando liga y año por separado,
+     porque ahí sí se pregunta por una cosa o por la otra. */
   const ligasPorFila = useMemo(
-    () => (procedenciaPorFila ? procedenciaPorFila.map((x) => x.ligas) : null),
+    () => (procedenciaPorFila ? procedenciaPorFila.map((x) => x.claves ?? x.ligas) : null),
     [procedenciaPorFila],
   );
   const porLiga = baseDePercentiles === "liga" && ligasPorFila?.length ? { ligasPorFila } : null;
@@ -1140,13 +1146,22 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
           <label><span>{ligasDelFondo.length > 1 ? t("3 · Club") : t("1 · Club")}</span><select value={selectedTargetTeam} onChange={(event) => chooseTargetTeam(event.target.value)}>{targetTeams.map((team) => <option key={team || "__sin_equipo__"} value={team}>{team || t("Equipo no disponible")}</option>)}</select></label>
           <label><span>{ligasDelFondo.length > 1 ? t("4 · Jugador") : t("2 · Jugador")}</span><select value={selectedIndex} onChange={(event) => chooseTarget(Number(event.target.value))}>{targetPlayers.map((target) => <option key={`${target.index}-${target.player}`} value={target.index}>{target.player}</option>)}</select></label>
         </div>
-        {ligasPorFila?.length ? <label className="similarity-base-modo">
+        {/* Con más de una liga o año cargados hay dos preguntas posibles y
+            conviene cambiar entre ellas de un golpe: "quién produce lo mismo"
+            (todo junto) y "quién hace el mismo papel en su contexto" (cada uno
+            contra los suyos). La segunda es la que permite comparar al mismo
+            jugador en dos temporadas: cada Messi contra los delanteros de SU
+            año, y no contra la mezcla de los dos. */}
+        {ligasPorFila?.length ? <div className="similarity-base-modo">
           <span>{t("5 · Medir contra")}</span>
-          <select value={baseDePercentiles} onChange={(event) => setBaseDePercentiles(event.target.value as "combinado" | "liga")}>
-            <option value="combinado">{t("Todas las ligas juntas")}</option>
-            <option value="liga">{t("Su propia liga")}</option>
-          </select>
-        </label> : null}
+          <Interruptor
+            activo={baseDePercentiles === "liga"}
+            onCambio={(porSuLiga) => setBaseDePercentiles(porSuLiga ? "liga" : "combinado")}
+            etiquetaApagado={t("Todo junto")}
+            etiquetaEncendido={t("Su liga y su año")}
+            titulo={t("Contra quién se calculan los percentiles")}
+          />
+        </div> : null}
         <div className="similarity-model-badge"><Sparkles size={16} /><span>
           <b>{porLiga ? t("PARECIDO DE ROL") : t("BASELINE ESTADÍSTICO")}</b>
           <small>{porLiga ? t("Cada uno contra su liga") : t("Percentiles + contexto de edad y rol")}</small>

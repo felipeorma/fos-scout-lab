@@ -63,11 +63,25 @@ export function origenPorFila(rows: DataRow[], procedencias: Procedencia[]) {
     const fuentes = String(fila["Data sources"] ?? "");
     const ligas: string[] = [];
     const anios: number[] = [];
+    /*
+     * Las claves llevan liga Y año juntos, no por separado.
+     *
+     * Los filtros preguntan por una cosa o por la otra —"de la Eerste
+     * Divisie", "de 2025"— y para eso valen las dos listas. Pero medir los
+     * percentiles "contra los suyos" necesita el par exacto: con la Eerste
+     * Divisie 2025 y la 2026 cargadas, agrupar solo por liga mete las dos
+     * temporadas en el mismo saco, y entonces comparar a un jugador de 2025
+     * con su versión de 2026 los mide contra la mezcla en vez de contra sus
+     * respectivos rivales, que es justo lo que se quería evitar.
+     */
+    const claves: string[] = [];
     for (const procedencia of procedencias) {
       if (!procedencia.archivos.some((archivo) => fuentes.includes(archivo))) continue;
       if (!ligas.includes(procedencia.liga)) ligas.push(procedencia.liga);
       if (procedencia.anio && !anios.includes(procedencia.anio)) anios.push(procedencia.anio);
+      const clave = procedencia.anio ? `${procedencia.liga} ${procedencia.anio}` : procedencia.liga;
+      if (!claves.includes(clave)) claves.push(clave);
     }
-    return { ligas, anios };
+    return { ligas, anios, claves };
   });
 }

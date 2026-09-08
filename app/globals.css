@@ -2968,3 +2968,85 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
 .app-shell .datos-lista tr.apagada > td:not(.datos-encendido) { opacity: .42; }
 .app-shell .datos-lista-ayuda { margin: 0 0 var(--sp-3); max-width: 74ch; color: var(--muted); font-size: var(--ui-micro); line-height: 1.55; }
 .app-shell .datos-quitar > button:hover { border-color: rgba(228,112,94,.5); color: #e4a99e; background: rgba(228,112,94,.08); }
+
+/* =====================================================================
+   Tema claro: el contraste, resuelto de raíz
+   =====================================================================
+
+   El chrome llevaba el color del texto escrito a mano en 141 reglas —#dce4f2,
+   #eaf2f0, blancos translúcidos— porque durante años solo existió el tema
+   oscuro. Sobre papel eso es texto blanco sobre blanco. Ir regla por regla no
+   acaba nunca y deja huecos: cada pantalla nueva vuelve a traerlos.
+
+   Se resuelve al revés: dentro del tema claro, el texto corriente del chrome
+   HEREDA del contenedor, que sí conoce el tema. Así una regla cubre las 141 y
+   también las que se escriban mañana.
+
+   Quedan fuera, a propósito:
+   - el informe impreso, que se compone sobre papel blanco y ya tiene su tema;
+   - lo que se apoya en fondo de color (botón primario, etapa activa, chips
+     encendidos), donde el blanco es el color correcto. */
+.app-shell[data-tema="claro"] :is(.topbar, .control-panel, .report-page-tabs, .datos-page,
+  .rank-page, .pool-page, .context-page, .similarity-studio, .runs-page, .filtros-barra,
+  .datos-barra, .landing-hero, .database-choice, .datos-accion, .studio-flow)
+  :is(b, i, u, em, small, span, p, label, td, th, li, h1, h2, h3, h4, output, figcaption) {
+  color: inherit;
+}
+
+/* Lo que sí va sobre color: ahí el blanco es lo correcto. */
+.app-shell[data-tema="claro"] .button.primary,
+.app-shell[data-tema="claro"] .button.primary *,
+.app-shell[data-tema="claro"] .studio-flow li.current > span,
+.app-shell[data-tema="claro"] .studio-flow li.done > span,
+.app-shell[data-tema="claro"] .espacio-switch button.active,
+.app-shell[data-tema="claro"] .studio-brand-mark,
+.app-shell[data-tema="claro"] .report-page-tabs button.active > b { color: #fff; }
+.app-shell[data-tema="claro"] .report-page-tabs button.active > b { color: var(--ink); }
+
+/* Los contenedores tienen que declarar su color para que heredar signifique
+   algo; varios solo lo tenían en el tema oscuro. */
+.app-shell[data-tema="claro"] .topbar,
+.app-shell[data-tema="claro"] .control-panel,
+.app-shell[data-tema="claro"] .report-page-tabs,
+.app-shell[data-tema="claro"] .datos-page,
+.app-shell[data-tema="claro"] .rank-page,
+.app-shell[data-tema="claro"] .pool-page,
+.app-shell[data-tema="claro"] .context-page,
+.app-shell[data-tema="claro"] .similarity-studio,
+.app-shell[data-tema="claro"] .runs-page,
+.app-shell[data-tema="claro"] .filtros-barra,
+.app-shell[data-tema="claro"] .datos-barra,
+.app-shell[data-tema="claro"] .landing-hero { color: var(--ink); }
+
+/* Lo secundario se distingue por tono, no por opacidad sobre negro. */
+.app-shell[data-tema="claro"] :is(.filtros-barra, .datos-page, .rank-page, .pool-page,
+  .context-page, .similarity-studio, .control-panel, .datos-barra, .landing-hero)
+  :is(small, .datos-lista th, .tab-grupo-nombre, .datos-lista-titulo, .datos-lista-ayuda) {
+  color: var(--muted);
+}
+
+/* Los colores que SÍ son intencionados van después de la regla de herencia y
+   con más peso, porque aquélla es deliberadamente amplia: cubre las 141
+   reglas heredadas del tema oscuro, y sin esto se llevaría por delante los
+   estados que sí quieren su propio color. */
+.app-shell .interruptor > .interruptor-lado:first-of-type,
+.app-shell .interruptor.on > .interruptor-lado:last-of-type { color: var(--ink); font-weight: 800; }
+.app-shell .interruptor.on > .interruptor-lado:first-of-type,
+.app-shell .interruptor:not(.on) > .interruptor-lado:last-of-type { color: var(--muted); font-weight: 600; }
+
+.app-shell[data-tema="claro"] .report-page-tabs button > b { color: var(--ink); }
+.app-shell[data-tema="claro"] .report-page-tabs button > small,
+.app-shell[data-tema="claro"] .tab-grupo-nombre { color: var(--muted); }
+.app-shell[data-tema="claro"] .datos-cifra > b { color: var(--acento, var(--ink)); }
+.app-shell[data-tema="claro"] .filtros-barra-cola > b { color: var(--acento, var(--ink)); }
+.app-shell[data-tema="claro"] .button.secondary,
+.app-shell[data-tema="claro"] .datos-conectar,
+.app-shell[data-tema="claro"] .api-connect-button { color: var(--ink); border-color: var(--line); }
+.app-shell[data-tema="claro"] .privacy-pill { color: var(--muted); }
+.app-shell[data-tema="claro"] .rank-list > li > b { color: var(--ink); }
+.app-shell[data-tema="claro"] .rank-list > li > b > u,
+.app-shell[data-tema="claro"] .rank-nombre small { color: var(--muted); }
+
+/* El interruptor de "medir contra" necesita aire y una etiqueta encima. */
+.app-shell .similarity-base-modo { display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-1); }
+.app-shell .similarity-base-modo > span { color: var(--muted); font-size: var(--ui-micro); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
