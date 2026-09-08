@@ -3697,3 +3697,65 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
 /* Y las cabeceras de los paneles, que heredaban un blanco del tema oscuro. */
 .app-shell :is(.similarity-weight-panel, .similarity-filter-panel, .similarity-ranking-card) :is(h2, b) { color: var(--ink); }
 .app-shell :is(.similarity-weight-panel, .similarity-filter-panel) :is(span, small, p) { color: var(--muted); }
+
+/* =====================================================================
+   Navegación lateral
+   =====================================================================
+   La navegación era una tira horizontal de nueve destinos repartidos en
+   cuatro grupos, y por eso ocupaba todo el ancho y aun así recortaba los
+   últimos. Una tira horizontal funciona con tres o cuatro destinos; con
+   nueve deja de leerse y obliga a buscar.
+
+   Pasa a columna, que es el patrón de iPadOS y macOS para exactamente este
+   caso: secciones con nombre, destinos apilados debajo, el activo marcado
+   con un fondo y no con un borde. Cabe entera sin recortar, los grupos se
+   leen como lo que son, y el contenido gana el ancho que antes gastaba la
+   tira.
+
+   Por debajo de 1100px vuelve a ser tira horizontal: en una pantalla
+   estrecha una columna fija se come el contenido. */
+@media (min-width: 1100px) {
+  .app-shell .report-page-tabs {
+    position: fixed;
+    inset: 74px auto 0 0;
+    z-index: 30;
+    width: 236px;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--sp-4);
+    padding: var(--sp-4) var(--sp-3);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border: 0;
+    border-right: 1px solid var(--linea);
+    border-radius: 0;
+    box-shadow: none;
+    background: color-mix(in srgb, var(--canvas) 82%, transparent);
+    backdrop-filter: blur(24px) saturate(1.4);
+  }
+  .app-shell .report-page-tabs .tab-grupo {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1px;
+  }
+  .app-shell .report-page-tabs .tab-grupo-nombre {
+    padding: 0 var(--sp-3) var(--sp-2);
+    writing-mode: horizontal-tb;
+    transform: none;
+  }
+  .app-shell .report-page-tabs button {
+    width: 100%;
+    justify-content: flex-start;
+    text-align: left;
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--r-control);
+  }
+  .app-shell .report-page-tabs button > b { display: block; }
+  .app-shell .report-page-tabs button > small { display: block; }
+
+  /* El contenido se corre para dejarle sitio. */
+  .app-shell .page-content { padding-left: 236px; }
+  .app-shell .topbar { padding-left: var(--sp-4); }
+}
