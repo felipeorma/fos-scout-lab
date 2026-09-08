@@ -30,6 +30,7 @@ import { LOGOS_PLATAFORMA, LogoPlataforma } from "./LogosPlataforma";
 import { ligasDeBases, origenPorFila } from "@/lib/procedencia";
 import { ProveedorDeBase, useEstadoDeBase } from "./BaseActiva";
 import { BarraDeFiltros } from "./BarraDeFiltros";
+import { DatosPage } from "./DatosPage";
 import {
   aggregateDatasets,
   buildPlayerReport,
@@ -68,6 +69,10 @@ const RUNS_PAGE = 92;
 const RANK_PAGE = 94;
 // Buscador entre ligas de la API: fondo multi-competición.
 const POOL_PAGE = 95;
+// La base activa: qué hay cargado y cómo cambiarlo. Cargar ligas estaba
+// repartido en tres botones distintos —la portada, "Conectar API" y
+// "Reemplazar archivos"— y cada uno hacía una parte; ahora es una etapa.
+const DATA_PAGE = 96;
 /**
  * Quién firma el informe. Hay una firma guardada por encargo —Cavalry y
  * Maldonado son clientes distintos y no se firman igual— más una temporal
@@ -1511,7 +1516,7 @@ export default function ScoutStudio() {
                 ))}
                 {plataformas.size > 1 && <span className="datos-enlace">{tf("{n} plataformas enlazadas", { n: plataformas.size })}</span>}
                 <small>{tf("{n} jugadores · {b} base(s)", { n: reportRows.length, b: reportSourceCount })}</small>
-                <button type="button" className="datos-conectar" onClick={() => void openApiDialog()}>{t("Conectar API")}</button>
+                <button type="button" className="datos-conectar" onClick={() => setReportPage(DATA_PAGE)}>{t("Cargar o cambiar datos")}</button>
               </div>
 
               {/* En Maldonado hay un solo destino: una barra con una pestaña
@@ -1519,7 +1524,13 @@ export default function ScoutStudio() {
               {espacio === "cavalry" && <nav className="report-page-tabs" aria-label={t("Secciones")}>
                 <>
                   <div className="tab-grupo">
-                    <span className="tab-grupo-nombre">{t("Explorar")}</span>
+                    <span className="tab-grupo-nombre">{t("1 · Datos")}</span>
+                    <button className={reportPage === DATA_PAGE ? "active" : ""} onClick={() => setReportPage(DATA_PAGE)}>
+                      <b>{t("Base activa")}</b><small>{tf("{n} jugadores", { n: reportRows.length })}</small>
+                    </button>
+                  </div>
+                  <div className="tab-grupo">
+                    <span className="tab-grupo-nombre">{t("2 · Explorar")}</span>
                     <button className={reportPage === RANK_PAGE ? "active" : ""} onClick={() => setReportPage(RANK_PAGE)}>
                       <b>{t("Ranking")}</b><small>{t("Los mejores por puesto")}</small>
                     </button>
@@ -1528,7 +1539,7 @@ export default function ScoutStudio() {
                     </button>
                   </div>
                   <div className="tab-grupo">
-                    <span className="tab-grupo-nombre">{t("Analizar")}</span>
+                    <span className="tab-grupo-nombre">{t("3 · Jugador")}</span>
                     <button className={reportPage === CONTEXT_PAGE ? "active" : ""} onClick={() => setReportPage(CONTEXT_PAGE)}>
                       <b>{t("Contexto")}</b><small>{t("Dónde destaca y por qué")}</small>
                     </button>
@@ -1537,7 +1548,7 @@ export default function ScoutStudio() {
                     </button>
                   </div>
                   <div className="tab-grupo">
-                    <span className="tab-grupo-nombre">{t("Reportar")}</span>
+                    <span className="tab-grupo-nombre">{t("4 · Reporte")}</span>
                     <button className={reportPage === CARD_PAGE ? "active" : ""} onClick={() => setReportPage(CARD_PAGE)}>
                       <b>{t("Ficha y radar")}</b><small>{t("Percentiles del jugador")}</small>
                     </button>
@@ -1562,10 +1573,10 @@ export default function ScoutStudio() {
               {(printRun ? printRun.includes(1) : reportPage === 1) ? <div className="report-workspace">
                 <section className="control-panel enrichment-controls">
                   <div className="panel-title"><div><span className="mini-icon"><FileSpreadsheet size={17} /></span><div><h2>{t("1. Base de datos activa")}</h2><p>{tDefault(reportFileName)}</p></div></div><span className="tiny-state">{t("LISTO")}</span></div>
-                  <button className="upload-box compact" onClick={() => reportInputRef.current?.click()} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); onReportFiles(event.dataTransfer.files); }}>
+                  <button className="upload-box compact" onClick={() => setReportPage(DATA_PAGE)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); onReportFiles(event.dataTransfer.files); }}>
                     <span className="upload-icon"><Upload size={18} /></span><span><b>{reportLoading ? t("Leyendo bases…") : t("Reemplazar archivos")}</b><small>{tf("{n} base{s} · {m} jugadores", { n: reportSourceCount, s: reportSourceCount === 1 ? "" : "s", m: reportRows.length })}</small></span>
                   </button>
-                  <button className="api-connect-button" onClick={() => void openApiDialog()}><Sparkles size={14} /> {t("Conectar API")} · StatsBomb / SkillCorner</button>
+                  <button className="api-connect-button" onClick={() => setReportPage(DATA_PAGE)}><Sparkles size={14} /> {t("Cargar o cambiar datos")} · StatsBomb / SkillCorner</button>
                   {reportError && <div className="inline-error">{reportError}</div>}
                   <div className="control-divider" />
                   <div className="panel-title player-section-title"><div><span className="mini-icon"><Search size={17} /></span><div><h2>{t("2. Equipo y jugador")}</h2><p>{t("Selecciona en orden")}</p></div></div></div>
@@ -1709,6 +1720,14 @@ export default function ScoutStudio() {
               )}
               {paginaMontada(RUNS_PAGE) && (
                 <div className={claseHoja(RUNS_PAGE)}><RunsPage /></div>
+              )}
+              {paginaMontada(DATA_PAGE) && (
+                <div className={claseHoja(DATA_PAGE)}><DatosPage
+                  cargando={reportLoading}
+                  onCargarTodo={() => void cargarTodasLasLigas()}
+                  onSubirArchivo={() => reportInputRef.current?.click()}
+                  onConectarApi={() => void openApiDialog()}
+                /></div>
               )}
               {report && paginaMontada(RANK_PAGE) && (
                 <div className={claseHoja(RANK_PAGE)}><RankingPage onSelectPlayer={(indice) => { selectPlayer(indice); setReportPage(CARD_PAGE); }} /></div>

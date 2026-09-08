@@ -2575,3 +2575,31 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
 .filtros-barra-cola > b { color: var(--acento-claro, var(--pl-ink)); font-size: 11px; font-variant-numeric: tabular-nums; }
 .filtros-barra-cola > button { padding: 5px 10px; border: 1px solid var(--acento-borde, rgba(255,255,255,.2)); border-radius: 999px; background: var(--acento-suave, rgba(255,255,255,.06)); color: var(--acento-claro, inherit); font-family: inherit; font-size: 9px; cursor: pointer; }
 @media print { .filtros-barra { display: none !important; } }
+
+/* Etapa 1 · Datos: el inventario de lo cargado y las tres formas de cambiarlo. */
+.datos-page { max-width: 940px; }
+.datos-page > header > h2 { margin: 0 0 6px; font-size: 20px; }
+.datos-page > header > p { margin: 0 0 20px; max-width: 62ch; color: var(--pl-dim); font-size: 10px; line-height: 1.6; }
+.datos-resumen { display: flex; flex-wrap: wrap; align-items: center; gap: 26px; margin-bottom: 18px; padding: 16px 18px; border: 1px solid rgba(255,255,255,.08); border-radius: 12px; background: rgba(255,255,255,.025); }
+.datos-cifra { display: flex; flex-direction: column; gap: 2px; }
+.datos-cifra > b { color: var(--acento-claro, var(--pl-ink)); font-size: 22px; font-variant-numeric: tabular-nums; line-height: 1; }
+.datos-cifra > span { color: var(--pl-dim); font-size: 8px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.datos-plataformas { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.datos-lista { margin-bottom: 22px; }
+.datos-lista-titulo { display: block; margin-bottom: 8px; color: var(--pl-dim); font-size: 7.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.datos-lista table { width: 100%; border-collapse: collapse; font-size: 10px; }
+.datos-lista th { padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,.1); color: var(--pl-dim); font-size: 7.5px; font-weight: 700; letter-spacing: .08em; text-align: left; text-transform: uppercase; }
+.datos-lista td { padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,.045); }
+.datos-origen { display: flex; gap: 4px; }
+.datos-origen .logo-plataforma { border-radius: 3px; }
+.datos-vacio { margin: 0 0 22px; padding: 14px 16px; border: 1px dashed rgba(255,255,255,.16); border-radius: 10px; color: var(--pl-dim); font-size: 10px; }
+.datos-acciones { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.datos-accion { display: flex; flex-direction: column; align-items: flex-start; gap: 7px; padding: 18px; border: 1px solid rgba(255,255,255,.1); border-radius: 12px; background: rgba(255,255,255,.02); color: inherit; font-family: inherit; text-align: left; cursor: pointer; transition: border-color .15s, background .15s; }
+.datos-accion:hover:not(:disabled) { border-color: var(--acento-borde, rgba(255,255,255,.3)); background: var(--acento-suave, rgba(255,255,255,.05)); }
+.datos-accion:disabled { opacity: .5; cursor: wait; }
+.datos-accion.destacada { border-color: var(--acento-borde, rgba(255,255,255,.28)); background: var(--acento-suave, rgba(255,255,255,.05)); }
+.datos-accion-icono { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 10px; background: var(--acento-suave, rgba(255,255,255,.08)); color: var(--acento-claro, inherit); }
+.datos-accion > b { font-size: 12px; }
+.datos-accion > small { color: var(--pl-dim); font-size: 9px; line-height: 1.5; }
+.datos-cargando { display: flex; align-items: center; gap: 7px; margin-top: 14px; color: var(--acento-claro, inherit); font-size: 10px; }
+@media print { .datos-page { display: none !important; } }
