@@ -2697,3 +2697,120 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
 @media (prefers-reduced-motion: reduce) {
   .app-shell * { transition-duration: .01ms !important; animation-duration: .01ms !important; }
 }
+
+/* ---- El resto del chrome, a la misma escala ----------------------------
+   Estas eran las que quedaban por debajo del umbral: etiquetas de sección,
+   pestañas, portada y paneles laterales. Se suben por selector y no con una
+   regla general, para no arrastrar al informe impreso, que comparte algunos
+   nombres de clase. */
+.app-shell .tab-api,
+.app-shell .database-choice-tag,
+.app-shell .landing-stats,
+.app-shell .asset-source-heading,
+.app-shell .asset-source-name,
+.app-shell .season-source,
+.app-shell .theme-swatches,
+.app-shell .add-block-buttons,
+.app-shell .recipient-editor-head,
+.app-shell .recipient-link-status,
+.app-shell .profile-field-grid > label > span,
+.app-shell .studio-flow li small,
+.app-shell .panel-title p { font-size: var(--ui-micro); }
+
+.app-shell .report-page-tabs button > small,
+.app-shell .datos-chip,
+.app-shell .upload-box small,
+.app-shell .studio-flow li b { font-size: var(--ui-label); }
+
+.app-shell .report-page-tabs button > b,
+.app-shell .panel-title h2,
+.app-shell .database-choice > small { font-size: var(--ui-body); }
+
+.app-shell .database-choice > b { font-size: var(--ui-lead); }
+
+/* Las pestañas son lo más pinchado de la interfaz: merecen sitio. */
+.app-shell .report-page-tabs button { min-height: var(--toque); padding: var(--sp-2) var(--sp-3); border-radius: var(--radio-sm); transition: background var(--transicion), color var(--transicion); }
+.app-shell .tab-grupo { gap: var(--sp-1); }
+
+/* Portada: una sola acción primaria y aire alrededor, que es lo que pedía
+   el sistema. Las tres tarjetas ya no compiten en peso. */
+.app-shell .database-choice { padding: var(--sp-5); border-radius: var(--radio-lg); gap: var(--sp-2); transition: border-color var(--transicion), background var(--transicion), transform var(--transicion); }
+.app-shell .database-choice:hover:not(:disabled) { transform: translateY(-2px); }
+.app-shell .database-choice.featured { border-color: var(--acento-borde, rgba(255,255,255,.3)); }
+
+/* Panel lateral: mismo ritmo que el resto. */
+.app-shell .control-panel { padding: var(--sp-4); border-radius: var(--radio-md); }
+.app-shell .upload-box { min-height: var(--toque); border-radius: var(--radio-sm); }
+.app-shell .field-group > .select-wrap > select,
+.app-shell .field-group > .select-wrap > input,
+.app-shell .field-group input[type="number"],
+.app-shell .field-group input[type="text"] { min-height: var(--toque); font-size: var(--ui-body); border-radius: var(--radio-sm); }
+
+/* Portada: una acción primaria, dos alternativas.
+   La rejilla de dos columnas dejaba las tres tarjetas en 2+1, con un hueco
+   suelto abajo, y las tres pesaban igual. Ahora la recomendada ocupa el
+   ancho y va delante; las otras dos van debajo, a la mitad, como lo que
+   son: los casos particulares. */
+.app-shell .database-choice-grid { max-width: 760px; grid-template-columns: 1fr 1fr; gap: var(--sp-3); }
+.app-shell .database-choice.featured { grid-column: 1 / -1; min-height: 0; }
+.app-shell .database-choice.featured > b { font-size: var(--ui-title); letter-spacing: -.01em; }
+.app-shell .database-choice.featured > small { max-width: 58ch; }
+.app-shell .database-choice:not(.featured) { min-height: 0; }
+.app-shell .database-choice > em { min-height: var(--toque); display: inline-flex; align-items: center; gap: var(--sp-1); font-size: var(--ui-label); font-style: normal; }
+@media (max-width: 760px) {
+  .app-shell .database-choice-grid { grid-template-columns: 1fr; }
+}
+
+/* ---- Similitud, contexto, ranking y carreras: los controles ------------
+   Solo lo que NO se imprime. La hoja de similitud comparte prefijo con su
+   panel de trabajo —.similarity-comparison-card y .similarity-metric-head
+   van dentro del PDF— así que la subida va selector a selector y no por
+   prefijo, que se habría llevado la maquetación del informe por delante. */
+.app-shell .similarity-filter-panel label > span,
+.app-shell .similarity-panel-title small,
+.app-shell .similarity-target-bar label > span,
+.app-shell .similarity-base-modo > span,
+.app-shell .ctx-toolbar .tab-grupo-nombre,
+.app-shell .ctx-source,
+.app-shell .ctx-picker button,
+.app-shell .ctx-ligas > span,
+.app-shell .rank-filters label > span,
+.app-shell .runs-controls label > span { font-size: var(--ui-micro); }
+
+.app-shell .similarity-filter-panel input,
+.app-shell .similarity-filter-panel select,
+.app-shell .similarity-target-bar select,
+.app-shell .ctx-controls select,
+.app-shell .ctx-controls input,
+.app-shell .rank-filters select,
+.app-shell .rank-filters input,
+.app-shell .runs-controls select,
+.app-shell .runs-controls input,
+.app-shell .rank-list > li,
+.app-shell .ctx-ligas > button,
+.app-shell .runs-estado { font-size: var(--ui-body); }
+
+.app-shell .similarity-panel-title b,
+.app-shell .rank-page header h2,
+.app-shell .pool-page header h2,
+.app-shell .context-page header h2 { font-size: var(--ui-title); letter-spacing: -.01em; }
+
+/* Altura de lo que se pincha, también aquí. */
+.app-shell .similarity-filter-panel input,
+.app-shell .similarity-filter-panel select,
+.app-shell .similarity-target-bar select,
+.app-shell .ctx-controls select,
+.app-shell .ctx-controls input,
+.app-shell .rank-filters select,
+.app-shell .rank-filters input,
+.app-shell .runs-controls select,
+.app-shell .runs-controls input { min-height: var(--toque); border-radius: var(--radio-sm); }
+.app-shell .ctx-picker button,
+.app-shell .ctx-source button,
+.app-shell .rank-tabs button,
+.app-shell .ctx-ligas > button { min-height: 30px; border-radius: var(--radio-pill); padding: 0 var(--sp-3); }
+
+/* Las filas del ranking respiran: eran 5px de alto útil por fila. */
+.app-shell .rank-list > li { padding: var(--sp-2) var(--sp-2); gap: var(--sp-3); }
+.app-shell .pool-resultado td,
+.app-shell .pool-resultado th { padding: var(--sp-2) var(--sp-3); font-size: var(--ui-body); }
