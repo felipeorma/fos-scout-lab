@@ -5,6 +5,7 @@ import { rankingDeCohorte } from "@/lib/ranking";
 import { PERFILES } from "@/lib/perfiles";
 import { useBaseActiva } from "./BaseActiva";
 import { BarraDeFiltros } from "./BarraDeFiltros";
+import { Paso } from "./Paso";
 import { t, tf } from "@/lib/i18n";
 import { rankingPorArquetipo } from "@/lib/arquetipos";
 
@@ -87,10 +88,10 @@ export function RankingPage({ onSelectPlayer }: {
       </div>
     </header>
 
-    {/* La red de filtros es la compartida: el puesto se queda aparte porque
-        aquí no acota, decide QUÉ ranking se calcula. */}
-    <BarraDeFiltros campos={["liga", "anio", "equipo", "pasaporte", "minutos", "edad"]} resultado={visibles.length} />
-
+    {/* El puesto va primero porque es la primera decisión: primero eliges
+        qué ranking miras y sólo después lo estrechas. Estaba detrás de los
+        filtros, que es el orden inverso al que se usa. */}
+    <Paso numero={1}>Qué puesto miras</Paso>
     <div className="rank-filters">
       <label><span>{t("Posición")}</span>
         <select value={perfil} onChange={(event) => setPerfil(event.target.value)}>
@@ -102,6 +103,10 @@ export function RankingPage({ onSelectPlayer }: {
         <button type="button" className={vista === "arquetipos" ? "on" : ""} onClick={() => setVista("arquetipos")}>{t("Por arquetipo")}</button>
       </div>
     </div>
+
+    <Paso numero={2}>Entre quiénes lo buscas</Paso>
+    <BarraDeFiltros campos={["liga", "anio", "equipo", "pasaporte", "minutos", "edad"]} resultado={visibles.length} />
+
 
     {hayCoberturaDesigual && <p className="rank-cobertura">
       {t("El índice está corregido por cobertura: no todas las ligas traen las mismas métricas —sólo algunas tienen SkillCorner encima— y quien se mide con menos da un número más inestable, que asomaba en la cima más de lo que le tocaba. El ajuste acerca a la media a quien se apoya en poco, hasta que haya con qué separarlo de ella. El número pequeño de al lado es el índice sin corregir.")}

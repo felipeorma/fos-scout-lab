@@ -1,5 +1,6 @@
 "use client";
 import { Interruptor } from "./Interruptor";
+import { Paso } from "./Paso";
 import { colorContrastante } from "@/lib/colores";
 import { PERFILES_FILTRO } from "@/lib/perfiles";
 
@@ -660,7 +661,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
   const [backgroundOriginals, setBackgroundOriginals] = useState<Record<string, string>>({});
   const [profileStatus, setProfileStatus] = useState<Record<ProfileSide, string>>({ target: "", candidate: "" });
   const [targetColorChoice, setTargetColorChoice] = useState("");
-  const [candidateColorChoice, setCandidateColorChoice] = useState("#e95b3f");
+  const [candidateColorChoice, setCandidateColorChoice] = useState("#ff0000");
   const [targetLabelColorChoice, setTargetLabelColorChoice] = useState("");
   const [candidateLabelColorChoice, setCandidateLabelColorChoice] = useState("");
   const [targetLabelTransparency, setTargetLabelTransparency] = useState(82);
@@ -757,8 +758,20 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
   const candidateProfile = candidateProfileKey === activeCandidateKey
     ? candidateProfileState
     : (selectedCandidate && typeof window !== "undefined" ? loadStoredProfile(selectedCandidate) : candidateProfileSeed(selectedCandidate));
-  const targetColor = targetColorChoice || theme.accent;
-  const candidateColor = candidateColorChoice || colorContrastante(targetColor);
+  /*
+   * Negro el objetivo y rojo puro el comparado, por decisión de dirección.
+   *
+   * Es además el par con más separación posible en un radar de dos áreas:
+   * uno no tiene tono y el otro lo tiene saturado al máximo, así que se
+   * distinguen impresos en escala de grises y con cualquier daltonismo. Lo
+   * que había antes —el acento del cliente contra un naranja rojizo fijo—
+   * daba rojo contra rojo a diez grados de tono con Cavalry.
+   *
+   * `colorContrastante` sigue en pie para cuando se elige a mano el color del
+   * objetivo: entonces el del comparado se recalcula contra ése.
+   */
+  const targetColor = targetColorChoice || "#111111";
+  const candidateColor = candidateColorChoice || (targetColorChoice ? colorContrastante(targetColor) : "#ff0000");
   const targetLabelColor = targetLabelColorChoice || targetColor;
   const candidateLabelColor = candidateLabelColorChoice || candidateColor;
   const paletteColors = useMemo(() => [...new Set([theme.accent, theme.dark, ...PLAYER_PALETTE])], [theme.accent, theme.dark]);
@@ -1143,7 +1156,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
       <h2>{t("Este jugador no se puede comparar")}</h2>
       <p>{t("No llega al mínimo de minutos, o su base no trae suficientes métricas de su puesto. Baja el mínimo de minutos o elige a otro jugador.")}</p>
     </section> : !rows.length || !search ? <section className="dataset-onboarding similarity-empty"><span className="dataset-step">{t("SECCIÓN DE SIMILITUD")}</span><span className="dataset-icon"><Search size={30} /></span><h2>{t("Primero carga una base de datos")}</h2><p>{t("La comparación usa la base activa, ya sea una liga, temporada o combinación.")}</p><button className="button primary" onClick={onOpenReports}>{t("Ir a cargar datos")}</button></section> : <>
-      <p className="similarity-paso"><b>{t("Paso 1")}</b> {t("A quién te quieres parecer")}</p>
+      <Paso numero={1}>A quién te quieres parecer</Paso>
       <section className="similarity-target-bar">
         <div className="similarity-target-copy"><span>{t("JUGADOR OBJETIVO")}</span><b>{search.target.player}</b><small>{tf("{team} · {pos} · {age} años", { team: search.target.team, pos: search.target.position, age: search.target.age })}</small></div>
         <div className="similarity-target-selectors">
@@ -1194,7 +1207,35 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
         {t("Cada jugador se mide contra los de SU liga en su puesto, no contra los de todas. Eso responde a “quién hace el mismo papel donde juega”, pero esconde el nivel: un percentil 90 de la Canadian Premier League y uno de la MLS salen idénticos y no lo son. Por eso esto es parecido de rol, no parecido a secas. Quedan fuera los jugadores cuya liga no llegue a diez en su puesto, porque ahí un percentil no dice nada.")}
       </p>}
 
-      <p className="similarity-paso"><b>{t("Paso 2")}</b> {t("Dónde buscas, y quién sale")}</p>
+      <Paso numero={2}>Dónde buscas, y quién sale</Paso>
+      {/* La ponderación va aquí, con la búsqueda, porque es parte de ella:
+          cambiar el peso de una métrica cambia QUIÉN sale en la lista. Al
+          final de la página parecía un apéndice del resultado, y antes del
+          paso 1 obligaba a pasar por una herramienta de calibración para
+          llegar a lo que se venía a ver. Sigue plegada: es afinado, no el
+          camino normal. */}
+      <section className={`similarity-weight-panel${pesosVisibles ? "" : " plegado"}`}>
+        <header>
+          <div><span>{t("PONDERACIÓN PERSONALIZADA")}</span><h2>{t("Importancia de las métricas")}</h2>{pesosVisibles && <p>{t("100% mantiene el peso normal. Sube una métrica para que influya más en el ranking o llévala a 0% para excluirla.")}</p>}</div>
+          <div className="weight-panel-actions">
+            <button type="button" className="weight-panel-toggle" onClick={() => cambiarPesosVisibles(!pesosVisibles)}>{pesosVisibles ? t("Ocultar") : t("Mostrar")}</button>
+            {pesosVisibles && <button type="button" onClick={resetMetricWeights} disabled={!activeMetricWeights}><RotateCcw size={14} /> {t("Restablecer pesos")}</button>}
+          </div>
+        </header>
+        {pesosVisibles && <div className="similarity-weight-grid">
+          {search.target.metrics.map((metric) => {
+            const weight = metricWeights[metric.key] ?? 1;
+            const percentage = Math.round(weight * 100);
+            const group = similarityMetricGroup(metric, search.target.cohort);
+            return <label className={weight !== 1 ? "weighted" : ""} style={{ "--metric-weight-color": group.color } as CSSProperties} key={metric.key}>
+              <span><i /><b>{t(metric.label)}</b><output>{percentage === 0 ? t("Sin influencia") : `${percentage}%`}</output></span>
+              <input type="range" min="0" max="300" step="25" value={percentage} onChange={(event) => updateMetricWeight(metric.key, Number(event.target.value))} aria-label={tf("Peso de {m}: {p}%", { m: t(metric.label), p: percentage })} />
+              <small><span>0%</span><span>{t("Neutral 100%")}</span><span>{t("Máx. 300%")}</span></small>
+            </label>;
+          })}
+        </div>}
+      </section>
+
       <div className="similarity-workspace">
         <aside className="similarity-filter-panel">
           <div className="similarity-panel-title"><div><Search size={17} /><span><b>{t("Red de filtros")}</b><small>{tf("{n} coincidencias", { n: candidates.length })}</small></span></div><button onClick={resetFilters} aria-label={t("Restablecer filtros")}><RotateCcw size={14} /></button></div>
@@ -1248,31 +1289,6 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
               {similarityReportPayload && <SimilarityReportMain payload={similarityReportPayload} />}
               {comparisonNote.trim() && <div className="similarity-note-block"><span>{t("Comentarios")}</span><p>{comparisonNote}</p></div>}
               <footer className="dossier-footer similarity-report-footer"><p>{tf("Percentiles P0–P100 · métricas comunes {n}% · {w}.", { n: selectedCandidate.coverage, w: activeMetricWeights ? tf("{n} ponderaciones personalizadas activas", { n: activeMetricWeights }) : t("pesos métricos uniformes") })}</p><div className="report-signatures"><div className="report-author"><span>{t("ELABORADO POR")}</span><b>FELIPE ORMAZABAL</b><small>SCOUTING REPORT</small></div><div className="report-recipient">{recipientLogoReady ? <ReportImage src={recipientLogoUrl.trim()} alt={reportRecipient} className="dossier-footer-club-logo" /> : <span className="dossier-footer-club-fallback">{reportRecipient.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span>}<div><span>{t("REPORTE GENERADO PARA")}</span><b>{reportRecipient}</b></div></div></div></footer>
-              {/* Ajuste avanzado, y por eso va al final y plegado.
-          Estaba entre "elige jugador" y "mira resultados", que es el peor
-          sitio posible: obligaba a pasar por una herramienta de calibración
-          para llegar a lo que se venía a ver. */}
-      <section className={`similarity-weight-panel${pesosVisibles ? "" : " plegado"}`}>
-        <header>
-          <div><span>{t("PONDERACIÓN PERSONALIZADA")}</span><h2>{t("Importancia de las métricas")}</h2>{pesosVisibles && <p>{t("100% mantiene el peso normal. Sube una métrica para que influya más en el ranking o llévala a 0% para excluirla.")}</p>}</div>
-          <div className="weight-panel-actions">
-            <button type="button" className="weight-panel-toggle" onClick={() => cambiarPesosVisibles(!pesosVisibles)}>{pesosVisibles ? t("Ocultar") : t("Mostrar")}</button>
-            {pesosVisibles && <button type="button" onClick={resetMetricWeights} disabled={!activeMetricWeights}><RotateCcw size={14} /> {t("Restablecer pesos")}</button>}
-          </div>
-        </header>
-        {pesosVisibles && <div className="similarity-weight-grid">
-          {search.target.metrics.map((metric) => {
-            const weight = metricWeights[metric.key] ?? 1;
-            const percentage = Math.round(weight * 100);
-            const group = similarityMetricGroup(metric, search.target.cohort);
-            return <label className={weight !== 1 ? "weighted" : ""} style={{ "--metric-weight-color": group.color } as CSSProperties} key={metric.key}>
-              <span><i /><b>{t(metric.label)}</b><output>{percentage === 0 ? t("Sin influencia") : `${percentage}%`}</output></span>
-              <input type="range" min="0" max="300" step="25" value={percentage} onChange={(event) => updateMetricWeight(metric.key, Number(event.target.value))} aria-label={tf("Peso de {m}: {p}%", { m: t(metric.label), p: percentage })} />
-              <small><span>0%</span><span>{t("Neutral 100%")}</span><span>{t("Máx. 300%")}</span></small>
-            </label>;
-          })}
-        </div>}
-      </section>
 
     </section>
 

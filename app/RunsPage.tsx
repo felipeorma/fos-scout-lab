@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Paso } from "./Paso";
 import { t, tf } from "@/lib/i18n";
 import { RepartoCarreras, RunMap, TIPOS_CARRERA } from "./RunMap";
 import {
@@ -165,6 +166,7 @@ export function RunsPage() {
       </div>
     </header>
 
+    <Paso numero={1}>Qué competición y qué equipo</Paso>
     <div className="runs-controls">
       <label><span>{t("Competición")}</span>
         <select value={edicion} onChange={(event) => setEdicion(event.target.value)}>
@@ -188,6 +190,7 @@ export function RunsPage() {
     </div>
 
     {datos && <>
+      <Paso numero={2}>Qué jugador y qué carreras</Paso>
       <div className="runs-controls secundarios">
         <label><span>{t("Jugador")}</span>
           <select value={jugador} onChange={(event) => {

@@ -3053,9 +3053,9 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
 
 /* Los pasos de la similitud: la página tenía cuatro bloques del mismo peso y
    no decía en qué orden se usan. Un rótulo por paso basta para ordenarla. */
-.app-shell .similarity-paso { display: flex; align-items: baseline; gap: var(--sp-2); margin: var(--sp-6) 0 var(--sp-3); color: var(--muted); font-size: var(--ui-label); }
-.app-shell .similarity-paso:first-of-type { margin-top: 0; }
-.app-shell .similarity-paso > b { display: inline-grid; place-items: center; min-width: 54px; min-height: 22px; padding: 0 var(--sp-2); border-radius: var(--radio-pill); background: var(--acento-suave, rgba(255,255,255,.08)); color: var(--acento-claro, var(--ink)); font-size: var(--ui-micro); font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.app-shell .paso-rotulo, .app-shell .similarity-paso { display: flex; align-items: baseline; gap: var(--sp-2); margin: var(--sp-6) 0 var(--sp-3); color: var(--muted); font-size: var(--ui-label); }
+.app-shell .paso-rotulo:first-of-type, .app-shell .similarity-paso:first-of-type { margin-top: 0; }
+.app-shell .paso-rotulo > b, .app-shell .similarity-paso > b { display: inline-grid; place-items: center; min-width: 54px; min-height: 22px; padding: 0 var(--sp-2); border-radius: var(--radio-pill); background: var(--acento-suave, rgba(255,255,255,.08)); color: var(--acento-claro, var(--ink)); font-size: var(--ui-micro); font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .app-shell .similarity-weight-panel { margin-top: var(--sp-6); }
 .app-shell .similarity-weight-panel.plegado { opacity: .75; }
 .app-shell .similarity-weight-panel.plegado:hover { opacity: 1; }
@@ -3098,7 +3098,7 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
 .app-shell[data-tema="claro"] .similarity-table tbody tr:hover { background: rgba(0,0,0,.035); }
 .app-shell[data-tema="claro"] .similarity-model-badge { border-color: var(--line); background: var(--canvas); color: var(--muted); }
 .app-shell[data-tema="claro"] .similarity-weight-grid label { border-color: var(--line); background: var(--canvas); }
-.app-shell[data-tema="claro"] .similarity-paso > b { background: var(--acento-suave, rgba(0,0,0,.06)); }
+.app-shell[data-tema="claro"] .paso-rotulo > b, .app-shell[data-tema="claro"] .similarity-paso > b { background: var(--acento-suave, rgba(0,0,0,.06)); }
 .app-shell[data-tema="claro"] .similarity-results-head,
 .app-shell[data-tema="claro"] .similarity-results-head h2,
 .app-shell[data-tema="claro"] .similarity-results-head b { color: var(--ink); background: var(--paper); }
@@ -3108,3 +3108,42 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
 .app-shell .similarity-rol-metricas { display: flex; flex-direction: column; gap: var(--sp-1); }
 .app-shell .similarity-rol-metricas > span { color: var(--muted); font-size: var(--ui-micro); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .app-shell .similarity-rol-metricas > select { min-height: var(--toque); padding: 0 var(--sp-2); border: 1px solid var(--line); border-radius: var(--radio-sm); background: transparent; color: inherit; font-family: inherit; font-size: var(--ui-body); }
+
+/* ---- Tema claro: las páginas mismas -----------------------------------
+   Ranking, contexto y carreras se pintan sobre un degradado oscuro propio y
+   definen sus tokens de tinta —--rk-ink, --ctx-ink, --brd-ink— fijados a un
+   blanco roto. Sobre papel eso deja una tarjeta negra en medio de la página
+   con el texto invisible. Basta redefinir sus tokens y su fondo: el resto de
+   sus reglas ya los usan. */
+.app-shell[data-tema="claro"] .rank-page,
+.app-shell[data-tema="claro"] .context-page,
+.app-shell[data-tema="claro"] .runs-page,
+.app-shell[data-tema="claro"] .pool-page {
+  --rk-ink: var(--ink); --rk-dim: var(--muted);
+  --ctx-ink: var(--ink); --ctx-dim: var(--muted);
+  --brd-ink: var(--ink); --brd-dim: var(--muted);
+  --pl-ink: var(--ink); --pl-dim: var(--muted);
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+}
+.app-shell[data-tema="claro"] .rank-page > header,
+.app-shell[data-tema="claro"] .runs-page > header,
+.app-shell[data-tema="claro"] .context-page > header { border-color: var(--line); }
+.app-shell[data-tema="claro"] .rank-page h2,
+.app-shell[data-tema="claro"] .pool-page h2,
+.app-shell[data-tema="claro"] .pool-page h3,
+.app-shell[data-tema="claro"] .runs-page h2,
+.app-shell[data-tema="claro"] .context-page h3 { color: var(--ink); }
+.app-shell[data-tema="claro"] .rank-filters select,
+.app-shell[data-tema="claro"] .runs-controls select,
+.app-shell[data-tema="claro"] .runs-controls input,
+.app-shell[data-tema="claro"] .ctx-controls select,
+.app-shell[data-tema="claro"] .ctx-controls input { border-color: var(--line); background: var(--canvas); color: var(--ink); }
+.app-shell[data-tema="claro"] .rank-tabs button,
+.app-shell[data-tema="claro"] .ctx-picker button,
+.app-shell[data-tema="claro"] .ctx-source button { border-color: var(--line); color: var(--muted); }
+.app-shell[data-tema="claro"] .rank-tabs button.on,
+.app-shell[data-tema="claro"] .ctx-picker button.on,
+.app-shell[data-tema="claro"] .ctx-source button.on { color: var(--ink); background: var(--acento-suave, rgba(0,0,0,.06)); }

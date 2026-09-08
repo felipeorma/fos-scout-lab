@@ -7,6 +7,7 @@ import { positionSides } from "@/lib/positions";
 import { buildSimilaritySearch, type SimilarityFilters } from "@/lib/similarity";
 import { useBaseActiva } from "./BaseActiva";
 import { BarraDeFiltros } from "./BarraDeFiltros";
+import { Paso } from "./Paso";
 
 /**
  * Buscador entre ligas: quién se parece a este jugador en todo lo cargado.
@@ -130,6 +131,7 @@ export function PoolPage({ onAbrirJugador }: {
       })}
     </p>}
 
+    <Paso numero={1}>A quién te quieres parecer</Paso>
     <div className="pool-buscar">
       <label><span>{t("Jugador de referencia")}</span>
         <input value={busqueda} placeholder={t("Escribe un nombre…")} onChange={(event) => setBusqueda(event.target.value)} />
@@ -152,6 +154,7 @@ export function PoolPage({ onAbrirJugador }: {
       </label>}
     </div>
 
+    {resultado && <Paso numero={2}>Entre quiénes lo buscas</Paso>}
     {resultado && <BarraDeFiltros campos={["liga", "anio", "equipo", "pasaporte", "minutos", "edad"]} resultado={ordenados.length} />}
 
     {resultado && <div className="pool-resultado">
