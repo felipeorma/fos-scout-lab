@@ -2814,3 +2814,37 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
 .app-shell .rank-list > li { padding: var(--sp-2) var(--sp-2); gap: var(--sp-3); }
 .app-shell .pool-resultado td,
 .app-shell .pool-resultado th { padding: var(--sp-2) var(--sp-3); font-size: var(--ui-body); }
+
+/* ---- Barra superior y panel lateral: cierre del chrome ----------------
+   Lo último que quedaba con la escala vieja. Con esto la interfaz entera
+   —portada, navegación, filtros, las siete pantallas y estos dos— usa los
+   mismos tamaños, el mismo ritmo y la misma altura de control. */
+.app-shell .studio-brand small,
+.app-shell .studio-flow li small,
+.app-shell .privacy-pill,
+.app-shell .datos-barra-titulo,
+.app-shell .datos-enlace,
+.app-shell .datos-barra small { font-size: var(--ui-micro); }
+.app-shell .studio-brand b,
+.app-shell .studio-flow li b { font-size: var(--ui-label); }
+
+.app-shell .topbar { gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); }
+.app-shell .topbar button,
+.app-shell .espacio-switch button,
+.app-shell .privacy-pill { min-height: var(--toque); border-radius: var(--radio-pill); padding: 0 var(--sp-3); }
+.app-shell .datos-barra { gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-radius: var(--radio-md); }
+.app-shell .datos-chip { min-height: 26px; padding: 0 var(--sp-2); border-radius: var(--radio-pill); }
+
+/* Los pasos de arriba son navegación, no decoración: se pinchan. */
+.app-shell .studio-flow li { min-height: var(--toque); border-radius: var(--radio-sm); }
+
+/* Foco visible en todo lo interactivo. Faltaba, y sin él la interfaz no se
+   puede recorrer con teclado. */
+.app-shell button:focus-visible,
+.app-shell select:focus-visible,
+.app-shell input:focus-visible,
+.app-shell a:focus-visible {
+  outline: 2px solid var(--acento-claro, #7aa7ff);
+  outline-offset: 2px;
+  border-radius: var(--radio-sm);
+}
