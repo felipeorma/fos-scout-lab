@@ -830,10 +830,8 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
         profile: targetProfile,
         name: search.target.player,
         team: search.target.team,
-        // Solo se sustituye la posición real por la genérica cuando el usuario
-        // forzó un rol (filtro o cohorte de la ficha); si no, se muestra la real.
         // La misma posición que se enseña en pantalla: si el informe dijera
-        // una y la ficha otra, el que lo lee no sabe con qué se le midió.
+        // una y la ficha otra, quien lo lee no sabe con qué se le midió.
         position: posicionMostrada(search.target.position, search.target.cohort),
         age: search.target.age,
         passport: search.target.passport,
@@ -847,7 +845,10 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
         profile: candidateProfile,
         name: selectedCandidate.name,
         team: selectedCandidate.team,
-        position: selectedCandidate.position,
+        // El candidato se mide con el MISMO set de métricas que el objetivo,
+        // así que su rótulo tiene que decir ese puesto y no el suyo natural:
+        // los percentiles que hay debajo son los de ese puesto.
+        position: posicionMostrada(selectedCandidate.position, selectedCandidate.cohort),
         age: selectedCandidate.age === null ? "—" : String(selectedCandidate.age),
         passport: selectedCandidate.passport,
         color: candidateColor,

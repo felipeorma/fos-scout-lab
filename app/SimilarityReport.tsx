@@ -215,7 +215,12 @@ function HeaderPlayer({ player, label, side }: { player: SimilarityReportPlayer;
       <span className="duel-header-role">{label}</span>
       <b>{name}</b>
       {!profile.clubLogo && <em className="duel-header-club"><span>{profile.club || team}</span></em>}
-      <small>{formatPlayerPositions(profile.position || position)}</small>
+      {/* La posición calculada manda sobre la del perfil de Transfermarkt.
+          Iba al revés, y por eso al elegir "Métricas de: Delanteros" el
+          listón seguía diciendo "Mediapunta": el perfil pisaba lo que la
+          pantalla había decidido. El perfil solo rellena cuando no hay nada
+          calculado. */}
+      <small>{formatPlayerPositions(position || profile.position)}</small>
       <small>{tf("{age} años · {passport}", { age: profile.age || age, passport: profile.citizenship || passport })}</small>
       {profile.marketValue && <strong className="duel-header-value">{profile.marketValue}<ReportImage src={TRANSFERMARKT_LOGO} alt="Transfermarkt" className="duel-header-tm" /></strong>}
     </div>
