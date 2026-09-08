@@ -2,21 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
-import {
-  BarChart3,
-  Check,
-  ChevronDown,
-  FileSpreadsheet,
-  Files,
-  ImageIcon,
-  LockKeyhole,
-  Merge,
-  Printer,
-  RotateCcw,
-  Search,
-  Sparkles,
-  Upload,
-} from "./Icons";
+import { BarChart3, Check, ChevronDown, FileSpreadsheet, Files, ImageIcon, LockKeyhole, Menu, Merge, Printer, RotateCcw, Search, Sparkles, Upload, X } from "./Icons";
 import { PizzaRadar } from "./PizzaRadar";
 import { ContextPage } from "./ContextPage";
 import { ScoutingBoard } from "./ScoutingBoard";
@@ -32,6 +18,7 @@ import { ProveedorDeBase, useEstadoDeBase } from "./BaseActiva";
 import { BarraDeFiltros } from "./BarraDeFiltros";
 import { DatosPage } from "./DatosPage";
 import { Interruptor } from "./Interruptor";
+import { ESCUDOS, RETRATO } from "./Imagenes";
 import {
   aggregateDatasets,
   buildPlayerReport,
@@ -344,6 +331,15 @@ export default function ScoutStudio() {
    * Ahora cuelga de data-tema y se recuerda entre sesiones.
    */
   const [tema, setTema] = useState<"oscuro" | "claro">("oscuro");
+  /*
+   * El menú, en panel.
+   *
+   * Nueve destinos no caben en una tira sin recortarse, y una columna fija se
+   * come doscientos treinta píxeles de ancho todo el rato aunque casi siempre
+   * se trabaje dentro de una sección. En panel aparece cuando se pide y
+   * devuelve el ancho al contenido, que es de quien era.
+   */
+  const [menuAbierto, setMenuAbierto] = useState(false);
   useEffect(() => {
     try {
       const guardado = window.localStorage.getItem("fos-scout-tema");
@@ -887,6 +883,9 @@ export default function ScoutStudio() {
    * la lista se vuelve inmanejable.
    */
   const [aniosParaCargar, setAniosParaCargar] = useState<string[]>([]);
+  /** Lo que hay al alcance ahora mismo. La portada lo dice con números del
+   *  catálogo de verdad en vez de con adjetivos. */
+  const [alcance, setAlcance] = useState<{ competiciones: number; ligas: number } | null>(null);
   useEffect(() => {
     let vivo = true;
     void fetchStatsbombCompetitions().then((comps) => {
@@ -896,7 +895,9 @@ export default function ScoutStudio() {
         .map((c) => String(c.season ?? "").match(/\d{4}/)?.[0])
         .filter(Boolean) as string[])].sort().reverse().slice(0, 5);
       setAniosParaCargar(anios);
-    }).catch(() => { /* sin puente, no se ofrece cargar por año */ });
+      const conPartidos = comps.filter((c) => c.hasMatches !== false);
+      setAlcance({ competiciones: conPartidos.length, ligas: new Set(conPartidos.map((c) => c.name)).size });
+    }).catch(() => { /* sin puente, no se ofrece cargar por año ni contar */ });
     return () => { vivo = false; };
   }, []);
 
@@ -951,7 +952,10 @@ export default function ScoutStudio() {
     setReportFileName(displayName);
     setReportSourceCount(datasets.length);
     setAnalysisLabel(datasets.length > 1 ? "BASES ANALIZADAS" : "BASE ANALIZADA");
-    setAnalysisSourceTitle(displayName);
+    // Vacío a propósito: así la ficha cae en el `fallback`, que es la
+    // descripción real de la base —qué ligas y qué temporada—. Rellenarlo con
+    // el nombre interno era lo que dejaba "Combinación temporal 01" impreso.
+    setAnalysisSourceTitle("");
     if (datasets.length > 1) setCombinedBaseName(displayName);
     const initialSelection = seleccion !== undefined && result.rows[seleccion]
       ? { index: seleccion, team: String(result.rows[seleccion].Team ?? "") }
@@ -1425,7 +1429,7 @@ export default function ScoutStudio() {
       </header>
 
       <section className="dossier-season-strip">
-        <div className="season-source"><span><InlineText editKey={`label-${report.player}`} value={tDefault(analysisLabel)} fallback={reportSourceCount > 1 ? t("BASES ANALIZADAS") : t("BASE ANALIZADA")} onCommit={setAnalysisLabel} /></span><b><InlineText editKey={`source-${report.player}`} value={tDefault(analysisSourceTitle)} fallback={tDefault(reportFileName)} onCommit={updateAnalysisSourceName} /></b><small>{tf("Cohorte {c} · mín. {m}′", { c: cohortLabel(report.cohort), m: minimumMinutes })}</small></div>
+        <div className="season-source"><span><InlineText editKey={`label-${report.player}`} value={tDefault(analysisLabel)} fallback={reportSourceCount > 1 ? t("BASES ANALIZADAS") : t("BASE ANALIZADA")} onCommit={setAnalysisLabel} /></span><b><InlineText editKey={`source-${report.player}`} value={tDefault(analysisSourceTitle)} fallback={base.descripcion || tDefault(reportFileName)} onCommit={updateAnalysisSourceName} /></b><small>{tf("Cohorte {c} · mín. {m}′", { c: cohortLabel(report.cohort), m: minimumMinutes })}</small></div>
         <div className="dossier-stat"><strong>{numberFormat(report.matches)}</strong><span>{t("Partidos")}</span></div>
         <div className="dossier-stat"><strong>{numberFormat(report.minutes)}</strong><span>{t("Minutos")}</span></div>
         <div className="dossier-stat goals"><strong>{numberFormat(report.goals)}</strong><span>{t("Goles")}</span></div>
@@ -1477,11 +1481,21 @@ export default function ScoutStudio() {
           </div>
 
           {/* Dos encargos, dos flujos. El dato cargado es el mismo. */}
+          <button type="button" className="menu-boton" aria-expanded={menuAbierto}
+            aria-label={t("Secciones")} onClick={() => setMenuAbierto(true)}>
+            <Menu size={18} />
+          </button>
           <div className="espacio-switch" role="group" aria-label={t("Espacio de trabajo")}>
-            <button className={espacio === "cavalry" ? "active" : ""} aria-pressed={espacio === "cavalry"}
-              onClick={() => cambiarEspacio("cavalry")}>{t("Cavalry")}</button>
-            <button className={espacio === "maldonado" ? "active" : ""} aria-pressed={espacio === "maldonado"}
-              onClick={() => cambiarEspacio("maldonado")}>{t("Maldonado")}</button>
+            {/* Los escudos de verdad, tomados de su web con permiso: se
+                reconoce mucho antes un escudo que un nombre escrito. */}
+            {(["cavalry", "maldonado"] as const).map((id) => (
+              <button key={id} className={espacio === id ? "active" : ""} aria-pressed={espacio === id}
+                onClick={() => cambiarEspacio(id)}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={ESCUDOS[id].src} width={ESCUDOS[id].ancho * 18 / ESCUDOS[id].alto} height={18} alt="" />
+                {id === "cavalry" ? t("Cavalry") : t("Maldonado")}
+              </button>
+            ))}
           </div>
 
           {espacio === "cavalry" && <ol className="studio-flow" aria-label={t("Flujo del reporte")}>
@@ -1582,20 +1596,23 @@ export default function ScoutStudio() {
                     con qué trabajas. Ahora se presenta: de quién es la mesa,
                     para qué clubes y con qué proveedores. */}
                 <div className="portada-marca">
-                  <span className="portada-firma">Felipe Ormazabal</span>
-                  <h1>{t("Mesa de scouting")}</h1>
-                  <p className="portada-lema">{t("Datos de StatsBomb, SkillCorner y Wyscout cruzados en una sola base, para decidir con números y no con impresiones.")}</p>
-                  <div className="portada-clientes">
-                    {([["cavalry", "Cavalry FC", "#cd2b2b"], ["maldonado", "Deportivo Maldonado", "#17804a"]] as const).map(([id, nombre, color]) => (
-                      <span key={id} className="portada-cliente" style={{ "--club": color } as React.CSSProperties}>
-                        <i aria-hidden="true">{nombre.slice(0, 1)}</i>{nombre}
-                      </span>
-                    ))}
-                  </div>
+                  {/* El nombre manda: es su mesa. Los clubes salen de aquí a
+                      petición suya —son encargos, no identidad— y el hueco lo
+                      ocupan cifras del catálogo real, que dicen más de lo que
+                      hay detrás que cualquier adjetivo. */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img className="portada-retrato" src={RETRATO} width={88} height={88} alt="" />
+                  <h1>Felipe Ormazabal</h1>
+                  <p className="portada-oficio">{t("Analista de datos de fútbol y scout")}</p>
+                  <p className="portada-lema">{t("Analítica · Ingeniería de datos · Scouting")}</p>
+                  {alcance && <div className="portada-cifras">
+                    <span><b>{alcance.ligas}</b><small>{t("ligas")}</small></span>
+                    <span><b>{alcance.competiciones}</b><small>{t("temporadas al alcance")}</small></span>
+                    <span><b>3</b><small>{t("proveedores")}</small></span>
+                  </div>}
                   <div className="portada-plataformas">
-                    <span>{t("Datos de")}</span>
                     {(["statsbomb", "skillcorner", "wyscout"] as const).map((plataforma) => (
-                      <LogoPlataforma key={plataforma} plataforma={plataforma} alto={16} />
+                      <LogoPlataforma key={plataforma} plataforma={plataforma} alto={17} />
                     ))}
                   </div>
                 </div>
@@ -1652,7 +1669,9 @@ export default function ScoutStudio() {
 
               {/* En Maldonado hay un solo destino: una barra con una pestaña
                   ya activa es ruido, así que la mesa ocupa la pantalla. */}
-              {espacio === "cavalry" && <nav className="report-page-tabs" aria-label={t("Secciones")}>
+              {espacio === "cavalry" && menuAbierto && <div className="menu-velo" onClick={() => setMenuAbierto(false)} aria-hidden="true" />}
+              {espacio === "cavalry" && <nav className={menuAbierto ? "report-page-tabs abierto" : "report-page-tabs"} aria-label={t("Secciones")} onClick={(evento) => { if ((evento.target as HTMLElement).closest("button")) setMenuAbierto(false); }}>
+                <button type="button" className="menu-cerrar" aria-label={t("Cerrar")} onClick={() => setMenuAbierto(false)}><X size={16} /></button>
                 <>
                   <div className="tab-grupo">
                     <span className="tab-grupo-nombre">{t("1 · Datos")}</span>

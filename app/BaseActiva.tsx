@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 import { cohortOf, detectCoreColumns, headersOf, positionColumnOf, type DataRow, type SourceDataset } from "@/lib/scouting";
 import { playerPassports } from "@/lib/similarity";
 import { ligasDeBases, origenPorFila, type Procedencia } from "@/lib/procedencia";
+import { tf } from "@/lib/i18n";
 
 /**
  * La base activa y su red de filtros, una sola para toda la plataforma.
@@ -236,7 +237,12 @@ export function useEstadoDeBase({
     const temporada = anios.length > 1 ? `${anios[0]}–${anios[anios.length - 1]}` : String(anios[0] ?? "");
     const ligas = [...new Set(competiciones.map((c) => c.liga))];
     if (ligas.length <= 2) return [ligas.join(" · "), temporada].filter(Boolean).join(" · ");
-    return [`${ligas.length} ${ligas.length === 1 ? "competición" : "competiciones"}`, temporada].filter(Boolean).join(" · ");
+    // Por el traductor: esta cadena acaba impresa en la ficha, y en inglés
+    // tiene que decir "competitions", no "competiciones".
+    const cuantas = ligas.length === 1
+      ? tf("{n} competición", { n: ligas.length })
+      : tf("{n} competiciones", { n: ligas.length });
+    return [cuantas, temporada].filter(Boolean).join(" · ");
   }, [competiciones, nombre]);
 
   return useMemo<BaseActiva>(() => ({

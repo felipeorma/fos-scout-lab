@@ -184,7 +184,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .report-page-tabs { margin: 14px 0 18px; padding: 8px; display: flex; align-items: stretch; gap: 4px; overflow-x: auto; scrollbar-width: thin; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.82); box-shadow: 0 8px 24px rgba(20,45,52,.035); }
 .tab-grupo { display: flex; align-items: stretch; gap: 4px; padding-right: 10px; }
 .tab-grupo + .tab-grupo { padding-left: 10px; border-left: 1px solid var(--line); }
-.tab-grupo-nombre { align-self: center; padding-right: 4px; color: #9aa8ac; font-size: 8px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; white-space: nowrap; writing-mode: vertical-rl; rotate: 180deg; }
+.tab-grupo-nombre { align-self: center; padding-right: 4px; color: #9aa8ac; font-size: 8px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; white-space: nowrap; }
 .report-page-tabs button { min-width: 126px; padding: 8px 11px; display: flex; flex-direction: column; justify-content: center; gap: 2px; border: 1px solid transparent; border-radius: 8px; color: #6e7f85; background: transparent; text-align: left; cursor: pointer; transition: background .18s ease, border-color .18s ease, color .18s ease; }
 .report-page-tabs button:hover { background: #f4f7f6; }
 .report-page-tabs button.active { border-color: #cfe0db; color: #254c45; background: #edf5f2; box-shadow: 0 3px 10px rgba(30,87,76,.06); }
@@ -2443,7 +2443,7 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
 }
 
 @media (max-width: 900px) {
-  .tab-grupo-nombre { display: none; }
+  .report-page-tabs:not(.abierto) .tab-grupo-nombre { display: none; }
   .report-page-tabs > em { display: none; }
 }
 
@@ -3714,77 +3714,6 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
 
    Por debajo de 1100px vuelve a ser tira horizontal: en una pantalla
    estrecha una columna fija se come el contenido. */
-@media (min-width: 1100px) {
-  .app-shell .report-page-tabs {
-    position: fixed;
-    inset: 74px auto 0 0;
-    z-index: 30;
-    width: 236px;
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--sp-4);
-    padding: var(--sp-4) var(--sp-3);
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    border: 0;
-    border-right: 1px solid var(--linea);
-    border-radius: 0;
-    box-shadow: none;
-    background: color-mix(in srgb, var(--canvas) 82%, transparent);
-    backdrop-filter: blur(24px) saturate(1.4);
-  }
-  .app-shell .report-page-tabs .tab-grupo {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 1px;
-  }
-  .app-shell .report-page-tabs .tab-grupo-nombre {
-    align-self: flex-start;
-    padding: 0 var(--sp-3) var(--sp-2);
-    /* En la tira el rótulo iba de canto y girado; en columna tiene que
-       leerse normal. La rotación venía de `rotate`, no de `transform`, así
-       que anular `transform` no la quitaba: los rótulos salían de lado y
-       boca abajo. */
-    writing-mode: horizontal-tb;
-    rotate: none;
-    transform: none;
-    white-space: normal;
-  }
-  /* El separador era una línea vertical entre columnas de la tira: en una
-     columna toca arriba, y con aire. */
-  .app-shell .report-page-tabs .tab-grupo { padding: 0; }
-  .app-shell .report-page-tabs .tab-grupo + .tab-grupo {
-    padding-left: 0;
-    padding-top: var(--sp-4);
-    border-left: 0;
-    border-top: 1px solid var(--linea);
-  }
-  .app-shell .report-page-tabs button {
-    width: 100%;
-    justify-content: flex-start;
-    text-align: left;
-    padding: var(--sp-2) var(--sp-3);
-    border-radius: var(--r-control);
-  }
-  .app-shell .report-page-tabs button > b { display: block; }
-  .app-shell .report-page-tabs button > small { display: block; }
-  /* Las acciones de página iban en fila junto a las pestañas de la tira; en
-     columna tienen que apilarse como todo lo demás. */
-  .app-shell .report-page-tabs .page-tab-actions {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 1px;
-    width: 100%;
-    margin-top: var(--sp-1);
-  }
-  .app-shell .report-page-tabs .page-tab-actions button { text-align: left; }
-
-  /* El contenido se corre para dejarle sitio. */
-  .app-shell .page-content { padding-left: 236px; }
-  .app-shell .topbar { padding-left: var(--sp-4); }
-}
 
 /* =====================================================================
    El radar: relleno con cuerpo y entrada que crece
@@ -3820,4 +3749,180 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
 @media (prefers-reduced-motion: reduce) {
   .app-shell .comparison-radar-area,
   .app-shell .comparison-radar :is(circle, rect) { animation: none; }
+}
+
+/* Los campos que viven SOBRE el papel del informe llevan su propia tinta.
+   La regla general de más arriba —color: var(--ink) para todo campo— los
+   alcanzaba también, y como su fondo es el papel claro del informe pero
+   --ink en tema oscuro es casi blanco, quedaban a 1,01:1: blanco sobre
+   blanco. Se les devuelve la tinta del informe, que es la que corresponde
+   al fondo que tienen debajo. */
+.app-shell :is(.enrichment-profile-copy, .enrichment-image-source, .asset-source-editor,
+  .similarity-enrichment-grid, .similarity-enrichment-card, .designer-controls)
+  :is(input, select, textarea) {
+  color: var(--report-ink, #121212);
+}
+.app-shell :is(.enrichment-profile-copy, .enrichment-image-source, .asset-source-editor,
+  .similarity-enrichment-grid, .similarity-enrichment-card, .designer-controls)
+  :is(input, select, textarea)::placeholder {
+  color: var(--report-muted, #757575);
+}
+
+/* Portada: el nombre manda y las cifras son del catálogo real.
+   Los clubes salieron a petición: son encargos, no identidad. El hueco lo
+   ocupan tres números que dicen más de lo que hay detrás que cualquier
+   adjetivo, y que se leen del catálogo en vivo, así que envejecen solos. */
+.app-shell .portada-marca h1 {
+  margin: 0 0 var(--sp-2);
+  font-size: clamp(38px, 6vw, 62px);
+  font-weight: 600;
+  letter-spacing: -.035em;
+  line-height: 1;
+}
+.app-shell .portada-oficio {
+  margin: 0 0 var(--sp-2);
+  color: var(--acento-claro, var(--ink));
+  font-size: var(--ui-lead);
+  font-weight: 600;
+}
+.app-shell .portada-lema {
+  margin: 0 auto var(--sp-5);
+  color: var(--muted);
+  font-size: var(--ui-body);
+  letter-spacing: .04em;
+}
+.app-shell .portada-cifras {
+  display: flex;
+  justify-content: center;
+  gap: var(--sp-6);
+  margin-bottom: var(--sp-5);
+  padding: var(--sp-4) 0;
+  border-block: 1px solid var(--linea);
+}
+.app-shell .portada-cifras > span { display: flex; flex-direction: column; gap: 2px; }
+.app-shell .portada-cifras b {
+  color: var(--ink);
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -.03em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.app-shell .portada-cifras small {
+  color: var(--muted);
+  font-size: var(--ui-micro);
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.app-shell .portada-plataformas { border-top: 0; padding-top: 0; }
+.app-shell .portada-cifras { animation: portada-entra .42s var(--curva) both; animation-delay: .18s; }
+.app-shell .portada-oficio { animation: portada-entra .42s var(--curva) both; animation-delay: .08s; }
+@media (prefers-reduced-motion: reduce) {
+  .app-shell :is(.portada-cifras, .portada-oficio) { animation: none; }
+}
+
+/* Retrato de la portada y escudos del conmutador. */
+.app-shell .portada-retrato {
+  display: block;
+  width: 88px; height: 88px;
+  margin: 0 auto var(--sp-4);
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--linea);
+  box-shadow: var(--elev-2);
+  animation: portada-entra .42s var(--curva) both;
+}
+.app-shell .espacio-switch > button { display: inline-flex; align-items: center; gap: var(--sp-2); }
+.app-shell .espacio-switch img { display: block; object-fit: contain; }
+/* Apagado mientras no es el espacio activo: el escudo encendido es el que
+   dice para quién se está trabajando. */
+.app-shell .espacio-switch > button:not(.active) img { filter: grayscale(1); opacity: .55; }
+@media (prefers-reduced-motion: reduce) { .app-shell .portada-retrato { animation: none; } }
+
+/* =====================================================================
+   El menú, en panel
+   =====================================================================
+   Nueve destinos no caben en una tira sin recortarse, y una columna fija se
+   come más de doscientos píxeles de ancho todo el rato aunque casi siempre
+   se trabaje dentro de una sección. En panel aparece cuando se pide y
+   devuelve el ancho al contenido.
+
+   De paso desaparece el rótulo de canto: aquélla era una solución para
+   encajar el nombre del grupo entre columnas de la tira, y aquí los grupos
+   se apilan y se leen normal. */
+.app-shell .menu-boton {
+  display: inline-grid; place-items: center;
+  width: var(--toque); height: var(--toque);
+  border: 1px solid var(--linea); border-radius: var(--r-control);
+  background: var(--material); color: inherit; cursor: pointer;
+  transition: background var(--transicion), border-color var(--transicion);
+}
+.app-shell .menu-boton:hover { background: var(--material-alto); }
+
+.app-shell .menu-velo {
+  position: fixed; inset: 0; z-index: 45;
+  background: rgba(0,0,0,.42);
+  backdrop-filter: blur(2px);
+  animation: velo-entra .2s var(--curva) both;
+}
+@keyframes velo-entra { from { opacity: 0; } to { opacity: 1; } }
+
+.app-shell .report-page-tabs {
+  position: fixed; inset: 0 auto 0 0; z-index: 46;
+  width: min(300px, 84vw);
+  display: flex; flex-direction: column; align-items: stretch;
+  gap: var(--sp-4);
+  padding: var(--sp-5) var(--sp-3) var(--sp-4);
+  overflow-y: auto; overscroll-behavior: contain;
+  border: 0; border-right: 1px solid var(--linea); border-radius: 0;
+  background: color-mix(in srgb, var(--canvas) 92%, transparent);
+  backdrop-filter: blur(28px) saturate(1.5);
+  box-shadow: var(--elev-3);
+  transform: translateX(-101%);
+  visibility: hidden;
+  /* La visibilidad se apaga AL FINAL de la salida, no durante: si se
+     transiciona junto al desplazamiento, el panel viaja invisible y parece
+     que no se abre. Al entrar cambia de inmediato; al salir espera a que el
+     desplazamiento termine para no desaparecer de golpe. */
+  transition: transform .26s var(--curva), visibility 0s linear .26s;
+}
+.app-shell .report-page-tabs.abierto {
+  transform: none;
+  visibility: visible;
+  transition: transform .26s var(--curva), visibility 0s;
+}
+
+.app-shell .report-page-tabs .tab-grupo {
+  display: flex; flex-direction: column; align-items: stretch; gap: 1px;
+  padding: 0;
+}
+.app-shell .report-page-tabs .tab-grupo + .tab-grupo {
+  padding: var(--sp-4) 0 0;
+  border-left: 0; border-top: 1px solid var(--linea);
+}
+.app-shell .report-page-tabs .tab-grupo-nombre {
+  align-self: flex-start;
+  padding: 0 var(--sp-3) var(--sp-2);
+  white-space: normal;
+}
+.app-shell .report-page-tabs button {
+  width: 100%; justify-content: flex-start; text-align: left;
+  padding: var(--sp-2) var(--sp-3); border-radius: var(--r-control);
+}
+.app-shell .report-page-tabs button > b,
+.app-shell .report-page-tabs button > small { display: block; }
+.app-shell .report-page-tabs .page-tab-actions {
+  flex-direction: column; align-items: stretch; gap: 1px; width: 100%;
+}
+.app-shell .menu-cerrar {
+  align-self: flex-end;
+  display: grid; place-items: center;
+  width: 30px; height: 30px; margin-bottom: var(--sp-2);
+  border: 0; border-radius: var(--radio-pill);
+  background: var(--material-alto); color: var(--muted); cursor: pointer;
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-shell .report-page-tabs { transition: none; }
+  .app-shell .menu-velo { animation: none; }
 }
