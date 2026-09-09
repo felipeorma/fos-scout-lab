@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import type { RadarMetric } from "@/lib/scouting";
 import { METRIC_SOURCE_COLORS, similarityMetricGroup } from "@/lib/similarityMetricGroups";
+import { sitioDelValor } from "@/lib/radar";
 import { t, tf, type Lang } from "@/lib/i18n";
 
 function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
@@ -122,36 +123,42 @@ export function PizzaRadar({ metrics, score, cohort, lang = "es", colorMode = "g
         ctx.fill();
         ctx.globalAlpha = 1;
 
-        const valueRadius = Math.max(inner + 18, radius - 18);
         const value = String(metric.percentile);
         const valueFontSize = Math.max(9, size * [0.019, 0.016, 0.0135][density]);
-        const valueX = ex + Math.cos(middle) * valueRadius;
-        const valueY = ey + Math.sin(middle) * valueRadius;
         ctx.font = `800 ${valueFontSize}px Arial`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        const pillWidth = Math.max(valueFontSize * 1.85, ctx.measureText(value).width + valueFontSize * 0.85);
+        // La píldora se dibuja SIEMPRE, también en los percentiles bajos. Antes
+        // solo se ponía cuando el número caía dentro de su porción, y como en un
+        // percentil bajo la porción es demasiado corta para contenerlo, esos
+        // valores salían sueltos en el color del grupo: el mismo radar mezclaba
+        // dos maneras de escribir un número, y las que se quedaban sin recuadro
+        // eran justo las bajas, que así parecían de otra categoría. Un percentil
+        // de 8 y uno de 84 son la misma clase de dato y se leen igual.
+        //
+        // Sirve la misma píldora en los dos sitios porque es casi opaca: sobre
+        // el color de la porción y sobre el fondo claro de la ficha se ve igual.
+        // Dónde se posa lo decide sitioDelValor(), que la empuja hacia afuera
+        // cuando el anillo de los valores bajos se queda estrecho.
         const pillHeight = valueFontSize * 1.55;
+        const pillWidth = Math.max(pillHeight, ctx.measureText(value).width + valueFontSize * 0.62);
+        const { radio: valueRadius } = sitioDelValor({
+          radioInterior: inner, radioExterior: outer, radioDePorcion: radius,
+          anguloPorPorcion: step, anchoPildora: pillWidth, altoPildora: pillHeight,
+        });
+        const valueX = ex + Math.cos(middle) * valueRadius;
+        const valueY = ey + Math.sin(middle) * valueRadius;
         ctx.save();
-        // La píldora oscura existe para que el número se lea sobre el color de
-        // la porción. En un percentil bajo la porción es tan corta que el valor
-        // cae fuera, y entonces el recuadro se ve como una caja semitransparente
-        // flotando sobre el fondo: ahí el número va suelto, en el color del grupo.
-        const dentroDeLaPorcion = valueRadius + pillHeight / 2 <= radius;
-        if (dentroDeLaPorcion) {
-          ctx.shadowColor = "rgba(3, 10, 17, .34)";
-          ctx.shadowBlur = Math.max(3, size * 0.009);
-          roundedRect(ctx, valueX - pillWidth / 2, valueY - pillHeight / 2, pillWidth, pillHeight, pillHeight / 2);
-          ctx.fillStyle = "rgba(8, 18, 28, .82)";
-          ctx.fill();
-          ctx.shadowBlur = 0;
-          ctx.strokeStyle = "rgba(255, 255, 255, .42)";
-          ctx.lineWidth = Math.max(1, size * 0.0018);
-          ctx.stroke();
-          ctx.fillStyle = "#ffffff";
-        } else {
-          ctx.fillStyle = metricGroups[index].color;
-        }
+        ctx.shadowColor = "rgba(3, 10, 17, .34)";
+        ctx.shadowBlur = Math.max(3, size * 0.009);
+        roundedRect(ctx, valueX - pillWidth / 2, valueY - pillHeight / 2, pillWidth, pillHeight, pillHeight / 2);
+        ctx.fillStyle = "rgba(8, 18, 28, .82)";
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = "rgba(255, 255, 255, .42)";
+        ctx.lineWidth = Math.max(1, size * 0.0018);
+        ctx.stroke();
+        ctx.fillStyle = "#ffffff";
         ctx.fillText(value, valueX, valueY + valueFontSize * 0.02);
         ctx.restore();
 
