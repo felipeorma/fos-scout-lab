@@ -89,6 +89,33 @@ export function resumirFilas(rows: DataRow[]): ResumenDeFila[] {
 export type OrigenDeFila = { ligas: string[]; anios: number[] };
 
 /**
+ * Solo los filtros que describen al JUGADOR, no dónde juega.
+ *
+ * Está aparte porque la pantalla de carreras no puede usar el resto: trabaja
+ * contra la API por competición y equipo, así que la liga y el club ya los
+ * decide ella y preguntárselos otra vez a la barra sería mandar dos veces la
+ * misma cosa, con dos respuestas posibles. El puesto, el pasaporte y la edad
+ * sí los puede honrar, en cuanto sabe qué fila de la base es cada nombre.
+ */
+export function pasaLosFiltrosDeJugador(fila: ResumenDeFila | undefined, filtros: FiltrosGlobales): boolean {
+  if (!fila) return false;
+  if (filtros.puesto && fila.puesto !== filtros.puesto) return false;
+  if (filtros.pasaporte !== "TODOS" && !fila.pasaportes.includes(filtros.pasaporte.toLowerCase())) return false;
+  // Sin edad conocida no se puede afirmar que cumpla un tope de edad, así que
+  // queda fuera: es más honesto perder a uno que colar a un veterano.
+  if (filtros.edadMax > 0 && !(Number.isFinite(fila.edad) && fila.edad <= filtros.edadMax)) return false;
+  return true;
+}
+
+/** Cuántos de los de jugador están puestos. Sirve para decidir si un nombre
+ *  sin ficha en la base se muestra o se calla. */
+export function cuantosFiltrosDeJugador(filtros: FiltrosGlobales): number {
+  return (filtros.puesto ? 1 : 0)
+    + (filtros.pasaporte !== "TODOS" ? 1 : 0)
+    + (filtros.edadMax > 0 ? 1 : 0);
+}
+
+/**
  * ¿Pasa esta fila los filtros de mercado?
  *
  * Un jugador con dos ligas —traspaso dentro del año, o subida desde el
@@ -103,11 +130,7 @@ export function pasaLosFiltros(
 ): boolean {
   if (!fila) return false;
   if (filtros.equipo !== "TODOS" && fila.equipo !== filtros.equipo) return false;
-  if (filtros.puesto && fila.puesto !== filtros.puesto) return false;
-  if (filtros.pasaporte !== "TODOS" && !fila.pasaportes.includes(filtros.pasaporte.toLowerCase())) return false;
-  // Sin edad conocida no se puede afirmar que cumpla un tope de edad, así que
-  // queda fuera: es más honesto perder a uno que colar a un veterano.
-  if (filtros.edadMax > 0 && !(Number.isFinite(fila.edad) && fila.edad <= filtros.edadMax)) return false;
+  if (!pasaLosFiltrosDeJugador(fila, filtros)) return false;
   if (filtros.liga !== "TODAS" || filtros.anio) {
     if (!origen) return false;
     if (filtros.liga !== "TODAS" && !origen.ligas.includes(filtros.liga)) return false;

@@ -1417,6 +1417,9 @@ const EN: Record<string, string> = {
   "Volver a todas": "Back to all",
   "Sin partidos publicados todavía en su temporada de este año, así que entran con la anterior: {ligas}. Es dato bueno, pero de un curso ya cerrado.": "No matches published yet for this year's season, so they come in with the previous one: {ligas}. Good data, but from a season already closed.",
   "Entran con su temporada anterior, porque la de este año aún no tiene partidos publicados: {ligas}.": "These come in with their previous season, because this year's has no published matches yet: {ligas}.",
+  // Carreras: los filtros de jugador sobre un plantel que viene de la API.
+  "{equipo} · {n} del plantel": "{equipo} · {n} of the squad",
+  "{n} del plantel no tienen ficha en la base activa, así que no se les puede aplicar el filtro y quedan fuera. Carga la liga de este equipo para que entren.": "{n} players in this squad have no row in the active database, so the filter cannot be applied to them and they are left out. Load this team's league to bring them in.",
   // Exportación a CSV del ranking y del buscador entre ligas.
   "Exportar": "Export",
   // Trozos del nombre del archivo que se descarga.

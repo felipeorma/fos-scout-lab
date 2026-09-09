@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import { type DataRow, type SourceDataset } from "@/lib/scouting";
-import { FILTROS_VACIOS, cuantosFiltrosActivos, pasaLosFiltros, resumirFilas, type FiltrosGlobales } from "@/lib/filtros";
+import { FILTROS_VACIOS, cuantosFiltrosActivos, cuantosFiltrosDeJugador, pasaLosFiltros, pasaLosFiltrosDeJugador, resumirFilas, type FiltrosGlobales } from "@/lib/filtros";
 import { playerPassports } from "@/lib/similarity";
 import { ligasDeBases, origenPorFila, type Procedencia } from "@/lib/procedencia";
 import { tf } from "@/lib/i18n";
@@ -73,6 +73,11 @@ export type BaseActiva = {
   opciones: OpcionesDeFiltro;
   /** ¿Esta fila pasa los filtros de mercado? El minuto va aparte. */
   pasaFiltros: (indice: number) => boolean;
+  /** Solo los que describen al jugador: puesto, pasaporte y edad. Lo usa la
+   *  pantalla de carreras, que la liga y el club ya los decide ella. */
+  pasaFiltrosDeJugador: (indice: number) => boolean;
+  /** Cuántos de esos tres están puestos. */
+  filtrosDeJugador: number;
   /** Los índices que pasan, calculados una vez. */
   indicesVisibles: number[];
 };
@@ -96,6 +101,8 @@ const VACIA: BaseActiva = {
   filtrosActivos: 0,
   opciones: { ligas: [], anios: [], equipos: [], pasaportes: [] },
   pasaFiltros: () => true,
+  pasaFiltrosDeJugador: () => true,
+  filtrosDeJugador: 0,
   indicesVisibles: [],
 };
 
@@ -161,6 +168,12 @@ export function useEstadoDeBase({
     [resumen, procedencia, filtros, minutosMin],
   );
 
+  const pasaFiltrosDeJugador = useCallback(
+    (indice: number) => pasaLosFiltrosDeJugador(resumen[indice], { ...filtros, minutosMin }),
+    [resumen, filtros, minutosMin],
+  );
+  const filtrosDeJugador = useMemo(() => cuantosFiltrosDeJugador(filtros), [filtros]);
+
   const indicesVisibles = useMemo(() => {
     const salida: number[] = [];
     for (let i = 0; i < rows.length; i += 1) if (pasaFiltros(i)) salida.push(i);
@@ -205,8 +218,10 @@ export function useEstadoDeBase({
     filtrosActivos,
     opciones,
     pasaFiltros,
+    pasaFiltrosDeJugador,
+    filtrosDeJugador,
     indicesVisibles,
-  }), [rows, datasets, nombre, descripcion, procedencia, competiciones, filtros, minutosMin, cambiarFiltros, limpiarFiltros, filtrosActivos, opciones, pasaFiltros, indicesVisibles]);
+  }), [rows, datasets, nombre, descripcion, procedencia, competiciones, filtros, minutosMin, cambiarFiltros, limpiarFiltros, filtrosActivos, opciones, pasaFiltros, pasaFiltrosDeJugador, filtrosDeJugador, indicesVisibles]);
 }
 
 /** Reparte a las pantallas el estado que ya calculó `useEstadoDeBase`. */

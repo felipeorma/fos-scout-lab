@@ -2589,6 +2589,10 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
 @media (max-width: 760px) { .rank-barra, .pool-barra { flex-direction: column; } .boton-exportar { margin: -6px 0 16px; } }
 @media print { .boton-exportar { display: none !important; } }
 
+/* Carreras: los del plantel que se caen por no tener ficha en la base. No es
+   un error, es una ausencia que hay que poder ver. */
+.runs-sin-ficha { margin: -6px 0 16px; padding: 9px 12px; border: 1px solid rgba(255,255,255,.1); border-left: 2px solid var(--acento-borde, rgba(255,255,255,.3)); border-radius: 0 10px 10px 0; color: var(--pl-dim); font-size: 9.5px; line-height: 1.6; }
+
 /* Etapa 1 · Datos: el inventario de lo cargado y las tres formas de cambiarlo. */
 .datos-page { max-width: 940px; }
 .datos-page > header > h2 { margin: 0 0 6px; font-size: 20px; }
