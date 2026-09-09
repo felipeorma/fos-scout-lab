@@ -75,7 +75,7 @@ export function DatosPage({
               disabled={!onAlternarCompeticion}
               title={tf("Usar las competiciones de {anio}", { anio })}
               onClick={() => onAlternarCompeticion?.(suyas.flatMap((c) => c.archivos), !encendido)}>
-              {anio}<small>{tf("{n} ligas", { n: suyas.length })}</small>
+              {anio}<small>{suyas.length === 1 ? tf("{n} liga", { n: suyas.length }) : tf("{n} ligas", { n: suyas.length })}</small>
             </button>;
           })}
           {onCargarAnio && aniosDisponibles.filter((a) => !aniosDelFondo.includes(Number(a))).map((anio) => (

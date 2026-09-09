@@ -621,7 +621,13 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     () => (procedenciaPorFila ? procedenciaPorFila.map((x) => x.claves ?? x.ligas) : null),
     [procedenciaPorFila],
   );
-  const porLiga = baseDePercentiles === "liga" && ligasPorFila?.length ? { ligasPorFila } : null;
+  /** ¿Hay contra qué comparar? Con una sola competición, medir "contra su
+   *  liga" y "contra todo" es exactamente lo mismo. */
+  const hayVariasCompeticiones = useMemo(
+    () => new Set((ligasPorFila ?? []).flat()).size > 1,
+    [ligasPorFila],
+  );
+  const porLiga = baseDePercentiles === "liga" && hayVariasCompeticiones && ligasPorFila?.length ? { ligasPorFila } : null;
 
   /*
    * Acotar por competición, a los dos lados.
@@ -639,6 +645,26 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     () => [...new Set((procedenciaPorFila ?? []).flatMap((x) => x.anios))].filter(Boolean).sort(),
     [procedenciaPorFila],
   );
+  /**
+   * Los números de los rótulos del jugador objetivo.
+   *
+   * Estaban escritos a mano y daban por hecho que se dibujaban los cinco
+   * controles. No es así: los de liga y año solo aparecen si hay más de una,
+   * y entonces la cuenta se rompía. Con una sola competición cargada se
+   * saltaba del "2 · Jugador" al "5 · Medir contra"; con varias ligas de un
+   * único año, del "1 · Liga" al "3 · Club". Ahora se numeran por lo que de
+   * verdad se pinta, así que añadir o quitar un control no vuelve a
+   * descuadrarlo.
+   */
+  const pasoObjetivo = useMemo(() => {
+    const visibles = [
+      ...(ligasDelFondo.length > 1 ? ["liga"] : []),
+      ...(aniosDelFondo.length > 1 ? ["anio"] : []),
+      "club", "jugador", "medir",
+    ];
+    return Object.fromEntries(visibles.map((clave, i) => [clave, i + 1])) as Record<string, number>;
+  }, [ligasDelFondo.length, aniosDelFondo.length]);
+
   const [ligaObjetivo, setLigaObjetivo] = useState("TODAS");
   const [anioObjetivo, setAnioObjetivo] = useState(0);
   const [ligaCandidato, setLigaCandidato] = useState("TODAS");
@@ -1205,20 +1231,20 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
       <section className="similarity-target-bar">
         <div className="similarity-target-copy"><span>{t("JUGADOR OBJETIVO")}</span><b>{search.target.player}</b><small>{tf("{team} · {pos} · {age} años", { team: search.target.team, pos: posicionMostrada(search.target.position, search.target.cohort), age: search.target.age })}</small></div>
         <div className="similarity-target-selectors">
-          {ligasDelFondo.length > 1 && <label><span>{t("1 · Liga")}</span>
+          {ligasDelFondo.length > 1 && <label><span>{pasoObjetivo.liga} · {t("Liga")}</span>
             <select value={ligaObjetivo} onChange={(event) => { setLigaObjetivo(event.target.value); reencuadrarObjetivo(event.target.value, anioObjetivo); }}>
               <option value="TODAS">{t("Todas")}</option>
               {ligasDelFondo.map((liga) => <option key={liga} value={liga}>{liga}</option>)}
             </select>
           </label>}
-          {aniosDelFondo.length > 1 && <label><span>{t("2 · Año")}</span>
+          {aniosDelFondo.length > 1 && <label><span>{pasoObjetivo.anio} · {t("Año")}</span>
             <select value={anioObjetivo || ""} onChange={(event) => { const a = Number(event.target.value); setAnioObjetivo(a); reencuadrarObjetivo(ligaObjetivo, a); }}>
               <option value="">{t("Todos")}</option>
               {aniosDelFondo.map((anio) => <option key={anio} value={anio}>{anio}</option>)}
             </select>
           </label>}
-          <label><span>{ligasDelFondo.length > 1 ? t("3 · Club") : t("1 · Club")}</span><select value={selectedTargetTeam} onChange={(event) => chooseTargetTeam(event.target.value)}>{targetTeams.map((team) => <option key={team || "__sin_equipo__"} value={team}>{team || t("Equipo no disponible")}</option>)}</select></label>
-          <label><span>{ligasDelFondo.length > 1 ? t("4 · Jugador") : t("2 · Jugador")}</span><select value={selectedIndex} onChange={(event) => chooseTarget(Number(event.target.value))}>{targetPlayers.map((target) => <option key={`${target.index}-${target.player}`} value={target.index}>{target.player}</option>)}</select></label>
+          <label><span>{pasoObjetivo.club} · {t("Club")}</span><select value={selectedTargetTeam} onChange={(event) => chooseTargetTeam(event.target.value)}>{targetTeams.map((team) => <option key={team || "__sin_equipo__"} value={team}>{team || t("Equipo no disponible")}</option>)}</select></label>
+          <label><span>{pasoObjetivo.jugador} · {t("Jugador")}</span><select value={selectedIndex} onChange={(event) => chooseTarget(Number(event.target.value))}>{targetPlayers.map((target) => <option key={`${target.index}-${target.player}`} value={target.index}>{target.player}</option>)}</select></label>
         </div>
         {/* Con más de una liga o año cargados hay dos preguntas posibles y
             conviene cambiar entre ellas de un golpe: "quién produce lo mismo"
@@ -1226,22 +1252,31 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
             contra los suyos). La segunda es la que permite comparar al mismo
             jugador en dos temporadas: cada Messi contra los delanteros de SU
             año, y no contra la mezcla de los dos. */}
-        {ligasPorFila?.length ? <div className="similarity-base-modo">
-          <span>{t("5 · Medir contra")}</span>
+        {/* El bloque entero colgaba de tener procedencia por fila, o sea de
+            haber cargado varias ligas. Pero dentro hay dos controles que no
+            dependen de lo mismo: elegir con qué SET DE MÉTRICAS se mide a un
+            jugador tiene sentido con una sola liga cargada —medir a un
+            extremo como delantero es una pregunta legítima aunque solo esté
+            la CPL—, mientras que el interruptor de "todo junto contra su
+            liga" no significa nada si solo hay una. Así que el selector se
+            muestra siempre y el interruptor solo cuando hay contra qué
+            comparar. */}
+        <div className="similarity-base-modo">
+          <span>{pasoObjetivo.medir} · {t("Medir contra")}</span>
           <label className="similarity-rol-metricas"><span>{t("Métricas de")}</span>
             <select value={rolMetricas} onChange={(event) => setRolMetricas(event.target.value)}>
               <option value="">{t("Su propio puesto")}</option>
               {PERFILES_FILTRO.map((perfil) => <option key={perfil.id} value={perfil.id}>{t(perfil.nombre)}</option>)}
             </select>
           </label>
-          <Interruptor
+          {hayVariasCompeticiones && <Interruptor
             activo={baseDePercentiles === "liga"}
             onCambio={(porSuLiga) => setBaseDePercentiles(porSuLiga ? "liga" : "combinado")}
             etiquetaApagado={t("Todo junto")}
             etiquetaEncendido={t("Su liga y su año")}
             titulo={t("Contra quién se calculan los percentiles")}
-          />
-        </div> : null}
+          />}
+        </div>
         <div className="similarity-model-badge"><Sparkles size={16} /><span>
           <b>{porLiga ? t("PARECIDO DE ROL") : t("BASELINE ESTADÍSTICO")}</b>
           <small>{porLiga ? t("Cada uno contra su liga") : t("Percentiles + contexto de edad y rol")}</small>

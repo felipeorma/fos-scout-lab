@@ -1663,7 +1663,7 @@ export default function ScoutStudio() {
                   </span>
                 ))}
                 {plataformas.size > 1 && <span className="datos-enlace">{tf("{n} plataformas enlazadas", { n: plataformas.size })}</span>}
-                <small>{tf("{n} jugadores · {b} base(s)", { n: reportRows.length, b: reportSourceCount })}</small>
+                <small>{tf(reportSourceCount === 1 ? "{n} jugadores · {b} base" : "{n} jugadores · {b} bases", { n: reportRows.length, b: reportSourceCount })}</small>
                 <button type="button" className="datos-conectar" onClick={() => setReportPage(DATA_PAGE)}>{t("Cargar o cambiar datos")}</button>
               </div>
 
@@ -1728,7 +1728,7 @@ export default function ScoutStudio() {
                       preguntaba dos veces por lo mismo en dos sitios. */}
                   <button type="button" className="base-recordatorio" onClick={() => setReportPage(DATA_PAGE)}>
                     <span><b>{base.descripcion || tDefault(reportFileName)}</b>
-                    <small>{tf("{n} jugadores · {b} base(s)", { n: reportRows.length, b: reportSourceCount })}</small></span>
+                    <small>{tf(reportSourceCount === 1 ? "{n} jugadores · {b} base" : "{n} jugadores · {b} bases", { n: reportRows.length, b: reportSourceCount })}</small></span>
                     <em>{t("Cambiar")}</em>
                   </button>
                   {reportError && <div className="inline-error">{reportError}</div>}

@@ -18,6 +18,19 @@ export function numberLocale() {
   return currentLang === "es" ? "es-CL" : "en-US";
 }
 
+/**
+ * ¿Está este texto en el diccionario?
+ *
+ * No vale preguntarlo con `t(x) !== x`: hay decenas de textos que se escriben
+ * igual en los dos idiomas —"Club", "EXCEL", "Cavalry"— y esa comprobación los
+ * daría por perdidos. Existe para que una prueba pueda recorrer las pantallas
+ * y avisar de lo que se quedó sin traducir, que si no solo se ve cambiando a
+ * inglés y leyendo pantalla por pantalla.
+ */
+export function estaTraducido(text: string): boolean {
+  return Object.hasOwn(EN, text);
+}
+
 export function t(text: string): string {
   if (currentLang === "es") return text;
   return EN[text] ?? text;
@@ -756,8 +769,6 @@ const EN: Record<string, string> = {
   "JUGADOR OBJETIVO": "TARGET PLAYER",
   "JUGADOR COMPARABLE": "COMPARABLE PLAYER",
   "{team} · {pos} · {age} años": "{team} · {pos} · {age} years old",
-  "1 · Club": "1 · Club",
-  "2 · Jugador": "2 · Player",
   "BASELINE ESTADÍSTICO": "STATISTICAL BASELINE",
   "Percentiles + contexto de edad y rol": "Percentiles + age and role context",
 
@@ -1056,6 +1067,7 @@ const EN: Record<string, string> = {
   "Métricas de": "Metrics for",
   "Su propio puesto": "Their own position",
   "Años": "Years",
+  "{n} liga": "{n} league",
   "{n} ligas": "{n} leagues",
   "Usar las competiciones de {anio}": "Use the {anio} competitions",
   "Cargar todas las ligas de {anio} y sumarlas": "Load every {anio} league and add it",
@@ -1097,17 +1109,12 @@ const EN: Record<string, string> = {
   "Carga primero una base y vuelve: esta pantalla busca dentro de lo que tengas cargado.": "Load a database first and come back: this screen searches within whatever you have loaded.",
   "Quién se parece a un jugador dentro de la base activa. El parecido se corrige por cobertura: con pocas métricas en común el número se acerca a la media del conjunto hasta que haya evidencia que lo separe.": "Who resembles a player within the active database. Similarity is corrected for coverage: with few shared metrics the number moves toward the group mean until there is evidence to separate it.",
   "La base abarca {anios}. Un jugador comparado consigo mismo entre dos años no dice lo que parece: el que creció sale parecido a su versión anterior. Acota el año si te estorba.": "The database spans {anios}. A player compared with himself across two years does not say what it seems: the one who improved looks similar to his earlier self. Narrow the year if it gets in the way.",
-  "1 · Liga": "1 · League",
-  "2 · Año": "2 · Year",
-  "3 · Club": "3 · Club",
-  "4 · Jugador": "4 · Player",
-  "5 · Medir contra": "5 · Measure against",
+  "Medir contra": "Measure against",
   "Liga del candidato": "Candidate's league",
   "Año del candidato": "Candidate's year",
   "SIN COMPARACIÓN POSIBLE": "NO COMPARISON POSSIBLE",
   "Este jugador no se puede comparar": "This player cannot be compared",
   "No llega al mínimo de minutos, o su base no trae suficientes métricas de su puesto. Baja el mínimo de minutos o elige a otro jugador.": "They fall below the minutes threshold, or the database lacks enough metrics for their position. Lower the minutes threshold or pick another player.",
-  "3 · Medir contra": "3 · Measure against",
   "Todas las ligas juntas": "All leagues pooled",
   "Su propia liga": "Their own league",
   "PARECIDO DE ROL": "ROLE SIMILARITY",
@@ -1322,7 +1329,8 @@ const EN: Record<string, string> = {
   "Perfiles, once ideal y variación": "Profiles, ideal XI and month-on-month change",
   "Datos": "Data",
   "{n} plataformas enlazadas": "{n} platforms linked",
-  "{n} jugadores · {b} base(s)": "{n} players · {b} database(s)",
+  "{n} jugadores · {b} base": "{n} players · {b} database",
+  "{n} jugadores · {b} bases": "{n} players · {b} databases",
   // ---- Firmas por encargo ----
   "Tu firma": "Your signature",
   "Se guarda una firma por encargo. Estás editando la de {cual}.": "One signature is saved per engagement. You are editing the {cual} one.",
