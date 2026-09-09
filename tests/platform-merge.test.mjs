@@ -245,3 +245,60 @@ test("nombres de pila distintos con el mismo apellido y club no se fusionan", ()
   ]);
   assert.equal(result.rows.length, 2);
 });
+
+/**
+ * Nombres que las dos plataformas parten por sitios distintos.
+ *
+ * La fusión por fecha de nacimiento exigía además que coincidiera la INICIAL
+ * del nombre de pila, y eso dejaba fuera al mismo jugador cuando una
+ * plataforma se queda con un nombre y la otra con otro: "Immanuelson Duku" y
+ * "Manny Duku", "Oluwatunmise Sobowale" y "Tummise Sobowale". Medido sobre las
+ * treinta bases en caché —13.289 jugadores— la inicial partía cinco fichas en
+ * dos, y quitarla no juntó ni una de más.
+ */
+const conNacimiento = (nombre, club, nacimiento, extra = {}) => player({
+  Player: nombre, Team: club, "Birth date": nacimiento, Age: 33, ...extra,
+});
+
+test("mismo apellido, misma fecha y mismo club son la misma persona aunque la inicial cambie", () => {
+  for (const [uno, otro] of [
+    ["Immanuelson Duku", "Manny Duku"],
+    ["Oluwatunmise Sobowale", "Tummise Sobowale"],
+    ["Nicholas Bungal Markanich", "Anthony Markanich"],
+    ["Gage Guerra", "Andrew Guerra"],
+  ]) {
+    const result = aggregateDatasets([
+      dataset("StatsBomb · National League 2026", 2026, "statsbomb", [conNacimiento(uno, "Tamworth", "1992-12-28")]),
+      dataset("SkillCorner · National League 2026", 2026, "skillcorner", [conNacimiento(otro, "Tamworth FC", "1992-12-28")]),
+    ]);
+    assert.equal(result.rows.length, 1, `${uno} y ${otro} deberían ser uno solo`);
+  }
+});
+
+test("la fecha distinta separa aunque el nombre corto encaje en el largo", () => {
+  /* "Tre" es forma corta de "Trevor" y los dos juegan en el Vancouver FC,
+     pero nacieron con año y medio de diferencia: son dos personas. */
+  const result = aggregateDatasets([
+    dataset("StatsBomb · CPL 2026", 2026, "statsbomb", [
+      conNacimiento("Trevor Wright", "Vancouver Whitecaps II", "2002-05-29", { Age: 24 }),
+    ]),
+    dataset("SkillCorner · CPL 2026", 2026, "skillcorner", [
+      conNacimiento("Tre Wright", "Vancouver Whitecaps FC II", "2004-01-01", { Age: 22 }),
+    ]),
+  ]);
+  assert.equal(result.rows.length, 2);
+});
+
+test("sin club que lo respalde, la fecha sola no basta: la inicial sigue haciendo falta", () => {
+  /* Dos homónimos nacidos el mismo día en clubes que no casan siguen siendo
+     dos personas. Es lo que impide que la fecha, sola, junte a cualquiera. */
+  const result = aggregateDatasets([
+    dataset("StatsBomb · Ligue 3 2026", 2026, "statsbomb", [
+      conNacimiento("Oluwaseun Adeyemi", "Paris 13 Atletico", "1995-06-01"),
+    ]),
+    dataset("SkillCorner · MLS Next Pro 2026", 2026, "skillcorner", [
+      conNacimiento("Bola Adeyemi", "Crown Legacy FC", "1995-06-01"),
+    ]),
+  ]);
+  assert.equal(result.rows.length, 2);
+});

@@ -767,13 +767,30 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
       if (other.some((entry) => sources.has(entry.sourceIndex))) return false;
       const otherTokens = nameTokens(other[0].player);
       if (!otherTokens.length || otherTokens[otherTokens.length - 1] !== surname) return false;
-      if (otherTokens[0][0] !== initial) return false;
       if (!other.some((entry) => births.has(entry.birthIdentity))) return false;
       // El cumpleaños exacto es una señal fuerte, pero no basta sola: dos
       // jugadores distintos pueden compartir apellido, inicial y fecha.
       const otherClubs = [...new Set(other.map((entry) => entry.clubIdentity).filter(Boolean))];
-      if (!clubs.length || !otherClubs.length) return true;
-      return clubs.some((club) => otherClubs.some((otherClub) => clubsMatch(club, otherClub)));
+      const mismoClub = Boolean(clubs.length) && Boolean(otherClubs.length)
+        && clubs.some((club) => otherClubs.some((otherClub) => clubsMatch(club, otherClub)));
+      /*
+       * Con el club validado, la inicial del nombre sobra.
+       *
+       * Exigirla dejaba fuera al mismo jugador cuando las plataformas parten
+       * su nombre por sitios distintos: "Oluwatunmise Sobowale" en una y
+       * "Tummise Sobowale" en la otra, con el mismo 19 de marzo de 1999 y el
+       * mismo Shamrock Rovers, quedaban como dos personas con media ficha
+       * cada una. Es el patrón yoruba de siempre, pero recortado por delante,
+       * que es justo donde la inicial deja de servir.
+       *
+       * Apellido + fecha de nacimiento exacta + club compatible identifican a
+       * una persona tan bien como un documento. Sin club que lo respalde la
+       * inicial sigue haciendo falta: ahí la fecha sola sí puede juntar a dos
+       * homónimos nacidos el mismo día.
+       */
+      if (mismoClub) return true;
+      if (otherTokens[0][0] !== initial) return false;
+      return !clubs.length || !otherClubs.length;
     });
     if (candidates.length === 1) {
       candidates[0].push(...group);
