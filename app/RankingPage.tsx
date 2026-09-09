@@ -6,6 +6,7 @@ import { PERFILES } from "@/lib/perfiles";
 import { useBaseActiva } from "./BaseActiva";
 import { BarraDeFiltros } from "./BarraDeFiltros";
 import { Paso } from "./Paso";
+import { BotonExportar } from "./BotonExportar";
 import { t, tf } from "@/lib/i18n";
 import { rankingPorArquetipo } from "@/lib/arquetipos";
 
@@ -52,7 +53,7 @@ export function RankingPage({ onSelectPlayer }: {
    * sigue puesto al cambiar de pestaña. El puesto se queda local porque en
    * esta pantalla no acota: decide QUÉ ranking se calcula.
    */
-  const { rows, filtros, pasaFiltros } = useBaseActiva();
+  const { rows, filtros, pasaFiltros, procedencia } = useBaseActiva();
   const minutosMin = filtros.minutosMin;
 
   // El informe completo es caro: se calcula una vez por perfil y minutos, y
@@ -105,7 +106,28 @@ export function RankingPage({ onSelectPlayer }: {
     </div>
 
     <Paso numero={2}>Entre quiénes lo buscas</Paso>
-    <BarraDeFiltros campos={["liga", "anio", "equipo", "pasaporte", "minutos", "edad"]} resultado={visibles.length} />
+    <div className="rank-barra">
+      <BarraDeFiltros campos={["liga", "anio", "equipo", "pasaporte", "minutos", "edad"]} resultado={visibles.length} />
+      {/* La lista de pantalla se corta en cuarenta; el CSV lleva todas las que
+          pasan los filtros, que es la lista que de verdad se pidió. Y lleva
+          las métricas destacadas, que en pantalla caben tres. */}
+      <BotonExportar
+        nombre={[t("ranking"), t(PERFILES.find((x) => x.id === perfil)?.nombre ?? perfil), filtros.liga !== "TODAS" ? filtros.liga : null, filtros.anio || null]}
+        columnas={[t("#"), t("Jugador"), t("Equipo"), t("Liga"), t("Año"), t("Edad"), t("Min"), t("Índice"), t("Índice sin corregir"), t("Métricas"), t("Pasaportes"), t("Destacadas")]}
+        cuantas={visibles.length}
+        filas={() => visibles.map((fila, posicion) => {
+          const origen = procedencia?.[fila.indice];
+          return [
+            posicion + 1, fila.jugador, fila.equipo,
+            origen?.ligas.join(" · ") ?? "", origen?.anios.join(" · ") ?? "",
+            Number.isFinite(fila.edad) ? fila.edad : null,
+            Math.round(fila.minutos), fila.puntuacion, fila.puntuacionCruda, fila.metricas,
+            fila.pasaportes.join(" · "),
+            fila.destacadas.map((m) => `${t(m.label)} P${m.percentile}`).join(" · "),
+          ];
+        })}
+      />
+    </div>
 
 
     {hayCoberturaDesigual && <p className="rank-cobertura">

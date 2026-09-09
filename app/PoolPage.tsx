@@ -8,6 +8,7 @@ import { buildSimilaritySearch, type SimilarityFilters } from "@/lib/similarity"
 import { useBaseActiva } from "./BaseActiva";
 import { BarraDeFiltros } from "./BarraDeFiltros";
 import { Paso } from "./Paso";
+import { BotonExportar } from "./BotonExportar";
 
 /**
  * Buscador entre ligas: quién se parece a este jugador en todo lo cargado.
@@ -155,7 +156,23 @@ export function PoolPage({ onAbrirJugador }: {
     </div>
 
     {resultado && <Paso numero={2}>Entre quiénes lo buscas</Paso>}
-    {resultado && <BarraDeFiltros campos={["liga", "anio", "equipo", "pasaporte", "minutos", "edad"]} resultado={ordenados.length} />}
+    {resultado && <div className="pool-barra">
+      <BarraDeFiltros campos={["liga", "anio", "equipo", "pasaporte", "minutos", "edad"]} resultado={ordenados.length} />
+      {/* La tabla se corta en cuarenta; el CSV lleva todos los candidatos que
+          pasan los filtros. Van las dos cifras de parecido y la cobertura,
+          porque un 90% con 55% de cobertura no es un 90% con 100. */}
+      <BotonExportar
+        nombre={[t("parecidos-a"), nombreObjetivo, filtros.liga !== "TODAS" ? filtros.liga : null, filtros.anio || null]}
+        columnas={[t("#"), t("Jugador"), t("Equipo"), t("Liga"), t("Año"), t("Edad"), t("Min"), t("Parecido"), t("Bruto"), t("Cobertura")]}
+        cuantas={ordenados.length}
+        filas={() => ordenados.map((candidato, posicion) => [
+          posicion + 1, candidato.name, candidato.team,
+          candidato.origen.ligas.join(" · "), candidato.origen.anios.join(" · "),
+          candidato.age ?? null, Math.round(candidato.minutes),
+          candidato.ajustado, candidato.similarity, candidato.coverage,
+        ])}
+      />
+    </div>}
 
     {resultado && <div className="pool-resultado">
       <h3>{tf("Se parecen a {jugador}", { jugador: nombreObjetivo })} <i>{ordenados.length}</i></h3>

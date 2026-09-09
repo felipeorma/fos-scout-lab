@@ -1417,4 +1417,17 @@ const EN: Record<string, string> = {
   "Volver a todas": "Back to all",
   "Sin partidos publicados todavía en su temporada de este año, así que entran con la anterior: {ligas}. Es dato bueno, pero de un curso ya cerrado.": "No matches published yet for this year's season, so they come in with the previous one: {ligas}. Good data, but from a season already closed.",
   "Entran con su temporada anterior, porque la de este año aún no tiene partidos publicados: {ligas}.": "These come in with their previous season, because this year's has no published matches yet: {ligas}.",
+  // Exportación a CSV del ranking y del buscador entre ligas.
+  "Exportar": "Export",
+  // Trozos del nombre del archivo que se descarga.
+  "ranking": "ranking",
+  "parecidos-a": "similar-to",
+  "Exportar {n}": "Export {n}",
+  "No hay nada que exportar": "Nothing to export",
+  "Bajar las {n} filas a CSV, no solo las que se ven": "Download all {n} rows as CSV, not just the ones on screen",
+  "#": "#",
+  "Índice sin corregir": "Raw index",
+  "Métricas": "Metrics",
+  "Pasaportes": "Passports",
+  "Destacadas": "Standout metrics",
 };

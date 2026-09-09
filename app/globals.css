@@ -2576,6 +2576,19 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
 .filtros-barra-cola > button { padding: 5px 10px; border: 1px solid var(--acento-borde, rgba(255,255,255,.2)); border-radius: 999px; background: var(--acento-suave, rgba(255,255,255,.06)); color: var(--acento-claro, inherit); font-family: inherit; font-size: 9px; cursor: pointer; }
 @media print { .filtros-barra { display: none !important; } }
 
+/* Exportar a CSV: va pegado a la barra de filtros, porque lo que baja es
+   exactamente lo que la barra ha dejado pasar. En la misma fila y no dentro
+   de la barra para que no se lea como un filtro más. */
+.rank-barra, .pool-barra { display: flex; align-items: flex-start; gap: 10px; }
+.rank-barra > .filtros-barra, .pool-barra > .filtros-barra { flex: 1 1 auto; min-width: 0; }
+.boton-exportar { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; margin-bottom: 16px; padding: 0 12px; min-height: 42px; border: 1px solid var(--acento-borde, rgba(255,255,255,.18)); border-radius: 12px; background: var(--acento-suave, rgba(255,255,255,.045)); color: var(--acento-claro, inherit); font-family: inherit; font-size: 10px; font-weight: 600; white-space: nowrap; cursor: pointer; transition: border-color .15s, background .15s, transform .12s; }
+.boton-exportar:hover:not(:disabled) { border-color: var(--acento-borde, rgba(255,255,255,.34)); transform: translateY(-1px); }
+.boton-exportar:active:not(:disabled) { transform: none; }
+.boton-exportar:disabled { opacity: .4; cursor: not-allowed; }
+.boton-exportar > span { font-size: 12px; line-height: 1; }
+@media (max-width: 760px) { .rank-barra, .pool-barra { flex-direction: column; } .boton-exportar { margin: -6px 0 16px; } }
+@media print { .boton-exportar { display: none !important; } }
+
 /* Etapa 1 · Datos: el inventario de lo cargado y las tres formas de cambiarlo. */
 .datos-page { max-width: 940px; }
 .datos-page > header > h2 { margin: 0 0 6px; font-size: 20px; }
