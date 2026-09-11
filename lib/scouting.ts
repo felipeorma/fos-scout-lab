@@ -46,6 +46,8 @@ export type PlayerReport = {
   position: string;
   cohort: string;
   age: string;
+  /** En ISO, o "" si la base no la trae. La ficha la enseña si Transfermarkt no la da. */
+  birthDate: string;
   foot: string;
   passport: string;
   marketValue: string;
@@ -886,6 +888,26 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
     if (currentTeamColumn) output["Current Team"] = latest.row[currentTeamColumn] ?? "";
     if (contractColumn) output["Contract expires"] = latest.row[contractColumn] ?? "";
     if (ageColumn) output.Age = latest.row[ageColumn] ?? "";
+    /*
+     * La fecha de nacimiento del jugador ya fusionado.
+     *
+     * El motor la usaba para decidir quién es la misma persona y acto seguido
+     * la tiraba: de 13.559 filas en crudo, 13.316 la traían y ninguna la
+     * conservaba al salir de aquí. Se perdía por omisión —la fila de salida se
+     * arma con una lista de columnas de texto y esta no estaba—, no por
+     * criterio. Costaba dos cosas: la ficha solo podía enseñar el nacimiento
+     * pegando un enlace de Transfermarkt, cuando StatsBomb y SkillCorner ya lo
+     * dan; y los pares de nombres dudosos no se podían resolver aguas abajo,
+     * que es justo donde la fecha zanja si son la misma persona o dos hermanos.
+     *
+     * Manda la misma fuente que manda para el resto de la identidad: primero
+     * Wyscout/StatsBomb y solo después SkillCorner, que puede devolverla vacía.
+     * Sale normalizada a ISO porque es la forma con la que ya se comparaba.
+     */
+    if (birthColumn) {
+      const conFecha = [...identidadOrdenada, ...sorted].find((entry) => birthIdentity(entry.row));
+      if (conFecha) output["Birth date"] = birthIdentity(conFecha.row);
+    }
 
     for (const header of cumulativeHeaders) {
       const values = sorted.map(({ row }) => numeric(row[header])).filter(Number.isFinite);
@@ -911,7 +933,7 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
     return output;
   }).sort((a, b) => numeric(b[core.minutes]) - numeric(a[core.minutes]));
 
-  const leading = ["Player", "Data sources", "Seasons", "Team", "Position", "Passport country", "Current Team", "Contract expires", "Age", core.matches, core.minutes];
+  const leading = ["Player", "Data sources", "Seasons", "Team", "Position", "Passport country", "Current Team", "Contract expires", "Age", "Birth date", core.matches, core.minutes];
   const headers = [...new Set([...leading.filter((header) => rows.some((row) => row[header] !== undefined)), ...totalHeaders, ...per90Headers, ...percentHeaders])];
   const warnings = [
     ...(!ageColumn ? [t("No se encontró una columna de edad; la clave de identidad usó nombre y club.")] : []),
@@ -1592,6 +1614,7 @@ export function buildPlayerReport(rows: DataRow[], selectedIndex: number, minimu
     position: formatPlayerPositions(text(POSITION_ALIASES)),
     cohort,
     age: text(["age", "edad"]) || "—",
+    birthDate: text(["birth date", "fecha de nacimiento", "date of birth", "birthday"]),
     foot: text(["foot", "pie"]) || "—",
     passport: text(["passport country", "birth country", "pais de pasaporte", "pais de nacimiento"]) || "—",
     marketValue: text(["market value", "valor de mercado"]) || "—",

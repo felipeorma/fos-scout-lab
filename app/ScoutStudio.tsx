@@ -1416,7 +1416,7 @@ export default function ScoutStudio() {
           <h2>{report.player}</h2>
           <div className="identity-line"><b>{selectedCohortPosition(cohort, formatPlayerPositions(profile.position || report.position))}</b><span>{profile.citizenship || report.passport}</span></div>
           <div className="dossier-meta-grid">
-            <div><span>{t("Nacimiento")}</span><b>{profile.birthDate || "—"}{profile.age || report.age !== "—" ? ` · ${tf("{age}a", { age: profile.age || report.age })}` : ""}</b></div>
+            <div><span>{t("Nacimiento")}</span><b>{profile.birthDate || report.birthDate || "—"}{profile.age || report.age !== "—" ? ` · ${tf("{age}a", { age: profile.age || report.age })}` : ""}</b></div>
             <div><span>{t("Lugar")}</span><b>{profile.birthPlace || "—"}</b></div>
             <div><span>{t("Altura")}</span><b>{profile.height || "—"}</b></div>
             <div><span>{t("Pie")}</span><b>{profile.foot || report.foot}</b></div>

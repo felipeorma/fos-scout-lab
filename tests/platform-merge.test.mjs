@@ -302,3 +302,48 @@ test("sin club que lo respalde, la fecha sola no basta: la inicial sigue haciend
   ]);
   assert.equal(result.rows.length, 2);
 });
+
+/**
+ * La fecha de nacimiento tiene que sobrevivir al cruce.
+ *
+ * El motor la usaba para decidir quién es la misma persona y luego la tiraba,
+ * porque la fila de salida se arma con una lista de columnas de texto y esta
+ * no estaba en ella. De 13.559 filas en crudo, 13.316 la traían y ninguna la
+ * conservaba. Se perdía por omisión, no por criterio, y nadie se enteraba: no
+ * rompe nada, solo deja el campo "Nacimiento" de la ficha en blanco y quita el
+ * único dato que zanja si dos nombres parecidos son una persona o dos hermanos.
+ */
+test("la fecha de nacimiento sobrevive al cruce, normalizada a ISO", () => {
+  const result = aggregateDatasets([
+    dataset("StatsBomb · CPL 2026", 2026, "statsbomb", [player()]),
+  ]);
+  assert.equal(result.rows[0]["Birth date"], "1999-03-31");
+  assert.ok(result.headers.includes("Birth date"));
+});
+
+test("manda la fecha de la base de identidad, no la de SkillCorner", () => {
+  // SkillCorner es una capa física sobre la base: aporta métricas, no
+  // identidad. Si devuelve la fecha vacía o desactualizada no puede pisar la
+  // buena, igual que ya pasa con el club y la posición.
+  const result = aggregateDatasets([
+    dataset("StatsBomb · CPL 2026", 2026, "statsbomb", [player()]),
+    dataset("SkillCorner · CPL 2026", 2026, "skillcorner", [player({ "Birth date": "" })]),
+  ]);
+  assert.equal(result.rows.length, 1);
+  assert.equal(result.rows[0]["Birth date"], "1999-03-31");
+});
+
+test("si solo SkillCorner trae la fecha, se usa esa", () => {
+  const result = aggregateDatasets([
+    dataset("StatsBomb · CPL 2026", 2026, "statsbomb", [player({ "Birth date": "" })]),
+    dataset("SkillCorner · CPL 2026", 2026, "skillcorner", [player()]),
+  ]);
+  assert.equal(result.rows[0]["Birth date"], "1999-03-31");
+});
+
+test("sin fecha en ninguna base, la columna no se inventa", () => {
+  const result = aggregateDatasets([
+    dataset("StatsBomb · CPL 2026", 2026, "statsbomb", [player({ "Birth date": "" })]),
+  ]);
+  assert.equal(result.rows[0]["Birth date"], undefined);
+});
