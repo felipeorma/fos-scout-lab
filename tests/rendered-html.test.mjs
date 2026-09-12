@@ -78,9 +78,11 @@ test("la primera pantalla trae el conmutador de encargo y las puertas de entrada
   assert.match(html, /<title>Felipe Ormazabal Scouting \| Reportes de scouting · Scouting Reports<\/title>/i);
 
   const texto = textoVisible(html);
-  // Los dos encargos conviven en la misma herramienta y se cambia entre ellos.
+  // Los dos encargos conviven en la misma herramienta. El conmutador pasó de
+  // ser dos botones siempre visibles a un desplegable que enseña en cuál
+  // estás: en el HTML inicial se ve el activo y el botón que abre el otro.
   assert.match(texto, /Cavalry/);
-  assert.match(texto, /Maldonado/);
+  assert.match(html, /aria-label="Espacio de trabajo"/);
   // El flujo que ordena la pantalla: cargar, elegir, construir.
   for (const paso of ["Cargar datos", "Elegir jugador", "Construir reporte"]) {
     assert.match(texto, new RegExp(paso), `falta el paso "${paso}"`);
@@ -91,9 +93,10 @@ test("la primera pantalla trae el conmutador de encargo y las puertas de entrada
   assert.match(texto, /Trabajar con todas las ligas/);
   assert.match(texto, /Subir un archivo de Wyscout/);
   assert.match(texto, /Elegir una competición/);
-  // Bilingüe desde el primer momento.
-  assert.match(texto, /\bES\b/);
-  assert.match(texto, /\bEN\b/);
+  // El idioma y el tema dejaron de ocupar la barra y viven en el menú de
+  // ajustes, que se abre en el cliente: lo que tiene que estar en el HTML
+  // inicial es la puerta, no su contenido.
+  assert.match(html, /aria-label="Ajustes"/);
 });
 
 test("no se cuela andamiaje del build en la página", async () => {
