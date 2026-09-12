@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
-import { BarChart3, Check, ChevronDown, FileSpreadsheet, Files, ImageIcon, LockKeyhole, Menu, Merge, Printer, RotateCcw, Search, Sparkles, Upload, X } from "./Icons";
+import { BarChart3, Check, ChevronDown, FileSpreadsheet, Files, ImageIcon, LockKeyhole, Menu, Merge, MoreHorizontal, Printer, RotateCcw, Search, Sparkles, Upload, X } from "./Icons";
 import { PizzaRadar } from "./PizzaRadar";
 import { ContextPage } from "./ContextPage";
 import { ScoutingBoard } from "./ScoutingBoard";
@@ -18,6 +18,7 @@ import { ProveedorDeBase, useEstadoDeBase } from "./BaseActiva";
 import { BarraDeFiltros } from "./BarraDeFiltros";
 import { DatosPage } from "./DatosPage";
 import { Interruptor } from "./Interruptor";
+import { FilaDeMenu, GrupoDeMenu, MenuFlotante } from "./MenuFlotante";
 import { ESCUDOS, RETRATO } from "./Imagenes";
 import {
   aggregateDatasets,
@@ -61,6 +62,24 @@ const POOL_PAGE = 95;
 // repartido en tres botones distintos —la portada, "Conectar API" y
 // "Reemplazar archivos"— y cada uno hacía una parte; ahora es una etapa.
 const DATA_PAGE = 96;
+
+/**
+ * Cómo se llama cada sección, en un solo sitio.
+ *
+ * El nombre estaba escrito tres veces —en el menú, en el título y en el
+ * selector de páginas— y se habían ido separando. Aquí se nombra una vez y
+ * todos leen de la misma lista.
+ */
+const NOMBRE_DE_SECCION: Record<number, string> = {
+  [CARD_PAGE]: "Ficha y radar",
+  [SIMILARITY_PAGE]: "Similitud",
+  [CONTEXT_PAGE]: "Contexto",
+  [BOARD_PAGE]: "Mesa de detección",
+  [RUNS_PAGE]: "Carreras",
+  [RANK_PAGE]: "Ranking",
+  [POOL_PAGE]: "Entre ligas",
+  [DATA_PAGE]: "Base activa",
+};
 /**
  * Quién firma el informe. Hay una firma guardada por encargo —Cavalry y
  * Maldonado son clientes distintos y no se firman igual— más una temporal
@@ -1474,56 +1493,105 @@ export default function ScoutStudio() {
     <ProveedorDeBase valor={base}>
     <div className="app-shell no-sidebar" data-paleta={paleta} data-tema={tema}>
       <main className="main-area">
+        {/* La barra de navegación, al modo de iOS: una guía a la izquierda,
+            el título de la sección, y UNA acción principal a la derecha.
+
+            Antes esto eran ocho grupos en una sola fila —marca, menú,
+            espacios, un asistente de tres pasos, dos interruptores, una
+            píldora de privacidad y dos botones—, todos con el mismo peso.
+            Lo que se usa cada día pesaba lo mismo que lo que se toca una vez
+            al mes, y con la ventana estrecha se amontonaba. Ahora el idioma,
+            el tema, el aviso de privacidad y el restablecer viven en el menú
+            de la derecha: siguen a un clic, pero ya no compiten. */}
         <header className="topbar studio-topbar">
-          <div className="studio-brand">
-            <span className="studio-brand-mark">F</span>
-            <span className="studio-brand-copy"><b>Felipe Ormazabal Scouting</b><small>{t("Reportes de scouting")}</small></span>
-          </div>
+          <div className="nav-guia">
+            <button type="button" className="menu-boton" aria-expanded={menuAbierto}
+              aria-label={t("Secciones")} onClick={() => setMenuAbierto(true)}>
+              <Menu size={18} />
+            </button>
 
-          {/* Dos encargos, dos flujos. El dato cargado es el mismo. */}
-          <button type="button" className="menu-boton" aria-expanded={menuAbierto}
-            aria-label={t("Secciones")} onClick={() => setMenuAbierto(true)}>
-            <Menu size={18} />
-          </button>
-          <div className="espacio-switch" role="group" aria-label={t("Espacio de trabajo")}>
-            {/* Los escudos de verdad, tomados de su web con permiso: se
-                reconoce mucho antes un escudo que un nombre escrito. */}
-            {(["cavalry", "maldonado"] as const).map((id) => (
-              <button key={id} className={espacio === id ? "active" : ""} aria-pressed={espacio === id}
-                onClick={() => cambiarEspacio(id)}>
+            {/* Dos encargos, dos flujos. El dato cargado es el mismo.
+                Era un par de botones siempre visibles; como es una elección
+                de contexto y no una acción, pasa a botón desplegable: se ve
+                en cuál estás sin ocupar sitio con el que no. */}
+            <MenuFlotante
+              className="espacio-menu"
+              alineado="izquierda"
+              etiqueta={t("Espacio de trabajo")}
+              icono={<>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={ESCUDOS[id].src} width={ESCUDOS[id].ancho * 18 / ESCUDOS[id].alto} height={18} alt="" />
-                {id === "cavalry" ? t("Cavalry") : t("Maldonado")}
-              </button>
-            ))}
+                <img src={ESCUDOS[espacio].src} width={ESCUDOS[espacio].ancho * 17 / ESCUDOS[espacio].alto} height={17} alt="" />
+                <b>{espacio === "cavalry" ? t("Cavalry") : t("Maldonado")}</b>
+                <ChevronDown size={13} aria-hidden="true" />
+              </>}
+            >
+              <GrupoDeMenu titulo={t("Espacio de trabajo")}>
+                {(["cavalry", "maldonado"] as const).map((id) => (
+                  <FilaDeMenu key={id} activo={espacio === id} onClick={() => cambiarEspacio(id)}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={ESCUDOS[id].src} width={ESCUDOS[id].ancho * 18 / ESCUDOS[id].alto} height={18} alt="" />
+                    <span>{id === "cavalry" ? t("Cavalry") : t("Maldonado")}</span>
+                    {espacio === id && <Check size={14} aria-hidden="true" />}
+                  </FilaDeMenu>
+                ))}
+              </GrupoDeMenu>
+            </MenuFlotante>
           </div>
 
-          {espacio === "cavalry" && <ol className="studio-flow" aria-label={t("Flujo del reporte")}>
-            <li className={dataReady ? "done" : "current"}><span>{dataReady ? <Check size={13} /> : "1"}</span><div><b>{t("Cargar datos")}</b><small>{dataReady ? tDefault(reportFileName) : t("Excel o CSV")}</small></div></li>
-            <li className={report ? "done" : dataReady ? "current" : ""}><span>{report ? <Check size={13} /> : "2"}</span><div><b>{t("Elegir jugador")}</b><small>{report ? report.player : t("Equipo y jugador")}</small></div></li>
-            <li className={reportPage !== CARD_PAGE ? "done" : report ? "current" : ""}><span>3</span><div><b>{t("Construir reporte")}</b><small>{t("Ficha, similitud y visuales")}</small></div></li>
-          </ol>}
+          <h1 className="nav-titulo">
+            {dataReady ? t(NOMBRE_DE_SECCION[reportPage] ?? "Visuales") : t("Reportes de scouting")}
+          </h1>
 
           <div className="top-actions">
-            <Interruptor
-              activo={lang === "en"}
-              onCambio={(ingles) => setLang(ingles ? "en" : "es")}
-              etiquetaApagado="ES"
-              etiquetaEncendido="EN"
-              titulo={t("Idioma del estudio y del reporte")}
-            />
-            <Interruptor
-              activo={tema === "claro"}
-              onCambio={cambiarTema}
-              etiquetaApagado="☾"
-              etiquetaEncendido="☀"
-              titulo={t("Tema claro u oscuro")}
-            />
-            <span className="privacy-pill" title={t("Los datos nunca salen del navegador")}><LockKeyhole size={14} /> {t("Solo tú")}</span>
-            {dataReady && <button className="button secondary compact" onClick={resetReport}><RotateCcw size={15} /> {t("Restablecer")}</button>}
             <button className="button primary compact" onClick={() => { setPrintLayoutError(""); setPrintDialogOpen(true); }} disabled={!report || !dataReady}><Printer size={15} /> {t("Imprimir / PDF")}</button>
+            <MenuFlotante etiqueta={t("Ajustes")} icono={<MoreHorizontal size={18} />}>
+              <GrupoDeMenu titulo={t("Idioma")}>
+                <FilaDeMenu>
+                  <span>{t("Idioma del estudio y del reporte")}</span>
+                  <Interruptor
+                    activo={lang === "en"}
+                    onCambio={(ingles) => setLang(ingles ? "en" : "es")}
+                    etiquetaApagado="ES"
+                    etiquetaEncendido="EN"
+                    titulo={t("Idioma del estudio y del reporte")}
+                  />
+                </FilaDeMenu>
+              </GrupoDeMenu>
+              <GrupoDeMenu titulo={t("Apariencia")}>
+                <FilaDeMenu>
+                  <span>{t("Tema claro u oscuro")}</span>
+                  <Interruptor
+                    activo={tema === "claro"}
+                    onCambio={cambiarTema}
+                    etiquetaApagado="☾"
+                    etiquetaEncendido="☀"
+                    titulo={t("Tema claro u oscuro")}
+                  />
+                </FilaDeMenu>
+              </GrupoDeMenu>
+              <GrupoDeMenu>
+                <FilaDeMenu>
+                  <LockKeyhole size={14} aria-hidden="true" />
+                  <span>{t("Los datos nunca salen del navegador")}</span>
+                </FilaDeMenu>
+                {dataReady && <FilaDeMenu peligro onClick={resetReport}>
+                  <RotateCcw size={14} aria-hidden="true" />
+                  <span>{t("Restablecer")}</span>
+                </FilaDeMenu>}
+              </GrupoDeMenu>
+            </MenuFlotante>
           </div>
         </header>
+
+        {/* El asistente de tres pasos vivía en la barra, donde estorbaba lo que
+            se usa a diario. Baja al contenido y solo mientras hace falta: en
+            cuanto hay datos y jugador ya no dice nada que la propia pantalla
+            no diga. */}
+        {espacio === "cavalry" && !report && <ol className="studio-flow" aria-label={t("Flujo del reporte")}>
+          <li className={dataReady ? "done" : "current"}><span>{dataReady ? <Check size={13} /> : "1"}</span><div><b>{t("Cargar datos")}</b><small>{dataReady ? tDefault(reportFileName) : t("Excel o CSV")}</small></div></li>
+          <li className={dataReady ? "current" : ""}><span>2</span><div><b>{t("Elegir jugador")}</b><small>{t("Equipo y jugador")}</small></div></li>
+          <li><span>3</span><div><b>{t("Construir reporte")}</b><small>{t("Ficha, similitud y visuales")}</small></div></li>
+        </ol>}
 
         <div className="page-content reports-page">
             <input ref={singleReportInputRef} type="file" accept=".xlsx,.xls,.csv" hidden onChange={(event) => { if (event.target.files) void onReportFiles(event.target.files, "single"); event.target.value = ""; }} />
@@ -1743,9 +1811,9 @@ export default function ScoutStudio() {
                     <span className="selection-flow-line" aria-hidden="true" />
                     <label className="field-group selection-step"><span className="selection-step-title"><FieldLabel>{t("Jugador")}</FieldLabel></span><span className="select-wrap"><Search size={16} /><select value={selectedPlayer} disabled={backgroundRemoving || !teamPlayers.length} onChange={(event) => selectPlayer(Number(event.target.value))}>{teamPlayers.map((player) => <option key={`${player.player}-${player.index}`} value={player.index}>{player.player}</option>)}</select><ChevronDown size={16} /></span></label>
                   </div>
-                  <div className="two-fields">
+                  <div className="panel-seccion">
+                    <span className="panel-seccion-titulo">{t("Cómo se mide")}</span>
                     <label className="field-group"><FieldLabel>{t("Cohorte")}</FieldLabel><span className="select-wrap simple"><select value={cohort} onChange={(event) => setCohort(event.target.value)}><option value="AUTO">{t("Automática")}</option><option value="GK">{t("Porteros")}</option><option value="CB">{t("Centrales")}</option><option value="FB">{t("Laterales")}</option><option value="DMF">{t("Pivotes / mediocentros")}</option><option value="B2B">{t("Interiores (box-to-box)")}</option><option value="WING">{t("Extremos")}</option><option value="DWING">{t("Extremos directos")}</option><option value="AM">{t("Mediapuntas")}</option><option value="CF">{t("Delanteros")}</option></select><ChevronDown size={16} /></span></label>
-                    <label className="field-group"><FieldLabel>{t("Mín. minutos")}</FieldLabel><input className="text-input" type="number" min="0" step="100" value={minimumMinutes} onChange={(event) => setMinimumMinutes(Number(event.target.value))} /></label>
                   {report && availableMetrics.length > 0 && <details className="profile-details metric-picker">
                     <summary>{t("Añadir o quitar métricas")} <b>{report.metrics.length}</b></summary>
                     <p className="metric-picker-hint">{t("Marca las que quieres ver. El percentil siempre se calcula contra los jugadores de su posición en la base cargada.")}</p>

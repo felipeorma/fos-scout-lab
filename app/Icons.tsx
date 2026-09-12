@@ -49,6 +49,7 @@ export const FolderOpen = icono(<><path d="M3 8.5V6a2 2 0 0 1 2-2h4l2 2.5h6a2 2 
 export const LayoutDashboard = icono(<><rect x="3.5" y="3.5" width="7" height="7" rx="1.3" /><rect x="13.5" y="3.5" width="7" height="4.5" rx="1.3" /><rect x="3.5" y="13.5" width="7" height="7" rx="1.3" /><rect x="13.5" y="11" width="7" height="9.5" rx="1.3" /></>);
 export const LockKeyhole = icono(<><rect x="4.5" y="10" width="15" height="10.5" rx="2.2" /><path d="M8 10V7.4a4 4 0 0 1 8 0V10" /><circle cx="12" cy="15.2" r="1.4" /></>);
 export const Menu = icono(<><path d="M4 7h16" /><path d="M4 12h16" /><path d="M4 17h16" /></>);
+export const MoreHorizontal = icono(<><circle cx="5" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="19" cy="12" r="1.5" /></>, true);
 export const Merge = icono(<><path d="M6 3v4.6c0 1.2.6 2.3 1.6 3l3.1 2.1c1 .7 1.6 1.8 1.6 3V21" /><path d="M18 3v4.6c0 1.2-.6 2.3-1.6 3L14.5 12" /><path d="m9 18 3.3 3 3.2-3" /></>);
 export const Printer = icono(<><path d="M7 9V4h10v5" /><path d="M7 18H5.5A2.5 2.5 0 0 1 3 15.5V12a2.5 2.5 0 0 1 2.5-2.5h13A2.5 2.5 0 0 1 21 12v3.5a2.5 2.5 0 0 1-2.5 2.5H17" /><rect x="7" y="14.5" width="10" height="6" rx="1.2" /></>);
 export const RotateCcw = icono(<><path d="M3.5 5.5v5h5" /><path d="M4.2 10.5a8 8 0 1 1 .3 5" /></>);

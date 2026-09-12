@@ -3974,3 +3974,199 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
   .app-shell .report-page-tabs { transition: none; }
   .app-shell .menu-velo { animation: none; }
 }
+
+/* =====================================================================
+   La barra de navegación, al modo de iOS
+   =====================================================================
+   Tres zonas y nada más: guía a la izquierda, título en medio, una acción
+   a la derecha. Lo que antes eran ocho grupos apretados en una fila.
+
+   El material: la barra flota sobre el contenido en vez de robarle una
+   franja. Por eso es translúcida con desenfoque y el contenido pasa por
+   debajo — y por eso el límite es un degradado que se desvanece, no una
+   línea de 1px. Una línea dura dice "aquí acaba una caja"; el degradado
+   dice "esto flota encima", que es lo que de verdad pasa. */
+.app-shell .studio-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  height: 54px;
+  padding: 0 20px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  border-bottom: none;
+  background: color-mix(in srgb, var(--canvas) 72%, transparent);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+}
+/* El borde de scroll: se desvanece donde el contenido pasa por debajo. */
+.app-shell .studio-topbar::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: 100%;
+  height: 14px;
+  pointer-events: none;
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--canvas) 62%, transparent), transparent);
+}
+
+.nav-guia { min-width: 0; display: flex; align-items: center; gap: 8px; justify-self: start; }
+
+/* El título responde a "¿dónde estoy?". Tracking negativo porque a este
+   tamaño las letras se leen demasiado separadas si se dejan a cero. */
+.nav-titulo {
+  margin: 0;
+  justify-self: center;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  white-space: nowrap;
+}
+
+.app-shell .top-actions { justify-self: end; gap: 8px; }
+
+/* ---- El menú flotante ---- */
+.menu-flotante { position: relative; display: inline-flex; }
+.menu-flotante-boton {
+  min-height: 32px;
+  padding: 0 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid transparent;
+  border-radius: var(--r-control, 10px);
+  color: var(--ink);
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  /* La respuesta va en el pointer-down, no al soltar. */
+  transition: background .12s ease, border-color .12s ease, transform .1s ease;
+}
+.menu-flotante-boton:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.menu-flotante-boton:active { transform: scale(.97); }
+.menu-flotante-boton.abierto { border-color: var(--line); background: color-mix(in srgb, var(--ink) 9%, transparent); }
+.menu-flotante-boton b { font-weight: 600; letter-spacing: -0.01em; }
+.menu-flotante-boton img { display: block; }
+
+.menu-flotante-panel {
+  position: absolute;
+  top: calc(100% + 7px);
+  z-index: 60;
+  min-width: 232px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--paper) 86%, transparent);
+  backdrop-filter: blur(30px) saturate(180%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  box-shadow: 0 18px 44px rgba(0,0,0,.24);
+  /* Crece DESDE el botón: el origen se ancla al lado por el que sale, así
+     que el panel parece salir de lo que se acaba de pulsar. */
+  animation: menu-aparece .19s cubic-bezier(.32,.72,0,1) both;
+}
+.menu-flotante.derecha .menu-flotante-panel { right: 0; transform-origin: top right; }
+.menu-flotante.izquierda .menu-flotante-panel { left: 0; transform-origin: top left; }
+@keyframes menu-aparece {
+  from { opacity: 0; transform: scale(.94) translateY(-4px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.menu-grupo { padding: 4px 0; }
+.menu-grupo + .menu-grupo { margin-top: 4px; border-top: 1px solid var(--line); }
+.menu-grupo-titulo {
+  display: block;
+  padding: 5px 10px 4px;
+  color: var(--muted);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+.menu-fila {
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 10px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: none;
+  border-radius: 9px;
+  color: var(--ink);
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: default;
+}
+button.menu-fila { cursor: pointer; }
+button.menu-fila:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+button.menu-fila:active { transform: scale(.985); }
+.menu-fila > span:first-of-type { flex: 1; min-width: 0; }
+.menu-fila.activa { font-weight: 600; }
+.menu-fila.peligro { color: var(--acento); }
+.menu-fila .interruptor { flex: none; }
+
+/* ---- El flujo de tres pasos, ya fuera de la barra ----
+   Es una guía de arranque, no contenido. Tres cajas grandes con borde pesaban
+   más que la pantalla que estaban presentando; ahora es una tira fina que se
+   lee de un vistazo y desaparece en cuanto hay jugador elegido. */
+.app-shell .studio-flow {
+  max-width: 1510px;
+  margin: 16px auto -10px;
+  padding: 0 42px;
+  gap: 6px;
+}
+.app-shell .studio-flow li {
+  padding: 7px 12px;
+  border-color: transparent;
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+}
+.app-shell .studio-flow li b { font-size: 11px; letter-spacing: -0.005em; }
+.app-shell .studio-flow li small { font-size: 9.5px; color: var(--muted); }
+.app-shell .studio-flow li > span { width: 19px; height: 19px; font-size: 10px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .menu-flotante-panel { animation: none; }
+  .menu-flotante-boton:active, button.menu-fila:active { transform: none; }
+}
+
+/* =====================================================================
+   La columna de control, como una lista agrupada de iOS
+   =====================================================================
+   Era una pila de tarjetas sueltas: el recordatorio de la base, los filtros,
+   el selector de jugador, la cohorte y los ajustes del informe, todos con el
+   mismo peso y sin nada que dijera cuál es cuál. Se leía de arriba abajo sin
+   saber dónde acababa una idea y empezaba otra.
+
+   Ahora cada bloque es una sección con nombre sobre una sola superficie, con
+   el mismo ritmo vertical. El nombre no es decoración: separa los dos ejes
+   que gobiernan la plataforma —a QUIÉN miras (los filtros) y CÓMO se le mide
+   (la cohorte)— que hasta ahora estaban mezclados sin distinguir. */
+.panel-seccion {
+  margin-top: 14px;
+  padding-top: 13px;
+  border-top: 1px solid var(--line);
+}
+.panel-seccion-titulo {
+  display: block;
+  margin-bottom: 9px;
+  color: var(--muted);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+/* Las etiquetas de campo iban en versalitas diminutas encima de cada control,
+   una por línea: mucha tinta para poca información y difícil de barrer con la
+   vista. Se acercan al control y bajan de peso, que es como se leen las de
+   Ajustes: primero el dato, la etiqueta sirviéndolo. */
+.app-shell .control-panel .field-label,
+.app-shell .control-panel .selection-step-title {
+  color: var(--muted);
+  font-size: 9.5px;
+  letter-spacing: .05em;
+}
