@@ -721,6 +721,18 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
   const reportSheetRef = useRef<HTMLElement>(null);
   const options = useMemo(() => similarityOptions(rows), [rows]);
   const secondaryOptions = useMemo(() => secondaryRoleOptions(rows, position), [rows, position]);
+  /**
+   * ¿Hay posiciones secundarias en esta base?
+   *
+   * Solo existen cuando un jugador trae varias posiciones, y eso lo dan los
+   * Excel de Wyscout o el cruce de temporadas y fuentes. Una liga suelta de la
+   * API trae una sola por jugador —medido: la CPL de StatsBomb (2024, 2025 y
+   * 2026) y la de SkillCorner, cero filas con más de una—, así que la ficha no
+   * podía encenderse nunca: se quedaba apagada, con un aviso que mandaba a
+   * elegir un rol principal que tampoco la encendía. Sin nada que ofrecer, no
+   * se muestra.
+   */
+  const hayRolesSecundarios = useMemo(() => secondaryRoleOptions(rows, "").length > 0, [rows]);
   const objetivosVisibles = useMemo(
     () => targets.filter((target) => encaja(target.index, ligaObjetivo, anioObjetivo)),
     [targets, encaja, ligaObjetivo, anioObjetivo],
@@ -1342,9 +1354,9 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
                 <Desplegable etiqueta={t("Rol")} valor={position || t("Todos")} activo={Boolean(position)}>
                   <select aria-label={t("Rol principal")} value={position} onChange={(event) => { setPosition(event.target.value); setSecondaryRole(""); }}><option value="">{t("Todos los roles")}</option>{options.positions.map((item) => <option key={item} value={item}>{item}</option>)}</select>
                 </Desplegable>
-                <Desplegable etiqueta={t("Rol secundario")} valor={secondaryRole || t("Cualquiera")} activo={Boolean(secondaryRole)} apagado={!secondaryOptions.length} aviso={secondaryOptions.length ? undefined : t("Elige antes un rol principal")}>
+                {hayRolesSecundarios && <Desplegable etiqueta={t("Rol secundario")} valor={secondaryRole || t("Cualquiera")} activo={Boolean(secondaryRole)} apagado={!secondaryOptions.length} aviso={secondaryOptions.length ? undefined : t("Este rol no tiene posiciones secundarias en la base")}>
                   <select aria-label={t("Rol secundario · según el primer filtro")} value={secondaryRole} onChange={(event) => setSecondaryRole(event.target.value)} disabled={!secondaryOptions.length}><option value="">{t("Cualquiera")}</option>{secondaryOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select>
-                </Desplegable>
+                </Desplegable>}
                 <Desplegable etiqueta={t("Lado")} valor={side === "left" ? t("Izquierdo (L)") : side === "right" ? t("Derecho (R)") : t("Cualquiera")} activo={Boolean(side)}>
                   <select aria-label={t("Lado del campo · prefijo L / R")} value={side} onChange={(event) => setSide(event.target.value as "" | "left" | "right")}><option value="">{t("Cualquiera")}</option><option value="left">{t("Izquierdo (L)")}</option><option value="right">{t("Derecho (R)")}</option></select>
                 </Desplegable>

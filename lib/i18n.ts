@@ -1118,7 +1118,7 @@ const EN: Record<string, string> = {
   "Transfermarkt e imágenes": "Transfermarkt and images",
   "Baseline estadístico": "Statistical baseline",
   "Parecido de rol": "Role similarity",
-  "Elige antes un rol principal": "Pick a main role first",
+  "Este rol no tiene posiciones secundarias en la base": "This role has no secondary positions in the database",
   "Rol": "Role",
   "Rol secundario": "Secondary role",
   "Lado": "Side",
