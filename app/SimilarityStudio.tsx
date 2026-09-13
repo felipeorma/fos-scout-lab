@@ -1,11 +1,12 @@
 "use client";
 import { Interruptor } from "./Interruptor";
 import { Paso } from "./Paso";
+import { Desplegable } from "./BarraDeFiltros";
 import { colorContrastante } from "@/lib/colores";
 import { PERFILES_FILTRO } from "@/lib/perfiles";
 
 import { type CSSProperties, type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDownToLine, Printer, RotateCcw, Search, Sparkles, Upload } from "./Icons";
+import { ArrowDownToLine, ChevronDown, Printer, RotateCcw, Search, Sparkles, Upload } from "./Icons";
 import { reportThemeStyle, type ReportTheme } from "./reportTheme";
 import { SimilarityReportMain, similarityStarColor, similarityStarGlow, type SimilarityReportPayload } from "./SimilarityReport";
 import {
@@ -702,7 +703,11 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
   // Plegado de entrada: es calibración fina, no el camino normal.
   const [pesosVisibles, setPesosVisibles] = useState(false);
   useEffect(() => {
-    try { setPesosVisibles(window.localStorage.getItem("fos-scout-weight-panel") !== "off"); } catch { /* opcional */ }
+    // Plegados salvo que se hayan abierto a propósito. Con "!== off" arrancaban
+    // abiertos para todo el que no los hubiera cerrado nunca —el comentario
+    // decía "sigue plegada" y el código hacía lo contrario— y eran 666 px de
+    // barras entre el jugador objetivo y la lista que se venía a ver.
+    try { setPesosVisibles(window.localStorage.getItem("fos-scout-weight-panel") === "on"); } catch { /* opcional */ }
   }, []);
   const cambiarPesosVisibles = (valor: boolean) => {
     setPesosVisibles(valor);
@@ -1277,10 +1282,9 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
             titulo={t("Contra quién se calculan los percentiles")}
           />}
         </div>
-        <div className="similarity-model-badge"><Sparkles size={16} /><span>
-          <b>{porLiga ? t("PARECIDO DE ROL") : t("BASELINE ESTADÍSTICO")}</b>
-          <small>{porLiga ? t("Cada uno contra su liga") : t("Percentiles + contexto de edad y rol")}</small>
-        </span></div>
+        {/* Qué modelo mide. Era una caja con borde que ocupaba una fila entera
+            para un dato que se lee una vez: ahora es una línea de pie. */}
+        <p className="similarity-modelo"><Sparkles size={13} /><b>{porLiga ? t("Parecido de rol") : t("Baseline estadístico")}</b><span>{porLiga ? t("Cada uno contra su liga") : t("Percentiles + contexto de edad y rol")}</span></p>
       </section>
 
       {porLiga && comparativaDeModo && <p className="similarity-efecto-modo">
@@ -1296,21 +1300,71 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
       </p>}
 
       <Paso numero={2}>Dónde buscas, y quién sale</Paso>
-      {/* La ponderación va aquí, con la búsqueda, porque es parte de ella:
-          cambiar el peso de una métrica cambia QUIÉN sale en la lista. Al
-          final de la página parecía un apéndice del resultado, y antes del
-          paso 1 obligaba a pasar por una herramienta de calibración para
-          llegar a lo que se venía a ver. Sigue plegada: es afinado, no el
-          camino normal. */}
-      <section className={`similarity-weight-panel${pesosVisibles ? "" : " plegado"}`}>
-        <header>
-          <div><span>{t("PONDERACIÓN PERSONALIZADA")}</span><h2>{t("Importancia de las métricas")}</h2>{pesosVisibles && <p>{t("100% mantiene el peso normal. Sube una métrica para que influya más en el ranking o llévala a 0% para excluirla.")}</p>}</div>
-          <div className="weight-panel-actions">
-            <button type="button" className="weight-panel-toggle" onClick={() => cambiarPesosVisibles(!pesosVisibles)}>{pesosVisibles ? t("Ocultar") : t("Mostrar")}</button>
-            {pesosVisibles && <button type="button" onClick={resetMetricWeights} disabled={!activeMetricWeights}><RotateCcw size={14} /> {t("Restablecer pesos")}</button>}
-          </div>
-        </header>
-        {pesosVisibles && <div className="similarity-weight-grid">
+      {/* Una sola columna. Los filtros vivían en una columna lateral de 250 px
+          junto a los resultados, y los pesos, abiertos, ANTES de ellos: para
+          ver quién se parece había que bajar por 666 px de barras. Ahora la
+          lista va justo después del jugador objetivo, con sus filtros encima
+          como fichas y los pesos plegados dentro, un nivel más abajo. La
+          columna mezclaba además cosas que no eran filtros —una nota interna
+          del motor y el destinatario del informe— que se van a su sitio. */}
+      <div className="similarity-workspace">
+        <main className="similarity-results">
+          <section className="similarity-ranking-card">
+            <div className="similarity-results-head"><div><span>{t("LISTADO DE JUGADORES")}</span><h2>{t("Ranking de similitud")}</h2></div><small>{tf("{n} coincidencias", { n: candidates.length })}</small></div>
+            <div className="filtros-barra similarity-filtros" role="group" aria-label={t("Filtros")}>
+              <label className="campo-busqueda"><Search size={14} /><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("Escribe un nombre…")} aria-label={t("Buscar jugador o club")} /></label>
+              <div className="filtros-chips">
+                <label className={ageMin || ageMax ? "filtro-chip numero activo" : "filtro-chip numero"}>
+                  <span>{t("Edad")}</span>
+                  <input type="number" min="14" max="50" inputMode="numeric" value={ageMin} onChange={(event) => setAgeMin(event.target.value)} placeholder="—" aria-label={t("Edad mínima")} />
+                  <span aria-hidden="true">–</span>
+                  <input type="number" min="14" max="50" inputMode="numeric" value={ageMax} onChange={(event) => setAgeMax(event.target.value)} placeholder="—" aria-label={t("Edad máxima")} />
+                </label>
+                <label className="filtro-chip numero">
+                  <span>{t("Mín. minutos")}</span>
+                  <input type="number" min="0" step="100" inputMode="numeric" value={minimumMinutes} onChange={(event) => cambiarMinutos(event.target.value)} aria-label={t("Mínimo de minutos")} />
+                </label>
+                {ligasDelFondo.length > 1 && <Desplegable etiqueta={t("Liga")} valor={ligaCandidato === "TODAS" ? t("Todas") : ligaCandidato} activo={ligaCandidato !== "TODAS"}>
+                  <select aria-label={t("Liga del candidato")} value={ligaCandidato} onChange={(event) => setLigaCandidato(event.target.value)}>
+                    <option value="TODAS">{t("Todas")}</option>
+                    {ligasDelFondo.map((liga) => <option key={liga} value={liga}>{liga}</option>)}
+                  </select>
+                </Desplegable>}
+                {aniosDelFondo.length > 1 && <Desplegable etiqueta={t("Año")} valor={anioCandidato ? String(anioCandidato) : t("Todos")} activo={Boolean(anioCandidato)}>
+                  <select aria-label={t("Año del candidato")} value={anioCandidato || ""} onChange={(event) => setAnioCandidato(Number(event.target.value))}>
+                    <option value="">{t("Todos")}</option>
+                    {aniosDelFondo.map((anio) => <option key={anio} value={anio}>{anio}</option>)}
+                  </select>
+                </Desplegable>}
+                <Desplegable etiqueta={t("Pasaporte")} valor={passport || t("Todos")} activo={Boolean(passport)}>
+                  <select aria-label={t("Pasaporte · principal o secundario")} value={passport} onChange={(event) => setPassport(event.target.value)}><option value="">{t("Todos los pasaportes")}</option>{options.passports.map((item) => <option key={item} value={item}>{item}</option>)}</select>
+                </Desplegable>
+                <Desplegable etiqueta={t("Rol")} valor={position || t("Todos")} activo={Boolean(position)}>
+                  <select aria-label={t("Rol principal")} value={position} onChange={(event) => { setPosition(event.target.value); setSecondaryRole(""); }}><option value="">{t("Todos los roles")}</option>{options.positions.map((item) => <option key={item} value={item}>{item}</option>)}</select>
+                </Desplegable>
+                <Desplegable etiqueta={t("Rol secundario")} valor={secondaryRole || t("Cualquiera")} activo={Boolean(secondaryRole)} apagado={!secondaryOptions.length} aviso={secondaryOptions.length ? undefined : t("Elige antes un rol principal")}>
+                  <select aria-label={t("Rol secundario · según el primer filtro")} value={secondaryRole} onChange={(event) => setSecondaryRole(event.target.value)} disabled={!secondaryOptions.length}><option value="">{t("Cualquiera")}</option>{secondaryOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select>
+                </Desplegable>
+                <Desplegable etiqueta={t("Lado")} valor={side === "left" ? t("Izquierdo (L)") : side === "right" ? t("Derecho (R)") : t("Cualquiera")} activo={Boolean(side)}>
+                  <select aria-label={t("Lado del campo · prefijo L / R")} value={side} onChange={(event) => setSide(event.target.value as "" | "left" | "right")}><option value="">{t("Cualquiera")}</option><option value="left">{t("Izquierdo (L)")}</option><option value="right">{t("Derecho (R)")}</option></select>
+                </Desplegable>
+              </div>
+              <div className="filtros-barra-cola"><button type="button" onClick={resetFilters}>{t("Restablecer filtros")}</button></div>
+            </div>
+            {/* La ponderación sigue junto a la búsqueda porque es parte de
+                ella —cambiar un peso cambia QUIÉN sale— pero como una fila
+                que se despliega: es afinado, no el camino normal. */}
+            <section className={`similarity-weight-panel${pesosVisibles ? "" : " plegado"}`}>
+              <button type="button" className="similarity-pesos-fila" aria-expanded={pesosVisibles} onClick={() => cambiarPesosVisibles(!pesosVisibles)}>
+                <span><b>{t("Importancia de las métricas")}</b><small>{activeMetricWeights ? tf("{n} métrica{s} con peso personalizado", { n: activeMetricWeights, s: activeMetricWeights === 1 ? "" : "s" }) : t("Todas las métricas tienen peso neutral")}</small></span>
+                <ChevronDown size={14} />
+              </button>
+              {pesosVisibles && <>
+                <div className="similarity-pesos-ayuda">
+                  <p>{t("100% mantiene el peso normal. Sube una métrica para que influya más en el ranking o llévala a 0% para excluirla.")}</p>
+                  <button type="button" onClick={resetMetricWeights} disabled={!activeMetricWeights}><RotateCcw size={14} /> {t("Restablecer pesos")}</button>
+                </div>
+                <div className="similarity-weight-grid">
           {search.target.metrics.map((metric) => {
             const weight = metricWeights[metric.key] ?? 1;
             const percentage = Math.round(weight * 100);
@@ -1321,47 +1375,15 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
               <small><span>0%</span><span>{t("Neutral 100%")}</span><span>{t("Máx. 300%")}</span></small>
             </label>;
           })}
-        </div>}
-      </section>
-
-      <div className="similarity-workspace">
-        <aside className="similarity-filter-panel">
-          <div className="similarity-panel-title"><div><Search size={17} /><span><b>{t("Red de filtros")}</b><small>{tf("{n} coincidencias", { n: candidates.length })}</small></span></div><button onClick={resetFilters} aria-label={t("Restablecer filtros")}><RotateCcw size={14} /></button></div>
-          <label><span>{t("Buscar jugador o club")}</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("Escribe un nombre…")} /></label>
-          <div className="similarity-age-fields"><label><span>{t("Edad mínima")}</span><input type="number" min="14" max="50" value={ageMin} onChange={(event) => setAgeMin(event.target.value)} placeholder={t("Todas")} /></label><label><span>{t("Edad máxima")}</span><input type="number" min="14" max="50" value={ageMax} onChange={(event) => setAgeMax(event.target.value)} placeholder={t("Todas")} /></label></div>
-          <label><span>{t("Mínimo de minutos")}</span><input type="number" min="0" step="100" value={minimumMinutes} onChange={(event) => cambiarMinutos(event.target.value)} /></label>
-          {ligasDelFondo.length > 1 && <label><span>{t("Liga del candidato")}</span>
-            <select value={ligaCandidato} onChange={(event) => setLigaCandidato(event.target.value)}>
-              <option value="TODAS">{t("Todas")}</option>
-              {ligasDelFondo.map((liga) => <option key={liga} value={liga}>{liga}</option>)}
-            </select>
-          </label>}
-          {aniosDelFondo.length > 1 && <label><span>{t("Año del candidato")}</span>
-            <select value={anioCandidato || ""} onChange={(event) => setAnioCandidato(Number(event.target.value))}>
-              <option value="">{t("Todos")}</option>
-              {aniosDelFondo.map((anio) => <option key={anio} value={anio}>{anio}</option>)}
-            </select>
-          </label>}
-          <label><span>{t("Pasaporte · principal o secundario")}</span><select value={passport} onChange={(event) => setPassport(event.target.value)}><option value="">{t("Todos los pasaportes")}</option>{options.passports.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-          <label><span>{t("Rol principal")}</span><select value={position} onChange={(event) => { setPosition(event.target.value); setSecondaryRole(""); }}><option value="">{t("Todos los roles")}</option>{options.positions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-          <label><span>{t("Rol secundario · según el primer filtro")}</span><select value={secondaryRole} onChange={(event) => setSecondaryRole(event.target.value)} disabled={!secondaryOptions.length}><option value="">{t("Cualquiera")}</option>{secondaryOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-          <label><span>{t("Lado del campo · prefijo L / R")}</span><select value={side} onChange={(event) => setSide(event.target.value as "" | "left" | "right")}><option value="">{t("Cualquiera")}</option><option value="left">{t("Izquierdo (L)")}</option><option value="right">{t("Derecho (R)")}</option></select></label>
-          <div className="similarity-method-note"><b>{t("Motor actual: baseline")}</b><p>{t("Esta comparación es explicable y funciona con Excel agregados. RisingBALLER–Wyscout podrá reemplazar el vector cuando existan datos por partido.")}</p></div>
-          <div className="similarity-recipient-editor">
-            <span>{t("REPORTE GENERADO PARA")}</span>
-            <input value={recipientName} onChange={(event) => onRecipientNameChange(event.target.value)} placeholder={t("Nombre del club")} aria-label={t("Nombre del club destinatario")} />
-            <input type="url" value={recipientLogoUrl} onChange={(event) => onRecipientLogoChange(event.target.value)} placeholder="https://logo-del-club.png" aria-label={t("Link del logo del club destinatario")} />
-            <small>{recipientLogoReady ? t("✓ Logo aplicado a la comparación.") : t("El logo es independiente de los clubes comparados.")}</small>
-          </div>
-        </aside>
-
-        <main className="similarity-results">
-          <section className="similarity-ranking-card">
-            <div className="similarity-results-head"><div><span>{t("LISTADO DE JUGADORES")}</span><h2>{t("Ranking de similitud")}</h2></div><small>{activeMetricWeights ? tf("{n} métrica{s} con peso personalizado", { n: activeMetricWeights, s: activeMetricWeights === 1 ? "" : "s" }) : t("Todas las métricas tienen peso neutral")}</small></div>
+                </div>
+              </>}
+            </section>
             {candidates.length ? <div className="similarity-table-wrap"><table className="similarity-table"><thead><tr><th>#</th><th>{t("Jugador")}</th><th>{t("Posiciones")}</th><th>{t("Edad")}</th><th>{t("Minutos")}</th><th>{t("Pasaporte")}</th><th>{t("Similitud")}</th><th /></tr></thead><tbody>{candidates.slice(0, 150).map((candidate, index) => <tr key={candidate.index} className={selectedCandidate?.index === candidate.index ? "selected" : ""}><td>{String(index + 1).padStart(2, "0")}</td><td><b>{candidate.name}</b><small>{candidate.team}</small></td><td><PositionRoles positions={candidate.positions} /></td><td>{candidate.age ?? "—"}</td><td>{Math.round(candidate.minutes).toLocaleString(numberLocale())}</td><td>{candidate.passport}</td><td><span className="similarity-score-pill">{candidate.similarity}%</span></td><td><button onClick={() => chooseCandidate(candidate)}>{t("Comparar")}</button></td></tr>)}</tbody></table></div> : <div className="similarity-no-results"><Search size={24} /><b>{t("No hay jugadores con estos filtros")}</b><span>{t("Reduce los requisitos de edad, minutos, pasaporte o posición.")}</span></div>}
+            <p className="similarity-motor-nota"><b>{t("Motor actual: baseline")}</b> {t("Esta comparación es explicable y funciona con Excel agregados. RisingBALLER–Wyscout podrá reemplazar el vector cuando existan datos por partido.")}</p>
           </section>
 
           {selectedCandidate && <>
+            <Paso numero={3}>El informe de la comparación</Paso>
             <section className="similarity-enrichment-grid">
               <ProfileEnrichment side="target" label={t("Jugador objetivo")} player={search.target.player} color={targetColor} profile={targetProfile} busy={profileBusy === "target"} backgroundBusy={backgroundBusy === "target"} locked={profileBusy !== null || backgroundBusy !== null} canRestore={Boolean(backgroundOriginals[profileStorageKey(search.target.player, search.target.team)])} status={profileStatus.target} onExtract={(url) => extractProfile("target", url)} onImageUrl={(url) => applyPlayerImageUrl("target", url)} onImageFile={(file) => loadPlayerImage("target", file)} onRemoveBackground={() => removePlayerBackground("target")} onRestoreBackground={() => restorePlayerBackground("target")} onDownload={downloadAsset} />
               <ProfileEnrichment side="candidate" label={t("Jugador comparable")} player={selectedCandidate.name} color={candidateColor} profile={candidateProfile} busy={profileBusy === "candidate"} backgroundBusy={backgroundBusy === "candidate"} locked={profileBusy !== null || backgroundBusy !== null} canRestore={Boolean(backgroundOriginals[profileStorageKey(selectedCandidate.name, selectedCandidate.team)])} status={profileStatus.candidate} onExtract={(url) => extractProfile("candidate", url)} onImageUrl={(url) => applyPlayerImageUrl("candidate", url)} onImageFile={(file) => loadPlayerImage("candidate", file)} onRemoveBackground={() => removePlayerBackground("candidate")} onRestoreBackground={() => restorePlayerBackground("candidate")} onDownload={downloadAsset} />
@@ -1380,6 +1402,12 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
 
     </section>
 
+            <div className="similarity-recipient-editor">
+              <span>{t("REPORTE GENERADO PARA")}</span>
+              <input value={recipientName} onChange={(event) => onRecipientNameChange(event.target.value)} placeholder={t("Nombre del club")} aria-label={t("Nombre del club destinatario")} />
+              <input type="url" value={recipientLogoUrl} onChange={(event) => onRecipientLogoChange(event.target.value)} placeholder="https://logo-del-club.png" aria-label={t("Link del logo del club destinatario")} />
+              <small>{recipientLogoReady ? t("✓ Logo aplicado a la comparación.") : t("El logo es independiente de los clubes comparados.")}</small>
+            </div>
             <div className="similarity-note-editor">
               <label>
                 <span>{t("Comentarios")}{!aiControlsHidden && <button type="button" className="reading-ai" disabled={comparisonAiLoading} onClick={() => void writeComparisonNote()}><Sparkles size={11} /> {comparisonAiLoading ? t("Escribiendo…") : t("Escribir con IA")}</button>}</span>

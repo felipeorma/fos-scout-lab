@@ -7,7 +7,9 @@ import { t, tf } from "@/lib/i18n";
 import { BarrasRanking, BarrasZ, CuadranteMetricas, LeyendaGraficos, SwarmMetric, type BarraRank, type BarraZ, type PuntoCuadrante, type PuntoSwarm } from "./ContextCharts";
 import { CATALOGO, DEFINICIONES, type FichaContexto } from "./ContextCatalog";
 import { Arquetipos } from "./Arquetipos";
-import { BarraDeFiltros } from "./BarraDeFiltros";
+import { BarraDeFiltros, Desplegable } from "./BarraDeFiltros";
+import { Check, ChevronDown, LayoutDashboard } from "./Icons";
+import { FilaDeMenu, GrupoDeMenu, MenuFlotante } from "./MenuFlotante";
 
 /**
  * Página de contexto: sitúa al jugador dentro de su equipo y de la liga.
@@ -102,6 +104,13 @@ const BLOQUES = [
   { id: "embudo", etiqueta: "Embudo de rupturas" },
 ] as const;
 
+/** Las cohortes, una vez: dan las opciones del selector y el texto de su ficha. */
+const COHORTES = [
+  ["AUTO", "Automática"], ["GK", "Porteros"], ["CB", "Centrales"], ["FB", "Laterales"],
+  ["DMF", "Pivotes / mediocentros"], ["B2B", "Interiores (box-to-box)"], ["WING", "Extremos"],
+  ["DWING", "Extremos directos"], ["AM", "Mediapuntas"], ["CF", "Delanteros"],
+] as const;
+
 type BloqueId = string;
 
 export type ControlesContexto = {
@@ -110,11 +119,9 @@ export type ControlesContexto = {
   equipo: string;
   jugador: number;
   cohorte: string;
-  minutos: number;
   onEquipo: (equipo: string) => void;
   onJugador: (indice: number) => void;
   onCohorte: (cohorte: string) => void;
-  onMinutos: (minutos: number) => void;
 };
 
 /**
@@ -426,44 +433,22 @@ export function ContextPage({
     return lista;
   }, [rows, report.cohort, report.player, report.team, minutosFiltro]);
 
-  return <article className="context-page">
-    {/* Los mismos filtros de la Página 01, sobre el mismo estado: cambiar aquí
-        cambia el informe entero. Evita ir y volver de pestaña para comparar. */}
-    {/* La red compartida acota a quién puedes elegir en los selectores de
-        abajo. Es distinta del "comparar contra" de más abajo, que no acota
-        sino que cambia el marco contra el que se mide: dos preguntas
-        distintas, cada una con su control. */}
-    <BarraDeFiltros campos={["liga", "anio", "puesto", "pasaporte", "minutos", "edad"]} />
+  // Los bloques que ofrece el menú: los generales y las fichas que aplican a la
+  // fuente elegida, las recomendadas para el perfil primero.
+  const fichasDelMenu = [...fichas].filter(({ ficha }) => fichaEncaja(ficha)).sort((a, b) => Number(recomendada(b.ficha)) - Number(recomendada(a.ficha)));
+  const idsDelMenu = [...BLOQUES.map((bloque) => bloque.id as BloqueId), ...fichasDelMenu.map(({ ficha }) => ficha.id as BloqueId)];
+  const bloquesEncendidos = idsDelMenu.filter((id) => muestra(id)).length;
 
-    {controles && <div className="ctx-controls">
-      <label><span>{t("Equipo")}</span>
-        <select value={controles.equipo} onChange={(event) => controles.onEquipo(event.target.value)}>
-          {controles.equipos.map((equipo) => <option key={equipo || "__sin__"} value={equipo}>{equipo || t("Equipo no disponible")}</option>)}
-        </select>
-      </label>
-      <label><span>{t("Jugador")}</span>
-        <select value={controles.jugador} onChange={(event) => controles.onJugador(Number(event.target.value))}>
-          {controles.jugadores.map((jugador) => <option key={`${jugador.player}-${jugador.index}`} value={jugador.index}>{jugador.player}</option>)}
-        </select>
-      </label>
-      <label><span>{t("Cohorte")}</span>
-        <select value={controles.cohorte} onChange={(event) => controles.onCohorte(event.target.value)}>
-          <option value="AUTO">{t("Automática")}</option>
-          <option value="GK">{t("Porteros")}</option>
-          <option value="CB">{t("Centrales")}</option>
-          <option value="FB">{t("Laterales")}</option>
-          <option value="DMF">{t("Pivotes / mediocentros")}</option>
-          <option value="B2B">{t("Interiores (box-to-box)")}</option>
-          <option value="WING">{t("Extremos")}</option>
-          <option value="DWING">{t("Extremos directos")}</option>
-          <option value="AM">{t("Mediapuntas")}</option>
-          <option value="CF">{t("Delanteros")}</option>
-        </select>
-      </label>
-      <label><span>{t("Mín. minutos")}</span>
-        <input type="number" min="0" step="100" value={controles.minutos} onChange={(event) => controles.onMinutos(Number(event.target.value))} />
-      </label>
-    </div>}
+  return <article className="context-page">
+    {/* El orden, de lo que es la página a cómo se lee.
+
+        Primero el jugador: es el tema de la pantalla, y sus tres selectores
+        —equipo, jugador, cohorte— van con su nombre como fichas, porque
+        eligen DE QUIÉN habla todo lo demás. Debajo, la red de filtros
+        compartida, que acota entre quiénes eliges. Antes el orden era el
+        inverso y los selectores iban en cajas con etiqueta en versalitas,
+        con un "Mín. minutos" repetido: la ficha de la barra y un campo
+        justo debajo escribiendo el mismo estado. */}
     <header>
       <div>
         <span>{t("CONTEXTO")}</span>
@@ -477,8 +462,32 @@ export function ContextPage({
       </div>
     </header>
 
-    {/* Los controles viven en su propia barra, no dentro de la cabecera:
-        apilados junto al nombre se aplastaban unos contra otros. */}
+    {controles && <div className="filtros-barra ctx-jugador" role="group" aria-label={t("Jugador")}>
+      <div className="filtros-chips">
+        <Desplegable etiqueta={t("Equipo")} valor={controles.equipo || t("Equipo no disponible")} activo={false}>
+          <select aria-label={t("Equipo")} value={controles.equipo} onChange={(event) => controles.onEquipo(event.target.value)}>
+            {controles.equipos.map((equipo) => <option key={equipo || "__sin__"} value={equipo}>{equipo || t("Equipo no disponible")}</option>)}
+          </select>
+        </Desplegable>
+        <Desplegable etiqueta={t("Jugador")} valor={controles.jugadores.find((jugador) => jugador.index === controles.jugador)?.player ?? "—"} activo={false}>
+          <select aria-label={t("Jugador")} value={controles.jugador} onChange={(event) => controles.onJugador(Number(event.target.value))}>
+            {controles.jugadores.map((jugador) => <option key={`${jugador.player}-${jugador.index}`} value={jugador.index}>{jugador.player}</option>)}
+          </select>
+        </Desplegable>
+        <Desplegable etiqueta={t("Cohorte")} valor={t(COHORTES.find(([id]) => id === controles.cohorte)?.[1] ?? "Automática")} activo={controles.cohorte !== "AUTO"}>
+          <select aria-label={t("Cohorte")} value={controles.cohorte} onChange={(event) => controles.onCohorte(event.target.value)}>
+            {COHORTES.map(([id, nombre]) => <option key={id} value={id}>{t(nombre)}</option>)}
+          </select>
+        </Desplegable>
+      </div>
+    </div>}
+    <BarraDeFiltros campos={["liga", "anio", "puesto", "pasaporte", "minutos", "edad"]} />
+
+    {/* La fuente, como control segmentado; los bloques, en un menú. Eran
+        nueve píldoras en dos filas, todas encendidas por defecto y todas con
+        el mismo aspecto, así que no se distinguía cuál estaba puesta. En el
+        menú cada una lleva su marca, y la cuenta dice cuántas hay a la vista
+        sin abrirlo. */}
     <div className="ctx-toolbar">
       <div className="ctx-source" role="group" aria-label={t("Fuente de datos")}>
         {([["todas", t("Ambas")], ["statsbomb", METRIC_SOURCE_COLORS.statsbomb.label], ["skillcorner", METRIC_SOURCE_COLORS.skillcorner.label]] as const).map(([valor, etiqueta]) => (
@@ -487,19 +496,23 @@ export function ContextPage({
             onClick={() => cambiarFuente(valor)}>{etiqueta}</button>
         ))}
       </div>
-      <div className="ctx-picker" role="group" aria-label={t("Qué visualizar")}>
-        {BLOQUES.map((bloque) => (
-          <button key={bloque.id} type="button" className={muestra(bloque.id) ? "on" : ""} onClick={() => alternar(bloque.id)}>{t(bloque.etiqueta)}</button>
-        ))}
-        {[...fichas].filter(({ ficha }) => fichaEncaja(ficha)).sort((a, b) => Number(recomendada(b.ficha)) - Number(recomendada(a.ficha))).map(({ ficha }) => (
-          <button key={ficha.id} type="button"
-            className={`${muestra(ficha.id as BloqueId) ? "on" : ""}${recomendada(ficha) ? " sugerida" : ""}`}
-            onClick={() => alternar(ficha.id as BloqueId)}
-            title={`${ficha.articulo}${recomendada(ficha) ? " · " + t("recomendada para este perfil") : ""}`}>
-            {recomendada(ficha) && <i aria-hidden="true">★</i>}{t(ficha.titulo)}
-          </button>
-        ))}
-      </div>
+      <MenuFlotante className="ctx-bloques" alineado="izquierda" etiqueta={t("Qué visualizar")} icono={<>
+        <LayoutDashboard size={14} />
+        <b>{t("Bloques")}</b>
+        <span className="ctx-bloques-cuenta">{tf("{n} de {total}", { n: bloquesEncendidos, total: idsDelMenu.length })}</span>
+        <ChevronDown size={13} />
+      </>}>
+        <GrupoDeMenu titulo={t("Qué visualizar")}>
+          {BLOQUES.map((bloque) => <FilaDeMenu key={bloque.id} activo={muestra(bloque.id)} onClick={() => alternar(bloque.id)}>
+            <span>{t(bloque.etiqueta)}</span>{muestra(bloque.id) && <Check size={14} />}
+          </FilaDeMenu>)}
+        </GrupoDeMenu>
+        {fichasDelMenu.length > 0 && <GrupoDeMenu titulo={t("Análisis de los artículos de SkillCorner")}>
+          {fichasDelMenu.map(({ ficha }) => <FilaDeMenu key={ficha.id} activo={muestra(ficha.id as BloqueId)} onClick={() => alternar(ficha.id as BloqueId)}>
+            <span>{recomendada(ficha) ? "★ " : ""}{t(ficha.titulo)}</span>{muestra(ficha.id as BloqueId) && <Check size={14} />}
+          </FilaDeMenu>)}
+        </GrupoDeMenu>}
+      </MenuFlotante>
     </div>
 
     {ligasDisponibles.length > 1 && <div className="ctx-ligas">

@@ -4330,3 +4330,140 @@ button.menu-fila:active { transform: scale(.985); }
 @media (prefers-reduced-motion: reduce) {
   .app-shell[data-tema] .filtros-barra .filtro-chip:active { transform: none; }
 }
+
+/* =====================================================================
+   Rediseño 3 · Similitud
+   ===================================================================== */
+/* Una sola columna: la lista va detrás del jugador objetivo, con sus
+   filtros encima. El select de una ficha no puede heredar el tope de ancho
+   de los controles antiguos, o dejaría parte de la ficha sin respuesta. */
+.app-shell[data-tema] .filtros-barra .filtro-chip > select { max-width: none; }
+.app-shell[data-tema] .similarity-workspace { display: block; margin-top: 12px; }
+.app-shell[data-tema] .similarity-results { gap: 18px; }
+
+/* El jugador objetivo: nombre y selectores en una fila, la forma de medir
+   debajo y el modelo como línea de pie. */
+.app-shell[data-tema] .similarity-target-bar { grid-template-columns: minmax(0, 1fr) auto; row-gap: 14px; }
+.app-shell[data-tema] .similarity-target-bar .similarity-base-modo {
+  grid-column: 1 / -1;
+  flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px 14px;
+}
+.similarity-modelo {
+  grid-column: 1 / -1;
+  margin: 0; padding-top: 12px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  border-top: 1px solid var(--line);
+  color: var(--muted); font-size: 11px;
+}
+.app-shell .similarity-modelo b { color: var(--ink); font-weight: 600; }
+.app-shell .similarity-modelo span { color: var(--muted); }
+.similarity-modelo .ui-icon { flex: none; color: var(--acento-claro); }
+@media (max-width: 900px) {
+  .app-shell[data-tema] .similarity-target-bar { grid-template-columns: 1fr; }
+}
+
+/* Los filtros, dentro de la tarjeta del ranking y encima de la tabla. */
+.app-shell[data-tema] .similarity-ranking-card > .similarity-filtros {
+  margin: 0; padding: 12px 19px;
+  border-bottom: 1px solid var(--line);
+}
+/* El campo de búsqueda de iOS: gris translúcido, lupa dentro, sin borde. */
+.campo-busqueda {
+  flex: 1 1 100%;
+  min-height: 34px; padding: 0 11px;
+  display: flex; align-items: center; gap: 7px;
+  border-radius: 10px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+}
+.campo-busqueda:focus-within { box-shadow: 0 0 0 3px var(--acento-borde); }
+.app-shell[data-tema] .campo-busqueda > input {
+  flex: 1; min-width: 0;
+  height: 32px; min-height: 0; padding: 0;
+  border: 0; border-radius: 0; outline: 0; box-shadow: none;
+  color: var(--ink); background: none;
+  font: inherit; font-size: 13px;
+}
+.app-shell[data-tema] .campo-busqueda > input::placeholder { color: var(--muted); }
+
+/* Los pesos: una fila que se despliega, sin tarjeta propia. */
+.app-shell[data-tema] .similarity-ranking-card .similarity-weight-panel {
+  margin: 0; padding: 0;
+  border: 0; border-bottom: 1px solid var(--line); border-radius: 0;
+  background: none; box-shadow: none; opacity: 1;
+}
+.similarity-pesos-fila {
+  width: 100%; min-height: 46px; padding: 8px 19px;
+  display: flex; align-items: center; gap: 10px;
+  border: 0; background: none; color: var(--ink);
+  font: inherit; text-align: left; cursor: pointer;
+}
+.similarity-pesos-fila:hover { background: color-mix(in srgb, var(--ink) 4%, transparent); }
+.similarity-pesos-fila > span { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.app-shell .similarity-pesos-fila b { color: var(--ink); font-size: 12.5px; font-weight: 600; }
+.app-shell .similarity-pesos-fila small { color: var(--muted); font-size: 11px; }
+.similarity-pesos-fila > .ui-icon { flex: none; color: var(--muted); transition: transform .2s ease; }
+.similarity-weight-panel:not(.plegado) .similarity-pesos-fila > .ui-icon { transform: rotate(180deg); }
+.similarity-pesos-ayuda { padding: 0 19px 10px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.app-shell .similarity-pesos-ayuda p { margin: 0; color: var(--muted); font-size: 11px; }
+.similarity-pesos-ayuda > button {
+  flex: none; padding: 4px 2px;
+  display: inline-flex; align-items: center; gap: 5px;
+  border: 0; background: none; color: var(--acento-claro);
+  font: inherit; font-size: 11.5px; font-weight: 600; cursor: pointer;
+}
+.similarity-pesos-ayuda > button:disabled { color: var(--muted); opacity: .6; cursor: default; }
+.app-shell[data-tema] .similarity-ranking-card .similarity-weight-grid { margin: 0; padding: 0 19px 16px; }
+
+/* La nota del motor, como letra pequeña al pie de la lista. */
+.similarity-motor-nota {
+  margin: 0; padding: 10px 19px 14px;
+  border-top: 1px solid var(--line);
+  color: var(--muted); font-size: 10.5px; line-height: 1.45;
+}
+.app-shell .similarity-motor-nota b { color: var(--ink); font-weight: 600; }
+
+/* El destinatario, ya junto al informe al que pertenece. */
+.app-shell[data-tema] .similarity-results > .similarity-recipient-editor {
+  padding: 14px 16px;
+  display: grid; gap: 8px;
+  border: 1px solid var(--line); border-radius: var(--r-tarjeta, 16px);
+  background: var(--paper);
+}
+.app-shell[data-tema] .similarity-results > .similarity-recipient-editor > span { color: var(--muted); font-size: 9.5px; font-weight: 700; letter-spacing: .07em; }
+.app-shell[data-tema] .similarity-results > .similarity-recipient-editor > input {
+  min-height: 34px; padding: 0 10px;
+  border: 1px solid var(--line); border-radius: 10px;
+  color: var(--ink); background: color-mix(in srgb, var(--ink) 4%, transparent);
+  font: inherit; font-size: 12px;
+}
+.app-shell[data-tema] .similarity-results > .similarity-recipient-editor > small { color: var(--muted); font-size: 10.5px; }
+
+@media print {
+  .similarity-recipient-editor, .similarity-pesos-fila, .similarity-motor-nota, .similarity-modelo { display: none !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .similarity-pesos-fila > .ui-icon { transition: none; }
+}
+
+/* =====================================================================
+   Rediseño 3 · Contexto
+   ===================================================================== */
+.app-shell[data-tema] .context-page > header { align-items: flex-start; }
+.app-shell[data-tema] .context-page > .ctx-jugador { margin: -8px 0 0; }
+.app-shell[data-tema] .context-page > .filtros-barra { margin-bottom: 0; }
+
+/* El menú de bloques: el botón tiene forma de ficha, para que se lea como
+   del mismo grupo de controles que tiene al lado. */
+.app-shell .ctx-bloques .menu-flotante-boton {
+  min-height: 30px; padding: 0 11px;
+  border-radius: 999px;
+  color: var(--ink); background: color-mix(in srgb, var(--ink) 6%, transparent);
+  font-size: 11.5px;
+}
+.app-shell .ctx-bloques .menu-flotante-boton > .ui-icon { color: var(--muted); }
+.ctx-bloques-cuenta { color: var(--muted); font-variant-numeric: tabular-nums; }
+.ctx-bloques .menu-flotante-panel { min-width: 270px; max-height: min(70vh, 520px); overflow-y: auto; }
+.ctx-bloques .menu-fila > .ui-icon { flex: none; color: var(--acento-claro); }
+
+@media print { .ctx-bloques, .ctx-jugador { display: none !important; } }

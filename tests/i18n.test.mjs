@@ -31,6 +31,12 @@ function literalesDe(ruta) {
       ? `"${comillas.slice(1, -1).replace(/\\'/g, "'").replace(/"/g, '\\"')}"`
       : comillas));
   }
+  // <Paso> traduce su texto por dentro con t(), así que un rótulo sin entrada
+  // sale en español en la versión inglesa igual que un t() suelto. No se veía
+  // porque aquí solo se buscaban llamadas, y así se coló uno.
+  for (const [, texto] of codigo.matchAll(/<Paso\s+numero=\{\d+\}>([^<{]+)<\/Paso>/g)) {
+    salida.push(texto.trim());
+  }
   return salida;
 }
 

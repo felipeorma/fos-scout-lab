@@ -1844,16 +1844,29 @@ export default function ScoutStudio() {
                     <em>{t("Cambiar")}</em>
                   </button>
                   {reportError && <div className="inline-error">{reportError}</div>}
-                  <div className="panel-title player-section-title"><div><span className="mini-icon"><Search size={17} /></span><div><h2>{t("Equipo y jugador")}</h2><p>{t("Selecciona en orden")}</p></div></div></div>
-                  {/* La red de filtros compartida: acota a quién puedes elegir.
-                      El club y el jugador se quedan como selectores porque ahí
-                      no filtras, navegas. */}
-                  <BarraDeFiltros campos={["liga", "anio", "puesto", "pasaporte", "minutos", "edad"]} resultado={jugadoresVisibles.length} />
+                  {/* La columna en secciones con nombre, de lo general a lo
+                      concreto: a quién miras, qué jugador, cómo se le mide,
+                      cómo sale el informe y de dónde salen sus imágenes.
 
+                      El título "Equipo y jugador" estaba ENCIMA de los
+                      filtros, que no son ni equipo ni jugador, y el resumen de
+                      bases y cohorte colgaba suelto entre dos bloques sin
+                      decir a cuál pertenecía. */}
+                  <div className="panel-seccion">
+                    <span className="panel-seccion-titulo">{t("A quién miras")}</span>
+                    {/* La red de filtros compartida: acota entre quiénes
+                        eliges. El club y el jugador se quedan como selectores
+                        porque ahí no filtras, navegas. */}
+                    <BarraDeFiltros campos={["liga", "anio", "puesto", "pasaporte", "minutos", "edad"]} resultado={jugadoresVisibles.length} />
+                  </div>
+
+                  <div className="panel-seccion">
+                  <span className="panel-seccion-titulo">{t("Jugador")}</span>
                   <div className="player-selector-flow">
                     <label className="field-group selection-step"><span className="selection-step-title"><FieldLabel>{t("Equipo")}</FieldLabel></span><span className="select-wrap"><Files size={16} /><select value={selectedTeam} disabled={backgroundRemoving} onChange={(event) => selectTeam(event.target.value)}>{teams.map((team) => <option key={team || "__sin_equipo__"} value={team}>{team || t("Equipo no disponible")}</option>)}</select><ChevronDown size={16} /></span></label>
                     <span className="selection-flow-line" aria-hidden="true" />
                     <label className="field-group selection-step"><span className="selection-step-title"><FieldLabel>{t("Jugador")}</FieldLabel></span><span className="select-wrap"><Search size={16} /><select value={selectedPlayer} disabled={backgroundRemoving || !teamPlayers.length} onChange={(event) => selectPlayer(Number(event.target.value))}>{teamPlayers.map((player) => <option key={`${player.player}-${player.index}`} value={player.index}>{player.player}</option>)}</select><ChevronDown size={16} /></span></label>
+                  </div>
                   </div>
                   <div className="panel-seccion">
                     <span className="panel-seccion-titulo">{t("Cómo se mide")}</span>
@@ -1875,9 +1888,11 @@ export default function ScoutStudio() {
                     })}
                     {metricPicks[report.cohort] && <button type="button" className="button secondary compact" onClick={restoreCohortMetrics}>{t("Volver al set del perfil")}</button>}
                   </details>}
-                  </div>
                   <div className="data-summary"><div><span>{t("Bases")}</span><b>{reportSourceCount}</b></div><div><span>{t("Jugadores")}</span><b>{numberFormat(reportRows.length)}</b></div><div><span>{t("Cohorte")}</span><b>{report?.cohortSize ?? 0}</b></div></div>
                   {report && report.cohortSize < 5 && <div className="inline-error">{report.cohortSize === 0 ? t("No hay jugadores de esta posición con el mínimo de minutos: baja el mínimo o carga más datos.") : (report.cohortSize === 1 ? t("Cohorte de 1 jugador: percentiles poco fiables. Baja el mínimo de minutos o carga más datos.") : tf("Cohorte de {n} jugadores: percentiles poco fiables. Baja el mínimo de minutos o carga más datos.", { n: report.cohortSize }))}</div>}
+                  </div>
+                  <div className="panel-seccion">
+                    <span className="panel-seccion-titulo">{t("Informe")}</span>
                   {report && report.metrics.some((metric) => metric.source && metric.source !== "wyscout") && <div className="radar-color-toggle"><span className="field-label">{t("Color del radar")}</span><div className="segmented"><button className={radarColorMode === "groups" ? "active" : ""} onClick={() => setRadarColorMode("groups")}>{t("Por grupo")}</button><button className={radarColorMode === "platform" ? "active" : ""} onClick={() => setRadarColorMode("platform")}>{t("Por plataforma")}</button></div></div>}
                   <div className="radar-color-toggle"><span className="field-label">{t("Textos con IA")}</span><div className="segmented"><button className={!aiControlsHidden ? "active" : ""} onClick={() => { setAiControlsHidden(false); try { window.localStorage.setItem("fos-scout-ai-controls-v2", "shown"); } catch { /* opcional */ } }}>{t("Mostrar")}</button><button className={aiControlsHidden ? "active" : ""} onClick={() => { setAiControlsHidden(true); setAiError(""); try { window.localStorage.setItem("fos-scout-ai-controls-v2", "hidden"); } catch { /* opcional */ } }}>{t("Ocultar")}</button></div></div>
                   <p className="inline-edit-hint">{t("Los textos del informe (etiqueta de la base, lectura rápida, club destinatario) se editan con un clic directamente sobre la vista previa.")}</p>
@@ -1905,8 +1920,9 @@ export default function ScoutStudio() {
                     <p className={reportRecipientLogoUrl && !recipientLogoReady ? "recipient-link-status invalid" : "recipient-link-status"}>{recipientLogoReady ? t("✓ Logo destinatario aplicado al pie del reporte.") : t("Pega un link directo http:// o https://. No se utilizará el escudo del jugador.")}</p>
                   </details>
 
-                  <div className="control-divider" />
-                  <div className="panel-title enrichment-title"><div><span className="mini-icon transfermarkt-panel-logo"><ReportImage src={TRANSFERMARKT_LOGO} alt="Transfermarkt" className="transfermarkt-logo-image" /></span><div><h2>{t("3. Transfermarkt e imágenes")}</h2><p>{t("Datos biográficos, logos y retrato")}</p></div></div><span className={profileReady ? "tiny-state ready-state" : "tiny-state"}>{profileReady ? t("CARGADO") : t("PENDIENTE")}</span></div>
+                  </div>
+                  <div className="panel-seccion">
+                  <div className="panel-title enrichment-title"><div><span className="mini-icon transfermarkt-panel-logo"><ReportImage src={TRANSFERMARKT_LOGO} alt="Transfermarkt" className="transfermarkt-logo-image" /></span><div><h2>{t("Transfermarkt e imágenes")}</h2><p>{t("Datos biográficos, logos y retrato")}</p></div></div><span className={profileReady ? "tiny-state ready-state" : "tiny-state"}>{profileReady ? t("CARGADO") : t("PENDIENTE")}</span></div>
                   <label className="field-group transfermarkt-url"><FieldLabel>{t("URL del perfil")}</FieldLabel><input className="text-input" type="url" placeholder="https://www.transfermarkt.com/.../profil/spieler/..." value={transfermarktUrl} onChange={(event) => setTransfermarktUrl(event.target.value)} /></label>
                   <button className="button primary extract-button" onClick={extractTransfermarktProfile} disabled={transfermarktLoading}><Sparkles size={15} /> {transfermarktLoading ? t("Extrayendo perfil…") : t("Extraer datos, logos y foto")}</button>
                   {transfermarktError && <div className="inline-error">{transfermarktError}</div>}
@@ -1945,6 +1961,7 @@ export default function ScoutStudio() {
                       {([['number', 'Dorsal'], ['league', 'Liga'], ['club', 'Club'], ['marketValue', 'Valor mercado'], ['birthDate', 'Nacimiento'], ['birthPlace', 'Lugar'], ['height', 'Altura'], ['position', 'Posiciones'], ['foot', 'Pie'], ['contract', 'Contrato'], ['agent', 'Agente'], ['nationalTeam', 'Selección'], ['capsGoals', 'Caps / goles']] as Array<[keyof TransfermarktProfile, string]>).map(([field, label]) => <label key={field}><span>{t(label)}</span><input value={profile[field]} onChange={(event) => updateProfile(field, event.target.value)} /></label>)}
                     </div>
                   </details>
+                  </div>
 
                 </section>
 
@@ -2027,8 +2044,8 @@ export default function ScoutStudio() {
               {report && paginaMontada(CONTEXT_PAGE) && (
                 <div className={claseHoja(CONTEXT_PAGE)}><ContextPage report={report} rows={reportRows} bases={sourceDatasets} minutosFiltro={minimumMinutes} controles={{
                   equipos: teams, jugadores: teamPlayers, equipo: selectedTeam, jugador: selectedPlayer,
-                  cohorte: cohort, minutos: minimumMinutes,
-                  onEquipo: selectTeam, onJugador: selectPlayer, onCohorte: setCohort, onMinutos: setMinimumMinutes,
+                  cohorte: cohort,
+                  onEquipo: selectTeam, onJugador: selectPlayer, onCohorte: setCohort,
                 }} /></div>
               )}
               {report ? visualPages.filter((page) => printRun ? printRun.includes(page) : reportPage === page).map((page) => (

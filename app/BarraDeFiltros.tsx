@@ -38,8 +38,12 @@ const TODOS: CampoDeFiltro[] = ["liga", "anio", "puesto", "equipo", "pasaporte",
  * se pulsa en cualquier parte y sale el selector del sistema —la rueda en el
  * móvil, el menú nativo en el escritorio— con el teclado y el lector de
  * pantalla funcionando sin reinventar nada. Lo que se ve es solo el dibujo.
+ *
+ * Se exporta porque Similitud y Contexto tienen controles propios que no son
+ * filtros de mercado —rol secundario, lado, cohorte— y deben verse igual que
+ * estos: una ficha es una ficha en toda la plataforma.
  */
-function Desplegable({ etiqueta, valor, activo, apagado, aviso, children }: {
+export function Desplegable({ etiqueta, valor, activo, apagado, aviso, children }: {
   etiqueta: string;
   valor: string;
   activo: boolean;
