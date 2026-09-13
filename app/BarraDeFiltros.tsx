@@ -1,8 +1,10 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { PERFILES_FILTRO } from "@/lib/perfiles";
 import { t, tf } from "@/lib/i18n";
 import { useBaseActiva } from "./BaseActiva";
+import { ChevronDown } from "./Icons";
 
 /**
  * La red de filtros, una sola para toda la plataforma.
@@ -15,11 +17,45 @@ import { useBaseActiva } from "./BaseActiva";
  * `campos` permite ocultar los que una pantalla no puede honrar —el ranking ya
  * elige el puesto por su cuenta, así que ahí sobra— pero no permite añadir
  * ninguno: si aparece un filtro nuevo, aparece para todas.
+ *
+ * La forma. Era una rejilla de cajas iguales, cada una con una etiqueta en
+ * versalitas de 7,5 px encima: un formulario, con mucha tinta para poca
+ * información, y en la columna estrecha de la ficha se partía en dos columnas
+ * que rompían el ritmo. Ahora cada filtro es una ficha que dice lo que tiene
+ * puesto —"Puesto: Centrales"— y ocupa lo que ocupa su contenido. Las que
+ * están filtrando se tiñen del acento, así que se ve de un vistazo QUÉ está
+ * acotando la lista sin leer ninguna.
  */
 
 export type CampoDeFiltro = "liga" | "anio" | "puesto" | "equipo" | "pasaporte" | "minutos" | "edad";
 
 const TODOS: CampoDeFiltro[] = ["liga", "anio", "puesto", "equipo", "pasaporte", "minutos", "edad"];
+
+/**
+ * Una ficha que abre un desplegable.
+ *
+ * El `<select>` de verdad va encima, invisible y del tamaño de la ficha. Así
+ * se pulsa en cualquier parte y sale el selector del sistema —la rueda en el
+ * móvil, el menú nativo en el escritorio— con el teclado y el lector de
+ * pantalla funcionando sin reinventar nada. Lo que se ve es solo el dibujo.
+ */
+function Desplegable({ etiqueta, valor, activo, apagado, aviso, children }: {
+  etiqueta: string;
+  valor: string;
+  activo: boolean;
+  apagado?: boolean;
+  /** Por qué está apagado, cuando lo está. */
+  aviso?: string;
+  children: ReactNode;
+}) {
+  const clases = ["filtro-chip", activo ? "activo" : "", apagado ? "apagado" : ""].filter(Boolean).join(" ");
+  return <label className={clases} title={aviso}>
+    <span aria-hidden="true">{etiqueta}</span>
+    <b aria-hidden="true">{valor}</b>
+    <ChevronDown size={12} />
+    {children}
+  </label>;
+}
 
 export function BarraDeFiltros({ campos = TODOS, resultado }: {
   campos?: CampoDeFiltro[];
@@ -29,64 +65,84 @@ export function BarraDeFiltros({ campos = TODOS, resultado }: {
   const { filtros, cambiarFiltros, limpiarFiltros, filtrosActivos, opciones, rows } = useBaseActiva();
   if (!rows.length) return null;
   const muestra = (campo: CampoDeFiltro) => campos.includes(campo);
+  const nombreDelPuesto = PERFILES_FILTRO.find((perfil) => perfil.id === filtros.puesto)?.nombre;
+  const hayPasaportes = opciones.pasaportes.length > 0;
 
-  return <div className="filtros-barra">
-    {muestra("liga") && opciones.ligas.length > 1 && <label>
-      <span>{t("Liga")}</span>
-      <select value={filtros.liga} onChange={(e) => cambiarFiltros({ liga: e.target.value })}>
-        <option value="TODAS">{t("Todas")}</option>
-        {opciones.ligas.map((liga) => <option key={liga} value={liga}>{liga}</option>)}
-      </select>
-    </label>}
+  return <div className="filtros-barra" role="group" aria-label={t("Filtros")}>
+    <div className="filtros-chips">
+      {muestra("liga") && opciones.ligas.length > 1 && <Desplegable
+        etiqueta={t("Liga")}
+        valor={filtros.liga === "TODAS" ? t("Todas") : filtros.liga}
+        activo={filtros.liga !== "TODAS"}>
+        <select aria-label={t("Liga")} value={filtros.liga} onChange={(e) => cambiarFiltros({ liga: e.target.value })}>
+          <option value="TODAS">{t("Todas")}</option>
+          {opciones.ligas.map((liga) => <option key={liga} value={liga}>{liga}</option>)}
+        </select>
+      </Desplegable>}
 
-    {muestra("anio") && opciones.anios.length > 1 && <label>
-      <span>{t("Año")}</span>
-      <select value={filtros.anio || ""} onChange={(e) => cambiarFiltros({ anio: Number(e.target.value) })}>
-        <option value="">{t("Todos")}</option>
-        {opciones.anios.map((anio) => <option key={anio} value={anio}>{anio}</option>)}
-      </select>
-    </label>}
+      {muestra("anio") && opciones.anios.length > 1 && <Desplegable
+        etiqueta={t("Año")}
+        valor={filtros.anio ? String(filtros.anio) : t("Todos")}
+        activo={Boolean(filtros.anio)}>
+        <select aria-label={t("Año")} value={filtros.anio || ""} onChange={(e) => cambiarFiltros({ anio: Number(e.target.value) })}>
+          <option value="">{t("Todos")}</option>
+          {opciones.anios.map((anio) => <option key={anio} value={anio}>{anio}</option>)}
+        </select>
+      </Desplegable>}
 
-    {muestra("puesto") && <label>
-      <span>{t("Puesto")}</span>
-      <select value={filtros.puesto} onChange={(e) => cambiarFiltros({ puesto: e.target.value })}>
-        <option value="">{t("Todos")}</option>
-        {PERFILES_FILTRO.map((perfil) => <option key={perfil.id} value={perfil.id}>{t(perfil.nombre)}</option>)}
-      </select>
-    </label>}
+      {muestra("puesto") && <Desplegable
+        etiqueta={t("Puesto")}
+        valor={nombreDelPuesto ? t(nombreDelPuesto) : t("Todos")}
+        activo={Boolean(filtros.puesto)}>
+        <select aria-label={t("Puesto")} value={filtros.puesto} onChange={(e) => cambiarFiltros({ puesto: e.target.value })}>
+          <option value="">{t("Todos")}</option>
+          {PERFILES_FILTRO.map((perfil) => <option key={perfil.id} value={perfil.id}>{t(perfil.nombre)}</option>)}
+        </select>
+      </Desplegable>}
 
-    {muestra("equipo") && <label>
-      <span>{t("Equipo")}</span>
-      <select value={filtros.equipo} onChange={(e) => cambiarFiltros({ equipo: e.target.value })}>
-        <option value="TODOS">{t("Todos")}</option>
-        {opciones.equipos.map((equipo) => <option key={equipo} value={equipo}>{equipo}</option>)}
-      </select>
-    </label>}
+      {muestra("equipo") && <Desplegable
+        etiqueta={t("Equipo")}
+        valor={filtros.equipo === "TODOS" ? t("Todos") : filtros.equipo}
+        activo={filtros.equipo !== "TODOS"}>
+        <select aria-label={t("Equipo")} value={filtros.equipo} onChange={(e) => cambiarFiltros({ equipo: e.target.value })}>
+          <option value="TODOS">{t("Todos")}</option>
+          {opciones.equipos.map((equipo) => <option key={equipo} value={equipo}>{equipo}</option>)}
+        </select>
+      </Desplegable>}
 
-    {muestra("pasaporte") && <label>
-      <span>{t("Pasaporte")}</span>
-      <select value={filtros.pasaporte} disabled={!opciones.pasaportes.length}
-        onChange={(e) => cambiarFiltros({ pasaporte: e.target.value })}>
-        {opciones.pasaportes.length
-          ? <>
-            <option value="TODOS">{t("Todos")}</option>
-            {opciones.pasaportes.map((x) => <option key={x} value={x}>{x}</option>)}
-          </>
-          : <option value="TODOS">{t("La base no trae nacionalidad")}</option>}
-      </select>
-    </label>}
+      {muestra("pasaporte") && <Desplegable
+        etiqueta={t("Pasaporte")}
+        valor={!hayPasaportes ? "—" : filtros.pasaporte === "TODOS" ? t("Todos") : filtros.pasaporte}
+        activo={hayPasaportes && filtros.pasaporte !== "TODOS"}
+        apagado={!hayPasaportes}
+        aviso={hayPasaportes ? undefined : t("La base no trae nacionalidad")}>
+        <select aria-label={t("Pasaporte")} value={filtros.pasaporte} disabled={!hayPasaportes}
+          onChange={(e) => cambiarFiltros({ pasaporte: e.target.value })}>
+          {hayPasaportes
+            ? <>
+              <option value="TODOS">{t("Todos")}</option>
+              {opciones.pasaportes.map((x) => <option key={x} value={x}>{x}</option>)}
+            </>
+            : <option value="TODOS">{t("La base no trae nacionalidad")}</option>}
+        </select>
+      </Desplegable>}
 
-    {muestra("minutos") && <label>
-      <span>{t("Mín. minutos")}</span>
-      <input type="number" min="0" step="100" value={filtros.minutosMin}
-        onChange={(e) => cambiarFiltros({ minutosMin: Number(e.target.value) })} />
-    </label>}
+      {/* Los dos numéricos llevan el campo dentro de la ficha. El de minutos
+          no se tiñe nunca: no es un filtro de mercado sino quién cuenta como
+          comparable, y "Quitar filtros" no lo toca, así que teñirlo prometería
+          algo que el botón no cumple. */}
+      {muestra("minutos") && <label className="filtro-chip numero">
+        <span>{t("Mín. minutos")}</span>
+        <input type="number" min="0" step="100" inputMode="numeric" value={filtros.minutosMin}
+          onChange={(e) => cambiarFiltros({ minutosMin: Number(e.target.value) })} />
+      </label>}
 
-    {muestra("edad") && <label>
-      <span>{t("Edad máxima")}</span>
-      <input type="number" min="0" max="45" value={filtros.edadMax || ""} placeholder="—"
-        onChange={(e) => cambiarFiltros({ edadMax: Number(e.target.value) })} />
-    </label>}
+      {muestra("edad") && <label className={filtros.edadMax > 0 ? "filtro-chip numero activo" : "filtro-chip numero"}>
+        <span>{t("Edad máxima")}</span>
+        <input type="number" min="0" max="45" inputMode="numeric" value={filtros.edadMax || ""} placeholder="—"
+          onChange={(e) => cambiarFiltros({ edadMax: Number(e.target.value) })} />
+      </label>}
+    </div>
 
     <div className="filtros-barra-cola">
       {resultado !== undefined && <b>{tf("{n} jugadores", { n: resultado })}</b>}

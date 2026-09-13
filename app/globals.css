@@ -501,7 +501,13 @@ body { color-scheme: dark; background: radial-gradient(circle at 74% 9%, rgba(25
 .privacy-pill { border-color: var(--acento-borde, rgba(104,139,255,.19)); color: var(--acento-claro, #91a7ea); background: var(--acento-suave, var(--acento-suave, rgba(79,124,255,.12))); }
 .icon-button, .menu-button { border-color: rgba(255,255,255,.09); color: #8b96a9; background: rgba(255,255,255,.035); }
 .icon-button:hover, .menu-button:hover { border-color: rgba(109,144,255,.3); color: #fff; background: var(--acento-suave, rgba(79,124,255,.12)); }
-.page-content { max-width: 1540px; padding: 50px 46px 74px; animation: pro-rise .45s ease both; }
+/* "backwards" y no "both": con "both" la animación deja puesto el fotograma
+   final —transform: translateY(0)— para siempre, y un transform en un
+   antepasado convierte position: fixed en relativo a ese antepasado. Todo lo
+   fijo de dentro dejaba de serlo: el panel de secciones medía lo que la
+   página (1.509 px en vez de la ventana), se iba con el scroll, y el velo no
+   tapaba la barra de arriba. "backwards" anima igual y al acabar no deja nada. */
+.page-content { max-width: 1540px; padding: 50px 46px 74px; animation: pro-rise .45s ease backwards; }
 .page-heading { align-items: flex-end; }
 .kicker { color: var(--acento-claro, #7798ff); font-family: var(--font-space-grotesk), sans-serif; font-size: 9px; letter-spacing: .19em; }
 .page-heading h1 { max-width: 850px; margin: 11px 0 13px; color: #f7f8fc; font-family: var(--font-space-grotesk), sans-serif; font-size: clamp(39px,4vw,59px); font-weight: 650; letter-spacing: -.045em; line-height: .98; text-transform: none; }
@@ -3916,63 +3922,123 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
 }
 @keyframes velo-entra { from { opacity: 0; } to { opacity: 1; } }
 
-.app-shell .report-page-tabs {
+/* ---- El panel de secciones: una lista agrupada de iOS ----
+   Sale del lado del botón que lo abre y vuelve por el mismo camino. La curva
+   es la de las hojas de iOS: arranca rápido y se posa sin rebote, porque abrir
+   un menú no lleva impulso que justifique pasarse. */
+.app-shell .secciones-panel {
   position: fixed; inset: 0 auto 0 0; z-index: 46;
-  width: min(300px, 84vw);
-  display: flex; flex-direction: column; align-items: stretch;
-  gap: var(--sp-4);
-  padding: var(--sp-5) var(--sp-3) var(--sp-4);
+  width: min(320px, 86vw);
+  display: flex; flex-direction: column; gap: 22px;
+  padding: 14px 14px 28px;
   overflow-y: auto; overscroll-behavior: contain;
-  border: 0; border-right: 1px solid var(--linea); border-radius: 0;
-  background: color-mix(in srgb, var(--canvas) 92%, transparent);
-  backdrop-filter: blur(28px) saturate(1.5);
-  box-shadow: var(--elev-3);
+  border-right: 1px solid var(--line);
+  background: color-mix(in srgb, var(--canvas) 90%, transparent);
+  backdrop-filter: blur(30px) saturate(180%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  box-shadow: 0 0 60px rgba(0,0,0,.28);
   transform: translateX(-101%);
   visibility: hidden;
-  /* La visibilidad se apaga AL FINAL de la salida, no durante: si se
-     transiciona junto al desplazamiento, el panel viaja invisible y parece
-     que no se abre. Al entrar cambia de inmediato; al salir espera a que el
-     desplazamiento termine para no desaparecer de golpe. */
-  transition: transform .26s var(--curva), visibility 0s linear .26s;
+  /* La visibilidad se apaga AL FINAL de la salida: transicionada junto al
+     desplazamiento, el panel viajaría invisible y parecería que no se abre. */
+  transition: transform .36s cubic-bezier(.32,.72,0,1), visibility 0s linear .36s;
 }
-.app-shell .report-page-tabs.abierto {
+.app-shell .secciones-panel.abierto {
   transform: none;
   visibility: visible;
-  transition: transform .26s var(--curva), visibility 0s;
+  transition: transform .36s cubic-bezier(.32,.72,0,1), visibility 0s;
 }
 
-.app-shell .report-page-tabs .tab-grupo {
-  display: flex; flex-direction: column; align-items: stretch; gap: 1px;
-  padding: 0;
-}
-.app-shell .report-page-tabs .tab-grupo + .tab-grupo {
-  padding: var(--sp-4) 0 0;
-  border-left: 0; border-top: 1px solid var(--linea);
-}
-.app-shell .report-page-tabs .tab-grupo-nombre {
-  align-self: flex-start;
-  padding: 0 var(--sp-3) var(--sp-2);
-  white-space: normal;
-}
-.app-shell .report-page-tabs button {
-  width: 100%; justify-content: flex-start; text-align: left;
-  padding: var(--sp-2) var(--sp-3); border-radius: var(--r-control);
-}
-.app-shell .report-page-tabs button > b,
-.app-shell .report-page-tabs button > small { display: block; }
-.app-shell .report-page-tabs .page-tab-actions {
-  flex-direction: column; align-items: stretch; gap: 1px; width: 100%;
-}
-.app-shell .menu-cerrar {
-  align-self: flex-end;
+/* La cabecera: título grande, como el de las pantallas raíz de iOS. Tracking
+   negativo, porque a este tamaño las letras se separan a la vista. */
+.secciones-cabecera { display: flex; align-items: center; justify-content: space-between; padding: 8px 4px 0 8px; }
+.secciones-cabecera h2 { margin: 0; color: var(--ink); font-size: 26px; font-weight: 700; line-height: 1.1; letter-spacing: -0.025em; }
+.app-shell .secciones-cabecera .menu-cerrar {
   display: grid; place-items: center;
-  width: 30px; height: 30px; margin-bottom: var(--sp-2);
-  border: 0; border-radius: var(--radio-pill);
-  background: var(--material-alto); color: var(--muted); cursor: pointer;
+  width: 30px; height: 30px; margin: 0;
+  border: 0; border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 9%, transparent);
+  color: var(--muted); cursor: pointer;
 }
+.app-shell .secciones-cabecera .menu-cerrar:active { transform: scale(.92); }
+
+.seccion-grupo-titulo {
+  margin: 0 0 7px; padding: 0 12px;
+  color: var(--muted);
+  font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+}
+/* El grupo es una tarjeta: papel sobre el lienzo, igual que en Ajustes. */
+.seccion-lista {
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+.app-shell .seccion-fila {
+  position: relative;
+  width: 100%; min-height: 50px;
+  padding: 8px 12px;
+  display: flex; align-items: center; gap: 12px;
+  border: 0; border-radius: 0;
+  background: none; color: var(--ink);
+  font: inherit; text-align: left; cursor: pointer;
+  transition: background .12s ease;
+}
+/* El separador de iOS empieza después del icono, no de borde a borde: agrupa
+   las filas sin partir la tarjeta en cajas. */
+.app-shell .seccion-fila + .seccion-fila::before {
+  content: ""; position: absolute; top: 0; right: 0; left: 52px;
+  height: 1px; background: var(--line);
+}
+.app-shell .seccion-fila:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.app-shell .seccion-fila:active { background: color-mix(in srgb, var(--ink) 10%, transparent); }
+.app-shell .seccion-fila.activa { background: var(--acento-suave); }
+/* Junto a la fila elegida las líneas sobran: el fondo ya la separa. */
+.app-shell .seccion-fila.activa::before,
+.app-shell .seccion-fila.activa + .seccion-fila::before { opacity: 0; }
+
+.seccion-icono {
+  flex: none; width: 28px; height: 28px;
+  display: grid; place-items: center;
+  border-radius: 7px;
+  color: #fff; background: var(--tono, #7c7c82);
+}
+/* Un tono por grupo, no uno por fila: con ocho colores el panel sería un
+   arcoíris; con cuatro, el color dice a qué parte del trabajo vas. */
+.seccion-grupo[data-tono="datos"]    { --tono: #7c7c82; }
+.seccion-grupo[data-tono="explorar"] { --tono: #0a6cff; }
+.seccion-grupo[data-tono="jugador"]  { --tono: #2f9e4f; }
+.seccion-grupo[data-tono="reporte"]  { --tono: var(--acento); }
+
+.seccion-texto { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.seccion-texto b, .seccion-texto small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seccion-texto b { color: var(--ink); font-size: 13.5px; font-weight: 500; letter-spacing: -0.01em; }
+.seccion-texto small { color: var(--muted); font-size: 11px; }
+.app-shell .seccion-fila.activa .seccion-texto b { font-weight: 650; }
+
+.seccion-api {
+  flex: none; padding: 2px 6px; border-radius: 999px;
+  color: var(--muted); background: color-mix(in srgb, var(--ink) 8%, transparent);
+  font-size: 9px; font-style: normal; font-weight: 700; letter-spacing: .04em;
+}
+.seccion-chevron { flex: none; color: var(--muted); opacity: .6; }
+
+/* Las acciones son texto en color, sin baldosa ni galón: no llevan a otra
+   pantalla, hacen algo aquí. La que destruye va en rojo. */
+.app-shell .seccion-fila.accion .seccion-icono,
+.app-shell .seccion-fila.accion .seccion-texto b { color: var(--acento-claro); }
+.app-shell .seccion-fila.peligro .seccion-icono,
+.app-shell .seccion-fila.peligro .seccion-texto b { color: #ff6b6b; }
+.app-shell[data-tema="claro"] .seccion-fila.peligro .seccion-icono,
+.app-shell[data-tema="claro"] .seccion-fila.peligro .seccion-texto b { color: #c62828; }
+.app-shell .seccion-fila:is(.accion, .peligro) .seccion-icono { background: none; }
+
+@media print { .app-shell .secciones-panel, .app-shell .menu-velo { display: none !important; } }
 @media (prefers-reduced-motion: reduce) {
-  .app-shell .report-page-tabs { transition: none; }
+  .app-shell .secciones-panel { transition: none; }
   .app-shell .menu-velo { animation: none; }
+  .app-shell .secciones-cabecera .menu-cerrar:active { transform: none; }
 }
 
 /* =====================================================================
@@ -4169,4 +4235,98 @@ button.menu-fila:active { transform: scale(.985); }
   color: var(--muted);
   font-size: 9.5px;
   letter-spacing: .05em;
+}
+
+/* =====================================================================
+   La barra de filtros, como fichas
+   =====================================================================
+   Era una rejilla de cajas del mismo ancho con una etiqueta de 7,5 px en
+   versalitas encima de cada una. Ahora cada filtro es una ficha del tamaño
+   de lo que dice. Las reglas van con [data-tema] delante porque debajo quedan
+   una docena de capas antiguas sobre ".filtros-barra select" que, sin este
+   peso, seguirían dibujando cajas.
+
+   La barra deja de ser una tarjeta: dentro de la columna de la ficha ya
+   estaba dentro de otra, y tarjeta dentro de tarjeta es ruido. */
+.app-shell[data-tema] .filtros-barra {
+  margin: 0 0 16px; padding: 0;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
+  border: 0; border-radius: 0;
+  background: none; box-shadow: none;
+}
+.filtros-chips { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+
+.app-shell[data-tema] .filtros-barra .filtro-chip {
+  position: relative;
+  min-width: 0; min-height: 30px;
+  padding: 0 10px 0 12px;
+  display: inline-flex; flex: none; align-items: center; gap: 5px;
+  border: 1px solid transparent; border-radius: 999px;
+  color: var(--ink);
+  /* Relleno gris translúcido, el de los botones de iOS: se lee igual sobre
+     el lienzo, sobre una tarjeta y en los dos temas. */
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: background .12s ease, border-color .12s ease, transform .1s ease;
+}
+.app-shell[data-tema] .filtros-barra .filtro-chip:hover { background: color-mix(in srgb, var(--ink) 10%, transparent); }
+.app-shell[data-tema] .filtros-barra .filtro-chip:active { transform: scale(.97); }
+.app-shell[data-tema] .filtros-barra .filtro-chip:focus-within { border-color: var(--acento-borde); }
+.app-shell[data-tema] .filtros-barra .filtro-chip > span { color: var(--muted); font-weight: 500; }
+.app-shell[data-tema] .filtros-barra .filtro-chip > b {
+  max-width: 16ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: inherit; font-weight: 600;
+}
+.app-shell[data-tema] .filtros-barra .filtro-chip > .ui-icon { flex: none; color: var(--muted); }
+
+/* La ficha que está filtrando se tiñe: se ve QUÉ acota la lista sin leer. */
+.app-shell[data-tema] .filtros-barra .filtro-chip.activo {
+  border-color: var(--acento-borde);
+  color: var(--acento-claro);
+  background: var(--acento-suave);
+}
+.app-shell[data-tema] .filtros-barra .filtro-chip.activo > .ui-icon { color: inherit; }
+.app-shell[data-tema] .filtros-barra .filtro-chip.apagado { cursor: not-allowed; opacity: .55; }
+.app-shell[data-tema] .filtros-barra .filtro-chip.apagado:active { transform: none; }
+
+/* El select de verdad, encima e invisible. */
+.app-shell[data-tema] .filtros-barra .filtro-chip > select {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%; min-height: 0;
+  margin: 0; padding: 0;
+  border: 0; border-radius: inherit;
+  opacity: 0;
+  /* 16px: por debajo, Safari en el iPhone amplía la página al enfocarlo. */
+  font-size: 16px;
+  cursor: inherit;
+}
+
+.app-shell[data-tema] .filtros-barra .filtro-chip.numero { padding-right: 5px; cursor: text; }
+.app-shell[data-tema] .filtros-barra .filtro-chip > input {
+  width: 5.4ch; height: 22px; min-height: 0;
+  margin: 0; padding: 0 6px;
+  border: 0; border-radius: 999px; outline: 0;
+  color: inherit;
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  font: inherit; font-weight: 600; font-variant-numeric: tabular-nums; text-align: center;
+  -moz-appearance: textfield; appearance: textfield;
+}
+.app-shell[data-tema] .filtros-barra .filtro-chip > input::-webkit-outer-spin-button,
+.app-shell[data-tema] .filtros-barra .filtro-chip > input::-webkit-inner-spin-button { margin: 0; -webkit-appearance: none; }
+.app-shell[data-tema] .filtros-barra .filtro-chip > input::placeholder { color: var(--muted); }
+
+.app-shell[data-tema] .filtros-barra-cola { margin-left: auto; padding: 0; display: flex; align-items: center; gap: 12px; }
+.app-shell[data-tema] .filtros-barra-cola > b { color: var(--muted); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
+/* "Quitar filtros" es una acción de texto, no una píldora con borde. */
+.app-shell[data-tema] .filtros-barra-cola > button {
+  padding: 4px 2px; border: 0; border-radius: 6px;
+  color: var(--acento-claro); background: none;
+  font: inherit; font-size: 11.5px; font-weight: 600;
+  cursor: pointer;
+}
+.app-shell[data-tema] .filtros-barra-cola > button:hover { opacity: .75; transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell[data-tema] .filtros-barra .filtro-chip:active { transform: none; }
 }

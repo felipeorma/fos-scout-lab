@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
-import { BarChart3, Check, ChevronDown, FileSpreadsheet, Files, ImageIcon, LockKeyhole, Menu, Merge, MoreHorizontal, Printer, RotateCcw, Search, Sparkles, Upload, X } from "./Icons";
+import { BarChart3, Check, ChevronDown, ChevronRight, Crosshair, Database, FileSpreadsheet, Files, ImageIcon, LockKeyhole, Menu, Merge, MoreHorizontal, Plus, Printer, RadarChart, RotateCcw, Route, Search, Sparkles, Trash, Trophy, Upload, X } from "./Icons";
 import { PizzaRadar } from "./PizzaRadar";
 import { ContextPage } from "./ContextPage";
 import { ScoutingBoard } from "./ScoutingBoard";
@@ -80,6 +80,32 @@ const NOMBRE_DE_SECCION: Record<number, string> = {
   [POOL_PAGE]: "Entre ligas",
   [DATA_PAGE]: "Base activa",
 };
+
+/**
+ * Una fila del panel de secciones, al modo de las listas de Ajustes de iOS.
+ *
+ * Antes cada destino era un botón de solo texto —título en negrita y una
+ * línea pequeña debajo— y todos se parecían: había que leerlos para
+ * distinguirlos. La baldosa con el icono deja reconocer la fila por su forma,
+ * y el galón de la derecha dice sin palabras que pulsarla lleva a otro sitio.
+ */
+function FilaSeccion({ activa, onClick, icono, titulo, detalle, api }: {
+  activa: boolean;
+  onClick: () => void;
+  icono: React.ReactNode;
+  titulo: string;
+  detalle?: string;
+  /** Pide datos al servidor local: se avisa porque sin él no carga. */
+  api?: boolean;
+}) {
+  return <button type="button" className={activa ? "seccion-fila activa" : "seccion-fila"}
+    aria-current={activa ? "page" : undefined} onClick={onClick}>
+    <span className="seccion-icono" aria-hidden="true">{icono}</span>
+    <span className="seccion-texto"><b>{titulo}</b>{detalle && <small>{detalle}</small>}</span>
+    {api && <i className="seccion-api">API</i>}
+    <ChevronRight size={14} className="seccion-chevron" />
+  </button>;
+}
 /**
  * Quién firma el informe. Hay una firma guardada por encargo —Cavalry y
  * Maldonado son clientes distintos y no se firman igual— más una temporal
@@ -1738,54 +1764,72 @@ export default function ScoutStudio() {
               {/* En Maldonado hay un solo destino: una barra con una pestaña
                   ya activa es ruido, así que la mesa ocupa la pantalla. */}
               {espacio === "cavalry" && menuAbierto && <div className="menu-velo" onClick={() => setMenuAbierto(false)} aria-hidden="true" />}
-              {espacio === "cavalry" && <nav className={menuAbierto ? "report-page-tabs abierto" : "report-page-tabs"} aria-label={t("Secciones")} onClick={(evento) => { if ((evento.target as HTMLElement).closest("button")) setMenuAbierto(false); }}>
-                <button type="button" className="menu-cerrar" aria-label={t("Cerrar")} onClick={() => setMenuAbierto(false)}><X size={16} /></button>
-                <>
-                  <div className="tab-grupo">
-                    <span className="tab-grupo-nombre">{t("1 · Datos")}</span>
-                    <button className={reportPage === DATA_PAGE ? "active" : ""} onClick={() => setReportPage(DATA_PAGE)}>
-                      <b>{t("Base activa")}</b><small>{tf("{n} jugadores", { n: reportRows.length })}</small>
-                    </button>
+              {/* El panel de secciones, como una lista agrupada de iOS.
+
+                  Los grupos llevaban número ("1 · Datos", "2 · Explorar"…), que
+                  sugiere un orden obligatorio que no existe: se salta de
+                  Ranking a Similitud sin pasar por Contexto. Ahora cada grupo
+                  es una tarjeta con su nombre, y las acciones —agregar o
+                  quitar una página— son filas de texto en color dentro del
+                  grupo al que afectan, no botones con borde metidos entre los
+                  destinos. */}
+              {espacio === "cavalry" && <nav className={menuAbierto ? "secciones-panel abierto" : "secciones-panel"} aria-label={t("Secciones")} onClick={(evento) => { if ((evento.target as HTMLElement).closest("button")) setMenuAbierto(false); }}>
+                <header className="secciones-cabecera">
+                  <h2>{t("Secciones")}</h2>
+                  <button type="button" className="menu-cerrar" aria-label={t("Cerrar")} onClick={() => setMenuAbierto(false)}><X size={15} /></button>
+                </header>
+
+                <section className="seccion-grupo" data-tono="datos">
+                  <h3 className="seccion-grupo-titulo">{t("Datos")}</h3>
+                  <div className="seccion-lista">
+                    <FilaSeccion activa={reportPage === DATA_PAGE} onClick={() => setReportPage(DATA_PAGE)}
+                      icono={<Database size={16} />} titulo={t("Base activa")} detalle={tf("{n} jugadores", { n: reportRows.length })} />
                   </div>
-                  <div className="tab-grupo">
-                    <span className="tab-grupo-nombre">{t("2 · Explorar")}</span>
-                    <button className={reportPage === RANK_PAGE ? "active" : ""} onClick={() => setReportPage(RANK_PAGE)}>
-                      <b>{t("Ranking")}</b><small>{t("Los mejores por puesto")}</small>
-                    </button>
-                    <button className={reportPage === POOL_PAGE ? "active" : ""} onClick={() => setReportPage(POOL_PAGE)}>
-                      <b>{t("Entre ligas")}<i className="tab-api">API</i></b><small>{t("Buscar parecidos")}</small>
-                    </button>
+                </section>
+
+                <section className="seccion-grupo" data-tono="explorar">
+                  <h3 className="seccion-grupo-titulo">{t("Explorar")}</h3>
+                  <div className="seccion-lista">
+                    <FilaSeccion activa={reportPage === RANK_PAGE} onClick={() => setReportPage(RANK_PAGE)}
+                      icono={<Trophy size={16} />} titulo={t("Ranking")} detalle={t("Los mejores por puesto")} />
+                    <FilaSeccion activa={reportPage === POOL_PAGE} onClick={() => setReportPage(POOL_PAGE)}
+                      icono={<Search size={16} />} titulo={t("Entre ligas")} detalle={t("Buscar parecidos")} api />
                   </div>
-                  <div className="tab-grupo">
-                    <span className="tab-grupo-nombre">{t("3 · Jugador")}</span>
-                    <button className={reportPage === CONTEXT_PAGE ? "active" : ""} onClick={() => setReportPage(CONTEXT_PAGE)}>
-                      <b>{t("Contexto")}</b><small>{t("Dónde destaca y por qué")}</small>
-                    </button>
-                    <button className={reportPage === RUNS_PAGE ? "active" : ""} onClick={() => setReportPage(RUNS_PAGE)}>
-                      <b>{t("Carreras")}<i className="tab-api">API</i></b><small>{t("Mapa sin balón")}</small>
-                    </button>
+                </section>
+
+                <section className="seccion-grupo" data-tono="jugador">
+                  <h3 className="seccion-grupo-titulo">{t("Jugador")}</h3>
+                  <div className="seccion-lista">
+                    <FilaSeccion activa={reportPage === CONTEXT_PAGE} onClick={() => setReportPage(CONTEXT_PAGE)}
+                      icono={<Crosshair size={16} />} titulo={t("Contexto")} detalle={t("Dónde destaca y por qué")} />
+                    <FilaSeccion activa={reportPage === RUNS_PAGE} onClick={() => setReportPage(RUNS_PAGE)}
+                      icono={<Route size={16} />} titulo={t("Carreras")} detalle={t("Mapa sin balón")} api />
                   </div>
-                  <div className="tab-grupo">
-                    <span className="tab-grupo-nombre">{t("4 · Reporte")}</span>
-                    <button className={reportPage === CARD_PAGE ? "active" : ""} onClick={() => setReportPage(CARD_PAGE)}>
-                      <b>{t("Ficha y radar")}</b><small>{t("Percentiles del jugador")}</small>
-                    </button>
-                    <button className={reportPage === SIMILARITY_PAGE ? "active" : ""} onClick={() => setReportPage(SIMILARITY_PAGE)}>
-                      <b>{t("Similitud")}</b><small>{t("Jugadores comparables")}</small>
-                    </button>
+                </section>
+
+                <section className="seccion-grupo" data-tono="reporte">
+                  <h3 className="seccion-grupo-titulo">{t("Reporte")}</h3>
+                  <div className="seccion-lista">
+                    <FilaSeccion activa={reportPage === CARD_PAGE} onClick={() => setReportPage(CARD_PAGE)}
+                      icono={<RadarChart size={16} />} titulo={t("Ficha y radar")} detalle={t("Percentiles del jugador")} />
+                    <FilaSeccion activa={reportPage === SIMILARITY_PAGE} onClick={() => setReportPage(SIMILARITY_PAGE)}
+                      icono={<Sparkles size={16} />} titulo={t("Similitud")} detalle={t("Jugadores comparables")} />
                     {visualPages.map((page, index) => (
-                      <button key={page} className={reportPage === page ? "active" : ""} onClick={() => setReportPage(page)}>
-                        <b>{tf("Visuales {n}", { n: index + 1 })}</b><small>{t("Mapas, imágenes y texto")}</small>
-                      </button>
+                      <FilaSeccion key={page} activa={reportPage === page} onClick={() => setReportPage(page)}
+                        icono={<ImageIcon size={16} />} titulo={tf("Visuales {n}", { n: index + 1 })} detalle={t("Mapas, imágenes y texto")} />
                     ))}
-                    <div className="page-tab-actions">
-                      <button type="button" className="page-tab-add" onClick={addVisualPage}>+ {t("Agregar página")}</button>
-                      {visualPages.length > 1 && reportPage >= FIRST_VISUAL_PAGE && (
-                        <button type="button" className="page-tab-remove" onClick={() => removeVisualPage(reportPage)}>{t("Quitar página")}</button>
-                      )}
-                    </div>
+                    <button type="button" className="seccion-fila accion" onClick={addVisualPage}>
+                      <span className="seccion-icono" aria-hidden="true"><Plus size={16} /></span>
+                      <span className="seccion-texto"><b>{t("Agregar página")}</b></span>
+                    </button>
+                    {visualPages.length > 1 && reportPage >= FIRST_VISUAL_PAGE && (
+                      <button type="button" className="seccion-fila peligro" onClick={() => removeVisualPage(reportPage)}>
+                        <span className="seccion-icono" aria-hidden="true"><Trash size={16} /></span>
+                        <span className="seccion-texto"><b>{t("Quitar página")}</b></span>
+                      </button>
+                    )}
                   </div>
-                </>
+                </section>
               </nav>}
 
               {(printRun ? printRun.includes(1) : reportPage === 1) ? <div className="report-workspace">
