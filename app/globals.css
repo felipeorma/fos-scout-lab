@@ -4670,3 +4670,96 @@ button.menu-fila:active { transform: scale(.985); }
 .app-shell[data-tema] .control-panel :is(.field-label, .selection-step-title) { color: var(--muted); }
 .app-shell[data-tema] span.menu-grupo-titulo { color: var(--muted); }
 .app-shell[data-tema] .studio-flow li small { color: var(--muted); }
+
+/* =====================================================================
+   Rediseño 6 · Carreras
+   ===================================================================== */
+/* Competición y equipo, como fichas; cargar, como la acción principal. */
+.app-shell[data-tema] .runs-origen .filtro-chip > b { max-width: 30ch; }
+.app-shell[data-tema] :is(.runs-origen, .runs-seleccion) { margin: 0 0 12px; }
+.app-shell[data-tema] .filtros-barra-cola > button.runs-cargar {
+  min-height: 32px; padding: 0 16px;
+  border-radius: 999px;
+  color: #fff; background: var(--acento);
+  font-size: 12px; font-weight: 600;
+}
+.app-shell[data-tema] .filtros-barra-cola > button.runs-cargar:hover:not(:disabled) { opacity: .9; }
+.app-shell[data-tema] .filtros-barra-cola > button.runs-cargar:active:not(:disabled) { transform: scale(.97); }
+.app-shell[data-tema] .filtros-barra-cola > button.runs-cargar:disabled { opacity: .45; cursor: default; }
+.app-shell[data-tema] p.runs-estado { margin: -4px 4px 14px; color: var(--muted); font-size: 11.5px; line-height: 1.5; }
+.runs-intensidad { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.app-shell[data-tema] .runs-intensidad > span { color: var(--ink); font-size: 12px; }
+.app-shell[data-tema] p.runs-sin-ficha {
+  margin: 0 0 12px; padding: 10px 12px;
+  border: 0; border-radius: 12px;
+  color: var(--ink); background: color-mix(in srgb, #e6a817 14%, transparent);
+  font-size: 11.5px; line-height: 1.5;
+}
+
+/* Mapa y lateral, en tarjetas. El margen de scroll deja sitio a la barra
+   fija de arriba cuando se sube al mapa desde la lista del plantel. */
+.app-shell[data-tema] .runs-grid { margin-top: 4px; gap: 16px; scroll-margin-top: 72px; }
+.runs-side { display: flex; flex-direction: column; gap: 16px; }
+.app-shell[data-tema] :is(.runs-grid > .run-map, .runs-side > div) {
+  margin: 0; padding: 14px;
+  border: 0; border-radius: 14px;
+  background: var(--paper); box-shadow: 0 0 0 1px var(--line);
+}
+
+/* El campo va oscuro en los dos temas. Está dibujado en blanco —líneas,
+   carreras a ritmo normal, el aro de recepción— y en tema claro quedaba
+   blanco sobre la tarjeta blanca: solo se veían los sprints verdes. Un campo
+   oscuro fijo es además como lo pinta SkillCorner. */
+.run-map { --campo: #0e1512; }
+.app-shell[data-tema] .run-map figcaption { margin-bottom: 10px; display: flex; flex-direction: column; gap: 1px; }
+.app-shell[data-tema] .run-map figcaption b { color: var(--ink); font-family: inherit; font-size: 14px; font-weight: 650; letter-spacing: -0.01em; }
+.app-shell[data-tema] .run-map figcaption small { color: var(--muted); font-size: 11px; }
+.app-shell[data-tema] .run-map svg { display: block; border-radius: 10px; background: var(--campo); print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+.app-shell[data-tema] .run-map-legend { margin-top: 10px; gap: 6px 14px; }
+.app-shell[data-tema] .run-map-legend span { gap: 6px; color: var(--muted); font-size: 11px; }
+.app-shell[data-tema] .run-map-legend i {
+  width: 18px; height: 10px; border-radius: 3px;
+  background: linear-gradient(var(--muestra), var(--muestra)) center / 12px 3px no-repeat, var(--campo);
+}
+.app-shell[data-tema] .run-map-legend i.run-map-recibida {
+  width: 18px; height: 10px; border: 0; border-radius: 3px;
+  background: radial-gradient(circle, transparent 2.4px, #fff 2.6px, #fff 3.4px, transparent 3.6px), var(--campo);
+}
+.app-shell[data-tema] small.run-map-total { margin-top: 6px; color: var(--muted); font-size: 11px; }
+.app-shell[data-tema] p.run-map-vacio { padding: 22px 12px; border: 1px dashed var(--line); border-radius: 10px; color: var(--muted); font-size: 12px; }
+
+/* Los KPI: una rejilla de cifras en una sola tarjeta, con separadores finos,
+   en vez de seis cajitas con su borde y su etiqueta en versalitas de 7,5 px. */
+.app-shell[data-tema] .runs-side > .runs-kpis {
+  padding: 0; overflow: hidden;
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0;
+}
+.app-shell[data-tema] .runs-kpis > div { padding: 12px 14px; border: 0; border-radius: 0; background: none; box-shadow: none; }
+.app-shell[data-tema] .runs-kpis > div:is(:nth-child(2), :nth-child(3)) { box-shadow: inset 1px 0 0 var(--line); }
+.app-shell[data-tema] .runs-kpis > div:nth-child(4) { box-shadow: inset 0 1px 0 var(--line); }
+.app-shell[data-tema] .runs-kpis > div:is(:nth-child(5), :nth-child(6)) { box-shadow: inset 1px 0 0 var(--line), inset 0 1px 0 var(--line); }
+.app-shell[data-tema] .runs-kpis b { color: var(--ink); font-family: inherit; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.app-shell[data-tema] .runs-kpis span { margin-top: 2px; color: var(--muted); font-size: 11px; letter-spacing: normal; text-transform: none; }
+
+.app-shell[data-tema] .runs-reparto h4 { margin: 0 0 10px; color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.app-shell[data-tema] .run-mix-row { grid-template-columns: minmax(0, 128px) minmax(0, 1fr) 62px; gap: 10px; margin-bottom: 7px; }
+.app-shell[data-tema] .run-mix-row > span { overflow: hidden; color: var(--ink); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.app-shell[data-tema] .run-mix-row > i { height: 6px; border-radius: 999px; background: color-mix(in srgb, var(--ink) 9%, transparent); }
+.app-shell[data-tema] .run-mix-row > i > em { border-radius: inherit; background: var(--acento-claro); }
+.app-shell[data-tema] .run-mix-row > b { color: var(--ink); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.app-shell[data-tema] .run-mix-row > b > small { margin-left: 4px; color: var(--muted); font-size: 10.5px; font-weight: 400; }
+
+/* El plantel, con la misma lista que el ranking. */
+.app-shell[data-tema] .runs-squad { margin-top: 18px; }
+.app-shell[data-tema] .runs-squad > h3 { margin: 0 4px 4px; display: block; color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.app-shell[data-tema] .runs-squad > p { margin: 0 4px 10px; max-width: 72ch; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.app-shell[data-tema] .runs-lista > li.activa { background: var(--acento-suave); }
+.app-shell[data-tema] .runs-lista > li.activa::before,
+.app-shell[data-tema] .runs-lista > li.activa + li::before { opacity: 0; }
+
+@media (max-width: 780px) {
+  .runs-intensidad { margin-left: 0; }
+}
+@media print {
+  .runs-intensidad, .runs-estado { display: none !important; }
+}

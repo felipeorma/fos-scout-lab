@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { Paso } from "./Paso";
-import { BarraDeFiltros } from "./BarraDeFiltros";
+import { BarraDeFiltros, Desplegable } from "./BarraDeFiltros";
+import { ChevronDown, ChevronRight } from "./Icons";
+import { Interruptor } from "./Interruptor";
 import { useBaseActiva } from "./BaseActiva";
 import { casarPlantilla } from "@/lib/plantilla";
 import { t, tf } from "@/lib/i18n";
@@ -242,46 +244,91 @@ export function RunsPage() {
       ? tf("{equipo} · {n} del plantel", { equipo, n: jugadoresVisibles.length })
       : tf("{equipo} · todo el plantel", { equipo });
 
+  const edicionElegida = competiciones.find((competicion) => String(competicion.id) === edicion);
+  const mapaRef = useRef<HTMLDivElement>(null);
+
+  /** Un jugador solo cabe entero en el mapa; el plantel, no. */
+  const elegirJugador = (nombre: string) => {
+    setJugador(nombre);
+    setSoloIntensas(nombre === "TODOS");
+  };
+
+  /**
+   * Ver a un jugador desde la lista del plantel.
+   *
+   * La fila de la tabla solo cambiaba el jugador: dejaba "solo alta
+   * intensidad" como estuviera —distinto de elegirlo en el desplegable— y el
+   * mapa, que está arriba, quedaba fuera de la vista, así que tocar una fila
+   * parecía no hacer nada. Ahora hace lo mismo que el desplegable y sube hasta
+   * el mapa.
+   */
+  const verJugador = (nombre: string) => {
+    elegirJugador(nombre);
+    const suave = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    mapaRef.current?.scrollIntoView({ behavior: suave ? "smooth" : "auto", block: "start" });
+  };
+  const verConTeclado = (evento: KeyboardEvent, nombre: string) => {
+    if (evento.key !== "Enter" && evento.key !== " ") return;
+    evento.preventDefault();
+    verJugador(nombre);
+  };
+
   return <section className="runs-page">
+    {/* La explicación de la leyenda se lee una vez: pasa a un desplegable. */}
     <header>
       <div>
         <span>{t("SKILLCORNER · DYNAMIC EVENTS")}</span>
         <h2>{t("Mapa de carreras sin balón")}</h2>
-        <p>{t("Una flecha por carrera, del punto de inicio al de fin, como en el artículo Open Data #4 de SkillCorner. El color marca la intensidad y el círculo blanco, que la carrera terminó en recepción. El ataque va siempre hacia arriba.")}</p>
+        <p>{t("Una flecha por carrera, de donde empieza a donde termina. El ataque va siempre hacia arriba.")}</p>
+        <details className="como-se-calcula">
+          <summary><ChevronDown size={13} />{t("Cómo se lee el mapa")}</summary>
+          <p>{t("Una flecha por carrera, del punto de inicio al de fin, como en el artículo Open Data #4 de SkillCorner. El color marca la intensidad y el círculo blanco, que la carrera terminó en recepción. El ataque va siempre hacia arriba.")}</p>
+        </details>
       </div>
     </header>
 
+    {/* Competición y equipo como fichas, y cargar como la acción principal de
+        la fila. Eran dos cajas con etiqueta en versalitas y un botón con el
+        mismo aspecto que un filtro encendido. */}
     <Paso numero={1}>Qué competición y qué equipo</Paso>
-    <div className="runs-controls">
-      <label><span>{t("Competición")}</span>
-        <select value={edicion} onChange={(event) => setEdicion(event.target.value)}>
-          <option value="">{t("Elegir competición")}…</option>
-          {competiciones.map((competicion) => (
-            <option key={competicion.id} value={competicion.id}>{competicion.name} · {competicion.season}</option>
-          ))}
-        </select>
-      </label>
-      <label><span>{t("Equipo")}</span>
-        <select value={equipo} disabled={cargandoEquipos || !equipos.length} onChange={(event) => {
-          const elegido = event.target.value;
-          setEquipo(elegido);
-          /* Se propaga al filtro compartido SOLO si ese club existe en la base
-             activa. Si no, las demás pantallas se quedarían en cero jugadores
-             por un club que no tienen, y el usuario no sabría por qué. */
-          if (opciones.equipos.some((nombre) => nombre.toLowerCase() === elegido.toLowerCase())) {
-            cambiarFiltros({ equipo: opciones.equipos.find((nombre) => nombre.toLowerCase() === elegido.toLowerCase())! });
-          }
-        }}>
-          {cargandoEquipos && <option value="">{t("Leyendo equipos…")}</option>}
-          {!cargandoEquipos && !equipos.length && <option value="">{t("Elige una competición")}</option>}
-          {equipos.map((nombre) => <option key={nombre} value={nombre}>{nombre}</option>)}
-        </select>
-      </label>
-      <button type="button" className="runs-load" disabled={cargando || !edicion} onClick={() => void cargar()}>
-        {cargando ? t("Cargando…") : t("Cargar carreras")}
-      </button>
-      {estado && <small className="runs-estado">{estado}</small>}
+    <div className="filtros-barra runs-origen" role="group" aria-label={t("Qué competición y qué equipo")}>
+      <div className="filtros-chips">
+        <Desplegable etiqueta={t("Competición")}
+          valor={edicionElegida ? `${edicionElegida.name} · ${edicionElegida.season}` : t("Elegir competición")}
+          activo={false} apagado={!competiciones.length}>
+          <select aria-label={t("Competición")} value={edicion} disabled={!competiciones.length} onChange={(event) => setEdicion(event.target.value)}>
+            <option value="">{t("Elegir competición")}…</option>
+            {competiciones.map((competicion) => (
+              <option key={competicion.id} value={competicion.id}>{competicion.name} · {competicion.season}</option>
+            ))}
+          </select>
+        </Desplegable>
+        <Desplegable etiqueta={t("Equipo")}
+          valor={cargandoEquipos ? t("Leyendo equipos…") : equipo || t("Elige una competición")}
+          activo={false} apagado={cargandoEquipos || !equipos.length}>
+          <select aria-label={t("Equipo")} value={equipo} disabled={cargandoEquipos || !equipos.length} onChange={(event) => {
+            const elegido = event.target.value;
+            setEquipo(elegido);
+            /* Se propaga al filtro compartido SOLO si ese club existe en la base
+               activa. Si no, las demás pantallas se quedarían en cero jugadores
+               por un club que no tienen, y el usuario no sabría por qué. */
+            if (opciones.equipos.some((nombre) => nombre.toLowerCase() === elegido.toLowerCase())) {
+              cambiarFiltros({ equipo: opciones.equipos.find((nombre) => nombre.toLowerCase() === elegido.toLowerCase())! });
+            }
+          }}>
+            {cargandoEquipos && <option value="">{t("Leyendo equipos…")}</option>}
+            {!cargandoEquipos && !equipos.length && <option value="">{t("Elige una competición")}</option>}
+            {equipos.map((nombre) => <option key={nombre} value={nombre}>{nombre}</option>)}
+          </select>
+        </Desplegable>
+      </div>
+      <div className="filtros-barra-cola">
+        <button type="button" className="runs-cargar" disabled={cargando || !edicion} onClick={() => void cargar()}>
+          {cargando ? t("Cargando…") : t("Cargar carreras")}
+        </button>
+      </div>
     </div>
+    {estado && <p className="runs-estado" role="status">{estado}</p>}
 
     {datos && <>
       <Paso numero={2}>Qué jugador y qué carreras</Paso>
@@ -292,32 +339,33 @@ export function RunsPage() {
       {sinFichaFiltrados > 0 && <p className="runs-sin-ficha">
         {tf("{n} del plantel no tienen ficha en la base activa, así que no se les puede aplicar el filtro y quedan fuera. Carga la liga de este equipo para que entren.", { n: sinFichaFiltrados })}
       </p>}
-      <div className="runs-controls secundarios">
-        <label><span>{t("Jugador")}</span>
-          <select value={jugador} onChange={(event) => {
-            const elegido = event.target.value;
-            setJugador(elegido);
-            // Un jugador solo cabe entero en el mapa; el plantel, no.
-            setSoloIntensas(elegido === "TODOS");
-          }}>
-            <option value="TODOS">{t("Todo el equipo")}</option>
-            {jugadoresVisibles.map((nombre) => <option key={nombre} value={nombre}>{nombre}</option>)}
-          </select>
-        </label>
-        <label><span>{t("Tipo de carrera")}</span>
-          <select value={tipo} onChange={(event) => setTipo(event.target.value)}>
-            <option value="TODOS">{t("Todos")}</option>
-            {tiposPresentes.map((clave) => (
-              <option key={clave} value={clave}>{t(TIPOS_CARRERA[clave] ?? clave)}</option>
-            ))}
-          </select>
-        </label>
-        <button type="button" className={soloIntensas ? "on" : ""} onClick={() => setSoloIntensas(!soloIntensas)}>
-          {t("Solo alta intensidad")}
-        </button>
+      {/* Qué se dibuja: jugador y tipo como fichas, y la intensidad como
+          interruptor, que es un sí o un no. Antes era un botón con aspecto de
+          filtro encendido que no decía si estaba puesto o no. */}
+      <div className="filtros-barra runs-seleccion" role="group" aria-label={t("Qué jugador y qué carreras")}>
+        <div className="filtros-chips">
+          <Desplegable etiqueta={t("Jugador")} valor={jugador === "TODOS" ? t("Todo el equipo") : jugador} activo={jugador !== "TODOS"}>
+            <select aria-label={t("Jugador")} value={jugador} onChange={(event) => elegirJugador(event.target.value)}>
+              <option value="TODOS">{t("Todo el equipo")}</option>
+              {jugadoresVisibles.map((nombre) => <option key={nombre} value={nombre}>{nombre}</option>)}
+            </select>
+          </Desplegable>
+          <Desplegable etiqueta={t("Tipo de carrera")} valor={tipo === "TODOS" ? t("Todos") : t(TIPOS_CARRERA[tipo] ?? tipo)} activo={tipo !== "TODOS"}>
+            <select aria-label={t("Tipo de carrera")} value={tipo} onChange={(event) => setTipo(event.target.value)}>
+              <option value="TODOS">{t("Todos")}</option>
+              {tiposPresentes.map((clave) => (
+                <option key={clave} value={clave}>{t(TIPOS_CARRERA[clave] ?? clave)}</option>
+              ))}
+            </select>
+          </Desplegable>
+        </div>
+        <div className="runs-intensidad">
+          <span>{t("Solo alta intensidad")}</span>
+          <Interruptor activo={soloIntensas} onCambio={setSoloIntensas} titulo={t("Solo alta intensidad")} />
+        </div>
       </div>
 
-      <div className="runs-grid">
+      <div className="runs-grid" ref={mapaRef}>
         <RunMap
           carreras={filtradas}
           titulo={tituloDelMapa}
@@ -334,36 +382,44 @@ export function RunsPage() {
             <div><b>{resumen.xt.toFixed(1)}</b><span>{t("xThreat total")}</span></div>
             <div><b>{resumen.xtPorCarrera.toFixed(3)}</b><span>{t("xT por carrera")}</span></div>
           </div>}
-          <h4>{t("Reparto por tipo de carrera")}</h4>
-          <RepartoCarreras carreras={filtradas} />
+          <div className="runs-reparto">
+            <h4>{t("Reparto por tipo de carrera")}</h4>
+            <RepartoCarreras carreras={filtradas} />
+          </div>
         </div>
       </div>
 
+      {/* El plantel, en lista y no en tabla de nueve columnas: el nombre, y
+          debajo sus cifras en una línea; a la derecha la amenaza, que es por
+          lo que se ordena. */}
       {plantel.length > 0 && <div className="runs-squad">
-        <h3>{t("El plantel, ordenado por amenaza generada")} <i>{plantel.length}</i></h3>
+        <h3>{t("El plantel, ordenado por amenaza generada")}</h3>
         <p>{t("xThreat suma el valor de cada carrera: cuánto acercó a su equipo al gol. El total premia a quien corre mucho y bien; el valor por carrera, a quien corre poco pero decisivo.")}</p>
-        <table>
-          <thead><tr>
-            <th>#</th><th>{t("Jugador")}</th><th>{t("Carreras")}</th><th>{t("Por partido")}</th>
-            <th>{t("Peligrosas")}</th><th>{t("Reciben")}</th><th>{t("Intensas")}</th>
-            <th>{t("xT total")}</th><th>{t("xT/carrera")}</th>
-          </tr></thead>
-          <tbody>
-            {plantel.map((fila, posicion) => (
-              <tr key={fila.nombre} className={fila.nombre === jugador ? "activo" : ""} onClick={() => setJugador(fila.nombre)}>
-                <td>{posicion + 1}</td>
-                <td className="runs-name">{fila.nombre}</td>
-                <td>{fila.total}</td>
-                <td>{fila.porPartido.toFixed(1)}</td>
-                <td>{Math.round((fila.peligrosas / fila.total) * 100)}%</td>
-                <td>{Math.round((fila.recibidas / fila.total) * 100)}%</td>
-                <td>{Math.round((fila.intensas / fila.total) * 100)}%</td>
-                <td><b>{fila.xt.toFixed(1)}</b></td>
-                <td>{fila.xtPorCarrera.toFixed(3)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <ol className="rank-list runs-lista">
+          {plantel.map((fila, posicion) => (
+            <li key={fila.nombre}
+              className={fila.nombre === jugador ? "clicable activa" : "clicable"}
+              role="button" tabIndex={0} aria-pressed={fila.nombre === jugador}
+              onClick={() => verJugador(fila.nombre)}
+              onKeyDown={(evento) => verConTeclado(evento, fila.nombre)}>
+              <span className={posicion < 3 ? "rank-pos podio" : "rank-pos"}>{posicion + 1}</span>
+              <span className="pool-cuerpo">
+                <b>{fila.nombre}</b>
+                <small>{tf("{c} carreras · {p} por partido · {d}% peligrosas · {r}% reciben · {i}% intensas", {
+                  c: fila.total, p: fila.porPartido.toFixed(1),
+                  d: Math.round((fila.peligrosas / fila.total) * 100),
+                  r: Math.round((fila.recibidas / fila.total) * 100),
+                  i: Math.round((fila.intensas / fila.total) * 100),
+                })}</small>
+              </span>
+              <span className="pool-cifras">
+                <b>{fila.xt.toFixed(1)}</b>
+                <small>{tf("xT total · {x} por carrera", { x: fila.xtPorCarrera.toFixed(3) })}</small>
+              </span>
+              <ChevronRight size={14} className="rank-chevron" />
+            </li>
+          ))}
+        </ol>
       </div>}
     </>}
   </section>;

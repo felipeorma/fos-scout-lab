@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, type CSSProperties } from "react";
 import { t, tf } from "@/lib/i18n";
 import type { CarreraSinBalon } from "@/lib/remoteData";
 
@@ -113,10 +113,14 @@ export function RunMap({ carreras, titulo, subtitulo }: {
         </g>;
       })}
     </svg>
+    {/* Las muestras van en una variable y no como fondo directo: el CSS las
+        pinta sobre el mismo color de campo que el mapa. Como fondo suelto, el
+        blanco translúcido de "ritmo de carrera" y el aro de recepción eran
+        invisibles sobre la tarjeta blanca del tema claro. */}
     <div className="run-map-legend">
-      <span><i style={{ background: COLOR_BANDA.sprinting }} />{t("Sprint (+25 km/h)")}</span>
-      <span><i style={{ background: COLOR_BANDA.hsr }} />{t("Alta velocidad (20-25)")}</span>
-      <span><i style={{ background: COLOR_BASE }} />{t("Ritmo de carrera")}</span>
+      <span><i style={{ "--muestra": COLOR_BANDA.sprinting } as CSSProperties} />{t("Sprint (+25 km/h)")}</span>
+      <span><i style={{ "--muestra": COLOR_BANDA.hsr } as CSSProperties} />{t("Alta velocidad (20-25)")}</span>
+      <span><i style={{ "--muestra": COLOR_BASE } as CSSProperties} />{t("Ritmo de carrera")}</span>
       <span><i className="run-map-recibida" />{t("Termina en recepción")}</span>
     </div>
     <small className="run-map-total">
