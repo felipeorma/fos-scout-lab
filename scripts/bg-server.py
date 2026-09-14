@@ -1266,6 +1266,31 @@ def _run_row(raw: dict) -> dict:
     return out
 
 
+def _reparar_texto(valor):
+    """Deshace un nombre decodificado como Latin-1 cuando era UTF-8.
+
+    Las carreras llegan en CSV y durante meses se leyeron con response.text.
+    Sin charset en la cabecera, requests decodifica el texto como ISO-8859-1,
+    así que "Gutiérrez" se guardaba como "GutiÃ©rrez". Medido en la caché:
+    1.987 nombres así en 126 partidos. Además de verse mal, rompía el cruce con
+    la base, porque un nombre roto no casa con el suyo.
+
+    La vuelta es segura: se recodifica como Latin-1 y se lee como UTF-8. Un
+    nombre bien escrito no pasa ese viaje —"é" suelta no es UTF-8 válido, y
+    "ł" no cabe en Latin-1— y se devuelve tal cual.
+    """
+    if not isinstance(valor, str) or not valor:
+        return valor
+    try:
+        return valor.encode("latin-1").decode("utf-8")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        return valor
+
+
+def _reparar_fila(fila: dict) -> dict:
+    return {clave: _reparar_texto(valor) for clave, valor in fila.items()}
+
+
 def _match_runs(match_id: int, auth, data_version: int = 3):
     """Carreras de un partido, del disco si ya se pidieron alguna vez.
 
@@ -1279,7 +1304,9 @@ def _match_runs(match_id: int, auth, data_version: int = 3):
     if cache.exists():
         try:
             guardado = _json.loads(cache.read_text(encoding="utf-8"))
-            return guardado.get("runs", []), guardado.get("estado", "ok")
+            # Se repara al leer y no se reescribe el disco: la caché guardada
+            # antes del arreglo se sirve bien sin volver a bajar nada.
+            return [_reparar_fila(fila) for fila in guardado.get("runs", [])], guardado.get("estado", "ok")
         except Exception:
             pass
 
@@ -1294,7 +1321,11 @@ def _match_runs(match_id: int, auth, data_version: int = 3):
 
     if response.status_code == 200:
         import csv as _csv, io as _io
-        filas = [_run_row(fila) for fila in _csv.DictReader(_io.StringIO(response.text))]
+        # No response.text: sin charset en la cabecera, requests decodifica el
+        # CSV como ISO-8859-1. Se decodifican los bytes a mano como UTF-8, con
+        # el BOM fuera si lo trae.
+        texto = response.content.decode("utf-8-sig", errors="replace")
+        filas = [_run_row(fila) for fila in _csv.DictReader(_io.StringIO(texto))]
         estado = "ok"
     elif response.status_code == 400:
         filas, estado = [], "calidad"
