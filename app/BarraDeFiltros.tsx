@@ -61,10 +61,15 @@ export function Desplegable({ etiqueta, valor, activo, apagado, aviso, children 
   </label>;
 }
 
-export function BarraDeFiltros({ campos = TODOS, resultado }: {
+export function BarraDeFiltros({ campos = TODOS, resultado, accesorio }: {
   campos?: CampoDeFiltro[];
   /** Cuántos quedan tras filtrar, para que el número no haya que buscarlo. */
   resultado?: number;
+  /**
+   * Una acción que va al final de la fila, junto al recuento: exportar, por
+   * ejemplo. Ahí se lee como "haz esto con estos N", que es lo que hace.
+   */
+  accesorio?: ReactNode;
 }) {
   const { filtros, cambiarFiltros, limpiarFiltros, filtrosActivos, opciones, rows } = useBaseActiva();
   if (!rows.length) return null;
@@ -153,6 +158,7 @@ export function BarraDeFiltros({ campos = TODOS, resultado }: {
       {filtrosActivos > 0 && <button type="button" onClick={limpiarFiltros}>
         {filtrosActivos === 1 ? t("Quitar el filtro") : tf("Quitar los {n} filtros", { n: filtrosActivos })}
       </button>}
+      {accesorio}
     </div>
   </div>;
 }

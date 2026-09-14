@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type KeyboardEvent } from "react";
 import { rankingDeCohorte } from "@/lib/ranking";
 import { PERFILES } from "@/lib/perfiles";
 import { useBaseActiva } from "./BaseActiva";
-import { BarraDeFiltros } from "./BarraDeFiltros";
-import { Paso } from "./Paso";
+import { BarraDeFiltros, Desplegable } from "./BarraDeFiltros";
+import { ChevronDown, ChevronRight } from "./Icons";
 import { BotonExportar } from "./BotonExportar";
 import { t, tf } from "@/lib/i18n";
 import { rankingPorArquetipo } from "@/lib/arquetipos";
@@ -80,39 +80,59 @@ export function RankingPage({ onSelectPlayer }: {
     return Math.max(...metricas) - Math.min(...metricas) >= 3;
   }, [todos]);
 
+  const nombreDelPerfil = t(PERFILES.find((x) => x.id === perfil)?.nombre ?? perfil);
+  const abrirConTeclado = (evento: KeyboardEvent, indice: number) => {
+    if (!onSelectPlayer || (evento.key !== "Enter" && evento.key !== " ")) return;
+    evento.preventDefault();
+    onSelectPlayer(indice);
+  };
+
   return <section className="rank-page">
+    {/* La cabecera dice qué es la pantalla y nada más. La explicación del
+        índice ocupaba tres líneas encima de todo, y se lee una vez: pasa a un
+        desplegable, un nivel más abajo, igual que el aviso de cobertura. */}
     <header>
       <div>
         <span>{t("RANKING DE LA BASE")}</span>
         <h2>{t("Los mejores de cada puesto")}</h2>
-        <p>{t("Quién encabeza cada posición en lo que tienes cargado. El índice parte del percentil medio contra los jugadores de su misma posición y lo acerca a sus tres mejores métricas: destacar en algo cuenta, y no solo ser correcto en todo. Haz clic en cualquiera para abrir su informe.")}</p>
+        <p>{t("Quién encabeza cada posición en lo que tienes cargado. Toca a cualquiera para abrir su informe.")}</p>
+        <details className="como-se-calcula">
+          <summary><ChevronDown size={13} />{t("Cómo se calcula el índice")}</summary>
+          <p>{t("El índice parte del percentil medio contra los jugadores de su misma posición y lo acerca a sus tres mejores métricas: destacar en algo cuenta, y no solo ser correcto en todo.")}</p>
+          {hayCoberturaDesigual && <p>{t("El índice está corregido por cobertura: no todas las ligas traen las mismas métricas —sólo algunas tienen SkillCorner encima— y quien se mide con menos da un número más inestable, que asomaba en la cima más de lo que le tocaba. El ajuste acerca a la media a quien se apoya en poco, hasta que haya con qué separarlo de ella. El número pequeño de al lado es el índice sin corregir.")}</p>}
+        </details>
       </div>
     </header>
 
-    {/* El puesto va primero porque es la primera decisión: primero eliges
-        qué ranking miras y sólo después lo estrechas. Estaba detrás de los
-        filtros, que es el orden inverso al que se usa. */}
-    <Paso numero={1}>Qué puesto miras</Paso>
-    <div className="rank-filters">
-      <label><span>{t("Posición")}</span>
-        <select value={perfil} onChange={(event) => setPerfil(event.target.value)}>
-          {PERFILES.map((item) => <option key={item.id} value={item.id}>{t(item.nombre)}</option>)}
-        </select>
-      </label>
-      <div className="rank-tabs">
-        <button type="button" className={vista === "indice" ? "on" : ""} onClick={() => setVista("indice")}>{t("Por índice")}</button>
-        <button type="button" className={vista === "arquetipos" ? "on" : ""} onClick={() => setVista("arquetipos")}>{t("Por arquetipo")}</button>
+    {/* Qué ranking miras: la posición como ficha y el orden como control
+        segmentado, en una sola fila. Eran dos cajas con rótulo de paso para
+        una decisión de dos toques. El puesto sigue yendo primero, porque
+        primero eliges qué ranking y solo después lo estrechas.
+
+        Esta fila tenía además un fallo de maquetación: su contenedor se
+        llamaba "rank-barra", igual que la barrita de puntuación de cada
+        fila, y heredaba su "height: 7px". Los filtros desbordaban de una caja
+        de siete píxeles. */}
+    <div className="filtros-barra rank-herramientas" role="group" aria-label={t("Qué puesto miras")}>
+      <div className="filtros-chips">
+        <Desplegable etiqueta={t("Posición")} valor={nombreDelPerfil} activo={false}>
+          <select aria-label={t("Posición")} value={perfil} onChange={(event) => setPerfil(event.target.value)}>
+            {PERFILES.map((item) => <option key={item.id} value={item.id}>{t(item.nombre)}</option>)}
+          </select>
+        </Desplegable>
+      </div>
+      <div className="rank-tabs" role="group" aria-label={t("Cómo ordenar")}>
+        <button type="button" className={vista === "indice" ? "on" : ""} aria-pressed={vista === "indice"} onClick={() => setVista("indice")}>{t("Por índice")}</button>
+        <button type="button" className={vista === "arquetipos" ? "on" : ""} aria-pressed={vista === "arquetipos"} onClick={() => setVista("arquetipos")}>{t("Por arquetipo")}</button>
       </div>
     </div>
 
-    <Paso numero={2}>Entre quiénes lo buscas</Paso>
-    <div className="rank-barra">
-      <BarraDeFiltros campos={["liga", "anio", "equipo", "pasaporte", "minutos", "edad"]} resultado={visibles.length} />
-      {/* La lista de pantalla se corta en cuarenta; el CSV lleva todas las que
-          pasan los filtros, que es la lista que de verdad se pidió. Y lleva
-          las métricas destacadas, que en pantalla caben tres. */}
+    {/* Exportar va al final de la fila de filtros, junto al recuento: se lee
+        como "baja estos N". La lista de pantalla se corta en cuarenta; el CSV
+        lleva todas las que pasan los filtros, con sus métricas destacadas. */}
+    <BarraDeFiltros campos={["liga", "anio", "equipo", "pasaporte", "minutos", "edad"]} resultado={visibles.length} accesorio={
       <BotonExportar
-        nombre={[t("ranking"), t(PERFILES.find((x) => x.id === perfil)?.nombre ?? perfil), filtros.liga !== "TODAS" ? filtros.liga : null, filtros.anio || null]}
+        nombre={[t("ranking"), nombreDelPerfil, filtros.liga !== "TODAS" ? filtros.liga : null, filtros.anio || null]}
         columnas={[t("#"), t("Jugador"), t("Equipo"), t("Liga"), t("Año"), t("Edad"), t("Min"), t("Índice"), t("Índice sin corregir"), t("Métricas"), t("Pasaportes"), t("Destacadas")]}
         cuantas={visibles.length}
         filas={() => visibles.map((fila, posicion) => {
@@ -127,12 +147,7 @@ export function RankingPage({ onSelectPlayer }: {
           ];
         })}
       />
-    </div>
-
-
-    {hayCoberturaDesigual && <p className="rank-cobertura">
-      {t("El índice está corregido por cobertura: no todas las ligas traen las mismas métricas —sólo algunas tienen SkillCorner encima— y quien se mide con menos da un número más inestable, que asomaba en la cima más de lo que le tocaba. El ajuste acerca a la media a quien se apoya en poco, hasta que haya con qué separarlo de ella. El número pequeño de al lado es el índice sin corregir.")}
-    </p>}
+    } />
 
     {todos.length > 0 && todos.length < COHORTE_FIABLE && (
       <p className={todos.length < COHORTE_MINIMA ? "rank-muestra grave" : "rank-muestra"}>
@@ -146,28 +161,41 @@ export function RankingPage({ onSelectPlayer }: {
       {t("Ningún jugador de esa posición pasa los filtros. Baja el mínimo de minutos o quita el tope de edad.")}
     </p>}
 
-    {vista === "indice" && visibles.length > 0 && <ol className="rank-list">
-      {visibles.slice(0, 40).map((fila, posicion) => (
-        <li
-          key={fila.indice}
-          className={onSelectPlayer ? "clicable" : ""}
-          onClick={() => onSelectPlayer?.(fila.indice)}
-        >
-          <span className="rank-pos">{posicion + 1}</span>
-          <span className="rank-nombre">
-            {fila.jugador}
-            <small>{fila.equipo}{Number.isFinite(fila.edad) ? ` · ${fila.edad}` : ""}{fila.minutos ? ` · ${Math.round(fila.minutos)}′` : ""}</small>
-          </span>
-          <i className="rank-barra"><em style={{ width: `${Math.max(2, (fila.puntuacion / maximo) * 100)}%` }} /></i>
-          <b>{fila.puntuacion}<u title={tf("Índice sin corregir: {c} · calculado con {m} métricas", { c: fila.puntuacionCruda, m: fila.metricas })}>{fila.puntuacionCruda}</u></b>
-          <span className="rank-flags">
-            {fila.destacadas.length
-              ? fila.destacadas.map((metrica) => <em key={metrica.label}>{t(metrica.label)} <u>P{metrica.percentile}</u></em>)
-              : <span className="rank-sin">—</span>}
-          </span>
-        </li>
-      ))}
-    </ol>}
+    {/* La lista, como una tarjeta agrupada de iOS. Cada fila tenía cinco
+        columnas en fila —puesto, nombre, barra, índice y tres métricas— y las
+        métricas se comían el ancho: con la ventana estrecha una fila medía
+        138 px. Ahora el nombre manda, la barra y las métricas van debajo de
+        él, y el índice se lee grande a la derecha, que es donde se busca un
+        número. */}
+    {vista === "indice" && visibles.length > 0 && <>
+      <ol className="rank-list">
+        {visibles.slice(0, 40).map((fila, posicion) => (
+          <li
+            key={fila.indice}
+            className={onSelectPlayer ? "clicable" : ""}
+            role={onSelectPlayer ? "button" : undefined}
+            tabIndex={onSelectPlayer ? 0 : undefined}
+            onClick={() => onSelectPlayer?.(fila.indice)}
+            onKeyDown={(evento) => abrirConTeclado(evento, fila.indice)}
+          >
+            <span className={posicion < 3 ? "rank-pos podio" : "rank-pos"}>{posicion + 1}</span>
+            <span className="rank-cuerpo">
+              <span className="rank-nombre">
+                {fila.jugador}
+                <small>{fila.equipo}{Number.isFinite(fila.edad) ? ` · ${fila.edad}` : ""}{fila.minutos ? ` · ${Math.round(fila.minutos)}′` : ""}</small>
+              </span>
+              <i className="rank-progreso" aria-hidden="true"><em style={{ width: `${Math.max(2, (fila.puntuacion / maximo) * 100)}%` }} /></i>
+              {fila.destacadas.length > 0 && <span className="rank-flags">
+                {fila.destacadas.map((metrica) => <em key={metrica.label}>{t(metrica.label)} <u>P{metrica.percentile}</u></em>)}
+              </span>}
+            </span>
+            <b className="rank-indice">{fila.puntuacion}<u title={tf("Índice sin corregir: {c} · calculado con {m} métricas", { c: fila.puntuacionCruda, m: fila.metricas })}>{fila.puntuacionCruda}</u></b>
+            {onSelectPlayer ? <ChevronRight size={14} className="rank-chevron" /> : <span />}
+          </li>
+        ))}
+      </ol>
+      {hayCoberturaDesigual && <p className="rank-pie">{t("Índice corregido por cobertura: el número pequeño es el índice sin corregir.")}</p>}
+    </>}
 
     {vista === "arquetipos" && (arquetipos.length > 0 ? <div className="rank-arq-grid">
       {arquetipos.map((ranking) => (
@@ -180,10 +208,13 @@ export function RankingPage({ onSelectPlayer }: {
               .slice(0, 10)
               .map((jugador, posicion) => (
                 <li key={jugador.indice} onClick={() => onSelectPlayer?.(jugador.indice)}
+                  role={onSelectPlayer ? "button" : undefined}
+                  tabIndex={onSelectPlayer ? 0 : undefined}
+                  onKeyDown={(evento) => abrirConTeclado(evento, jugador.indice)}
                   title={jugador.detalle.map((d) => `${t(d.etiqueta)}: P${d.percentil}`).join("\n")}>
                   <span className="rank-pos">{posicion + 1}</span>
                   <span className="rank-nombre">{jugador.nombre}<small>{jugador.equipo}{Number.isFinite(jugador.edad) ? ` · ${jugador.edad}` : ""}</small></span>
-                  <i className="rank-barra"><em style={{ width: `${Math.max(2, jugador.ajuste)}%` }} /></i>
+                  <i className="rank-progreso" aria-hidden="true"><em style={{ width: `${Math.max(2, jugador.ajuste)}%` }} /></i>
                   <b>{jugador.ajuste}</b>
                 </li>
               ))}

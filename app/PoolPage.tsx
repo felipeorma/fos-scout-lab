@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type KeyboardEvent } from "react";
 import { t, tf } from "@/lib/i18n";
 import { encogerHaciaLaMedia } from "@/lib/cobertura";
 import { positionSides } from "@/lib/positions";
@@ -9,6 +9,8 @@ import { useBaseActiva } from "./BaseActiva";
 import { BarraDeFiltros } from "./BarraDeFiltros";
 import { Paso } from "./Paso";
 import { BotonExportar } from "./BotonExportar";
+import { ChevronDown, ChevronRight, Search } from "./Icons";
+import { Interruptor } from "./Interruptor";
 
 /**
  * Buscador entre ligas: quién se parece a este jugador en todo lo cargado.
@@ -111,6 +113,15 @@ export function PoolPage({ onAbrirJugador }: {
       .filter((candidato) => pasaFiltros(candidato.index));
   }, [resultado, procedencia, pasaFiltros]);
 
+  const equipoObjetivo = objetivo >= 0 && rows[objetivo] ? String(rows[objetivo].Team ?? "") : "";
+  const ligaObjetivo = objetivo >= 0 ? (procedencia?.[objetivo]?.ligas ?? []).join(" · ") : "";
+  const cambiarReferencia = () => { setObjetivo(-1); setBusqueda(""); setMismoFlanco(false); };
+  const abrirConTeclado = (evento: KeyboardEvent, indice: number) => {
+    if (!onAbrirJugador || (evento.key !== "Enter" && evento.key !== " ")) return;
+    evento.preventDefault();
+    onAbrirJugador(indice);
+  };
+
   if (!rows.length) {
     return <section className="pool-page">
       <header>
@@ -123,7 +134,11 @@ export function PoolPage({ onAbrirJugador }: {
   return <section className="pool-page">
     <header>
       <h2>{t("Buscador entre ligas")}</h2>
-      <p>{t("Quién se parece a un jugador dentro de la base activa. El parecido se corrige por cobertura: con pocas métricas en común el número se acerca a la media del conjunto hasta que haya evidencia que lo separe.")}</p>
+      <p>{t("Quién se parece a un jugador dentro de la base activa. Toca a cualquiera para abrir su ficha.")}</p>
+      <details className="como-se-calcula">
+        <summary><ChevronDown size={13} />{t("Cómo se calcula el parecido")}</summary>
+        <p>{t("El parecido se corrige por cobertura: con pocas métricas en común el número se acerca a la media del conjunto hasta que haya evidencia que lo separe.")}</p>
+      </details>
     </header>
 
     {aniosMezclados.length > 1 && <p className="pool-aviso-anios">
@@ -133,34 +148,54 @@ export function PoolPage({ onAbrirJugador }: {
     </p>}
 
     <Paso numero={1}>A quién te quieres parecer</Paso>
-    <div className="pool-buscar">
-      <label><span>{t("Jugador de referencia")}</span>
-        <input value={busqueda} placeholder={t("Escribe un nombre…")} onChange={(event) => setBusqueda(event.target.value)} />
+    {/* Buscar y elegir, al modo de iOS. Las coincidencias salían como hasta
+        veinte píldoras en montón, y al elegir una el campo seguía abierto con
+        la lista debajo, así que no se veía de un vistazo QUIÉN era la
+        referencia. Ahora las coincidencias son una lista, y al elegir el
+        buscador se convierte en la ficha de la referencia, con su liga y un
+        "Cambiar" para volver a buscar. */}
+    {objetivo < 0 ? <div className="pool-buscar">
+      <label className="campo-busqueda"><Search size={15} />
+        <input type="search" value={busqueda} placeholder={t("Escribe un nombre…")} aria-label={t("Jugador de referencia")}
+          onChange={(event) => setBusqueda(event.target.value)} />
       </label>
-      {candidatosObjetivo.length > 0 && <div className="pool-sugerencias">
+      {candidatosObjetivo.length > 0 && <ul className="pool-sugerencias">
         {candidatosObjetivo.map((x) => (
-          <button key={x.indice} type="button" className={x.indice === objetivo ? "on" : ""}
-            onClick={() => { setObjetivo(x.indice); setBusqueda(x.nombre); }}>
-            {x.nombre}<small>{x.equipo}</small>
-          </button>
+          <li key={x.indice}>
+            <button type="button" onClick={() => { setObjetivo(x.indice); setBusqueda(x.nombre); }}>
+              <span><b>{x.nombre}</b><small>{x.equipo}{procedencia?.[x.indice]?.ligas.length ? ` · ${procedencia[x.indice].ligas.join(" · ")}` : ""}</small></span>
+              <ChevronRight size={14} />
+            </button>
+          </li>
         ))}
-      </div>}
-
-      {objetivo >= 0 && <label className={flancoObjetivo ? "pool-incluir" : "pool-incluir apagada"}>
-        <input type="checkbox" checked={mismoFlanco && Boolean(flancoObjetivo)} disabled={!flancoObjetivo}
-          onChange={(event) => setMismoFlanco(event.target.checked)} />
-        <span>{flancoObjetivo
-          ? tf("Solo jugadores del mismo flanco ({lado})", { lado: flancoObjetivo === "left" ? t("izquierda") : t("derecha") })
-          : t("Mismo flanco: no aplica. El jugador de referencia es central o juega por las dos bandas.")}</span>
-      </label>}
-    </div>
+      </ul>}
+      {busqueda.trim() !== "" && candidatosObjetivo.length === 0 && <p className="pool-sin-resultados">{t("Ningún jugador con ese nombre en la base activa.")}</p>}
+    </div> : <div className="pool-referencia">
+      <div className="pool-referencia-fila">
+        <span>
+          <small>{t("Jugador de referencia")}</small>
+          <b>{nombreObjetivo}</b>
+          <span>{[equipoObjetivo, ligaObjetivo].filter(Boolean).join(" · ")}</span>
+        </span>
+        <button type="button" className="pool-cambiar" onClick={cambiarReferencia}>{t("Cambiar")}</button>
+      </div>
+      {/* "Mismo flanco" era una casilla, y cuando no aplicaba quedaba marcable
+          en gris. Es un sí o un no sobre la búsqueda: un interruptor. Y cuando
+          el jugador es central o juega por las dos bandas no hay interruptor,
+          solo la explicación, porque no hay nada que encender. */}
+      <div className="pool-referencia-fila pool-flanco">
+        {flancoObjetivo ? <>
+          <span><b>{tf("Solo jugadores del mismo flanco ({lado})", { lado: flancoObjetivo === "left" ? t("izquierda") : t("derecha") })}</b></span>
+          <Interruptor activo={mismoFlanco} onCambio={setMismoFlanco} titulo={tf("Solo jugadores del mismo flanco ({lado})", { lado: flancoObjetivo === "left" ? t("izquierda") : t("derecha") })} />
+        </> : <span><small>{t("Mismo flanco: no aplica. El jugador de referencia es central o juega por las dos bandas.")}</small></span>}
+      </div>
+    </div>}
 
     {resultado && <Paso numero={2}>Entre quiénes lo buscas</Paso>}
-    {resultado && <div className="pool-barra">
-      <BarraDeFiltros campos={["liga", "anio", "equipo", "pasaporte", "minutos", "edad"]} resultado={ordenados.length} />
-      {/* La tabla se corta en cuarenta; el CSV lleva todos los candidatos que
-          pasan los filtros. Van las dos cifras de parecido y la cobertura,
-          porque un 90% con 55% de cobertura no es un 90% con 100. */}
+    {resultado && <BarraDeFiltros campos={["liga", "anio", "equipo", "pasaporte", "minutos", "edad"]} resultado={ordenados.length} accesorio={
+      /* La lista se corta en cuarenta; el CSV lleva todos los candidatos que
+         pasan los filtros. Van las dos cifras de parecido y la cobertura,
+         porque un 90% con 55% de cobertura no es un 90% con 100. */
       <BotonExportar
         nombre={[t("parecidos-a"), nombreObjetivo, filtros.liga !== "TODAS" ? filtros.liga : null, filtros.anio || null]}
         columnas={[t("#"), t("Jugador"), t("Equipo"), t("Liga"), t("Año"), t("Edad"), t("Min"), t("Parecido"), t("Bruto"), t("Cobertura")]}
@@ -172,34 +207,38 @@ export function PoolPage({ onAbrirJugador }: {
           candidato.ajustado, candidato.similarity, candidato.coverage,
         ])}
       />
-    </div>}
+    } />}
 
+    {/* Los resultados, en lista y no en tabla. Eran nueve columnas en 922 px
+        que desbordaban a lo ancho con la ventana normal. Ahora cada fila
+        lleva el nombre y, debajo, club, liga, edad y minutos; y a la derecha
+        el parecido grande, con el bruto y la cobertura en pequeño debajo. La
+        cobertura baja sigue marcándose en color, porque es la que avisa de
+        que ese número vale menos. */}
     {resultado && <div className="pool-resultado">
-      <h3>{tf("Se parecen a {jugador}", { jugador: nombreObjetivo })} <i>{ordenados.length}</i></h3>
-      <table>
-        <thead><tr>
-          <th>#</th><th>{t("Jugador")}</th><th>{t("Equipo")}</th><th>{t("Liga")}</th>
-          <th>{t("Edad")}</th><th>{t("Min")}</th><th>{t("Parecido")}</th><th>{t("Bruto")}</th><th>{t("Cobertura")}</th>
-        </tr></thead>
-        <tbody>
-          {ordenados.slice(0, 40).map((candidato, posicionEnLista) => (
-            <tr key={`${candidato.name}-${candidato.team}-${posicionEnLista}`}
-              className={onAbrirJugador ? "clicable" : ""}
-              title={onAbrirJugador ? t("Abrir su ficha") : undefined}
-              onClick={() => onAbrirJugador?.(candidato.index)}>
-              <td>{posicionEnLista + 1}</td>
-              <td className="pool-name">{candidato.name}</td>
-              <td>{candidato.team}</td>
-              <td className="pool-liga">{candidato.origen.ligas.join(" · ") || "—"}</td>
-              <td>{candidato.age ?? "—"}</td>
-              <td>{Math.round(candidato.minutes)}</td>
-              <td><b>{candidato.ajustado}%</b></td>
-              <td className="pool-crudo">{candidato.similarity}%</td>
-              <td className={candidato.coverage < 60 ? "pool-cobertura baja" : "pool-cobertura"}>{candidato.coverage}%</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <h3>{tf("Se parecen a {jugador}", { jugador: nombreObjetivo })}</h3>
+      {ordenados.length > 0 && <ol className="pool-lista">
+        {ordenados.slice(0, 40).map((candidato, posicionEnLista) => (
+          <li key={`${candidato.name}-${candidato.team}-${posicionEnLista}`}
+            className={onAbrirJugador ? "clicable" : ""}
+            role={onAbrirJugador ? "button" : undefined}
+            tabIndex={onAbrirJugador ? 0 : undefined}
+            title={onAbrirJugador ? t("Abrir su ficha") : undefined}
+            onClick={() => onAbrirJugador?.(candidato.index)}
+            onKeyDown={(evento) => abrirConTeclado(evento, candidato.index)}>
+            <span className={posicionEnLista < 3 ? "rank-pos podio" : "rank-pos"}>{posicionEnLista + 1}</span>
+            <span className="pool-cuerpo">
+              <b className="pool-name">{candidato.name}</b>
+              <small>{[candidato.team, candidato.origen.ligas.join(" · "), candidato.age != null ? String(candidato.age) : null, `${Math.round(candidato.minutes)}′`].filter(Boolean).join(" · ")}</small>
+            </span>
+            <span className="pool-cifras">
+              <b>{candidato.ajustado}%</b>
+              <small>{tf("bruto {n}%", { n: candidato.similarity })} · <span className={candidato.coverage < 60 ? "pool-baja" : undefined}>{tf("cobertura {n}%", { n: candidato.coverage })}</span></small>
+            </span>
+            {onAbrirJugador ? <ChevronRight size={14} className="rank-chevron" /> : <span />}
+          </li>
+        ))}
+      </ol>}
       <p className="pool-aviso">
         {t("No se ajusta por nivel de liga: un parecido alto con un jugador de una competición más débil no significa que rinda igual aquí. Mira siempre de qué liga viene.")}
       </p>

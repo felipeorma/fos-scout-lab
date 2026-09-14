@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { aCsv, nombreDeArchivo, type CeldaCsv } from "@/lib/exportar";
 import { t, tf } from "@/lib/i18n";
+import { ArrowDownToLine } from "./Icons";
 
 /**
  * Bajarse la lista que hay en pantalla.
@@ -55,7 +56,9 @@ export function BotonExportar({ nombre, columnas, filas, cuantas, deshabilitado 
     onClick={exportar}
     title={cuantas ? tf("Bajar las {n} filas a CSV, no solo las que se ven", { n: cuantas }) : t("No hay nada que exportar")}
   >
-    <span aria-hidden="true">⇩</span>
+    {/* Icono dibujado y no el glifo ⇩: el glifo cambia de grosor y de caja
+        según la fuente del sistema y no casaba con el resto. */}
+    <ArrowDownToLine size={13} />
     {cuantas ? tf("Exportar {n}", { n: cuantas }) : t("Exportar")}
   </button>;
 }
