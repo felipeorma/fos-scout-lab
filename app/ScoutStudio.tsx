@@ -1746,19 +1746,21 @@ export default function ScoutStudio() {
               {/* Qué datos hay cargados y de dónde. Varias pestañas solo
                   funcionan con una plataforma concreta, así que conviene
                   verlo antes de entrar y no descubrirlo con la hoja vacía. */}
+              {/* La base en una línea de estado, no en una tarjeta. Ocupaba una
+                  franja entera encima de cada página —título "Datos", las tres
+                  plataformas en píldoras aunque no estuvieran, "N plataformas
+                  enlazadas" y un botón—, y lo único que no decía era QUÉ base
+                  es. Ahora dice la competición y la temporada, enseña solo las
+                  plataformas cargadas, y "Cambiar" lleva a Base activa. */}
               <div className="datos-barra">
-                <span className="datos-barra-titulo">{t("Datos")}</span>
-                {(["wyscout", "statsbomb", "skillcorner"] as const).map((plataforma) => (
-                  <span key={plataforma} className={plataformas.has(plataforma) ? `datos-chip on ${plataforma}` : "datos-chip"}>
-                    <LogoPlataforma plataforma={plataforma} alto={12} conTexto={LOGOS_PLATAFORMA[plataforma].esLogotipo !== true} />
-                    {/* El logotipo de Wyscout ya lleva el nombre dentro; los
-                        otros dos son símbolos y necesitan la etiqueta. */}
-                    {!LOGOS_PLATAFORMA[plataforma].esLogotipo && METRIC_SOURCE_COLORS[plataforma].label}
+                {(["wyscout", "statsbomb", "skillcorner"] as const).filter((plataforma) => plataformas.has(plataforma)).map((plataforma) => (
+                  <span key={plataforma} className={`datos-chip on ${plataforma}`} title={METRIC_SOURCE_COLORS[plataforma].label}>
+                    <LogoPlataforma plataforma={plataforma} alto={14} conTexto={false} />
                   </span>
                 ))}
-                {plataformas.size > 1 && <span className="datos-enlace">{tf("{n} plataformas enlazadas", { n: plataformas.size })}</span>}
-                <small>{tf(reportSourceCount === 1 ? "{n} jugadores · {b} base" : "{n} jugadores · {b} bases", { n: reportRows.length, b: reportSourceCount })}</small>
-                <button type="button" className="datos-conectar" onClick={() => setReportPage(DATA_PAGE)}>{t("Cargar o cambiar datos")}</button>
+                <span className="datos-barra-base">{base.descripcion || tDefault(reportFileName)}</span>
+                <small className="datos-barra-cuenta">{tf(reportSourceCount === 1 ? "{n} jugadores · {b} base" : "{n} jugadores · {b} bases", { n: reportRows.length, b: reportSourceCount })}</small>
+                <button type="button" className="datos-conectar" onClick={() => setReportPage(DATA_PAGE)}>{t("Cambiar")}<ChevronRight size={13} /></button>
               </div>
 
               {/* En Maldonado hay un solo destino: una barra con una pestaña

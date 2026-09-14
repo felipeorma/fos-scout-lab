@@ -4763,3 +4763,111 @@ button.menu-fila:active { transform: scale(.985); }
 @media print {
   .runs-intensidad, .runs-estado { display: none !important; }
 }
+
+/* =====================================================================
+   Rediseño 7 · Base activa y la línea de estado de los datos
+   ===================================================================== */
+/* La línea de estado encima de cada página: sin tarjeta, en una línea. */
+.app-shell[data-tema] .datos-barra {
+  margin: 12px 0 0; padding: 0 4px; min-height: 30px;
+  gap: 8px;
+  border: 0; border-radius: 0; background: none; box-shadow: none;
+}
+.app-shell[data-tema] .datos-barra .datos-chip { min-height: 0; padding: 0; border: 0; background: none; opacity: 1; }
+.app-shell[data-tema] span.datos-barra-base { color: var(--ink); font-size: 12px; font-weight: 600; }
+.app-shell[data-tema] small.datos-barra-cuenta { margin: 0; color: var(--muted); font-size: 11.5px; }
+.app-shell[data-tema] .datos-barra .datos-conectar {
+  margin-left: auto; padding: 4px 2px;
+  display: inline-flex; align-items: center; gap: 3px;
+  border: 0; background: none;
+  color: var(--acento-claro); font-size: 12px; font-weight: 600;
+}
+.app-shell[data-tema] .datos-barra .datos-conectar:hover { opacity: .75; }
+
+/* El resumen: tres cifras con separadores y las plataformas al pie. */
+.app-shell[data-tema] .datos-resumen {
+  margin: 0 0 22px; padding: 0; display: block; overflow: hidden;
+  border: 0; border-radius: 14px;
+  background: var(--paper); box-shadow: 0 0 0 1px var(--line);
+}
+.datos-cifras { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.app-shell[data-tema] .datos-cifra { padding: 14px 16px; gap: 2px; }
+.app-shell[data-tema] .datos-cifra + .datos-cifra { box-shadow: inset 1px 0 0 var(--line); }
+.app-shell[data-tema] div.datos-cifra > b { color: var(--ink); font-size: 26px; font-weight: 700; line-height: 1.05; letter-spacing: -0.02em; }
+.app-shell[data-tema] div.datos-cifra > span { color: var(--muted); font-size: 11.5px; font-weight: 500; letter-spacing: normal; text-transform: none; }
+.app-shell[data-tema] .datos-resumen .datos-plataformas { margin: 0; padding: 10px 16px; gap: 6px; box-shadow: inset 0 1px 0 var(--line); }
+
+/* Secciones con su rótulo, como en Ajustes. */
+.app-shell[data-tema] .datos-seccion { margin: 0 0 22px; }
+.app-shell[data-tema] h3.datos-lista-titulo {
+  margin: 0 4px 8px; display: block;
+  color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+}
+.app-shell[data-tema] p.datos-lista-ayuda { margin: 8px 4px 0; max-width: 72ch; color: var(--muted); font-size: 11px; line-height: 1.5; }
+
+/* Los años, como fichas. */
+.app-shell[data-tema] .datos-anios-fila { gap: 8px; }
+.app-shell[data-tema] .datos-anio {
+  min-height: 32px; padding: 0 12px;
+  flex-direction: row; align-items: center; gap: 6px;
+  border: 1px solid transparent; border-radius: 999px;
+  color: var(--ink); background: color-mix(in srgb, var(--ink) 6%, transparent);
+  font-size: 13px; font-weight: 600;
+}
+.app-shell[data-tema] .datos-anio > small { color: var(--muted); font-size: 11px; font-weight: 400; opacity: 1; }
+.app-shell[data-tema] .datos-anio.on { border-color: var(--acento-borde); color: var(--acento-claro); background: var(--acento-suave); }
+.app-shell[data-tema] .datos-anio.nuevo { border: 1px dashed var(--line); color: var(--acento-claro); background: none; }
+
+/* Lo cargado: lista agrupada. Sin overflow oculto, para que el menú de cada
+   fila no quede recortado por la tarjeta: las esquinas las redondea el
+   primer y el último elemento. */
+.app-shell[data-tema] .datos-competiciones {
+  margin: 0; padding: 0; list-style: none;
+  border-radius: 14px; background: var(--paper); box-shadow: 0 0 0 1px var(--line);
+}
+.app-shell[data-tema] .datos-competiciones > li {
+  position: relative; min-height: 56px; padding: 10px 10px 10px 14px;
+  display: flex; align-items: center; gap: 12px;
+}
+.app-shell[data-tema] .datos-competiciones > li + li::before {
+  content: ""; position: absolute; top: 0; right: 0; left: 14px;
+  height: 1px; background: var(--line);
+}
+.app-shell[data-tema] .datos-competiciones .datos-origen { flex: none; display: flex; gap: 4px; }
+.datos-competicion { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.app-shell[data-tema] .datos-competicion > b { overflow: hidden; color: var(--ink); font-size: 13.5px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.app-shell[data-tema] .datos-competicion > small { color: var(--muted); font-size: 11px; }
+.app-shell[data-tema] .datos-competiciones > li.apagada :is(.datos-origen, .datos-competicion) { opacity: .45; }
+.app-shell[data-tema] .datos-mas .menu-flotante-boton { min-height: 30px; padding: 0 6px; color: var(--muted); }
+
+/* Añadir datos: tres filas con baldosa, texto y galón. */
+.app-shell[data-tema] .datos-acciones {
+  display: block; gap: 0; overflow: hidden;
+  border-radius: 14px; background: var(--paper); box-shadow: 0 0 0 1px var(--line);
+}
+.app-shell[data-tema] .datos-accion {
+  position: relative; width: 100%; min-height: 64px; padding: 12px 14px;
+  display: flex; flex-direction: row; align-items: center; gap: 12px;
+  border: 0; border-radius: 0; background: none; box-shadow: none;
+  color: var(--ink); text-align: left; transform: none;
+}
+.app-shell[data-tema] .datos-accion + .datos-accion::before {
+  content: ""; position: absolute; top: 0; right: 0; left: 60px;
+  height: 1px; background: var(--line);
+}
+.app-shell[data-tema] .datos-accion.destacada { border: 0; background: none; }
+.app-shell[data-tema] .datos-accion:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 4%, transparent); transform: none; }
+.app-shell[data-tema] .datos-accion:active:not(:disabled) { background: color-mix(in srgb, var(--ink) 8%, transparent); transform: none; }
+.app-shell[data-tema] .datos-accion-icono { flex: none; width: 34px; height: 34px; border-radius: 9px; color: #fff; background: #7c7c82; }
+.app-shell[data-tema] .datos-accion.destacada .datos-accion-icono { background: var(--acento); }
+.datos-accion-texto { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.app-shell[data-tema] .datos-accion-texto > b { color: var(--ink); font-size: 13.5px; font-weight: 600; }
+.app-shell[data-tema] .datos-accion-texto > small { color: var(--muted); font-size: 11.5px; line-height: 1.45; }
+.app-shell[data-tema] .datos-accion-galon { flex: none; color: var(--muted); opacity: .6; }
+.app-shell[data-tema] p.datos-cargando { margin: 0 4px; color: var(--muted); font-size: 12px; }
+.app-shell[data-tema] p.datos-vacio { margin: 0 0 22px; padding: 14px 16px; border: 1px dashed var(--line); border-radius: 12px; color: var(--muted); font-size: 12px; }
+
+@media (max-width: 640px) {
+  .datos-cifras { grid-template-columns: 1fr; }
+  .app-shell[data-tema] .datos-cifra + .datos-cifra { box-shadow: inset 0 1px 0 var(--line); }
+}
