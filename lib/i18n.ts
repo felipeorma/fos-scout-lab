@@ -1473,4 +1473,7 @@ const EN: Record<string, string> = {
   "Tipografía": "Typeface",
   "Alineación": "Alignment",
   "Arrastra un bloque en la hoja para cambiarlo de sitio.": "Drag a block on the page to move it.",
+  "Partido": "Match",
+  "Todos los partidos": "All matches",
+  "sin datos": "no data",
 };

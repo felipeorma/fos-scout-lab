@@ -7,7 +7,7 @@ import { ChevronDown, ChevronRight } from "./Icons";
 import { Interruptor } from "./Interruptor";
 import { useBaseActiva } from "./BaseActiva";
 import { casarPlantilla } from "@/lib/plantilla";
-import { t, tf } from "@/lib/i18n";
+import { numberLocale, t, tf } from "@/lib/i18n";
 import { RepartoCarreras, RunMap, TIPOS_CARRERA } from "./RunMap";
 import {
   fetchOffBallRuns,
@@ -15,6 +15,7 @@ import {
   fetchSkillcornerTeams,
   type ApiCompetition,
   type CarreraSinBalon,
+  type PartidoCarreras,
   type RespuestaCarreras,
 } from "@/lib/remoteData";
 
@@ -53,6 +54,17 @@ function resumenJugador(carreras: CarreraSinBalon[], partidos: number) {
   };
 }
 
+/** "12 abr · Cavalry 2–1 Forge": fecha corta en el idioma activo, y el marcador solo si SkillCorner lo trae. */
+function etiquetaPartido(partido: PartidoCarreras) {
+  const fecha = partido.fecha
+    ? new Date(partido.fecha).toLocaleDateString(numberLocale(), { day: "numeric", month: "short" })
+    : "";
+  const marcador = partido.golesLocal != null && partido.golesVisitante != null
+    ? ` ${partido.golesLocal}–${partido.golesVisitante} `
+    : " – ";
+  return `${fecha ? `${fecha} · ` : ""}${partido.local}${marcador}${partido.visitante}`;
+}
+
 export function RunsPage() {
   /*
    * Era la única pantalla fuera de la barra de filtros compartida, y por un
@@ -74,6 +86,7 @@ export function RunsPage() {
   const [cargandoEquipos, setCargandoEquipos] = useState(false);
   const [datos, setDatos] = useState<RespuestaCarreras | null>(null);
   const [jugador, setJugador] = useState("TODOS");
+  const [partido, setPartido] = useState("TODOS");
   const [tipo, setTipo] = useState("TODOS");
   // Con el plantel entero son miles de flechas y el mapa se vuelve una mancha.
   // SkillCorner resuelve lo mismo mostrando solo la alta intensidad cuando
@@ -151,6 +164,7 @@ export function RunsPage() {
       const respuesta = await fetchOffBallRuns(Number(edicion), equipo.trim());
       setDatos(respuesta);
       setJugador("TODOS");
+      setPartido("TODOS");
       const faltan = Object.entries(respuesta.estados).filter(([clave]) => clave !== "ok");
       setEstado(faltan.length
         ? tf("{c} de {p} partidos con datos. Sin datos: {detalle}.", {
@@ -193,21 +207,43 @@ export function RunsPage() {
     return indice >= 0 && pasaFiltrosDeJugador(indice);
   }, [filtrosDeJugador, plantilla, pasaFiltrosDeJugador]);
 
+  /**
+   * Un partido concreto, o la temporada entera.
+   *
+   * La temporada es la foto del jugador; un partido es lo que se repasa al día
+   * siguiente. Cada carrera trae el partido del que salió, así que elegir uno
+   * no vuelve a llamar a la API: se filtra lo que ya está cargado.
+   */
+  const partidos = useMemo(() => datos?.listaPartidos ?? [], [datos]);
+  const partidoElegido = partidos.find((candidato) => String(candidato.id) === partido);
+  const carrerasDelPartido = useMemo(() => {
+    if (!datos) return [];
+    return partido === "TODOS" ? datos.runs : datos.runs.filter((carrera) => String(carrera.match_id) === partido);
+  }, [datos, partido]);
+  const nombresDelPartido = useMemo(
+    () => new Set(carrerasDelPartido.map((carrera) => carrera.player_name)),
+    [carrerasDelPartido],
+  );
+  /* Lo que divide "por partido": con uno elegido, uno. */
+  const partidosContados = partido === "TODOS" ? (datos?.partidosConDatos ?? 0) : 1;
+
   const filtradas = useMemo(() => {
     if (!datos) return [];
-    return datos.runs.filter((carrera) => {
+    return carrerasDelPartido.filter((carrera) => {
       if (jugador !== "TODOS" && carrera.player_name !== jugador) return false;
       if (!pasaElJugador(carrera.player_name)) return false;
       if (tipo !== "TODOS" && carrera.event_subtype !== tipo) return false;
       if (soloIntensas && carrera.speed_avg_band !== "sprinting" && carrera.speed_avg_band !== "hsr") return false;
       return true;
     });
-  }, [datos, jugador, tipo, soloIntensas, pasaElJugador]);
+  }, [datos, carrerasDelPartido, jugador, tipo, soloIntensas, pasaElJugador]);
 
   /** Los del plantel que la barra deja pasar, para el desplegable y el aviso. */
   const jugadoresVisibles = useMemo(
-    () => (datos?.jugadores ?? []).filter(pasaElJugador),
-    [datos, pasaElJugador],
+    () => (datos?.jugadores ?? []).filter((nombre) => (
+      pasaElJugador(nombre) && (partido === "TODOS" || nombresDelPartido.has(nombre))
+    )),
+    [datos, pasaElJugador, partido, nombresDelPartido],
   );
   /* Cuántos se caen por no tener ficha en la base, que es distinto de caerse
      por no cumplir el filtro. */
@@ -224,18 +260,20 @@ export function RunsPage() {
   const plantel = useMemo(() => {
     if (!datos) return [];
     const porJugador = new Map<string, CarreraSinBalon[]>();
-    for (const carrera of datos.runs) {
+    for (const carrera of carrerasDelPartido) {
       if (!carrera.player_name) continue;
       porJugador.set(carrera.player_name, [...(porJugador.get(carrera.player_name) ?? []), carrera]);
     }
     return [...porJugador.entries()]
       .filter(([nombre]) => pasaElJugador(nombre))
-      .map(([nombre, carreras]) => ({ nombre, ...resumenJugador(carreras, datos.partidosConDatos)! }))
-      .filter((fila) => fila.total >= 20)
+      .map(([nombre, carreras]) => ({ nombre, ...resumenJugador(carreras, partidosContados)! }))
+      // En la temporada, 20 carreras separan al titular del que entró un rato;
+      // en un partido suelto ese corte dejaría la lista vacía.
+      .filter((fila) => fila.total >= (partido === "TODOS" ? 20 : 1))
       .sort((a, b) => b.xt - a.xt);
-  }, [datos, pasaElJugador]);
+  }, [datos, carrerasDelPartido, partidosContados, partido, pasaElJugador]);
 
-  const resumen = datos ? resumenJugador(filtradas, datos.partidosConDatos) : null;
+  const resumen = datos ? resumenJugador(filtradas, partidosContados) : null;
 
   /* Con un filtro puesto ya no es "todo el plantel": decirlo igual haría pasar
      una parte por el todo, y el mapa se guarda y se enseña. */
@@ -251,6 +289,15 @@ export function RunsPage() {
   const elegirJugador = (nombre: string) => {
     setJugador(nombre);
     setSoloIntensas(nombre === "TODOS");
+  };
+
+  /* Si el jugador elegido no jugó ese partido, el mapa quedaría vacío sin
+     decir por qué: se vuelve al equipo. */
+  const elegirPartido = (id: string) => {
+    setPartido(id);
+    if (id === "TODOS" || jugador === "TODOS" || !datos) return;
+    const jugo = datos.runs.some((carrera) => String(carrera.match_id) === id && carrera.player_name === jugador);
+    if (!jugo) elegirJugador("TODOS");
   };
 
   /**
@@ -344,6 +391,18 @@ export function RunsPage() {
           filtro encendido que no decía si estaba puesto o no. */}
       <div className="filtros-barra runs-seleccion" role="group" aria-label={t("Qué jugador y qué carreras")}>
         <div className="filtros-chips">
+          {partidos.length > 0 && <Desplegable etiqueta={t("Partido")}
+            valor={partidoElegido ? etiquetaPartido(partidoElegido) : t("Todos los partidos")}
+            activo={partido !== "TODOS"}>
+            <select aria-label={t("Partido")} value={partido} onChange={(event) => elegirPartido(event.target.value)}>
+              <option value="TODOS">{t("Todos los partidos")}</option>
+              {partidos.map((candidato) => (
+                <option key={candidato.id} value={String(candidato.id)} disabled={!candidato.conDatos}>
+                  {candidato.conDatos ? etiquetaPartido(candidato) : `${etiquetaPartido(candidato)} · ${t("sin datos")}`}
+                </option>
+              ))}
+            </select>
+          </Desplegable>}
           <Desplegable etiqueta={t("Jugador")} valor={jugador === "TODOS" ? t("Todo el equipo") : jugador} activo={jugador !== "TODOS"}>
             <select aria-label={t("Jugador")} value={jugador} onChange={(event) => elegirJugador(event.target.value)}>
               <option value="TODOS">{t("Todo el equipo")}</option>
@@ -369,7 +428,9 @@ export function RunsPage() {
         <RunMap
           carreras={filtradas}
           titulo={tituloDelMapa}
-          subtitulo={tipo === "TODOS"
+          subtitulo={partidoElegido
+            ? [tipo === "TODOS" ? "" : t(TIPOS_CARRERA[tipo] ?? tipo), etiquetaPartido(partidoElegido)].filter(Boolean).join(" · ")
+            : tipo === "TODOS"
             ? tf("{n} partidos con datos", { n: datos.partidosConDatos })
             : tf("{tipo} · {n} partidos", { tipo: t(TIPOS_CARRERA[tipo] ?? tipo), n: datos.partidosConDatos })}
         />

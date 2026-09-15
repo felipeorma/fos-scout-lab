@@ -233,6 +233,22 @@ export type CarreraSinBalon = {
   break_defensive_line: boolean;
   lead_to_shot: boolean;
   lead_to_goal: boolean;
+  /** El partido del que salió. Falta si el puente es anterior a este campo. */
+  match_id?: number;
+};
+
+/** Un partido de la temporada del equipo, para poder mirar uno solo. */
+export type PartidoCarreras = {
+  id: number;
+  /** ISO, tal como lo da SkillCorner. */
+  fecha: string;
+  local: string;
+  visitante: string;
+  /** Nulos si SkillCorner no trae el marcador en el listado. */
+  golesLocal: number | null;
+  golesVisitante: number | null;
+  /** Falso si no está procesado o no entra en la suscripción. */
+  conDatos: boolean;
 };
 
 export type RespuestaCarreras = {
@@ -242,6 +258,8 @@ export type RespuestaCarreras = {
   partidosConDatos: number;
   /** Por qué un partido no trae datos: calidad, sin_procesar, sin_licencia. */
   estados: Record<string, number>;
+  /** Más recientes primero. Falta con un puente antiguo: entonces no hay selector. */
+  listaPartidos?: PartidoCarreras[];
 };
 
 /**

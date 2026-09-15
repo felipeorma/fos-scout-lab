@@ -1383,17 +1383,37 @@ async def skillcorner_off_ball_runs(competition_edition_id: int, team: str = "",
     if limit_matches > 0:
         partidos = partidos[:limit_matches]
 
-    runs, estados, con_datos = [], {}, 0
+    def goles(valor):
+        # SkillCorner no siempre trae el marcador en el listado: sin él, nulo,
+        # y la página lo omite en vez de inventar un 0-0.
+        return valor if isinstance(valor, int) and not isinstance(valor, bool) else None
+
+    runs, estados, con_datos, lista_partidos = [], {}, 0, []
     for partido in partidos:
         filas, estado = _match_runs(partido.get("id"), auth)
         estados[estado] = estados.get(estado, 0) + 1
+        # La lista va entera, también los partidos sin datos: la página los
+        # enseña apagados para que se vea que existen y por qué no se pueden
+        # mirar, en vez de que falten sin explicación.
+        lista_partidos.append({
+            "id": partido.get("id"),
+            "fecha": str(partido.get("date_time") or ""),
+            "local": nombre(partido.get("home_team")),
+            "visitante": nombre(partido.get("away_team")),
+            "golesLocal": goles(partido.get("home_team_score")),
+            "golesVisitante": goles(partido.get("away_team_score")),
+            "conDatos": bool(filas),
+        })
         if not filas:
             continue
         con_datos += 1
         for fila in filas:
             if buscado and buscado not in str(fila.get("team_shortname", "")).lower():
                 continue
-            runs.append(fila)
+            # Cada carrera lleva su partido: así la página filtra uno solo con
+            # lo que ya tiene cargado, sin volver a llamar a SkillCorner. Se
+            # añade al responder y no en la caché, que sigue valiendo tal cual.
+            runs.append({**fila, "match_id": partido.get("id")})
 
     jugadores = sorted({str(r.get("player_name") or "") for r in runs} - {""})
     return Response(
@@ -1403,6 +1423,7 @@ async def skillcorner_off_ball_runs(competition_edition_id: int, team: str = "",
             "partidos": len(partidos),
             "partidosConDatos": con_datos,
             "estados": estados,
+            "listaPartidos": lista_partidos,
         }, ensure_ascii=False),
         media_type="application/json", headers=cors_headers(),
     )
