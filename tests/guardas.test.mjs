@@ -56,13 +56,15 @@ test("no quedan scripts de diagnóstico sueltos en la raíz", () => {
 test("la mesa de Maldonado no se ofrece al imprimir desde el espacio de Cavalry", () => {
   // Son dos encargos distintos: mezclarlos en el mismo PDF sería un error
   // difícil de notar hasta tenerlo delante del cliente equivocado.
-  // Se ancla en togglePrintPage, que solo existe dentro del diálogo.
-  const fin = scoutStudio.indexOf("togglePrintPage(page)");
-  assert.ok(fin > 0, "no se encontró el diálogo de impresión");
-  const dialogo = scoutStudio.slice(0, fin);
-  const rama = dialogo.lastIndexOf('espacio === "maldonado"');
-  assert.ok(rama > 0, "el diálogo de impresión no distingue el espacio activo");
-  const cavalry = dialogo.slice(dialogo.indexOf(": [", rama));
+  // Se ancla en la lista que recorre el diálogo: salió del JSX a una
+  // constante cuando el diálogo ganó el atajo «Todas», que también la usa.
+  const inicio = scoutStudio.indexOf("const paginasParaImprimir");
+  assert.ok(inicio > 0, "no se encontró la lista de páginas del diálogo de impresión");
+  assert.ok(scoutStudio.includes("paginasParaImprimir.map"), "el diálogo de impresión no recorre esa lista");
+  const lista = scoutStudio.slice(inicio, scoutStudio.indexOf("const todasMarcadas", inicio));
+  const rama = lista.indexOf('espacio === "maldonado"');
+  assert.ok(rama >= 0, "el diálogo de impresión no distingue el espacio activo");
+  const cavalry = lista.slice(lista.indexOf(": [", rama));
   assert.ok(cavalry.includes("CARD_PAGE"), "CARD_PAGE debería estar en el listado de Cavalry");
   assert.ok(!cavalry.includes("BOARD_PAGE"), "BOARD_PAGE se ofrece al imprimir en el espacio de Cavalry");
 });

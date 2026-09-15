@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { buildPlayerReport, type DataRow } from "@/lib/scouting";
 import { t, tf } from "@/lib/i18n";
 import { OnceIdeal } from "./OnceIdeal";
+import { Desplegable } from "./BarraDeFiltros";
+import { ChevronRight } from "./Icons";
+import { Interruptor } from "./Interruptor";
 import {
   CLAVE_CLUBES_EXCLUIDOS,
   CLAVE_ESCUDOS,
@@ -47,6 +50,8 @@ import { fetchOptaLeagueMeta, fetchSnapshot, fetchSnapshotList, importSnapshots,
  */
 
 type FichaBase = Omit<Ficha, "liga" | "ajustada">;
+
+type VistaMesa = "equipos" | "perfiles" | "once" | "variacion" | "ligas";
 
 function numero(value: unknown) {
   const parsed = typeof value === "number" ? value : Number(String(value ?? "").replace(",", "."));
@@ -151,6 +156,10 @@ export function ScoutingBoard({ rows, minimumMinutes, onSelectPlayer }: {
   const [estadoFoto, setEstadoFoto] = useState("");
   // Cambia al importar un respaldo, para releer las fotos previas del disco.
   const [recarga, setRecarga] = useState(0);
+  // Qué parte de la mesa se ve. Vacío hasta que se elige: entonces manda el
+  // orden del encargo, primero los equipos y después los jugadores.
+  const [vista, setVista] = useState<VistaMesa | "">("");
+  const [gruposAbiertos, setGruposAbiertos] = useState<string[]>([]);
 
   useEffect(() => {
     setLigasManuales(leerMapaGuardado(CLAVE_LIGAS_MANUALES));
@@ -485,6 +494,42 @@ export function ScoutingBoard({ rows, minimumMinutes, onSelectPlayer }: {
       ? t("Leyendo Opta Power Rankings…")
       : tf("Sin conexión con Opta: se usa la copia del {f}", { f: FECHA_RATINGS_RESPALDO });
 
+  /*
+   * La mesa, como una app de iOS.
+   *
+   * Era una sola tarjeta de 7.680 px: filtros en cajas con etiqueta en
+   * versalitas, la configuración de ligas, el once, la foto del mes, el
+   * contexto de equipos y trece tablas de quince filas, todo seguido. Para
+   * llegar a los delanteros había que pasar por la configuración de archivos.
+   *
+   * Ahora un control segmentado separa las cinco partes, en el orden del
+   * encargo: primero los equipos, después los perfiles. Las tablas pasan a
+   * listas como las del Ranking —nombre, y debajo club, edad y minutos; a la
+   * derecha el índice— y cada puesto enseña cinco con «Ver más». Al imprimir
+   * sale todo, sin pestañas y con las quince filas: el PDF es el entregable.
+   */
+  const vistas: Array<{ id: VistaMesa; etiqueta: string; disponible: boolean; aviso?: number }> = [
+    { id: "equipos", etiqueta: t("Equipos"), disponible: equipos.length >= 2 },
+    { id: "perfiles", etiqueta: t("Perfiles"), disponible: true },
+    { id: "once", etiqueta: t("Once ideal"), disponible: elegibles.length > 0 },
+    { id: "variacion", etiqueta: t("Variación"), disponible: ligasPresentes.length > 0 },
+    { id: "ligas", etiqueta: t("Ligas"), disponible: fuentes.length > 0, aviso: sinReconocer.length },
+  ];
+  const vistaActiva: VistaMesa = vistas.find((opcion) => opcion.id === vista && opcion.disponible)?.id
+    ?? (equipos.length >= 2 ? "equipos" : "perfiles");
+  const seccion = (id: VistaMesa, clase: string) => `board-seccion ${clase}${vistaActiva === id ? " activa" : ""}`;
+  const alternarGrupo = (id: string) => setGruposAbiertos((abiertos) => (
+    abiertos.includes(id) ? abiertos.filter((grupo) => grupo !== id) : [...abiertos, id]
+  ));
+  const verConTeclado = (evento: KeyboardEvent, fila: number) => {
+    if (evento.key !== "Enter" && evento.key !== " ") return;
+    evento.preventDefault();
+    onSelectPlayer?.(fila);
+  };
+  const ligaElegida = ligaFiltro === "TODAS" ? t("Todas")
+    : ligaFiltro === "SIN" ? t("Sin liga reconocida")
+      : ligaPorId(ligaFiltro)?.nombre ?? ligaFiltro;
+
   return <section className="scouting-board">
     <header>
       <div>
@@ -495,43 +540,53 @@ export function ScoutingBoard({ rows, minimumMinutes, onSelectPlayer }: {
       <b>{tf("{n} jugadores", { n: visibles.length })}</b>
     </header>
 
-    <div className="board-filters">
-      <label><span>{t("Liga")}</span>
-        <select value={ligaFiltro} onChange={(event) => setLigaFiltro(event.target.value)}>
-          <option value="TODAS">{t("Todas")}</option>
-          {ligasPresentes.map((liga) => (
-            <option key={liga} value={liga}>{ligaPorId(liga)?.nombre ?? liga}</option>
-          ))}
-          {fichas.some((ficha) => !ficha.liga) && <option value="SIN">{t("Sin liga reconocida")}</option>}
-        </select>
-      </label>
-      <label><span>{t("Perfil")}</span>
-        <select value={perfil} onChange={(event) => setPerfil(event.target.value)}>
-          <option value="TODOS">{t("Todos")}</option>
-          {ORDEN_MALDONADO.map((puesto) => <option key={puesto} value={puesto}>{puesto}</option>)}
-        </select>
-      </label>
-      <label><span>{t("Mín. minutos")}</span>
-        <input type="number" min="0" step="100" value={minutosMin} onChange={(event) => setMinutosMin(Number(event.target.value))} />
-      </label>
-      <label><span>{t("Edad máxima")}</span>
-        <input type="number" min="0" max="45" value={edadMax || ""} placeholder="—" onChange={(event) => setEdadMax(Number(event.target.value))} />
-      </label>
-      <button type="button" className={soloJoven ? "on" : ""} onClick={() => setSoloJoven(!soloJoven)}>{t("Solo sub-23")}</button>
-      <label><span>{t("Excluir club")}</span>
-        <select
-          value={clubParaExcluir}
-          onChange={(event) => {
-            excluirClub(event.target.value);
-            setClubParaExcluir("");
-          }}
-        >
-          <option value="">{t("+ Elegir club")}</option>
-          {clubesDisponibles.filter((club) => !clubesExcluidos.includes(club)).map((club) => (
-            <option key={club} value={club}>{club}</option>
-          ))}
-        </select>
-      </label>
+    <div className="filtros-barra board-filtros" role="group" aria-label={t("Filtros de la mesa")}>
+      <div className="filtros-chips">
+        <Desplegable etiqueta={t("Liga")} valor={ligaElegida} activo={ligaFiltro !== "TODAS"}>
+          <select aria-label={t("Liga")} value={ligaFiltro} onChange={(event) => setLigaFiltro(event.target.value)}>
+            <option value="TODAS">{t("Todas")}</option>
+            {ligasPresentes.map((liga) => (
+              <option key={liga} value={liga}>{ligaPorId(liga)?.nombre ?? liga}</option>
+            ))}
+            {fichas.some((ficha) => !ficha.liga) && <option value="SIN">{t("Sin liga reconocida")}</option>}
+          </select>
+        </Desplegable>
+        <Desplegable etiqueta={t("Perfil")} valor={perfil === "TODOS" ? t("Todos") : perfil} activo={perfil !== "TODOS"}>
+          <select aria-label={t("Perfil")} value={perfil} onChange={(event) => setPerfil(event.target.value)}>
+            <option value="TODOS">{t("Todos")}</option>
+            {ORDEN_MALDONADO.map((puesto) => <option key={puesto} value={puesto}>{puesto}</option>)}
+          </select>
+        </Desplegable>
+        <label className="filtro-chip numero">
+          <span>{t("Mín. minutos")}</span>
+          <input type="number" min="0" step="100" inputMode="numeric" value={minutosMin} onChange={(event) => setMinutosMin(Number(event.target.value))} />
+        </label>
+        <label className={edadMax > 0 ? "filtro-chip numero activo" : "filtro-chip numero"}>
+          <span>{t("Edad máxima")}</span>
+          <input type="number" min="0" max="45" inputMode="numeric" value={edadMax || ""} placeholder="—" onChange={(event) => setEdadMax(Number(event.target.value))} />
+        </label>
+        <Desplegable etiqueta={t("Excluir club")}
+          valor={clubesExcluidos.length ? tf("{n} excluidos", { n: clubesExcluidos.length }) : t("Ninguno")}
+          activo={clubesExcluidos.length > 0}>
+          <select
+            aria-label={t("Excluir club")}
+            value={clubParaExcluir}
+            onChange={(event) => {
+              excluirClub(event.target.value);
+              setClubParaExcluir("");
+            }}
+          >
+            <option value="">{t("+ Elegir club")}</option>
+            {clubesDisponibles.filter((club) => !clubesExcluidos.includes(club)).map((club) => (
+              <option key={club} value={club}>{club}</option>
+            ))}
+          </select>
+        </Desplegable>
+      </div>
+      <div className="board-interruptor">
+        <span>{t("Solo sub-23")}</span>
+        <Interruptor activo={soloJoven} onCambio={setSoloJoven} titulo={t("Solo sub-23")} />
+      </div>
     </div>
 
     {clubesExcluidos.length > 0 && <div className="board-excluidos">
@@ -543,76 +598,95 @@ export function ScoutingBoard({ rows, minimumMinutes, onSelectPlayer }: {
       ))}
     </div>}
 
-    {/* ---- Ligas del mes: detección, corrección manual y escudos ---- */}
-    {fuentes.length > 0 && <div className="board-ligas">
-      <h3>{t("Ligas del mes")} <i>{fuentes.length}</i></h3>
-      <p>{t("Cada archivo se reconoce por palabras clave de su nombre. Si alguno no se reconoce, elige su liga: la elección queda guardada para el mes siguiente aunque el archivo cambie de fecha.")}</p>
-      <table>
-        <thead><tr><th>{t("Archivo")}</th><th>{t("Liga")}</th><th>{t("Cómo se reconoció")}</th></tr></thead>
-        <tbody>
-          {fuentes.map((fuente) => {
-            const automatica = detectarLiga(fuente);
-            const asignada = ligaDeFuente[fuente];
-            return <tr key={fuente} className={asignada ? "" : "pendiente"}>
-              <td className="board-name">{fuente}</td>
-              <td>
-                <select value={asignada} onChange={(event) => elegirLigaManual(fuente, event.target.value)}>
-                  <option value="">{t("— Elige una liga —")}</option>
-                  {LIGAS_MALDONADO.map((liga) => <option key={liga.id} value={liga.id}>{liga.nombre}</option>)}
-                </select>
-              </td>
-              <td className="board-como">
-                {automatica
-                  ? t("Por el nombre del archivo")
-                  : asignada ? t("Elección recordada") : <b>{t("No reconocida: elígela a la izquierda")}</b>}
-              </td>
-            </tr>;
-          })}
-        </tbody>
-      </table>
-      {sinReconocer.length > 0 && <p className="board-aviso">
-        {tf("{n} archivo(s) sin liga: sus jugadores quedan fuera de los onces hasta que les asignes una.", { n: sinReconocer.length })}
-      </p>}
+    {/* Un archivo sin liga saca a sus jugadores de los onces: se avisa en
+        cualquier pestaña, no solo en la de ligas, que es donde se arregla. */}
+    {sinReconocer.length > 0 && vistaActiva !== "ligas" && <button type="button" className="board-banner" onClick={() => setVista("ligas")}>
+      <span>{tf("{n} archivo(s) sin liga: sus jugadores quedan fuera de los onces hasta que les asignes una.", { n: sinReconocer.length })}</span>
+      <b>{t("Asignar")}<ChevronRight size={13} /></b>
+    </button>}
 
-      {ligasPresentes.length > 0 && <div className="board-escudos">
-        {ligasPresentes.map((liga) => {
-          const rating = ratings[liga];
-          return <div key={liga} className="board-escudo">
-            {escudos[liga]
-              ? <img src={escudos[liga]} alt="" />
-              : <span className="board-escudo-vacio">{(ligaPorId(liga)?.nombre ?? liga).slice(0, 2).toUpperCase()}</span>}
-            <div>
-              <b>{ligaPorId(liga)?.nombre ?? liga}</b>
-              <small>{Number.isFinite(rating as number) && rating
-                ? tf("Opta {r}", { r: (rating as number).toFixed(1) })
-                : t("Sin rating en Opta")}</small>
-            </div>
-            <div className="board-escudo-acciones">
-              <label className="board-escudo-subir">
-                {escudos[liga] ? t("Cambiar") : t("Subir escudo")}
-                <input type="file" accept="image/*" onChange={(event) => void subirEscudo(liga, event.target.files?.[0])} />
-              </label>
-              <input
-                type="url"
-                className="board-escudo-link"
-                placeholder={t("o pega un link https://…")}
-                value={enlacesEscudo[liga] ?? ""}
-                onChange={(event) => pegarEscudo(liga, event.target.value)}
-              />
-              {Boolean(enlacesEscudo[liga]) && !enlaceValido(enlacesEscudo[liga]) && (
-                <small className="board-escudo-link-aviso">{t("Pega un link directo http:// o https://.")}</small>
-              )}
-            </div>
+    <div className="board-vistas" role="tablist" aria-label={t("Secciones de la mesa")}>
+      {vistas.map((opcion) => (
+        <button key={opcion.id} type="button" role="tab" aria-selected={vistaActiva === opcion.id}
+          className={vistaActiva === opcion.id ? "on" : ""} disabled={!opcion.disponible}
+          onClick={() => setVista(opcion.id)}>
+          {opcion.etiqueta}
+          {Boolean(opcion.aviso) && <i>{opcion.aviso}</i>}
+        </button>
+      ))}
+    </div>
+
+    {/* ---- Equipos: primero el rendimiento de cada plantel ---- */}
+    {equipos.length >= 2 && <section className={seccion("equipos", "board-teams")}>
+      <div className="board-titulo"><h3>{t("Contexto de los equipos")}</h3><small>{tf("{n} equipos", { n: equipos.length })}</small></div>
+      <p className="board-nota">{t("Mediana del índice de cada plantilla, no la media: un solo crack no debe levantar a un equipo entero. Un jugador destacado en un club de la parte baja tiene más mérito que el mismo número arriba.")}</p>
+      <ol className="rank-list board-lista">
+        {equipos.map((equipo, posicion) => (
+          <li key={equipo.club}>
+            <span className={posicion < 3 ? "rank-pos podio" : "rank-pos"}>{posicion + 1}</span>
+            <span className="pool-cuerpo">
+              <b>{equipo.club}</b>
+              <small>{tf("{j} jugadores · edad mediana {e} · {d} destacados", { j: equipo.jugadores, e: equipo.edad || "—", d: equipo.destacados })}</small>
+            </span>
+            <span className="pool-cifras">
+              <b>{equipo.indice}</b>
+              <small>{equipo.mejor ? tf("Mejor: {nombre} · {p}", { nombre: equipo.mejor.jugador, p: equipo.mejor.puntuacion }) : t("mediana")}</small>
+            </span>
+            <span />
+          </li>
+        ))}
+      </ol>
+    </section>}
+
+    {/* ---- Perfiles por puesto ---- */}
+    <section className={seccion("perfiles", "board-perfiles")}>
+      {[...porPerfil.entries()]
+        .sort((a, b) => (ORDEN_MALDONADO.indexOf(a[0]) + 99) % 199 - (ORDEN_MALDONADO.indexOf(b[0]) + 99) % 199)
+        .map(([id, lista]) => {
+          const abierto = gruposAbiertos.includes(id);
+          const mostrados = lista.slice(0, 15);
+          return <div key={id} className="board-group">
+            <div className="board-titulo"><h3>{id}</h3><small>{tf("{n} jugadores", { n: lista.length })}</small></div>
+            <ol className="rank-list board-lista">
+              {mostrados.map((ficha, posicion) => (
+                <li key={ficha.indice}
+                  className={[onSelectPlayer ? "clicable" : "", posicion >= 5 && !abierto ? "extra" : ""].filter(Boolean).join(" ") || undefined}
+                  role={onSelectPlayer ? "button" : undefined}
+                  tabIndex={onSelectPlayer ? 0 : undefined}
+                  onClick={() => onSelectPlayer?.(ficha.fila)}
+                  onKeyDown={(evento) => verConTeclado(evento, ficha.fila)}>
+                  <span className={posicion < 3 ? "rank-pos podio" : "rank-pos"}>{posicion + 1}</span>
+                  <span className="pool-cuerpo">
+                    <b>{ficha.jugador}</b>
+                    <small>{[
+                      ficha.equipo,
+                      Number.isFinite(ficha.edad) ? tf("{n} años", { n: ficha.edad }) : "",
+                      ficha.minutos ? tf("{n} min", { n: Math.round(ficha.minutos) }) : "",
+                    ].filter(Boolean).join(" · ")}</small>
+                    {ficha.destacadas.length > 0 && <span className="board-flags">
+                      {ficha.destacadas.map((m) => <em key={m.label}>{t(m.label)} <u>P{m.percentile}</u></em>)}
+                    </span>}
+                  </span>
+                  <span className="pool-cifras"><b>{ficha.puntuacion}</b><small>{t("índice")}</small></span>
+                  {onSelectPlayer ? <ChevronRight size={14} className="rank-chevron" /> : <span />}
+                </li>
+              ))}
+            </ol>
+            {mostrados.length > 5 && <button type="button" className="board-mas" aria-expanded={abierto} onClick={() => alternarGrupo(id)}>
+              {abierto ? t("Ver menos") : tf("Ver {n} más", { n: mostrados.length - 5 })}
+            </button>}
           </div>;
         })}
-      </div>}
-      <p className="board-opta">{etiquetaOpta}</p>
-    </div>}
+      {!visibles.length && <p className="board-empty">{t("Ningún jugador pasa esos filtros. Baja el mínimo de minutos o quita el tope de edad.")}</p>}
+    </section>
 
     {/* ---- Once ideal ---- */}
-    {elegibles.length > 0 && <div className="board-once">
-      <h3>{t("Once ideal · 4-1-2-1-2")} <i>{vistaOnce === "liga" ? gruposOnce.length : 1}</i></h3>
-      <p>{t("Dos o tres candidatos por puesto, ordenados por el índice de percentiles. Los centrales y los delanteros se reparten su grupo por turnos para que nadie ocupe dos huecos.")}</p>
+    {elegibles.length > 0 && <section className={seccion("once", "board-once")}>
+      <div className="board-titulo">
+        <h3>{t("Once ideal · 4-1-2-1-2")}</h3>
+        <small>{tf(vistaOnce === "liga" && gruposOnce.length !== 1 ? "{n} onces" : "{n} once", { n: vistaOnce === "liga" ? gruposOnce.length : 1 })}</small>
+      </div>
+      <p className="board-nota">{t("Dos o tres candidatos por puesto, ordenados por el índice de percentiles. Los centrales y los delanteros se reparten su grupo por turnos para que nadie ocupe dos huecos.")}</p>
       <div className="board-once-tabs">
         <button type="button" className={vistaOnce === "liga" ? "on" : ""} onClick={() => setVistaOnce("liga")}>{t("Un once por liga")}</button>
         <button type="button" className={vistaOnce === "combinado" ? "on" : ""} onClick={() => setVistaOnce("combinado")}>{t("Combinado con descuento")}</button>
@@ -663,24 +737,25 @@ export function ScoutingBoard({ rows, minimumMinutes, onSelectPlayer }: {
             />
           ))}
       </div>
-    </div>}
+    </section>}
 
     {/* ---- Foto del mes y variación ---- */}
-    {ligasPresentes.length > 0 && <div className="board-fotos">
-      <h3>{t("Foto del mes y variación")} <i>{comparaciones.length}</i></h3>
-      <p>{t("La foto se guarda en el servidor local (~/.fos-scouting/snapshots), nunca en el repositorio: los datos de Wyscout están bajo licencia. Al cargar la base del mes siguiente se compara sola contra la anterior.")}</p>
+    {ligasPresentes.length > 0 && <section className={seccion("variacion", "board-fotos")}>
+      <div className="board-titulo"><h3>{t("Foto del mes y variación")}</h3><small>{tf("{n} ligas comparadas", { n: comparaciones.length })}</small></div>
+      <p className="board-nota">{t("La foto se guarda en el servidor local (~/.fos-scouting/snapshots), nunca en el repositorio: los datos de Wyscout están bajo licencia. Al cargar la base del mes siguiente se compara sola contra la anterior.")}</p>
       <div className="board-fotos-acciones">
-        <label><span>{t("Mes")}</span>
+        <label className="filtro-chip numero board-mes">
+          <span>{t("Mes")}</span>
           <input type="month" value={mes} onChange={(event) => setMes(event.target.value || mesActual())} />
         </label>
-        <button type="button" onClick={() => void guardarFotoDelMes()}>{t("Guardar foto del mes")}</button>
+        <button type="button" className="board-guardar" onClick={() => void guardarFotoDelMes()}>{t("Guardar foto del mes")}</button>
         <a className="board-respaldo" href={snapshotExportUrl()} download>{t("Descargar respaldo")}</a>
         <label className="board-respaldo">
           {t("Restaurar respaldo")}
           <input type="file" accept=".zip,application/zip" onChange={(event) => { void restaurarRespaldo(event.target.files?.[0]); event.target.value = ""; }} />
         </label>
-        {estadoFoto && <small>{estadoFoto}</small>}
       </div>
+      {estadoFoto && <p className="board-estado" role="status">{estadoFoto}</p>}
 
       {!comparaciones.length && <p className="board-aviso">
         {t("Todavía no hay una foto anterior de estas ligas. Guarda la de este mes y el mes que viene aparecerá aquí quién sube y quién baja.")}
@@ -728,64 +803,71 @@ export function ScoutingBoard({ rows, minimumMinutes, onSelectPlayer }: {
           <small>{tf("{e} jugadores estables (±3) · {s} ya no aparecen en la base", { e: diff.estables, s: diff.salen.length })}</small>
         </div>
       ))}
-    </div>}
+    </section>}
 
-    {equipos.length >= 2 && <div className="board-teams">
-      <h3>{t("Contexto de los equipos")} <i>{equipos.length}</i></h3>
-      <p>{t("Mediana del índice de cada plantilla, no la media: un solo crack no debe levantar a un equipo entero. Un jugador destacado en un club de la parte baja tiene más mérito que el mismo número arriba.")}</p>
-      <table>
-        <thead><tr>
-          <th>#</th><th>{t("Equipo")}</th><th>{t("Jugadores")}</th><th>{t("Edad")}</th>
-          <th>{t("Índice")}</th><th>{t("Destacados")}</th><th>{t("Mejor del plantel")}</th>
-        </tr></thead>
-        <tbody>
-          {equipos.map((equipo, posicion) => (
-            <tr key={equipo.club}>
-              <td>{posicion + 1}</td>
-              <td className="board-name">{equipo.club}</td>
-              <td>{equipo.jugadores}</td>
-              <td>{equipo.edad || "—"}</td>
-              <td><b>{equipo.indice}</b></td>
-              <td>{equipo.destacados}</td>
-              <td className="board-best">{equipo.mejor?.jugador} <u>{equipo.mejor?.puntuacion}</u></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>}
+    {/* ---- Ligas del mes: detección, corrección manual y escudos ---- */}
+    {fuentes.length > 0 && <section className={seccion("ligas", "board-ligas")}>
+      <div className="board-titulo"><h3>{t("Ligas del mes")}</h3><small>{tf("{n} archivos", { n: fuentes.length })}</small></div>
+      <p className="board-nota">{t("Cada archivo se reconoce por palabras clave de su nombre. Si alguno no se reconoce, elige su liga: la elección queda guardada para el mes siguiente aunque el archivo cambie de fecha.")}</p>
+      <ul className="board-archivos">
+        {fuentes.map((fuente) => {
+          const automatica = detectarLiga(fuente);
+          const asignada = ligaDeFuente[fuente];
+          return <li key={fuente} className={asignada ? "" : "pendiente"}>
+            <span className="board-archivo">
+              <b>{fuente}</b>
+              <small>{automatica
+                ? t("Por el nombre del archivo")
+                : asignada ? t("Elección recordada") : t("No reconocida: elige su liga")}</small>
+            </span>
+            <select aria-label={tf("Liga de {archivo}", { archivo: fuente })} value={asignada} onChange={(event) => elegirLigaManual(fuente, event.target.value)}>
+              <option value="">{t("— Elige una liga —")}</option>
+              {LIGAS_MALDONADO.map((liga) => <option key={liga.id} value={liga.id}>{liga.nombre}</option>)}
+            </select>
+          </li>;
+        })}
+      </ul>
+      {sinReconocer.length > 0 && <p className="board-aviso">
+        {tf("{n} archivo(s) sin liga: sus jugadores quedan fuera de los onces hasta que les asignes una.", { n: sinReconocer.length })}
+      </p>}
 
-    {[...porPerfil.entries()]
-      .sort((a, b) => (ORDEN_MALDONADO.indexOf(a[0]) + 99) % 199 - (ORDEN_MALDONADO.indexOf(b[0]) + 99) % 199)
-      .map(([id, lista]) => (
-      <div key={id} className="board-group">
-        <h3>{id} <i>{lista.length}</i></h3>
-        <table>
-          <thead><tr>
-            <th>#</th><th>{t("Jugador")}</th><th>{t("Equipo")}</th>
-            <th>{t("Edad")}</th><th>{t("Min")}</th><th>{t("Índice")}</th><th>{t("Destaca en")}</th>
-          </tr></thead>
-          <tbody>
-            {lista.slice(0, 15).map((ficha, posicion) => (
-              <tr key={ficha.indice} onClick={() => onSelectPlayer?.(ficha.fila)} className={onSelectPlayer ? "clicable" : ""}>
-                <td>{posicion + 1}</td>
-                <td className="board-name">{ficha.jugador}</td>
-                <td>{ficha.equipo}</td>
-                <td>{Number.isFinite(ficha.edad) ? ficha.edad : "—"}</td>
-                <td>{ficha.minutos ? Math.round(ficha.minutos) : "—"}</td>
-                <td><b>{ficha.puntuacion}</b></td>
-                <td className="board-flags">
-                  {ficha.destacadas.length
-                    ? ficha.destacadas.map((m) => <em key={m.label}>{t(m.label)} <u>P{m.percentile}</u></em>)
-                    : <span>—</span>}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    ))}
-
-    {!visibles.length && <p className="board-empty">{t("Ningún jugador pasa esos filtros. Baja el mínimo de minutos o quita el tope de edad.")}</p>}
+      {ligasPresentes.length > 0 && <>
+        <div className="board-titulo board-subtitulo"><h3>{t("Escudos y rating de Opta")}</h3></div>
+        <ul className="board-escudos">
+          {ligasPresentes.map((liga) => {
+            const rating = ratings[liga];
+            return <li key={liga} className="board-escudo">
+              {escudos[liga]
+                ? <img src={escudos[liga]} alt="" />
+                : <span className="board-escudo-vacio">{(ligaPorId(liga)?.nombre ?? liga).slice(0, 2).toUpperCase()}</span>}
+              <span className="board-archivo">
+                <b>{ligaPorId(liga)?.nombre ?? liga}</b>
+                <small>{Number.isFinite(rating as number) && rating
+                  ? tf("Opta {r}", { r: (rating as number).toFixed(1) })
+                  : t("Sin rating en Opta")}</small>
+              </span>
+              <div className="board-escudo-acciones">
+                <label className="board-escudo-subir">
+                  {escudos[liga] ? t("Cambiar") : t("Subir escudo")}
+                  <input type="file" accept="image/*" onChange={(event) => void subirEscudo(liga, event.target.files?.[0])} />
+                </label>
+                <input
+                  type="url"
+                  className="board-escudo-link"
+                  placeholder={t("o pega un link https://…")}
+                  value={enlacesEscudo[liga] ?? ""}
+                  onChange={(event) => pegarEscudo(liga, event.target.value)}
+                />
+                {Boolean(enlacesEscudo[liga]) && !enlaceValido(enlacesEscudo[liga]) && (
+                  <small className="board-escudo-link-aviso">{t("Pega un link directo http:// o https://.")}</small>
+                )}
+              </div>
+            </li>;
+          })}
+        </ul>
+      </>}
+      <p className="board-opta">{etiquetaOpta}</p>
+    </section>}
   </section>;
 }
 

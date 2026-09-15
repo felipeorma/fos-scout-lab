@@ -1515,6 +1515,21 @@ export default function ScoutStudio() {
     </article>
   ) : null;
 
+  // Solo las hojas del espacio activo: en Cavalry no tiene sentido ofrecer la
+  // mesa de Maldonado, y al revés igual.
+  const paginasParaImprimir: Array<{ page: ReportPage; title: string; hint: string }> = espacio === "maldonado"
+    ? [{ page: BOARD_PAGE, title: t("Mesa de detección"), hint: t("Perfiles, once ideal y variación") }]
+    : [
+      { page: CARD_PAGE, title: t("Ficha y radar"), hint: t("Percentiles del jugador") },
+      { page: SIMILARITY_PAGE, title: t("Similitud"), hint: t("Jugadores comparables") },
+      { page: CONTEXT_PAGE, title: t("Contexto"), hint: t("Dónde destaca y por qué") },
+      { page: RUNS_PAGE, title: t("Carreras"), hint: t("Mapa sin balón") },
+      { page: RANK_PAGE, title: t("Ranking"), hint: t("Los mejores por puesto") },
+      { page: POOL_PAGE, title: t("Entre ligas"), hint: t("Buscar parecidos") },
+      ...visualPages.map((page, index) => ({ page, title: tf("Visuales {n}", { n: index + 1 }), hint: t("Mapas, imágenes y texto") })),
+    ];
+  const todasMarcadas = paginasParaImprimir.every(({ page }) => printPages.includes(page));
+
   return (
     <ProveedorDeBase valor={base}>
     <div className="app-shell no-sidebar" data-paleta={paleta} data-tema={tema}>
@@ -2066,36 +2081,42 @@ export default function ScoutStudio() {
               )) : !printRun && reportPage >= FIRST_VISUAL_PAGE ? <div className="empty-preview">{t("Selecciona un jugador para diseñar las páginas.")}</div> : null}
 
               {printDialogOpen && <div className="print-dialog-overlay" role="dialog" aria-modal="true" aria-label={t("¿Qué páginas quieres incluir en el PDF?")} onClick={() => setPrintDialogOpen(false)}>
-                <div className="print-dialog" onClick={(event) => event.stopPropagation()}>
-                  <h3>{t("¿Qué páginas quieres incluir en el PDF?")}</h3>
-                  <p>{t("Cada página seleccionada sale en su propia hoja tamaño legal.")}</p>
-                  <div className="print-dialog-file-name">
+                {/* La hoja de imprimir, como una de iOS.
+
+                    Eran casillas con borde propio, una debajo de otra, y los
+                    botones al final a la derecha: con siete páginas había que
+                    bajar para encontrar «Generar». Ahora las páginas son una
+                    lista agrupada con el círculo de selección de iOS y un atajo
+                    para marcarlas todas; el nombre del archivo va al pie, y la
+                    acción principal ocupa el ancho entero. */}
+                <div className="print-dialog hoja-impresion" onClick={(event) => event.stopPropagation()}>
+                  <header className="impresion-cabecera">
+                    <button type="button" className="impresion-cancelar" onClick={() => setPrintDialogOpen(false)}>{t("Cancelar")}</button>
+                    <h3>{t("Imprimir / PDF")}</h3>
+                    <span aria-hidden="true" />
+                  </header>
+                  <p className="impresion-intro">{t("Cada página seleccionada sale en su propia hoja tamaño legal.")}</p>
+                  <div className="impresion-seccion">
+                    <h4>{t("Páginas")}</h4>
+                    {paginasParaImprimir.length > 1 && <button type="button" onClick={() => setPrintPages(todasMarcadas ? [] : paginasParaImprimir.map(({ page }) => page))}>
+                      {todasMarcadas ? t("Ninguna") : t("Todas")}
+                    </button>}
+                  </div>
+                  <div className="impresion-lista">
+                    {paginasParaImprimir.map(({ page, title, hint }) => {
+                      const elegida = printPages.includes(page);
+                      return <label key={page} className={elegida ? "impresion-fila elegida" : "impresion-fila"}>
+                        <input type="checkbox" className="impresion-casilla" checked={elegida} onChange={() => togglePrintPage(page)} />
+                        <span className="impresion-marca" aria-hidden="true">{elegida && <Check size={14} />}</span>
+                        <span className="impresion-fila-texto"><b>{title}</b><small>{hint}</small></span>
+                      </label>;
+                    })}
+                  </div>
+                  <div className="impresion-archivo">
                     <span>{t("Nombre sugerido")}</span>
                     <b>{reportExportName}.pdf</b>
                   </div>
-                  {/* Solo las hojas del espacio activo: en Cavalry no tiene
-                      sentido ofrecer la mesa de Maldonado, y al revés igual. */}
-                  {(espacio === "maldonado"
-                    ? [{ page: BOARD_PAGE, title: t("Mesa de detección"), hint: t("Perfiles, once ideal y variación") }]
-                    : [
-                      { page: CARD_PAGE, title: t("Ficha y radar"), hint: t("Percentiles del jugador") },
-                      { page: SIMILARITY_PAGE, title: t("Similitud"), hint: t("Jugadores comparables") },
-                      { page: CONTEXT_PAGE, title: t("Contexto"), hint: t("Dónde destaca y por qué") },
-                      { page: RUNS_PAGE, title: t("Carreras"), hint: t("Mapa sin balón") },
-                      { page: RANK_PAGE, title: t("Ranking"), hint: t("Los mejores por puesto") },
-                    { page: POOL_PAGE, title: t("Entre ligas"), hint: t("Buscar parecidos") },
-                      ...visualPages.map((page, index) => ({ page, title: tf("Visuales {n}", { n: index + 1 }), hint: t("Mapas, imágenes y texto") })),
-                    ]
-                  ).map(({ page, title, hint }) => (
-                    <label key={page} className={printPages.includes(page) ? "selected" : ""}>
-                      <input type="checkbox" checked={printPages.includes(page)} onChange={() => togglePrintPage(page)} />
-                      <span><b>{title}</b><small>{hint}</small></span>
-                    </label>
-                  ))}
-                  <div className="print-dialog-actions">
-                    <button className="button secondary" onClick={() => setPrintDialogOpen(false)}>{t("Cancelar")}</button>
-                    <button className="button primary" onClick={startPrint} disabled={!printPages.length}><Printer size={15} /> {t("Generar PDF / Imprimir")}</button>
-                  </div>
+                  <button type="button" className="impresion-accion" onClick={startPrint} disabled={!printPages.length}><Printer size={16} /> {t("Generar PDF / Imprimir")}</button>
                   {!printPages.length && <small className="print-dialog-note">{t("Selecciona al menos una página.")}</small>}
                   {printLayoutError && <small className="print-dialog-note">{t(printLayoutError)}</small>}
                 </div>

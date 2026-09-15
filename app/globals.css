@@ -5126,3 +5126,293 @@ button.menu-fila:active { transform: scale(.985); }
 
 /* El escenario: sin barra encima y con el mismo canto que el inspector. */
 .app-shell[data-tema] .designer-workspace > .designer-stage { border: 0; border-radius: 16px; box-shadow: 0 0 0 1px var(--line); }
+
+/* =====================================================================
+   Rediseño 9 · Mesa de detección y diálogo de impresión
+   ===================================================================== */
+
+/* ---- La mesa, sobre el fondo: sin la tarjeta que lo envolvía todo ---- */
+.app-shell[data-tema] .scouting-board {
+  --aviso-tinta: #f0b45a; --aviso-suave: rgba(240, 180, 90, .12);
+  --sube: #34c759; --baja: #ff6961; --nuevo: #f0b45a;
+  max-width: 980px; margin: 18px auto 32px; padding: 0 4px;
+  border: 0; border-radius: 0; background: none; box-shadow: none;
+  color: var(--ink);
+}
+.app-shell[data-tema="claro"] .scouting-board {
+  --aviso-tinta: #8a5300; --aviso-suave: rgba(240, 160, 40, .14);
+  --sube: #1a7f37; --baja: #c62828; --nuevo: #8a5300;
+  background: none;
+}
+.app-shell[data-tema] .scouting-board > header {
+  margin: 0 0 16px; padding: 0 4px; border: 0;
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 16px;
+}
+.app-shell[data-tema] .scouting-board > header span { color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .06em; }
+.app-shell[data-tema] .scouting-board > header h2 { margin: 2px 0 4px; color: var(--ink); font-family: inherit; font-size: 28px; font-weight: 700; letter-spacing: -.025em; line-height: 1.1; }
+.app-shell[data-tema] .scouting-board > header p { margin: 0; max-width: 64ch; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.app-shell[data-tema] .scouting-board > header b { color: var(--muted); font-family: inherit; font-size: 13px; font-weight: 500; white-space: nowrap; }
+
+.app-shell[data-tema] .scouting-board .board-filtros { margin: 0 0 12px; }
+.app-shell[data-tema] .scouting-board .board-interruptor { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; }
+.app-shell[data-tema] .scouting-board .board-interruptor > span { color: var(--ink); font-size: 12.5px; }
+
+.app-shell[data-tema] .scouting-board .board-excluidos { margin: -4px 0 12px; padding: 0 4px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.app-shell[data-tema] .scouting-board .board-excluidos > span { color: var(--muted); font-size: 11.5px; font-weight: 500; letter-spacing: 0; text-transform: none; }
+.app-shell[data-tema] .scouting-board .board-excluidos > button {
+  min-height: 26px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px;
+  border: 0; border-radius: 999px; background: color-mix(in srgb, var(--ink) 7%, transparent);
+  color: var(--ink); font-size: 12px; font-weight: 500; cursor: pointer;
+}
+.app-shell[data-tema] .scouting-board .board-excluidos > button:hover { background: color-mix(in srgb, var(--ink) 12%, transparent); }
+.app-shell[data-tema] .scouting-board .board-excluidos > button > i { color: var(--muted); font-style: normal; }
+
+.app-shell[data-tema] .scouting-board .board-banner {
+  width: 100%; margin: 0 0 12px; padding: 10px 14px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  border: 0; border-radius: 12px; background: var(--aviso-suave); color: var(--aviso-tinta);
+  font: inherit; font-size: 12.5px; text-align: left; cursor: pointer;
+}
+.app-shell[data-tema] .scouting-board .board-banner > span { color: inherit; }
+.app-shell[data-tema] .scouting-board .board-banner > b { flex: none; display: inline-flex; align-items: center; gap: 2px; color: inherit; font-weight: 600; }
+
+/* ---- Las cinco partes, en un control segmentado ---- */
+.app-shell[data-tema] .scouting-board .board-vistas {
+  margin: 0 0 20px; padding: 2px;
+  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr);
+  border-radius: 10px; background: color-mix(in srgb, var(--ink) 7%, transparent);
+}
+.app-shell[data-tema] .scouting-board .board-vistas > button {
+  min-width: 0; min-height: 30px; padding: 0 8px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  border: 0; border-radius: 8px; background: none; box-shadow: none;
+  color: var(--ink); font: inherit; font-size: 13px; font-weight: 500; white-space: nowrap; cursor: pointer;
+  transition: background-color .2s var(--curva), box-shadow .2s var(--curva);
+}
+.app-shell[data-tema] .scouting-board .board-vistas > button.on { background: var(--segmento); box-shadow: 0 1px 3px rgba(0,0,0,.12), 0 0 0 .5px rgba(0,0,0,.04); font-weight: 600; }
+.app-shell[data-tema] .scouting-board .board-vistas > button:disabled { opacity: .4; cursor: not-allowed; }
+.app-shell[data-tema] .scouting-board .board-vistas > button > i {
+  min-width: 18px; height: 18px; padding: 0 5px; display: inline-grid; place-items: center;
+  border-radius: 999px; color: #fff; background: #b45309;
+  font-size: 10.5px; font-style: normal; font-weight: 700;
+}
+
+/* En pantalla se ve una parte; al imprimir, todas: el PDF es el entregable. */
+@media screen {
+  .scouting-board .board-seccion:not(.activa) { display: none; }
+  .scouting-board .board-lista > li.extra { display: none; }
+}
+@media print {
+  .board-filtros, .board-vistas, .board-banner, .board-mas, .board-guardar { display: none !important; }
+}
+
+/* Lo que venía con caja propia pierde la caja: las tarjetas son las listas. */
+.app-shell[data-tema] .scouting-board :is(.board-seccion, .board-group, .board-teams, .board-ligas, .board-once, .board-fotos, .board-escudos, .board-onces, .board-variacion, .board-opta, .board-respaldo) {
+  margin: 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none;
+}
+.app-shell[data-tema] .scouting-board .board-group + .board-group { margin-top: 24px; }
+.board-titulo { margin: 0 4px 8px; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.app-shell[data-tema] .scouting-board .board-titulo > h3 { margin: 0; display: block; color: var(--ink); font-size: 17px; font-weight: 600; letter-spacing: -.01em; text-transform: none; }
+.app-shell[data-tema] .scouting-board .board-titulo > small { color: var(--muted); font-size: 12px; }
+.app-shell[data-tema] .scouting-board .board-subtitulo { margin-top: 24px; }
+.app-shell[data-tema] .scouting-board p.board-nota { margin: -2px 4px 12px; max-width: 72ch; color: var(--muted); font-size: 12px; line-height: 1.5; }
+
+/* Listas: las del Ranking, con los colores atados aquí porque en tema claro
+   la mesa hace heredar la tinta a todo span, small y b que lleve dentro. */
+.app-shell[data-tema] .scouting-board .board-lista .rank-pos { color: var(--muted); }
+.app-shell[data-tema] .scouting-board .board-lista .rank-pos.podio { color: var(--acento-claro); }
+.app-shell[data-tema] .scouting-board .board-lista .pool-cuerpo > b,
+.app-shell[data-tema] .scouting-board .board-lista .pool-cifras > b { color: var(--ink); }
+.app-shell[data-tema] .scouting-board .board-lista .pool-cuerpo > small,
+.app-shell[data-tema] .scouting-board .board-lista .pool-cifras > small { color: var(--muted); }
+.app-shell[data-tema] .scouting-board .board-flags { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px; }
+.app-shell[data-tema] .scouting-board .board-flags em {
+  margin: 0; padding: 2px 7px; border-radius: 999px;
+  color: var(--ink); background: color-mix(in srgb, var(--ink) 6%, transparent);
+  font-size: 10.5px; font-style: normal;
+}
+.app-shell[data-tema] .scouting-board .board-flags em > u { color: var(--acento-claro); font-weight: 600; text-decoration: none; opacity: 1; }
+.app-shell[data-tema] .scouting-board .board-mas {
+  margin: 6px 4px 0; padding: 4px 2px; border: 0; background: none;
+  color: var(--acento-claro); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.app-shell[data-tema] .scouting-board .board-mas:hover { opacity: .75; }
+.app-shell[data-tema] .scouting-board p.board-empty { margin: 12px 4px; padding: 0; border: 0; background: none; color: var(--muted); font-size: 13px; }
+
+/* ---- Once ideal: la cancha al lado de sus candidatos ---- */
+.app-shell[data-tema] .scouting-board .board-once-tabs { margin: 0 0 12px; }
+.app-shell[data-tema] .scouting-board .board-descuento {
+  margin: 0 0 14px; padding: 12px 14px;
+  border: 0; border-radius: 12px; background: var(--paper); box-shadow: 0 0 0 1px var(--line);
+}
+.app-shell[data-tema] .scouting-board .board-descuento > p { margin: 0 0 8px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.app-shell[data-tema] .scouting-board .board-descuento ul { gap: 6px 16px; }
+.app-shell[data-tema] .scouting-board .board-descuento li { color: var(--ink); font-size: 12.5px; }
+.app-shell[data-tema] .scouting-board .board-descuento li span { color: var(--acento-claro); font-family: inherit; font-weight: 600; font-variant-numeric: tabular-nums; }
+.app-shell[data-tema] .scouting-board .board-descuento li em { color: var(--aviso-tinta); font-size: 11.5px; }
+.app-shell[data-tema] .scouting-board .board-onces { display: flex; flex-direction: column; gap: 16px; }
+.app-shell[data-tema] .scouting-board .once-card {
+  min-width: 0; margin: 0; padding: 14px;
+  display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+  grid-template-areas: "cabeza cabeza" "campo lista"; gap: 12px 20px; align-items: start;
+  border: 0; border-radius: 14px; background: var(--paper); box-shadow: 0 0 0 1px var(--line);
+}
+.app-shell[data-tema] .scouting-board .once-head { grid-area: cabeza; margin: 0; }
+.app-shell[data-tema] .scouting-board .once-campo { grid-area: campo; border-radius: 8px; }
+.app-shell[data-tema] .scouting-board .once-lista { grid-area: lista; margin: 0; }
+.app-shell[data-tema] .scouting-board .once-head h4 { color: var(--ink); font-family: inherit; font-size: 15px; font-weight: 600; }
+.app-shell[data-tema] .scouting-board .once-head small { color: var(--muted); font-size: 11.5px; }
+.app-shell[data-tema] .scouting-board .once-head b { color: var(--muted); font-family: inherit; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.app-shell[data-tema] .scouting-board .once-lista h5 { margin: 0 0 4px; color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .04em; }
+.app-shell[data-tema] .scouting-board .once-lista th { width: 120px; padding: 7px 8px 7px 0; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 11.5px; font-weight: 500; }
+.app-shell[data-tema] .scouting-board .once-lista td { padding: 5px 0; border-bottom: 1px solid var(--line); }
+.app-shell[data-tema] .scouting-board .once-lista tr:last-child > :is(th, td) { border-bottom: 0; }
+.app-shell[data-tema] .scouting-board .once-cand { margin: 2px 0; gap: 6px; color: var(--ink); font-size: 12.5px; }
+.app-shell[data-tema] .scouting-board .once-cand > b { color: var(--ink); font-weight: 600; }
+.app-shell[data-tema] .scouting-board .once-cand > i { padding: 0 5px; color: var(--muted); background: color-mix(in srgb, var(--ink) 7%, transparent); font-size: 10px; }
+.app-shell[data-tema] .scouting-board .once-cand > em { color: var(--muted); font-size: 11.5px; }
+.app-shell[data-tema] .scouting-board .once-cand > u { color: var(--ink); font-family: inherit; font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.app-shell[data-tema] .scouting-board .once-cand.clicable:hover > b { color: var(--acento-claro); }
+.app-shell[data-tema] .scouting-board .once-cand.vacio { color: var(--muted); font-size: 12px; }
+
+/* ---- Foto del mes y variación ---- */
+.app-shell[data-tema] .scouting-board .board-fotos-acciones { margin: 0 0 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.app-shell[data-tema] .scouting-board .board-guardar {
+  min-height: 34px; padding: 0 16px; border: 0; border-radius: 999px;
+  color: #fff; background: var(--acento); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.app-shell[data-tema] .scouting-board .board-guardar:hover { filter: brightness(1.06); }
+.app-shell[data-tema] .scouting-board .board-respaldo {
+  padding: 4px 2px; border: 0; background: none; box-shadow: none;
+  color: var(--acento-claro); font-size: 13px; font-weight: 600; text-decoration: none; cursor: pointer;
+}
+.app-shell[data-tema] .scouting-board label.board-respaldo > input { display: none; }
+.app-shell[data-tema] .scouting-board p.board-estado { margin: -4px 4px 12px; color: var(--muted); font-size: 12px; }
+.app-shell[data-tema] .scouting-board p.board-aviso {
+  margin: 10px 0 0; padding: 10px 14px; border: 0; border-radius: 12px;
+  color: var(--aviso-tinta); background: var(--aviso-suave); font-size: 12px; line-height: 1.5;
+}
+.app-shell[data-tema] .scouting-board .board-variacion {
+  margin: 12px 0 0; padding: 14px;
+  border-radius: 14px; background: var(--paper); box-shadow: 0 0 0 1px var(--line);
+}
+.app-shell[data-tema] .scouting-board .board-variacion h4 { margin: 0 0 10px; color: var(--ink); font-family: inherit; font-size: 15px; font-weight: 600; }
+.app-shell[data-tema] .scouting-board .board-variacion h4 span { color: var(--muted); font-family: inherit; font-size: 12px; font-weight: 400; letter-spacing: 0; }
+.app-shell[data-tema] .scouting-board .board-variacion-cols { gap: 16px; }
+.app-shell[data-tema] .scouting-board .board-variacion-cols h5 { margin: 0 0 6px; color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .04em; }
+.app-shell[data-tema] .scouting-board .board-variacion-cols p { margin: 0 0 4px; gap: 6px; color: var(--ink); font-size: 12.5px; }
+.app-shell[data-tema] .scouting-board .board-variacion-cols p b { color: var(--ink); font-weight: 600; }
+.app-shell[data-tema] .scouting-board .board-variacion-cols p em { color: var(--muted); font-size: 11.5px; }
+.app-shell[data-tema] .scouting-board .board-variacion-cols p u { font-family: inherit; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.app-shell[data-tema] .scouting-board .board-variacion-cols u.sube { color: var(--sube); }
+.app-shell[data-tema] .scouting-board .board-variacion-cols u.baja { color: var(--baja); }
+.app-shell[data-tema] .scouting-board .board-variacion-cols u.nuevo { color: var(--nuevo); }
+.app-shell[data-tema] .scouting-board .board-variacion-cols p.board-vacio { color: var(--muted); font-size: 12px; }
+.app-shell[data-tema] .scouting-board .board-variacion > small { margin-top: 10px; color: var(--muted); font-size: 11.5px; }
+
+/* ---- Ligas del mes: archivos y escudos como filas ---- */
+.app-shell[data-tema] .scouting-board :is(.board-archivos, .board-escudos) {
+  margin: 0; padding: 0; list-style: none; display: block;
+  overflow: hidden; border-radius: 14px; background: var(--paper); box-shadow: 0 0 0 1px var(--line);
+}
+.app-shell[data-tema] .scouting-board :is(.board-archivos, .board-escudos) > li {
+  position: relative; min-height: 56px; margin: 0; padding: 10px 14px;
+  display: flex; align-items: center; gap: 12px;
+  border: 0; border-radius: 0; background: none;
+}
+.app-shell[data-tema] .scouting-board :is(.board-archivos, .board-escudos) > li + li::before {
+  content: ""; position: absolute; top: 0; right: 0; left: 14px; height: 1px; background: var(--line);
+}
+.board-archivo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.app-shell[data-tema] .scouting-board .board-archivo > b { overflow: hidden; color: var(--ink); font-size: 13px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.app-shell[data-tema] .scouting-board .board-archivo > small { color: var(--muted); font-size: 11.5px; }
+.app-shell[data-tema] .scouting-board .board-archivos > li.pendiente .board-archivo > small { color: var(--aviso-tinta); font-weight: 600; }
+.app-shell[data-tema] .scouting-board .board-archivos select {
+  flex: none; width: auto; max-width: 45%; min-height: 32px; padding: 0 6px;
+  border: 0; border-radius: 8px; background: none; box-shadow: none;
+  color: var(--acento-claro); font: inherit; font-size: 13px; font-weight: 500; text-align: right; cursor: pointer;
+}
+.app-shell[data-tema] .scouting-board .board-archivos > li.pendiente select { color: var(--aviso-tinta); }
+.app-shell[data-tema] .scouting-board .board-escudo img,
+.app-shell[data-tema] .scouting-board .board-escudo-vacio { flex: none; width: 32px; height: 32px; }
+.app-shell[data-tema] .scouting-board .board-escudo-vacio { border: 1px dashed color-mix(in srgb, var(--ink) 25%, transparent); border-radius: 8px; color: var(--muted); font-size: 10px; }
+.app-shell[data-tema] .scouting-board .board-escudo-acciones { flex: none; margin: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.app-shell[data-tema] .scouting-board .board-escudo-subir { color: var(--acento-claro); font-size: 13px; font-weight: 600; letter-spacing: 0; text-transform: none; cursor: pointer; }
+.app-shell[data-tema] .scouting-board input.board-escudo-link {
+  width: 200px; min-height: 28px; padding: 0 8px;
+  border: 0; border-radius: 7px; background: color-mix(in srgb, var(--ink) 6%, transparent);
+  color: var(--ink); font-size: 12px;
+}
+.app-shell[data-tema] .scouting-board small.board-escudo-link-aviso { color: var(--baja); font-size: 11px; }
+.app-shell[data-tema] .scouting-board p.board-opta { margin: 8px 4px 0; color: var(--muted); font-size: 11.5px; letter-spacing: 0; }
+
+@media (max-width: 760px) {
+  .app-shell[data-tema] .scouting-board .once-card { grid-template-columns: minmax(0, 1fr); grid-template-areas: "cabeza" "campo" "lista"; }
+  .app-shell[data-tema] .scouting-board .once-campo { max-width: 360px; justify-self: center; }
+  .app-shell[data-tema] .scouting-board .board-variacion-cols { grid-template-columns: minmax(0, 1fr); }
+  .app-shell[data-tema] .scouting-board .board-vistas { overflow-x: auto; grid-auto-columns: max-content; }
+}
+
+/* ---- Imprimir / PDF: una hoja de iOS ---- */
+.app-shell[data-tema="claro"] .print-dialog-overlay { background: rgba(0, 0, 0, .28); }
+.app-shell[data-tema] .print-dialog.hoja-impresion {
+  width: min(440px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow-y: auto;
+  padding: 0 16px 16px;
+  border: 0; border-radius: 20px;
+  color: var(--ink); background: var(--canvas);
+  box-shadow: 0 30px 80px -20px rgba(0, 0, 0, .45), 0 0 0 1px var(--line);
+}
+.app-shell[data-tema] .impresion-cabecera {
+  position: sticky; top: 0; z-index: 1;
+  margin: 0 -16px 4px; padding: 12px 16px;
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+  background: color-mix(in srgb, var(--canvas) 86%, transparent);
+  backdrop-filter: blur(20px) saturate(1.4);
+}
+.app-shell[data-tema] .impresion-cabecera h3 { margin: 0; color: var(--ink); font-size: 15px; font-weight: 600; }
+.app-shell[data-tema] .impresion-cancelar {
+  justify-self: start; padding: 4px 2px; border: 0; background: none;
+  color: var(--acento-claro); font: inherit; font-size: 14px; cursor: pointer;
+}
+.app-shell[data-tema] .print-dialog > p.impresion-intro { margin: 0 4px 16px; color: var(--muted); font-size: 12.5px; text-align: center; }
+.impresion-seccion { margin: 0 4px 6px; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.app-shell[data-tema] .impresion-seccion > h4 { margin: 0; color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.app-shell[data-tema] .impresion-seccion > button { padding: 2px; border: 0; background: none; color: var(--acento-claro); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.app-shell[data-tema] .impresion-lista { overflow: hidden; border-radius: 12px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); }
+.app-shell[data-tema] .print-dialog label.impresion-fila {
+  position: relative; min-height: 52px; margin: 0; padding: 9px 14px;
+  display: flex; align-items: center; gap: 12px;
+  border: 0; border-radius: 0; background: none; cursor: pointer;
+}
+.app-shell[data-tema] .print-dialog label.impresion-fila + label.impresion-fila::before {
+  content: ""; position: absolute; top: 0; right: 0; left: 48px; height: 1px; background: var(--line);
+}
+.app-shell[data-tema] .print-dialog label.impresion-fila:hover { background: color-mix(in srgb, var(--ink) 4%, transparent); }
+.app-shell[data-tema] .print-dialog input.impresion-casilla { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; pointer-events: none; }
+.app-shell[data-tema] .impresion-marca {
+  flex: none; width: 22px; height: 22px; display: grid; place-items: center;
+  border-radius: 50%; color: #fff;
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ink) 30%, transparent);
+  transition: background-color .15s var(--curva), box-shadow .15s var(--curva);
+}
+.app-shell[data-tema] .impresion-fila.elegida .impresion-marca { background: var(--acento); box-shadow: none; }
+.app-shell[data-tema] .impresion-fila:has(.impresion-casilla:focus-visible) .impresion-marca { outline: 2px solid var(--acento-borde); outline-offset: 2px; }
+.impresion-fila-texto { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.app-shell[data-tema] .print-dialog .impresion-fila-texto > b { display: block; color: var(--ink); font-size: 13.5px; font-weight: 600; }
+.app-shell[data-tema] .print-dialog .impresion-fila-texto > small { display: block; margin: 0; color: var(--muted); font-size: 11.5px; }
+.app-shell[data-tema] .impresion-archivo {
+  margin: 16px 0 0; padding: 10px 14px;
+  display: flex; flex-direction: column; gap: 2px;
+  border-radius: 12px; background: var(--paper); box-shadow: 0 0 0 1px var(--line);
+}
+.app-shell[data-tema] .impresion-archivo > span { color: var(--muted); font-size: 11.5px; }
+.app-shell[data-tema] .impresion-archivo > b { color: var(--ink); font-size: 12.5px; font-weight: 500; overflow-wrap: anywhere; }
+.app-shell[data-tema] .impresion-accion {
+  width: 100%; min-height: 44px; margin: 16px 0 0;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  border: 0; border-radius: 12px; color: #fff; background: var(--acento);
+  font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+}
+.app-shell[data-tema] .impresion-accion:hover:not(:disabled) { filter: brightness(1.06); }
+.app-shell[data-tema] .impresion-accion:disabled { opacity: .45; cursor: not-allowed; }
+.app-shell[data-tema] .hoja-impresion .print-dialog-note { margin-top: 10px; text-align: center; }
