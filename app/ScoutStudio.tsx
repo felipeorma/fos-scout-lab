@@ -1684,11 +1684,18 @@ export default function ScoutStudio() {
               </div>}
 
             {!dataReady ? (
-              <section className="dataset-onboarding database-gate">
-                {/* La portada es lo primero que ve quien abre esto, y hasta
-                    ahora empezaba con una pregunta sin decir dónde estabas ni
-                    con qué trabajas. Ahora se presenta: de quién es la mesa,
-                    para qué clubes y con qué proveedores. */}
+              <section className="portada">
+                {/* La portada, como la primera pantalla de una app de Apple.
+
+                    Era una tarjeta con borde y degradado de 1.150 px de alto:
+                    quién, una pregunta y tres tarjetas grandes con etiquetas en
+                    mayúsculas —«RECOMENDADO», «EXCEL», «UNA LIGA»— que repetían
+                    lo que ya decía el título de cada una. Ahora va sobre el
+                    fondo, en una sola columna: quién es la mesa, las cifras del
+                    catálogo en una tarjeta como la de Base activa, y las tres
+                    entradas como filas de una lista, la recomendada primero y
+                    en el color del espacio. Son las mismas filas que «Añadir
+                    datos» en Base activa: lo que hace lo mismo se ve igual. */}
                 <div className="portada-marca">
                   {/* El nombre manda: es su mesa. Los clubes salen de aquí a
                       petición suya —son encargos, no identidad— y el hueco lo
@@ -1699,11 +1706,6 @@ export default function ScoutStudio() {
                   <h1>Felipe Ormazabal</h1>
                   <p className="portada-oficio">{t("Analista de datos de fútbol y scout")}</p>
                   <p className="portada-lema">{t("Analítica · Ingeniería de datos · Scouting")}</p>
-                  {alcance && <div className="portada-cifras">
-                    <span><b>{alcance.ligas}</b><small>{t("ligas")}</small></span>
-                    <span><b>{alcance.competiciones}</b><small>{t("temporadas al alcance")}</small></span>
-                    <span><b>3</b><small>{t("proveedores")}</small></span>
-                  </div>}
                   <div className="portada-plataformas">
                     {(["statsbomb", "skillcorner", "wyscout"] as const).map((plataforma) => (
                       <LogoPlataforma key={plataforma} plataforma={plataforma} alto={17} />
@@ -1711,36 +1713,45 @@ export default function ScoutStudio() {
                   </div>
                 </div>
 
-                <h2>{t("¿Qué quieres hacer?")}</h2>
-                <p>{t("Lo habitual es trabajar con todo lo contratado a la vez. Las ligas de Wyscout que no están en la API —las de Maldonado, por ejemplo— siguen entrando por archivo.")}</p>
+                {alcance && <div className="portada-cifras">
+                  <span><b>{alcance.ligas}</b><small>{t("ligas")}</small></span>
+                  <span><b>{alcance.competiciones}</b><small>{t("temporadas al alcance")}</small></span>
+                  <span><b>3</b><small>{t("proveedores")}</small></span>
+                </div>}
 
-                <div className="database-choice-grid">
-                  <button className="database-choice featured" onClick={() => void cargarTodasLasLigas()} disabled={reportLoading}>
-                    <span className="database-choice-tag">{t("RECOMENDADO")}</span>
-                    <span className="database-choice-icon"><Sparkles size={25} /></span>
-                    <b>{t("Trabajar con todas las ligas")}</b>
-                    <small>{t("Todas las competiciones de la temporada en curso, con los datos físicos de SkillCorner encima donde existan.")}</small>
-                    <em>{reportLoading ? t("Cargando…") : t("Cargar todo")}<Sparkles size={14} /></em>
-                  </button>
-                  <button className="database-choice" onClick={() => singleReportInputRef.current?.click()} disabled={reportLoading}>
-                    <span className="database-choice-tag">{t("EXCEL")}</span>
-                    <span className="database-choice-icon"><FileSpreadsheet size={25} /></span>
-                    <b>{t("Subir un archivo de Wyscout")}</b>
-                    <small>{t("Para las ligas que no están en la API. Puedes elegir varios y se combinan solos.")}</small>
-                    <em>{reportLoading ? t("Leyendo datos…") : t("Seleccionar Excel")}<Upload size={14} /></em>
-                  </button>
-                  <button className="database-choice" onClick={() => void openApiDialog()} disabled={reportLoading}>
-                    <span className="database-choice-tag">{t("UNA LIGA")}</span>
-                    <span className="database-choice-icon"><Search size={25} /></span>
-                    <b>{t("Elegir una competición")}</b>
-                    <small>{t("Cuando solo interesa una liga y una temporada concretas.")}</small>
-                    <em>{t("Elegir competición")}<ChevronDown size={14} /></em>
-                  </button>
+                <div className="portada-empezar">
+                  <h2>{t("¿Qué quieres hacer?")}</h2>
+                  <div className="portada-opciones">
+                    <button type="button" className="portada-opcion destacada" onClick={() => void cargarTodasLasLigas()} disabled={reportLoading}>
+                      <span className="portada-opcion-icono"><Sparkles size={18} /></span>
+                      <span className="portada-opcion-texto">
+                        <b>{t("Trabajar con todas las ligas")} <em>{t("Recomendado")}</em></b>
+                        <small>{t("Todas las competiciones de la temporada en curso, con los datos físicos de SkillCorner encima donde existan.")}</small>
+                      </span>
+                      {reportLoading ? <span className="portada-opcion-estado">{t("Cargando…")}</span> : <ChevronRight size={16} className="portada-opcion-galon" />}
+                    </button>
+                    <button type="button" className="portada-opcion" onClick={() => void openApiDialog()} disabled={reportLoading}>
+                      <span className="portada-opcion-icono"><Search size={18} /></span>
+                      <span className="portada-opcion-texto">
+                        <b>{t("Elegir una competición")}</b>
+                        <small>{t("Cuando solo interesa una liga y una temporada concretas.")}</small>
+                      </span>
+                      <ChevronRight size={16} className="portada-opcion-galon" />
+                    </button>
+                    <button type="button" className="portada-opcion" onClick={() => singleReportInputRef.current?.click()} disabled={reportLoading}>
+                      <span className="portada-opcion-icono"><FileSpreadsheet size={18} /></span>
+                      <span className="portada-opcion-texto">
+                        <b>{t("Subir un archivo de Wyscout")}</b>
+                        <small>{t("Para las ligas que no están en la API. Puedes elegir varios y se combinan solos.")}</small>
+                      </span>
+                      <ChevronRight size={16} className="portada-opcion-galon" />
+                    </button>
+                  </div>
+                  {cargaTotal && <div className="carga-total" aria-live="polite">{cargaTotal}</div>}
+                  {reportError && <div className="inline-error">{reportError}</div>}
+                  <p className="portada-pie">{t("Lo habitual es trabajar con todo lo contratado a la vez. Las ligas de Wyscout que no están en la API —las de Maldonado, por ejemplo— siguen entrando por archivo.")}</p>
+                  <p className="portada-pie">{t(".XLSX, .XLS o .CSV · primera hoja · clave: nombre + edad + club · procesamiento local")}</p>
                 </div>
-
-                {cargaTotal && <div className="carga-total" aria-live="polite">{cargaTotal}</div>}
-                <small>{t(".XLSX, .XLS o .CSV · primera hoja · clave: nombre + edad + club · procesamiento local")}</small>
-                {reportError && <div className="inline-error">{reportError}</div>}
               </section>
             ) : <>
               {/* Qué datos hay cargados y de dónde. Varias pestañas solo

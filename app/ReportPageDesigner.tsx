@@ -2,12 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type PointerEvent as ReactPointerEvent } from "react";
 import {
+  Check,
+  ChevronRight,
   Columns,
   Grip,
   ImageIcon,
   MoveDown,
   MoveUp,
-  Palette,
+  Plus,
   RotateCcw,
   Search,
   Sparkles,
@@ -176,6 +178,7 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
   const [loaded, setLoaded] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState("");
+  const [pestana, setPestana] = useState<"pagina" | "bloque">("pagina");
   const gridRef = useRef<HTMLDivElement>(null);
   const config = pages[pageNumber] ?? defaultPage(pageNumber);
   const selected = useMemo(() => config.blocks.find((block) => block.id === selectedId) ?? null, [config.blocks, selectedId]);
@@ -280,6 +283,13 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
     setPages((current) => ({ ...current, [pageNumber]: updater(current[pageNumber]) }));
   }
 
+  // Tocar un bloque lleva el inspector a sus ajustes, como en Pages: quien
+  // acaba de elegir algo quiere editarlo, no buscar dónde se edita.
+  function elegirBloque(id: string) {
+    setSelectedId(id);
+    setPestana("bloque");
+  }
+
   function patchSelected(patch: Partial<PageBlock>) {
     if (!selected) return;
     setConfig((current) => updateBlock(current, selected.id, patch));
@@ -287,7 +297,7 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
 
   function addBlock(type: BlockType) {
     if (hasSimilarityComparison) {
-      setSelectedId(type === "text" ? SIMILARITY_NOTES_BLOCK_ID : SIMILARITY_BLOCK_ID);
+      elegirBloque(type === "text" ? SIMILARITY_NOTES_BLOCK_ID : SIMILARITY_BLOCK_ID);
       return;
     }
     const id = `p${pageNumber}-${type}-${Date.now()}`;
@@ -300,13 +310,13 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
       ? imageBlock(id, "Nueva visualización", newSpan, 260)
       : { ...textBlock(id, "Nuevo bloque de texto", "Escribe aquí tu análisis…", newSpan, 180), color: theme.ink };
     setConfig((current) => ({ ...current, blocks: [...current.blocks, block] }));
-    setSelectedId(id);
+    elegirBloque(id);
   }
 
   function addImageComment(placement: "below" | "side") {
     if (!selected || selected.type !== "image") return;
     if (hasSimilarityComparison) {
-      setSelectedId(SIMILARITY_NOTES_BLOCK_ID);
+      elegirBloque(SIMILARITY_NOTES_BLOCK_ID);
       return;
     }
     const id = `p${pageNumber}-comment-${Date.now()}`;
@@ -332,7 +342,7 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
       blocks.splice(sourceIndex + 1, 0, comment);
       return { ...current, columns, blocks };
     });
-    setSelectedId(id);
+    elegirBloque(id);
   }
 
   function removeSelected() {
@@ -444,7 +454,7 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
     const columnWidth = (gridWidth - config.gap * (config.columns - 1)) / config.columns;
     if (columnWidth <= 0) return;
     event.currentTarget.setPointerCapture(event.pointerId);
-    setSelectedId(block.id);
+    elegirBloque(block.id);
     setDraggedId("");
     setResizeSession({
       id: block.id,
@@ -483,6 +493,7 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
   const selectedHeightBounds = selected
     ? reportBlockHeightBounds(selected.type, selected.id === SIMILARITY_NOTES_BLOCK_ID)
     : reportBlockHeightBounds("text");
+  const spanElegido = selected ? clampReportBlockSpan(selected.span, config.columns) : 0;
   const similarityNotes = hasSimilarityComparison
     ? config.blocks.find((block) => block.id === SIMILARITY_NOTES_BLOCK_ID && block.type === "text")
     : undefined;
@@ -494,69 +505,142 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
 
   return (
     <div className="designer-workspace">
-      <aside className="designer-controls">
-        <div className="designer-panel-head"><div><span className="mini-icon"><Columns size={18} /></span><div><h2>{tf("Diseño de página {n}", { n: pageNumber })}</h2><p>{t("Grid, estilo y contenido")}</p></div></div><span className="tiny-state">AUTO SAVE</span></div>
+      {/* El inspector, como el de Pages o Keynote.
 
-
-        <div className="designer-section">
-          <div className="designer-section-title"><span>{t("Plantilla de grid")}</span><small>{tf("{n} columnas", { n: config.columns })}</small></div>
-          <div className="layout-presets">
-            <button disabled={hasSimilarityComparison} onClick={() => applyLayout("single")} title={t("Una columna")}><i className="layout-one"><b /></i><span>{t("Simple")}</span></button>
-            <button disabled={hasSimilarityComparison} onClick={() => applyLayout("split")} title={t("Dos columnas")}><i className="layout-two"><b /><b /></i><span>{t("Doble")}</span></button>
-            <button disabled={hasSimilarityComparison} onClick={() => applyLayout("feature")} title={t("Bloque destacado")}><i className="layout-feature"><b /><b /><b /></i><span>{t("Portada")}</span></button>
-            <button disabled={hasSimilarityComparison} onClick={() => applyLayout("mosaic")} title={t("Mosaico")}><i className="layout-mosaic"><b /><b /><b /></i><span>{t("Mosaico")}</span></button>
-          </div>
-          {hasSimilarityComparison && <p className="shared-design-note">{t("La comparación mantiene una estructura fija para que el texto nunca se superponga con la visualización.")}</p>}
-          <label className="range-row"><span>{t("Espacio entre bloques")} <b>{config.gap}px</b></span><input type="range" min="4" max="40" value={config.gap} onChange={(event) => setConfig((current) => ({ ...current, gap: Number(event.target.value) }))} /></label>
+          Eran cinco secciones seguidas en una columna de 1.150 px —plantilla,
+          colores, añadir, el bloque elegido y restablecer—, cada una con su
+          borde dentro de otro borde, así que para cambiar el tamaño de letra
+          había que bajar pasando por la paleta. Ahora son dos pestañas: lo que
+          afecta a la página y lo que afecta al bloque. Dentro, filas agrupadas:
+          el nombre a la izquierda y el valor o el control a la derecha. */}
+      <aside className="designer-controls inspector">
+        <header className="inspector-cabecera">
+          <h2>{tf("Página {n}", { n: pageNumber })}</h2>
+          <span className="inspector-guardado"><Check size={12} />{t("Se guarda sola")}</span>
+        </header>
+        <div className="inspector-pestanas" role="tablist" aria-label={t("Ajustes del diseño")}>
+          <button type="button" role="tab" aria-selected={pestana === "pagina"} className={pestana === "pagina" ? "activa" : ""} onClick={() => setPestana("pagina")}>{t("Página")}</button>
+          <button type="button" role="tab" aria-selected={pestana === "bloque"} className={pestana === "bloque" ? "activa" : ""} onClick={() => setPestana("bloque")}>{t("Bloque")}</button>
         </div>
 
-        <div className="designer-section">
-          <div className="designer-section-title"><span>{t("Diseño compartido")}</span><Palette size={15} /></div>
-          <p className="shared-design-note">{t("Se aplica automáticamente a Ficha, Visuales y Observaciones.")}</p>
-          <div className="theme-swatches">{REPORT_THEMES.map((option) => <button key={option.name} className={theme.name === option.name ? "active" : ""} onClick={() => applyTheme(option)} title={option.name}><i style={{ background: option.paper }}><b style={{ background: option.accent }} /></i><span>{option.name}</span></button>)}</div>
-          <div className="color-inputs"><label><span>{t("Acento")}</span><input type="color" value={theme.accent} onChange={(event) => onThemeChange({ ...theme, name: "Personalizado", accent: event.target.value })} /></label><label><span>{t("Papel")}</span><input type="color" value={theme.paper} onChange={(event) => onThemeChange({ ...theme, name: "Personalizado", paper: event.target.value })} /></label><label><span>{t("Texto")}</span><input type="color" value={theme.ink} onChange={(event) => applyTheme({ ...theme, name: "Personalizado", ink: event.target.value })} /></label></div>
-        </div>
+        {pestana === "pagina" ? <>
+          <section className="inspector-grupo">
+            <h3 className="inspector-titulo">{t("Plantilla de grid")}<small>{tf("{n} columnas", { n: config.columns })}</small></h3>
+            <div className="inspector-tarjeta">
+              <div className="inspector-plantillas">
+                <button type="button" disabled={hasSimilarityComparison} onClick={() => applyLayout("single")} title={t("Una columna")}><i className="layout-one"><b /></i><span>{t("Simple")}</span></button>
+                <button type="button" disabled={hasSimilarityComparison} onClick={() => applyLayout("split")} title={t("Dos columnas")}><i className="layout-two"><b /><b /></i><span>{t("Doble")}</span></button>
+                <button type="button" disabled={hasSimilarityComparison} onClick={() => applyLayout("feature")} title={t("Bloque destacado")}><i className="layout-feature"><b /><b /><b /></i><span>{t("Portada")}</span></button>
+                <button type="button" disabled={hasSimilarityComparison} onClick={() => applyLayout("mosaic")} title={t("Mosaico")}><i className="layout-mosaic"><b /><b /><b /></i><span>{t("Mosaico")}</span></button>
+              </div>
+              <label className="inspector-fila inspector-deslizador"><span>{t("Espacio entre bloques")}</span><b>{config.gap}px</b><input type="range" min="4" max="40" value={config.gap} onChange={(event) => setConfig((current) => ({ ...current, gap: Number(event.target.value) }))} /></label>
+            </div>
+            {hasSimilarityComparison && <p className="inspector-pie">{t("La comparación mantiene una estructura fija para que el texto nunca se superponga con la visualización.")}</p>}
+          </section>
 
-        <div className="designer-section add-block-section">
-          <div className="designer-section-title"><span>{t("Agregar contenido")}</span><small>{tf("{n} bloques", { n: config.blocks.length })}</small></div>
-          {hasSimilarityComparison
-            ? <div className="add-block-buttons single"><button onClick={() => addBlock("text")}><TextIcon size={16} /><span><b>{t("Editar comentarios")}</b><small>{t("Texto debajo de la comparación")}</small></span></button></div>
-            : <div className="add-block-buttons"><button onClick={() => addBlock("image")}><ImageIcon size={17} /><span><b>{t("Imagen")}</b><small>{t("Mapa, gráfico o captura")}</small></span></button><button onClick={() => addBlock("text")}><TextIcon size={16} /><span><b>{t("Texto")}</b><small>{t("Lectura u observación")}</small></span></button></div>}
-        </div>
+          <section className="inspector-grupo">
+            <h3 className="inspector-titulo">{t("Diseño compartido")}</h3>
+            <div className="inspector-tarjeta">
+              <div className="inspector-temas">{REPORT_THEMES.map((option) => <button key={option.name} type="button" aria-pressed={theme.name === option.name} className={theme.name === option.name ? "activo" : ""} onClick={() => applyTheme(option)} title={option.name}><i style={{ background: option.paper }}><b style={{ background: option.accent }} /></i><span>{option.name}</span></button>)}</div>
+              <label className="inspector-fila"><span>{t("Acento")}</span><input type="color" value={theme.accent} onChange={(event) => onThemeChange({ ...theme, name: "Personalizado", accent: event.target.value })} /></label>
+              <label className="inspector-fila"><span>{t("Papel")}</span><input type="color" value={theme.paper} onChange={(event) => onThemeChange({ ...theme, name: "Personalizado", paper: event.target.value })} /></label>
+              <label className="inspector-fila"><span>{t("Texto")}</span><input type="color" value={theme.ink} onChange={(event) => applyTheme({ ...theme, name: "Personalizado", ink: event.target.value })} /></label>
+            </div>
+            <p className="inspector-pie">{t("Se aplica automáticamente a Ficha, Visuales y Observaciones.")}</p>
+          </section>
 
-        {selected && <div className="designer-section selected-editor">
-          <div className="designer-section-title"><span>{t("Bloque seleccionado")}</span><div className="order-buttons"><button disabled={hasSimilarityComparison} onClick={() => moveSelected(-1)} title={t("Mover antes")}><MoveUp size={14} /></button><button disabled={hasSimilarityComparison} onClick={() => moveSelected(1)} title={t("Mover después")}><MoveDown size={14} /></button><button disabled={hasSimilarityComparison && selected.id === SIMILARITY_NOTES_BLOCK_ID} className="delete-block" onClick={removeSelected} title={t("Eliminar bloque")}><Trash size={14} /></button></div></div>
-          <label className="field-group"><span className="field-label">{t("Etiqueta")}</span><input className="text-input" value={displayText(selected.title)} onChange={(event) => patchSelected({ title: event.target.value })} /></label>
-          {selected.id !== SIMILARITY_BLOCK_ID && <>
-            {!hasSimilarityComparison && <div className="span-buttons"><span className="field-label">{t("Ancho")}</span><div>{REPORT_SPAN_PRESETS.map((preset) => <button key={preset.span} className={clampReportBlockSpan(selected.span, config.columns) === preset.span ? "active" : ""} onClick={() => patchSelected({ span: preset.span })}>{preset.label === "Completo" ? t("Completo") : preset.label}</button>)}</div></div>}
-            <label className="range-row block-height"><span>{t("Alto del espacio")} <b>{selected.height}px</b></span><input type="range" min={selectedHeightBounds.min} max={selectedHeightBounds.max} step="10" value={clampReportBlockHeight(selected.height, selected.type, selected.id === SIMILARITY_NOTES_BLOCK_ID)} onChange={(event) => patchSelected({ height: Number(event.target.value) })} /></label>
-            <p className="resize-alignment-note"><b>{selected.type === "text" ? "↕" : "↘"}</b><span>{selected.type === "text" ? t("Arrastra el tirador inferior para cambiar solo el alto. La esquina mantiene el ajuste combinado.") : t("Arrastra la esquina del bloque. El ancho encaja en columnas y el alto en una retícula de 10 px.")}</span></p>
+          <section className="inspector-grupo">
+            <h3 className="inspector-titulo">{t("Agregar contenido")}<small>{tf("{n} bloques", { n: config.blocks.length })}</small></h3>
+            <div className="inspector-tarjeta">
+              {hasSimilarityComparison
+                ? <button type="button" className="inspector-fila inspector-accion" onClick={() => addBlock("text")}><span className="inspector-icono"><TextIcon size={15} /></span><span className="inspector-accion-texto"><b>{t("Editar comentarios")}</b><small>{t("Texto debajo de la comparación")}</small></span><ChevronRight size={15} className="inspector-galon" /></button>
+                : <>
+                  <button type="button" className="inspector-fila inspector-accion" onClick={() => addBlock("image")}><span className="inspector-icono"><ImageIcon size={15} /></span><span className="inspector-accion-texto"><b>{t("Imagen")}</b><small>{t("Mapa, gráfico o captura")}</small></span><Plus size={16} className="inspector-galon" /></button>
+                  <button type="button" className="inspector-fila inspector-accion" onClick={() => addBlock("text")}><span className="inspector-icono"><TextIcon size={15} /></span><span className="inspector-accion-texto"><b>{t("Texto")}</b><small>{t("Lectura u observación")}</small></span><Plus size={16} className="inspector-galon" /></button>
+                </>}
+            </div>
+          </section>
+
+          <section className="inspector-grupo">
+            <div className="inspector-tarjeta">
+              <button type="button" className="inspector-fila inspector-restablecer" onClick={() => { const base = defaultPage(pageNumber); const defaults = { ...base, blocks: base.blocks.map((block) => block.type === "text" ? { ...block, color: theme.ink } : block) }; setConfig(() => defaults); setSelectedId(defaults.blocks[0].id); }}><RotateCcw size={14} />{t("Restablecer página")}</button>
+            </div>
+          </section>
+        </> : !selected ? <p className="inspector-vacio">{t("Elige un bloque en la hoja para editarlo.")}</p> : <>
+          <section className="inspector-grupo">
+            <div className="inspector-tarjeta">
+              <div className="inspector-fila inspector-bloque">
+                <span className="inspector-bloque-nombre"><b>{displayText(selected.title) || (selected.type === "image" ? t("Imagen") : t("Texto"))}</b><small>{selected.type === "image" ? t("Imagen") : t("Texto")} · {spanElegido}/{config.columns}</small></span>
+                <span className="inspector-orden">
+                  <button type="button" disabled={hasSimilarityComparison} onClick={() => moveSelected(-1)} title={t("Mover antes")} aria-label={t("Mover antes")}><MoveUp size={15} /></button>
+                  <button type="button" disabled={hasSimilarityComparison} onClick={() => moveSelected(1)} title={t("Mover después")} aria-label={t("Mover después")}><MoveDown size={15} /></button>
+                  <button type="button" disabled={hasSimilarityComparison && selected.id === SIMILARITY_NOTES_BLOCK_ID} className="peligro" onClick={removeSelected} title={t("Eliminar bloque")} aria-label={t("Eliminar bloque")}><Trash size={15} /></button>
+                </span>
+              </div>
+            </div>
+          </section>
+
+          <section className="inspector-grupo">
+            <h3 className="inspector-titulo">{t("Etiqueta")}</h3>
+            <div className="inspector-tarjeta"><input className="inspector-campo" aria-label={t("Etiqueta")} value={displayText(selected.title)} onChange={(event) => patchSelected({ title: event.target.value })} /></div>
+          </section>
+
+          {selected.id !== SIMILARITY_BLOCK_ID && <section className="inspector-grupo">
+            <h3 className="inspector-titulo">{t("Tamaño")}</h3>
+            <div className="inspector-tarjeta">
+              {!hasSimilarityComparison && <label className="inspector-fila"><span>{t("Ancho")}</span><select className="inspector-selector" value={spanElegido} onChange={(event) => patchSelected({ span: Number(event.target.value) })}>
+                {/* Un bloque redimensionado a mano puede quedar en un ancho que no
+                    es de la lista; sin esta opción el menú mentiría. */}
+                {!REPORT_SPAN_PRESETS.some((preset) => preset.span === spanElegido) && <option value={spanElegido}>{spanElegido}/{config.columns}</option>}
+                {REPORT_SPAN_PRESETS.map((preset) => <option key={preset.span} value={preset.span}>{preset.label === "Completo" ? t("Completo") : preset.label}</option>)}
+              </select></label>}
+              <label className="inspector-fila inspector-deslizador"><span>{t("Alto del espacio")}</span><b>{selected.height}px</b><input type="range" min={selectedHeightBounds.min} max={selectedHeightBounds.max} step="10" value={clampReportBlockHeight(selected.height, selected.type, selected.id === SIMILARITY_NOTES_BLOCK_ID)} onChange={(event) => patchSelected({ height: Number(event.target.value) })} /></label>
+            </div>
+            <p className="inspector-pie">{selected.type === "text" ? t("Arrastra el tirador inferior para cambiar solo el alto. La esquina mantiene el ajuste combinado.") : t("Arrastra la esquina del bloque. El ancho encaja en columnas y el alto en una retícula de 10 px.")}</p>
+          </section>}
+
+          {selected.type === "image" ? (selected.id === SIMILARITY_BLOCK_ID
+            ? <section className="inspector-grupo"><div className="inspector-tarjeta"><p className="inspector-nota">
+                <b>{t(selected.similarity || selected.html ? "Calidad nativa activa" : "Comentarios separados")}</b>
+                <span>{t(selected.similarity || selected.html
+                  ? "El texto y el radar se exportan como elementos vectoriales, no como una captura."
+                  : "Usa «Editar comentarios» para mantener el texto debajo de la comparación.")}</span>
+              </p></div></section>
+            : <>
+              <section className="inspector-grupo">
+                <h3 className="inspector-titulo">{t("Ajuste de imagen")}</h3>
+                <div className="inspector-tarjeta"><div className="inspector-fila"><div className="inspector-segmentos ancho" role="group" aria-label={t("Ajuste de imagen")}><button type="button" aria-pressed={selected.fit === "contain"} className={selected.fit === "contain" ? "activa" : ""} onClick={() => patchSelected({ fit: "contain" })}>{t("Completa")}</button><button type="button" aria-pressed={selected.fit === "cover"} className={selected.fit === "cover" ? "activa" : ""} onClick={() => patchSelected({ fit: "cover" })}>{t("Recorta")}</button></div></div></div>
+              </section>
+              <section className="inspector-grupo">
+                <h3 className="inspector-titulo">{t("Agregar comentario a esta imagen")}</h3>
+                <div className="inspector-tarjeta">
+                  <button type="button" className="inspector-fila inspector-accion" onClick={() => addImageComment("below")}><span className="inspector-icono"><TextIcon size={15} /></span><span className="inspector-accion-texto"><b>{t("Debajo")}</b><small>{t("Imagen arriba, texto abajo")}</small></span><Plus size={16} className="inspector-galon" /></button>
+                  <button type="button" className="inspector-fila inspector-accion" onClick={() => addImageComment("side")}><span className="inspector-icono"><Columns size={15} /></span><span className="inspector-accion-texto"><b>{t("Al lado")}</b><small>{t("Imagen y texto en columnas")}</small></span><Plus size={16} className="inspector-galon" /></button>
+                </div>
+                <p className="inspector-pie">{t("Se crea un bloque de texto independiente que puedes editar, mover y redimensionar.")}</p>
+              </section>
+            </>) : <>
+            <section className="inspector-grupo">
+              <h3 className="inspector-titulo">{t("Contenido")}{aiFacts && <button type="button" className="designer-ai-button" disabled={aiLoading} onClick={() => void writeExtendedReport(selected.id)}><Sparkles size={11} /> {aiLoading ? t("Escribiendo…") : t("Informe con IA")}</button>}</h3>
+              <div className="inspector-tarjeta"><textarea className="inspector-texto" aria-label={t("Contenido")} value={displayText(selected.content)} onChange={(event) => patchSelected({ content: event.target.value })} /></div>
+              {aiError && <p className="inline-error">{aiError}</p>}
+            </section>
+            <section className="inspector-grupo">
+              <h3 className="inspector-titulo">{t("Formato del texto")}</h3>
+              <div className="inspector-tarjeta">
+                <div className="inspector-fila"><span>{t("Estilo")}</span><div className="inspector-segmentos"><button type="button" aria-pressed={selected.bold} className={selected.bold ? "activa" : ""} onClick={() => patchSelected({ bold: !selected.bold })}><b>B</b></button><button type="button" aria-pressed={selected.italic} className={selected.italic ? "activa" : ""} onClick={() => patchSelected({ italic: !selected.italic })}><i>I</i></button></div><input type="color" value={usesSharedTextColor(selected.color, theme.ink) ? theme.ink : selected.color} onChange={(event) => patchSelected({ color: event.target.value })} title={t("Color de texto")} aria-label={t("Color de texto")} /></div>
+                <label className="inspector-fila"><span>{t("Tipografía")}</span><select className="inspector-selector" value={selected.font} onChange={(event) => patchSelected({ font: event.target.value })}>{FONT_OPTIONS.map((font) => <option key={font.value} value={font.value}>{font.label}</option>)}</select></label>
+                <label className="inspector-fila inspector-deslizador"><span>{t("Tamaño de letra")}</span><b>{selected.fontSize}px</b><input type="range" min="11" max="42" value={selected.fontSize} onChange={(event) => patchSelected({ fontSize: Number(event.target.value) })} /></label>
+                <div className="inspector-fila"><span>{t("Alineación")}</span><div className="inspector-segmentos"><button type="button" aria-pressed={selected.align === "left"} className={selected.align === "left" ? "activa" : ""} onClick={() => patchSelected({ align: "left" })}>{t("Izq.")}</button><button type="button" aria-pressed={selected.align === "center"} className={selected.align === "center" ? "activa" : ""} onClick={() => patchSelected({ align: "center" })}>{t("Centro")}</button><button type="button" aria-pressed={selected.align === "right"} className={selected.align === "right" ? "activa" : ""} onClick={() => patchSelected({ align: "right" })}>{t("Der.")}</button></div></div>
+              </div>
+            </section>
           </>}
 
-          {selected.type === "image" ? <div className="image-options">
-            {selected.id === SIMILARITY_BLOCK_ID
-              ? <p className="native-similarity-note">
-                  <b>{t(selected.similarity || selected.html ? "Calidad nativa activa" : "Comentarios separados")}</b>
-                  <span>{t(selected.similarity || selected.html
-                    ? "El texto y el radar se exportan como elementos vectoriales, no como una captura."
-                    : "Usa «Editar comentarios» para mantener el texto debajo de la comparación.")}</span>
-                </p>
-              : <><span className="field-label">{t("Ajuste de imagen")}</span><div className="segmented"><button className={selected.fit === "contain" ? "active" : ""} onClick={() => patchSelected({ fit: "contain" })}>{t("Completa")}</button><button className={selected.fit === "cover" ? "active" : ""} onClick={() => patchSelected({ fit: "cover" })}>{t("Recorta")}</button></div>
-                <div className="image-comment-tools"><span className="field-label">{t("Agregar comentario a esta imagen")}</span><div><button onClick={() => addImageComment("below")}><TextIcon size={15} /><span><b>{t("Debajo")}</b><small>{t("Imagen arriba, texto abajo")}</small></span></button><button onClick={() => addImageComment("side")}><Columns size={15} /><span><b>{t("Al lado")}</b><small>{t("Imagen y texto en columnas")}</small></span></button></div><p>{t("Se crea un bloque de texto independiente que puedes editar, mover y redimensionar.")}</p></div></>}
-          </div> : <>
-            <label className="field-group"><span className="field-label">{t("Contenido")}{aiFacts && <button type="button" className="designer-ai-button" disabled={aiLoading} onClick={() => void writeExtendedReport(selected.id)}><Sparkles size={11} /> {aiLoading ? t("Escribiendo…") : t("Informe con IA")}</button>}</span><textarea className="designer-textarea" value={displayText(selected.content)} onChange={(event) => patchSelected({ content: event.target.value })} /></label>
-            {aiError && <p className="inline-error">{aiError}</p>}
-            <div className="text-toolbar"><button className={selected.bold ? "active" : ""} onClick={() => patchSelected({ bold: !selected.bold })}><b>B</b></button><button className={selected.italic ? "active" : ""} onClick={() => patchSelected({ italic: !selected.italic })}><i>I</i></button><select value={selected.font} onChange={(event) => patchSelected({ font: event.target.value })}>{FONT_OPTIONS.map((font) => <option key={font.value} value={font.value}>{font.label}</option>)}</select><input type="color" value={usesSharedTextColor(selected.color, theme.ink) ? theme.ink : selected.color} onChange={(event) => patchSelected({ color: event.target.value })} title={t("Color de texto")} /></div>
-            <label className="range-row"><span>{t("Tamaño de letra")} <b>{selected.fontSize}px</b></span><input type="range" min="11" max="42" value={selected.fontSize} onChange={(event) => patchSelected({ fontSize: Number(event.target.value) })} /></label>
-            <div className="segmented align-buttons"><button className={selected.align === "left" ? "active" : ""} onClick={() => patchSelected({ align: "left" })}>{t("Izq.")}</button><button className={selected.align === "center" ? "active" : ""} onClick={() => patchSelected({ align: "center" })}>{t("Centro")}</button><button className={selected.align === "right" ? "active" : ""} onClick={() => patchSelected({ align: "right" })}>{t("Der.")}</button></div>
-          </>}
-        </div>}
-
-        <button className="reset-design" onClick={() => { const base = defaultPage(pageNumber); const defaults = { ...base, blocks: base.blocks.map((block) => block.type === "text" ? { ...block, color: theme.ink } : block) }; setConfig(() => defaults); setSelectedId(defaults.blocks[0].id); }}><RotateCcw size={14} /> {t("Restablecer página")}</button>
+          {!hasSimilarityComparison && <p className="inspector-pie inspector-pie-suelto">{t("Arrastra un bloque en la hoja para cambiarlo de sitio.")}</p>}
+        </>}
       </aside>
 
       <section className="designer-stage" style={{ background: theme.canvas }}>
-        <div className="preview-toolbar designer-toolbar"><div><span className="live-dot" /> {tf("Página {n} · Editor visual", { n: pageNumber })}</div><span><Grip size={14} /> {t("Arrastra para ordenar · ↕ abajo a la izquierda cambia solo el alto · ↘ en la esquina ajusta ancho y alto")}</span></div>
         <div className="legal-page-shell">
         <article className={`visual-report-page unified-report-page ${hasSimilarityComparison ? "similarity-legal-page" : ""}`} style={canvasStyle}>
           {pageNumber >= FIRST_VISUAL_PAGE && <>
@@ -573,7 +657,7 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
               const fixedSimilarityNotes = hasSimilarityComparison && block.id === SIMILARITY_NOTES_BLOCK_ID;
               const blockHeight = clampReportBlockHeight(block.height, block.type, block.id === SIMILARITY_NOTES_BLOCK_ID);
               const textStyle = { color: usesSharedTextColor(block.color, theme.ink) ? theme.ink : block.color, fontFamily: fontFamily(block.font), fontSize: block.fontSize, fontWeight: block.bold ? 700 : 400, fontStyle: block.italic ? "italic" : "normal", textAlign: block.align } as CSSProperties;
-              return <div key={block.id} data-block-id={block.id} draggable={!resizeSession && !nativeSimilarity && !hasSimilarityComparison} className={`visual-block visual-${block.type} ${block.id === SIMILARITY_BLOCK_ID ? "similarity-comparison-block" : ""} ${nativeSimilarity ? "similarity-native-block" : ""} ${fixedSimilarityNotes ? "similarity-notes-block" : ""} ${selected?.id === block.id ? "selected" : ""} ${draggedId === block.id ? "dragging" : ""} ${resizeSession?.id === block.id ? "resizing" : ""}`} style={{ gridColumn: `span ${span}`, height: blockHeight }} onClick={() => setSelectedId(block.id)} onDragStart={() => { if (!nativeSimilarity && !hasSimilarityComparison) { setDraggedId(block.id); setSelectedId(block.id); } }} onDragEnd={() => setDraggedId("")} onDragOver={(event) => event.preventDefault()} onDrop={(event) => onDropBlock(event, block.id)} role="button" tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedId(block.id); } }}>
+              return <div key={block.id} data-block-id={block.id} draggable={!resizeSession && !nativeSimilarity && !hasSimilarityComparison} className={`visual-block visual-${block.type} ${block.id === SIMILARITY_BLOCK_ID ? "similarity-comparison-block" : ""} ${nativeSimilarity ? "similarity-native-block" : ""} ${fixedSimilarityNotes ? "similarity-notes-block" : ""} ${selected?.id === block.id ? "selected" : ""} ${draggedId === block.id ? "dragging" : ""} ${resizeSession?.id === block.id ? "resizing" : ""}`} style={{ gridColumn: `span ${span}`, height: blockHeight }} onClick={() => elegirBloque(block.id)} onDragStart={() => { if (!nativeSimilarity && !hasSimilarityComparison) { setDraggedId(block.id); elegirBloque(block.id); } }} onDragEnd={() => setDraggedId("")} onDragOver={(event) => event.preventDefault()} onDrop={(event) => onDropBlock(event, block.id)} role="button" tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); elegirBloque(block.id); } }}>
                 <div className="block-chrome"><span><Grip size={13} /> {displayText(block.title) || (block.type === "image" ? t("Imagen") : t("Texto"))}</span><small>{span}/{config.columns}</small></div>
                 {block.type === "image" ? nativeSimilarity
                   ? block.similarity

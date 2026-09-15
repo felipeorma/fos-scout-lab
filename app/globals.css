@@ -4871,3 +4871,258 @@ button.menu-fila:active { transform: scale(.985); }
   .datos-cifras { grid-template-columns: 1fr; }
   .app-shell[data-tema] .datos-cifra + .datos-cifra { box-shadow: inset 0 1px 0 var(--line); }
 }
+
+/* =====================================================================
+   Rediseño 8 · Portada y Visuales
+   ===================================================================== */
+
+/* ---- Portada: una columna sobre el fondo, sin tarjeta alrededor ---- */
+.app-shell[data-tema] .portada {
+  max-width: 580px; margin: 0 auto; padding: 36px 20px 56px;
+  display: flex; flex-direction: column; gap: 28px;
+  color: var(--ink);
+}
+.app-shell[data-tema] .portada .portada-marca { max-width: none; margin: 0; text-align: center; }
+.app-shell[data-tema] .portada img.portada-retrato { width: 84px; height: 84px; margin: 0 auto 14px; }
+.app-shell[data-tema] .portada .portada-marca h1 {
+  margin: 0 0 6px; color: var(--ink);
+  font-size: clamp(34px, 5vw, 44px); font-weight: 700; letter-spacing: -.028em; line-height: 1.05;
+}
+.app-shell[data-tema] .portada p.portada-oficio { margin: 0 0 4px; color: var(--acento-claro); font-size: 15px; font-weight: 600; }
+.app-shell[data-tema] .portada p.portada-lema { margin: 0 0 16px; color: var(--muted); font-size: 13px; letter-spacing: 0; }
+.app-shell[data-tema] .portada .portada-plataformas { gap: 12px; padding: 0; border: 0; }
+
+/* Las cifras, en la misma tarjeta que el resumen de Base activa. */
+.app-shell[data-tema] .portada .portada-cifras {
+  margin: 0; padding: 0; gap: 0;
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  border: 0; border-radius: 14px; background: var(--paper); box-shadow: 0 0 0 1px var(--line);
+}
+.app-shell[data-tema] .portada .portada-cifras > span { padding: 14px 12px; align-items: center; gap: 3px; text-align: center; }
+.app-shell[data-tema] .portada .portada-cifras > span + span { box-shadow: inset 1px 0 0 var(--line); }
+.app-shell[data-tema] .portada .portada-cifras b { color: var(--ink); font-size: 26px; font-weight: 700; letter-spacing: -.02em; line-height: 1.05; }
+.app-shell[data-tema] .portada .portada-cifras small { color: var(--muted); font-size: 11.5px; font-weight: 500; letter-spacing: normal; text-transform: none; }
+
+/* Las tres entradas: filas con baldosa, texto y galón. */
+.app-shell[data-tema] .portada h2 { margin: 0 4px 10px; color: var(--ink); font-size: 17px; font-weight: 600; letter-spacing: -.01em; text-align: left; }
+.app-shell[data-tema] .portada-opciones {
+  overflow: hidden; border-radius: 14px; background: var(--paper); box-shadow: 0 0 0 1px var(--line);
+}
+.app-shell[data-tema] button.portada-opcion {
+  position: relative; width: 100%; min-height: 68px; margin: 0; padding: 12px 14px;
+  display: flex; align-items: center; gap: 12px;
+  border: 0; border-radius: 0; background: none; box-shadow: none;
+  color: var(--ink); font: inherit; text-align: left; cursor: pointer;
+  transition: background-color .15s var(--curva);
+}
+.app-shell[data-tema] button.portada-opcion + button.portada-opcion::before {
+  content: ""; position: absolute; top: 0; right: 0; left: 60px; height: 1px; background: var(--line);
+}
+.app-shell[data-tema] button.portada-opcion:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 4%, transparent); }
+.app-shell[data-tema] button.portada-opcion:active:not(:disabled) { background: color-mix(in srgb, var(--ink) 8%, transparent); transition: none; }
+.app-shell[data-tema] button.portada-opcion:disabled { cursor: progress; }
+.app-shell[data-tema] button.portada-opcion:disabled:not(.destacada) { opacity: .5; }
+.app-shell[data-tema] .portada-opcion-icono {
+  flex: none; width: 34px; height: 34px; display: grid; place-items: center;
+  border-radius: 9px; color: #fff; background: #7c7c82;
+}
+.app-shell[data-tema] .portada-opcion.destacada .portada-opcion-icono { background: var(--acento); }
+.portada-opcion-texto { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.app-shell[data-tema] .portada-opcion-texto > b { color: var(--ink); font-size: 14px; font-weight: 600; }
+.app-shell[data-tema] .portada-opcion-texto > b > em {
+  margin-left: 4px; padding: 2px 7px; display: inline-block; vertical-align: 1px;
+  border-radius: 999px; color: var(--acento-claro); background: var(--acento-suave);
+  font-size: 10.5px; font-style: normal; font-weight: 600; line-height: 1.2;
+}
+.app-shell[data-tema] .portada-opcion-texto > small { color: var(--muted); font-size: 12px; line-height: 1.45; }
+.app-shell[data-tema] .portada-opcion-galon { flex: none; color: var(--muted); opacity: .6; }
+.app-shell[data-tema] span.portada-opcion-estado { flex: none; color: var(--muted); font-size: 12px; }
+.app-shell[data-tema] .portada div.carga-total { margin: 10px 4px 0; padding: 0; border: 0; background: none; color: var(--acento-claro); font-size: 12px; }
+.app-shell[data-tema] .portada p.portada-pie { margin: 8px 4px 0; max-width: none; color: var(--muted); font-size: 11.5px; line-height: 1.5; text-align: left; }
+.app-shell[data-tema] .portada .inline-error { margin: 10px 0 0; }
+.app-shell .portada-empezar { animation: portada-entra .42s var(--curva) both; animation-delay: .26s; }
+@media (prefers-reduced-motion: reduce) { .app-shell .portada-empezar { animation: none; } }
+@media (max-width: 480px) {
+  .app-shell[data-tema] .portada { padding-top: 24px; }
+  .app-shell[data-tema] .portada .portada-cifras b { font-size: 22px; }
+  .app-shell[data-tema] .portada .portada-cifras small { font-size: 10.5px; }
+}
+
+/* ---- Visuales: el inspector ---- */
+/* El segmento elegido va más claro que su carril en los dos temas: en claro
+   es el papel; en oscuro el papel es MÁS oscuro que el carril y el segmento
+   elegido parecería hundido, así que se aclara con la tinta. */
+.app-shell[data-tema] { --segmento: var(--paper); }
+.app-shell[data-tema="oscuro"] { --segmento: color-mix(in srgb, var(--ink) 16%, var(--paper)); }
+
+.app-shell[data-tema] aside.designer-controls.inspector {
+  padding: 16px 12px 18px;
+  border: 0; border-radius: 16px;
+  background: var(--canvas); box-shadow: 0 0 0 1px var(--line);
+}
+.inspector-cabecera { margin: 0 4px 12px; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.app-shell[data-tema] .inspector-cabecera h2 { margin: 0; color: var(--ink); font-size: 20px; font-weight: 700; letter-spacing: -.02em; }
+.app-shell[data-tema] span.inspector-guardado { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 11.5px; }
+
+.app-shell[data-tema] .inspector-pestanas {
+  margin: 0 0 18px; padding: 2px;
+  display: grid; grid-template-columns: 1fr 1fr;
+  border-radius: 9px; background: color-mix(in srgb, var(--ink) 7%, transparent);
+}
+.app-shell[data-tema] .inspector-pestanas > button {
+  min-height: 28px; padding: 0 8px;
+  border: 0; border-radius: 7px; background: none; box-shadow: none;
+  color: var(--ink); font-size: 12.5px; font-weight: 500; cursor: pointer;
+  transition: background-color .2s var(--curva), box-shadow .2s var(--curva);
+}
+.app-shell[data-tema] .inspector-pestanas > button.activa { background: var(--segmento); box-shadow: 0 1px 3px rgba(0,0,0,.12), 0 0 0 .5px rgba(0,0,0,.04); font-weight: 600; }
+
+.app-shell[data-tema] .inspector-grupo { margin: 0 0 18px; }
+.app-shell[data-tema] h3.inspector-titulo {
+  min-height: 18px; margin: 0 4px 6px;
+  display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+}
+.app-shell[data-tema] h3.inspector-titulo > small { color: var(--muted); font-size: 11px; font-weight: 400; letter-spacing: 0; text-transform: none; }
+.app-shell[data-tema] h3.inspector-titulo > .designer-ai-button { margin: 0; letter-spacing: 0; text-transform: none; }
+
+/* Tarjeta agrupada: filas separadas por un filete que no llega al borde
+   izquierdo, como en Ajustes. */
+.app-shell[data-tema] .inspector-tarjeta { overflow: hidden; border-radius: 12px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); }
+.app-shell[data-tema] .inspector-tarjeta > * { position: relative; }
+.app-shell[data-tema] .inspector-tarjeta > * + *::before {
+  content: ""; position: absolute; top: 0; right: 0; left: 12px; height: 1px; background: var(--line);
+}
+.app-shell[data-tema] .inspector-tarjeta > .inspector-accion + .inspector-accion::before { left: 50px; }
+.app-shell[data-tema] .inspector-tarjeta:has(> :is(input, textarea):focus-visible) { box-shadow: 0 0 0 1px var(--acento-borde), 0 0 0 4px var(--acento-suave); }
+
+.app-shell[data-tema] .inspector-fila {
+  min-height: 44px; margin: 0; padding: 8px 12px;
+  display: flex; align-items: center; gap: 10px;
+  color: var(--ink); font-size: 13px;
+}
+.app-shell[data-tema] .inspector-fila > span:not([class]) { flex: 1; min-width: 0; color: var(--ink); font-size: 13px; font-weight: 400; letter-spacing: 0; text-transform: none; }
+.app-shell[data-tema] .inspector-fila > b { color: var(--muted); font-size: 12.5px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.app-shell[data-tema] .inspector-deslizador { flex-wrap: wrap; row-gap: 2px; padding-bottom: 12px; }
+.app-shell[data-tema] .inspector-deslizador > input[type="range"] { flex: 1 0 100%; width: 100%; height: 4px; margin: 6px 0 0; accent-color: var(--acento); cursor: pointer; }
+.app-shell[data-tema] .inspector-fila > input[type="color"] {
+  flex: none; width: 26px; height: 26px; padding: 0;
+  border: 0; border-radius: 50%; background: none; cursor: pointer;
+}
+.inspector-fila > input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+.inspector-fila > input[type="color"]::-webkit-color-swatch { border: 1px solid rgba(0,0,0,.12); border-radius: 50%; }
+.inspector-fila > input[type="color"]::-moz-color-swatch { border: 1px solid rgba(0,0,0,.12); border-radius: 50%; }
+
+/* Menús emergentes: el valor en el color del espacio, a la derecha. */
+.app-shell[data-tema] select.inspector-selector {
+  flex: none; max-width: 60%; min-height: 30px; margin: 0; padding: 0 4px;
+  border: 0; border-radius: 7px; background: none; box-shadow: none;
+  color: var(--acento-claro); font-size: 13px; font-weight: 500; text-align: right; cursor: pointer;
+}
+.app-shell[data-tema] select.inspector-selector:focus-visible { outline: 2px solid var(--acento-borde); outline-offset: 1px; }
+
+/* Controles segmentados. */
+.app-shell[data-tema] .inspector-segmentos {
+  flex: none; padding: 2px;
+  display: inline-grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr);
+  border-radius: 8px; background: color-mix(in srgb, var(--ink) 7%, transparent);
+}
+.app-shell[data-tema] .inspector-segmentos.ancho { flex: 1; }
+.app-shell[data-tema] .inspector-segmentos > button {
+  min-width: 34px; min-height: 26px; padding: 0 8px;
+  border: 0; border-radius: 6px; background: none; box-shadow: none;
+  color: var(--ink); font-size: 12px; font-weight: 500; cursor: pointer;
+}
+.app-shell[data-tema] .inspector-segmentos > button.activa { background: var(--segmento); box-shadow: 0 1px 3px rgba(0,0,0,.12); font-weight: 600; }
+.app-shell[data-tema] .inspector-segmentos > button > :is(b, i) { color: inherit; font-size: 13px; }
+
+/* Plantillas: cuatro miniaturas. */
+.app-shell[data-tema] .inspector-plantillas { padding: 10px 8px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+.app-shell[data-tema] .inspector-plantillas > button {
+  padding: 8px 2px 6px; display: flex; flex-direction: column; align-items: center; gap: 6px;
+  border: 0; border-radius: 9px; background: none; box-shadow: none;
+  color: var(--ink); cursor: pointer;
+}
+.app-shell[data-tema] .inspector-plantillas > button:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.app-shell[data-tema] .inspector-plantillas > button:active:not(:disabled) { background: color-mix(in srgb, var(--ink) 9%, transparent); }
+.app-shell[data-tema] .inspector-plantillas > button:disabled { opacity: .38; cursor: not-allowed; }
+.app-shell[data-tema] .inspector-plantillas > button > i {
+  width: 40px; height: 30px; margin: 0; padding: 3px;
+  display: grid; gap: 2px;
+  border: 1px solid color-mix(in srgb, var(--ink) 22%, transparent); border-radius: 6px;
+}
+.app-shell[data-tema] .inspector-plantillas > button > i > b { min-width: 0; min-height: 0; display: block; border-radius: 2px; background: color-mix(in srgb, var(--ink) 28%, transparent); }
+.app-shell[data-tema] .inspector-plantillas > button > span { color: var(--ink); font-size: 11px; }
+
+/* Temas: círculos, con anillo en el vigente. */
+.app-shell[data-tema] .inspector-temas { padding: 10px 6px 8px; display: grid; grid-template-columns: repeat(auto-fill, minmax(50px, 1fr)); gap: 6px 2px; }
+.app-shell[data-tema] .inspector-temas > button {
+  min-width: 0; padding: 4px 0; display: flex; flex-direction: column; align-items: center; gap: 6px;
+  border: 0; background: none; box-shadow: none; cursor: pointer;
+}
+.app-shell[data-tema] .inspector-temas > button > i {
+  position: relative; width: 30px; height: 30px; margin: 0; display: block; overflow: hidden;
+  border: 0; border-radius: 50%; box-shadow: 0 0 0 1px rgba(0,0,0,.12);
+}
+.app-shell[data-tema] .inspector-temas > button > i > b { position: absolute; inset: 50% 0 0; height: auto; }
+.app-shell[data-tema] .inspector-temas > button.activo > i { box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px var(--acento); }
+.app-shell[data-tema] .inspector-temas > button > span { max-width: 100%; overflow: hidden; color: var(--muted); font-size: 10.5px; text-overflow: ellipsis; white-space: nowrap; }
+.app-shell[data-tema] .inspector-temas > button.activo > span { color: var(--ink); font-weight: 600; }
+
+/* Filas de acción. */
+.app-shell[data-tema] button.inspector-accion {
+  width: 100%; min-height: 52px;
+  border: 0; border-radius: 0; background: none; box-shadow: none;
+  text-align: left; cursor: pointer;
+}
+.app-shell[data-tema] button.inspector-accion:hover { background: color-mix(in srgb, var(--ink) 4%, transparent); }
+.app-shell[data-tema] button.inspector-accion:active { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.app-shell[data-tema] .inspector-icono { flex: none; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 7px; color: #fff; background: #7c7c82; }
+.inspector-accion-texto { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.app-shell[data-tema] .inspector-accion-texto > b { color: var(--ink); font-size: 13px; font-weight: 600; }
+.app-shell[data-tema] .inspector-accion-texto > small { color: var(--muted); font-size: 11.5px; line-height: 1.35; }
+.app-shell[data-tema] .inspector-galon { flex: none; color: var(--acento-claro); }
+.app-shell[data-tema] button.inspector-restablecer {
+  width: 100%; justify-content: center; gap: 6px;
+  border: 0; border-radius: 0; background: none; box-shadow: none;
+  color: var(--acento-claro); font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.app-shell[data-tema] button.inspector-restablecer:hover { background: color-mix(in srgb, var(--ink) 4%, transparent); }
+
+/* El bloque elegido: nombre, y a la derecha mover y borrar. */
+.app-shell[data-tema] .inspector-bloque { padding: 8px 6px 8px 12px; }
+.inspector-bloque-nombre { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.app-shell[data-tema] .inspector-bloque-nombre > b { overflow: hidden; color: var(--ink); font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.app-shell[data-tema] .inspector-bloque-nombre > small { color: var(--muted); font-size: 11.5px; }
+.inspector-orden { flex: none; display: flex; gap: 2px; }
+.app-shell[data-tema] .inspector-orden > button {
+  width: 32px; height: 32px; padding: 0; display: grid; place-items: center;
+  border: 0; border-radius: 8px; background: none; box-shadow: none;
+  color: var(--ink); cursor: pointer;
+}
+.app-shell[data-tema] .inspector-orden > button:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.app-shell[data-tema] .inspector-orden > button:disabled { opacity: .35; cursor: not-allowed; }
+.app-shell[data-tema] .inspector-orden > button.peligro { color: #ff6b6b; }
+.app-shell[data-tema="claro"] .inspector-orden > button.peligro { color: #c62828; }
+
+.app-shell[data-tema] input.inspector-campo {
+  width: 100%; height: 44px; margin: 0; padding: 0 12px;
+  border: 0; border-radius: 0; background: none; box-shadow: none;
+  color: var(--ink); font-size: 13px;
+}
+.app-shell[data-tema] textarea.inspector-texto {
+  width: 100%; min-height: 132px; margin: 0; padding: 10px 12px; display: block;
+  resize: vertical; border: 0; border-radius: 0; background: none; box-shadow: none;
+  color: var(--ink); font-family: inherit; font-size: 13px; line-height: 1.5;
+}
+.app-shell[data-tema] :is(input.inspector-campo, textarea.inspector-texto):focus { outline: 0; }
+.app-shell[data-tema] p.inspector-nota { margin: 0; padding: 12px; display: flex; flex-direction: column; gap: 3px; }
+.app-shell[data-tema] p.inspector-nota > b { color: var(--ink); font-size: 13px; }
+.app-shell[data-tema] p.inspector-nota > span { color: var(--muted); font-size: 12px; line-height: 1.45; }
+.app-shell[data-tema] p.inspector-pie { margin: 6px 4px 0; color: var(--muted); font-size: 11.5px; line-height: 1.45; }
+.app-shell[data-tema] p.inspector-pie-suelto { margin: 0 4px; }
+.app-shell[data-tema] p.inspector-vacio { margin: 28px 8px; color: var(--muted); font-size: 13px; line-height: 1.5; text-align: center; }
+.app-shell[data-tema] .inspector .inline-error { margin: 8px 0 0; }
+
+/* El escenario: sin barra encima y con el mismo canto que el inspector. */
+.app-shell[data-tema] .designer-workspace > .designer-stage { border: 0; border-radius: 16px; box-shadow: 0 0 0 1px var(--line); }
