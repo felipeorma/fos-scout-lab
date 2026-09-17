@@ -5429,3 +5429,26 @@ button.menu-fila:active { transform: scale(.985); }
 .app-shell[data-tema] .impresion-accion:hover:not(:disabled) { filter: brightness(1.06); }
 .app-shell[data-tema] .impresion-accion:disabled { opacity: .45; cursor: not-allowed; }
 .app-shell[data-tema] .hoja-impresion .print-dialog-note { margin-top: 10px; text-align: center; }
+
+/* ---- El pie del reporte, también en la hoja de Carreras ---- */
+/* Entra en el mismo PDF que las páginas de diseño, así que se firma igual.
+   Los colores son los del tema y no los del papel del reporte: esta página se
+   imprime con su propio fondo, y el gris del papel se perdería encima. */
+.app-shell[data-tema] .runs-page .visual-page-footer {
+  margin: 20px 0 0; padding-top: 14px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+}
+.app-shell[data-tema] .runs-page .report-signatures { gap: 14px; }
+.app-shell[data-tema] .runs-page :is(.report-author, .report-recipient > div) > span { color: var(--muted); font-size: 9px; letter-spacing: .12em; }
+.app-shell[data-tema] .runs-page :is(.report-author, .report-recipient > div) > b { color: var(--ink); font-size: 12.5px; }
+.app-shell[data-tema] .runs-page .report-author > small { color: var(--muted); font-size: 9px; letter-spacing: .1em; }
+.app-shell[data-tema] .runs-page .visual-footer-confidential { color: var(--muted); font-size: 9px; }
+.app-shell[data-tema] .runs-page .report-recipient { border-left: 1px solid var(--line); }
+.app-shell[data-tema] .runs-page :is(.dossier-footer-club-logo, .dossier-footer-club-fallback) { width: 30px; height: 30px; }
+.app-shell[data-tema] .runs-page .dossier-footer-club-fallback {
+  display: grid; place-items: center;
+  border-radius: 8px; color: var(--muted);
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  font-size: 11px; font-weight: 700;
+}

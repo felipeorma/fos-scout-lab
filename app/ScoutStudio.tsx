@@ -2032,7 +2032,7 @@ export default function ScoutStudio() {
                 <div className={claseHoja(BOARD_PAGE)}><ScoutingBoard rows={reportRows} minimumMinutes={minimumMinutes} onSelectPlayer={(indice) => { selectPlayer(indice); setBoardPreviewOpen(true); }} /></div>
               )}
               {paginaMontada(RUNS_PAGE) && (
-                <div className={claseHoja(RUNS_PAGE)}><RunsPage /></div>
+                <div className={claseHoja(RUNS_PAGE)}><RunsPage destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
               )}
               {paginaMontada(DATA_PAGE) && (
                 <div className={claseHoja(DATA_PAGE)}><DatosPage

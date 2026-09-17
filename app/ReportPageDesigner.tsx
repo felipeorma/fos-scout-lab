@@ -19,6 +19,7 @@ import {
 } from "./Icons";
 import { DEFAULT_REPORT_THEME, REPORT_THEMES, reportThemeStyle, type ReportTheme } from "./reportTheme";
 import { fetchAiSummary, type AiMetricFact, type AiPlayerFacts } from "@/lib/remoteData";
+import { PieDeReporte } from "./PieDeReporte";
 import { SimilarityReportMain, type SimilarityReportPayload } from "./SimilarityReport";
 import { t, tDefault, tf } from "@/lib/i18n";
 import {
@@ -673,19 +674,7 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
             })}
             {!config.blocks.length && <button className="empty-designer-page" onClick={() => addBlock("image")}><Sparkles size={26} /><b>{t("Tu página está vacía")}</b><span>{t("Agrega una imagen o un texto desde el panel.")}</span></button>}
           </div>
-          <footer className="visual-page-footer visual-page-signature">
-            <div className="report-signatures">
-              <div className="report-author"><span>{t("ELABORADO POR")}</span><b>FELIPE ORMAZABAL</b><small>SCOUTING REPORT</small></div>
-              <span className="visual-footer-confidential">{player.toUpperCase()} · {t("REPORTE CONFIDENCIAL")}</span>
-              <div className="report-recipient">
-                {/^(https?:\/\/|data:image\/)/i.test(recipientLogoUrl.trim())
-                  // eslint-disable-next-line @next/next/no-img-element
-                  ? <img src={recipientLogoUrl.trim()} alt={recipientName || t("Club destinatario")} className="dossier-footer-club-logo" />
-                  : <span className="dossier-footer-club-fallback">{(recipientName || t("Club destinatario")).split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span>}
-                <div><span>{t("REPORTE GENERADO PARA")}</span><b>{recipientName || t("Club destinatario")}</b></div>
-              </div>
-            </div>
-          </footer>
+          <PieDeReporte asunto={player} destinatario={recipientName} logo={recipientLogoUrl} />
         </article>
         </div>
       </section>

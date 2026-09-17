@@ -5,6 +5,7 @@ import { Paso } from "./Paso";
 import { BarraDeFiltros, Desplegable } from "./BarraDeFiltros";
 import { ChevronDown, ChevronRight } from "./Icons";
 import { Interruptor } from "./Interruptor";
+import { PieDeReporte } from "./PieDeReporte";
 import { useBaseActiva } from "./BaseActiva";
 import { casarPlantilla } from "@/lib/plantilla";
 import { numberLocale, t, tf } from "@/lib/i18n";
@@ -65,7 +66,11 @@ function etiquetaPartido(partido: PartidoCarreras) {
   return `${fecha ? `${fecha} · ` : ""}${partido.local}${marcador}${partido.visitante}`;
 }
 
-export function RunsPage() {
+export function RunsPage({ destinatario = "", logoDestinatario = "" }: {
+  /** Club destinatario del PDF, para firmar la hoja como las de diseño. */
+  destinatario?: string;
+  logoDestinatario?: string;
+} = {}) {
   /*
    * Era la única pantalla fuera de la barra de filtros compartida, y por un
    * motivo real: no trabaja sobre la base cruzada sino contra la API, que
@@ -482,6 +487,10 @@ export function RunsPage() {
           ))}
         </ol>
       </div>}
+
+      {/* La hoja se firma igual que las de diseño: en el PDF conviven páginas
+          de las dos clases y no debería notarse cuál viene de dónde. */}
+      <PieDeReporte asunto={tituloDelMapa} destinatario={destinatario} logo={logoDestinatario} className="runs-firma" />
     </>}
   </section>;
 }
