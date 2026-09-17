@@ -5452,3 +5452,32 @@ button.menu-fila:active { transform: scale(.985); }
   background: color-mix(in srgb, var(--ink) 8%, transparent);
   font-size: 11px; font-weight: 700;
 }
+
+/* ---- El papel siempre es blanco: la tinta del tema oscuro, no ---- */
+/* Las páginas de análisis se pintan con los tokens del tema. En pantalla eso
+   está bien; al imprimir desde el tema oscuro, el papel sale blanco pero la
+   tinta sigue siendo clara y la cabecera y la firma casi desaparecen —medido
+   en el PDF: gris #8f99ab sobre blanco, 2,5:1—. Las hojas de diseño no lo
+   sufren porque llevan su propia paleta de papel (--report-*); estas heredan
+   la de la app, así que aquí se les da la de papel mientras dure la
+   impresión. El campo del mapa mantiene su fondo oscuro: es un dibujo, no
+   texto, y lleva su propio print-color-adjust. */
+@media print {
+  .app-shell[data-tema] :is(.runs-page, .rank-page, .pool-page, .context-page, .scouting-board) {
+    --ink: #1d1d1f;
+    --muted: #5b6472;
+    --line: rgba(0, 0, 0, .16);
+    --linea: rgba(0, 0, 0, .16);
+    --paper: #fff;
+    --canvas: #fff;
+    --material: #fff;
+    --material-alto: #fff;
+    --acento-claro: var(--acento);
+    /* Las tres paletas propias que quedan de antes del rediseño. */
+    --brd-ink: #1d1d1f; --brd-dim: #5b6472;
+    --rk-ink: #1d1d1f; --rk-dim: #5b6472;
+    --pl-ink: #1d1d1f; --pl-dim: #5b6472;
+    color: #1d1d1f;
+    background: #fff;
+  }
+}
