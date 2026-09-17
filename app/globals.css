@@ -2279,8 +2279,21 @@ body.print-layout-check .ai-error { display: none !important; }
 .runs-squad tbody tr.activo td { background: rgba(18,196,139,.13); }
 .runs-squad td.runs-name { font-weight: 700; }
 .runs-squad td b { color: var(--brd-green); }
-/* Los controles son herramientas de trabajo, no contenido del informe. */
-@media print { .runs-controls { display: none !important; } }
+/* Los controles son herramientas de trabajo, no contenido del informe.
+
+   En el PDF de Carreras salían los rótulos «Paso 1 · Qué competición y qué
+   equipo» y «Paso 2 · Qué jugador y qué carreras», el recuento de partidos
+   bajados y la lista entera del plantel. Nada de eso habla del jugador que se
+   está enseñando: la hoja se queda con el mapa, sus cifras y el reparto por
+   tipo de carrera, que es lo que el club mira.
+
+   Los rótulos de paso se van en todas las pantallas, no solo aquí: numeran el
+   orden de uso de la herramienta, y en la hoja impresa no hay nada que hacer
+   en orden. */
+@media print {
+  .paso-rotulo,
+  .runs-controls, .runs-estado, .runs-sin-ficha, .runs-squad { display: none !important; }
+}
 
 /* ---- Contexto defensivo (StatsBomb 360) ---- */
 
