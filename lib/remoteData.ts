@@ -1,6 +1,8 @@
 import {
   isTransfermarktUrl,
   parseTransfermarktProfile,
+  profileFromTmApi,
+  type TmApiPayload,
   type TransfermarktProfile,
 } from "./transfermarkt";
 import { activeLang, t, tf } from "./i18n";
@@ -83,25 +85,30 @@ export async function fetchTransfermarktProfile(url: string): Promise<Partial<Tr
    * puente levantado: hoy no funcionan, pero esto cambia según lo que
    * Transfermarkt bloquee cada temporada, y no cuesta nada dejarlos.
    */
-  const html = await fetchHtmlThroughLocalBridge(target.href) ?? await fetchHtmlThroughCorsProxy(target.href);
-  const profile = parseTransfermarktProfile(html, target.href);
+  const delPuente = await fetchFichaDelPuente(target.href);
+  // Con la web cerrada, el puente devuelve la ficha de la API en JSON; si
+  // llegara el HTML —porque la verificación se levante— se analiza como antes.
+  const profile = delPuente?.api
+    ? profileFromTmApi(delPuente.api, target.href)
+    : parseTransfermarktProfile(delPuente?.html ?? await fetchHtmlThroughCorsProxy(target.href), target.href);
   if (!profile.name) {
     throw new Error(t("No pudimos reconocer el perfil. Revisa que sea la página principal del jugador."));
   }
   return profile;
 }
 
-async function fetchHtmlThroughLocalBridge(url: string) {
+async function fetchFichaDelPuente(url: string): Promise<{ html?: string; api?: TmApiPayload } | null> {
   try {
     const respuesta = await fetch(`${LOCAL_BRIDGE}/api/transfermarkt?url=${encodeURIComponent(url)}`, {
       signal: AbortSignal.timeout(35_000),
     });
-    const datos = await respuesta.json() as { html?: string; motivo?: string };
+    const datos = await respuesta.json() as { html?: string; motivo?: string; api?: TmApiPayload };
     // El muro de verificación no es un puente caído: hay que decirlo, porque
     // la salida es otra —abrir la ficha en el navegador y pegar el link—.
     if (datos.motivo === "verificacion") throw new Error(t("Transfermarkt pide verificación humana y bloquea la lectura automática. Abre la ficha en tu navegador, copia el link de la foto y pégalo en «Reemplazar imágenes»."));
     if (!respuesta.ok) return null;
-    return datos.html?.trim() ? datos.html : null;
+    if (datos.api) return { api: datos.api };
+    return datos.html?.trim() ? { html: datos.html } : null;
   } catch (error) {
     // El muro de verificación se propaga; un puente apagado, no: ahí se sigue
     // por los proxies, que es lo único que puede salvar a quien no lo tenga.

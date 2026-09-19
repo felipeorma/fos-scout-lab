@@ -172,3 +172,82 @@ export function readStoredJson<T>(newKey: string, legacyKey: string): T | null {
     return null;
   }
 }
+
+
+/**
+ * La ficha, reconstruida desde la API de Transfermarkt.
+ *
+ * Desde septiembre de 2026 la web pide verificación humana y la lectura del
+ * HTML ya no pasa. La API que alimenta a la propia web sigue abierta y trae lo
+ * mismo en JSON, pero repartido: el jugador por un lado, su club y la
+ * competición por otro, y la nacionalidad en la selección, que ahí dentro es
+ * un club con `isNationalTeam`. El puente junta las piezas —no manda
+ * cabeceras CORS— y aquí se traducen a los campos de siempre, para que la
+ * ficha se rellene igual venga de donde venga.
+ *
+ * Dos diferencias que conviene conocer: las fechas llegan en ISO
+ * (1987-06-24) en vez del formato del sitio, y los partidos y goles con la
+ * selección no están en esta API. Ambos campos son editables en la ficha.
+ */
+export type TmApiPayload = {
+  player?: {
+    name?: string;
+    portraitUrl?: string;
+    lifeDates?: { age?: number; dateOfBirth?: string };
+    birthPlaceDetails?: { placeOfBirth?: string };
+    attributes?: {
+      height?: number;
+      preferredFoot?: { name?: string };
+      position?: { name?: string };
+      contractUntil?: string;
+      consultantAgency?: { name?: string };
+    };
+    marketValueDetails?: {
+      current?: { compact?: { prefix?: string; content?: string; suffix?: string }; determined?: string };
+    };
+  };
+  club?: { name?: string; crestUrl?: string } | null;
+  competition?: { name?: string; logoUrl?: string } | null;
+  nationalTeam?: { name?: string } | null;
+  shirtNumber?: number | null;
+  joined?: string | null;
+};
+
+export function profileFromTmApi(api: TmApiPayload, sourceUrl: string): TransfermarktProfile {
+  const jugador = api.player ?? {};
+  const atributos = jugador.attributes ?? {};
+  const valor = jugador.marketValueDetails?.current;
+  const compacto = valor?.compact;
+  // La API da la altura en metros (1.7); la ficha la enseña como "1,70 m".
+  const altura = typeof atributos.height === "number" && atributos.height > 0
+    ? `${atributos.height.toFixed(2).replace(".", ",")} m`
+    : "";
+  const enMayuscula = (texto: string) => (texto ? texto[0].toLocaleUpperCase("es") + texto.slice(1) : "");
+
+  return {
+    ...EMPTY_PROFILE,
+    sourceUrl,
+    name: jugador.name ?? "",
+    number: api.shirtNumber ? String(api.shirtNumber) : "",
+    playerImage: jugador.portraitUrl ?? "",
+    clubLogo: api.club?.crestUrl ?? "",
+    leagueLogo: api.competition?.logoUrl ?? "",
+    club: api.club?.name ?? "",
+    league: api.competition?.name ?? "",
+    marketValue: compacto ? `${compacto.prefix ?? ""}${compacto.content ?? ""}${compacto.suffix ?? ""}` : "",
+    birthDate: jugador.lifeDates?.dateOfBirth ?? "",
+    age: jugador.lifeDates?.age ? String(jugador.lifeDates.age) : "",
+    birthPlace: jugador.birthPlaceDetails?.placeOfBirth ?? "",
+    // La nacionalidad no viene con nombre, solo con un id de país; la
+    // selección sí trae el nombre y es el mismo país.
+    citizenship: api.nationalTeam?.name ?? "",
+    height: altura,
+    position: atributos.position?.name ?? "",
+    foot: enMayuscula(atributos.preferredFoot?.name ?? ""),
+    agent: atributos.consultantAgency?.name ?? "",
+    nationalTeam: api.nationalTeam?.name ?? "",
+    contract: atributos.contractUntil ?? "",
+    joined: api.joined ?? "",
+    lastUpdate: valor?.determined ?? "",
+  };
+}

@@ -1,4 +1,5 @@
-import { isTransfermarktUrl, parseTransfermarktProfile } from "@/lib/transfermarkt";
+import { isTransfermarktUrl, parseTransfermarktProfile, profileFromTmApi } from "@/lib/transfermarkt";
+import { tmApiPayload } from "@/lib/tmApi";
 
 export async function POST(request: Request) {
   try {
@@ -20,12 +21,22 @@ export async function POST(request: Request) {
       },
       redirect: "follow",
     });
-    if (!response.ok) throw new Error(`Transfermarkt respondió con estado ${response.status}.`);
+    // La web pide verificación humana desde septiembre de 2026 y responde 405
+    // a todo lo que no sea un navegador con la prueba resuelta. Cuando pasa
+    // eso, la misma ficha se arma con la API de Transfermarkt, que sigue
+    // abierta. Se intenta primero la página por si la verificación se levanta:
+    // trae más cosas, como los partidos con la selección.
+    const html = response.ok ? await response.text() : "";
+    const profile = html ? parseTransfermarktProfile(html, response.url || url) : null;
+    if (profile?.name) return Response.json(profile);
 
-    const html = await response.text();
-    const profile = parseTransfermarktProfile(html, response.url || url);
-    if (!profile.name) throw new Error("No pudimos reconocer el perfil. Revisa que sea la página principal del jugador.");
-    return Response.json(profile);
+    const api = await tmApiPayload(url);
+    if (api) {
+      const porApi = profileFromTmApi(api, url);
+      if (porApi.name) return Response.json(porApi);
+    }
+    if (!response.ok) throw new Error(`Transfermarkt respondió con estado ${response.status} y su API tampoco dio la ficha.`);
+    throw new Error("No pudimos reconocer el perfil. Revisa que sea la página principal del jugador.");
   } catch (error) {
     const message = error instanceof Error ? error.message : "No se pudo extraer el perfil.";
     return Response.json({ error: message }, { status: 502 });

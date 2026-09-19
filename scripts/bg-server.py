@@ -374,6 +374,13 @@ async def transfermarkt(url: str):
         # pueda sortear, así que se distingue del resto de fallos para que la
         # app diga qué pasa y ofrezca la salida manual.
         if respuesta.status_code == 405 or respuesta.headers.get("x-amzn-waf-action") == "captcha":
+            # La web está cerrada, pero la API del propio Transfermarkt no: de
+            # ahí sale la misma ficha en JSON. Si tampoco responde, se dice que
+            # hay verificación humana y la app ofrece la salida manual.
+            porApi = _ficha_por_api(url)
+            if porApi:
+                return Response(_json.dumps({"api": porApi}, ensure_ascii=False),
+                                media_type="application/json", headers=cors_headers())
             return Response(_json.dumps({"motivo": "verificacion"}),
                             status_code=409, media_type="application/json", headers=cors_headers())
         respuesta.raise_for_status()
@@ -1528,3 +1535,61 @@ async def espejo_app(ruta: str = ""):
     tipo = respuesta.headers.get("content-type", "application/octet-stream")
     _espejo_cache[ruta] = (_time.time(), respuesta.content, tipo)
     return Response(respuesta.content, media_type=tipo, headers=cors_headers())
+
+
+# ---- La ficha por la API de Transfermarkt ------------------------------------
+# La web pide verificación humana desde septiembre de 2026, pero la API que
+# alimenta a la propia web sigue abierta y trae lo mismo en JSON: nacimiento,
+# lugar, altura, pie, posición, contrato, agencia, valor de mercado y el
+# retrato. La nacionalidad sale de la selección, que en esta API es un club con
+# `isNationalTeam`. No manda cabeceras CORS, así que tiene que pasar por aquí.
+_TMAPI = "https://tmapi-alpha.transfermarkt.technology"
+_tmapi_cache = {}
+
+
+def _tmapi(ruta: str):
+    import time as _time
+
+    guardado = _tmapi_cache.get(ruta)
+    if guardado and _time.time() - guardado[0] < 3600:
+        return guardado[1]
+    try:
+        # La API responde 406 si no se pide JSON explícitamente.
+        respuesta = _requests.get(f"{_TMAPI}{ruta}", timeout=20, headers={"Accept": "application/json"})
+        if respuesta.status_code != 200:
+            return None
+        cuerpo = respuesta.json()
+    except Exception:
+        return None
+    datos = cuerpo.get("data") if isinstance(cuerpo, dict) else None
+    if datos is not None:
+        _tmapi_cache[ruta] = (_time.time(), datos)
+    return datos
+
+
+def _ficha_por_api(url: str):
+    """Jugador, club, competición y selección, con una llamada por pieza."""
+    encontrado = _re.search(r"/spieler/(\d+)", url)
+    if not encontrado:
+        return None
+    jugador = _tmapi(f"/player/{encontrado.group(1)}")
+    if not jugador:
+        return None
+
+    asignaciones = jugador.get("clubAssignments") or []
+    actual = next((a for a in asignaciones if a.get("type") == "current"), None)
+    seleccion = next((a for a in asignaciones if a.get("type") == "nationalTeam"), None)
+
+    club = _tmapi(f"/club/{actual['clubId']}") if actual and actual.get("clubId") else None
+    competicion_id = ((club or {}).get("baseDetails") or {}).get("primaryCompetitionId")
+    competicion = _tmapi(f"/competition/{competicion_id}") if competicion_id else None
+    nacional = _tmapi(f"/club/{seleccion['clubId']}") if seleccion and seleccion.get("clubId") else None
+
+    return {
+        "player": jugador,
+        "club": club,
+        "competition": competicion,
+        "nationalTeam": nacional,
+        "shirtNumber": (actual or {}).get("shirtNumber"),
+        "joined": (actual or {}).get("start") or (actual or {}).get("debut"),
+    }
