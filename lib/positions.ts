@@ -23,11 +23,16 @@ export type PlayerPosition = {
 const POSITION_MAP: Record<string, PositionRole> = {
   GK: "Goalkeeper", G: "Goalkeeper", GOALKEEPER: "Goalkeeper",
   LB: "Fullback", LWB: "Fullback", RB: "Fullback", RWB: "Fullback",
+  // Wyscout escribe el carril de una línea de cinco con el sufijo 5; sin
+  // estos dos, esos laterales caían en "Otros" y no salían en ninguna lista.
+  LB5: "Fullback", RB5: "Fullback",
   "LEFT-BACK": "Fullback", "RIGHT-BACK": "Fullback", "WING-BACK": "Fullback", FULLBACK: "Fullback",
+  "LEFT WING BACK": "Fullback", "RIGHT WING BACK": "Fullback",
   LCB: "Defender", CB: "Defender", RCB: "Defender", D: "Defender", DC: "Defender",
   LCB3: "Defender", RCB3: "Defender", CB3: "Defender",
   DEFENDER: "Defender", "CENTRE-BACK": "Defender", "CENTER-BACK": "Defender",
   CM: "Defensive Midfielder", CMF: "Defensive Midfielder", DMF: "Defensive Midfielder",
+  "CENTRE MIDFIELDER": "Defensive Midfielder", "CENTER MIDFIELDER": "Defensive Midfielder",
   CDM: "Defensive Midfielder", DM: "Defensive Midfielder", LDMF: "Defensive Midfielder",
   RDMF: "Defensive Midfielder", M: "Defensive Midfielder", MIDFIELDER: "Defensive Midfielder",
   // Códigos de SkillCorner que Wyscout no usa
@@ -43,6 +48,9 @@ const POSITION_MAP: Record<string, PositionRole> = {
   LAMF: "Wingers", RAMF: "Wingers", LF: "Wingers", RF: "Wingers",
   CF: "Forward", ST: "Forward", F: "Forward", S: "Forward", FORWARD: "Forward",
   LCF: "Forward", RCF: "Forward",
+  // El segundo delantero de Wyscout. Sin él, un SS se perdía igual que los
+  // carriles de cinco.
+  SS: "Forward", "SECOND STRIKER": "Forward", "SECONDARY STRIKER": "Forward",
   STRIKER: "Forward", "CENTRE-FORWARD": "Forward", "CENTER-FORWARD": "Forward",
 };
 

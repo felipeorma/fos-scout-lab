@@ -246,6 +246,10 @@ _SB_POSITIONS = {
     "Centre Attacking Midfielder": "AMF", "Right Attacking Midfielder": "RAMF", "Left Attacking Midfielder": "LAMF",
     "Right Wing": "RW", "Left Wing": "LW", "Right Midfielder": "RM", "Left Midfielder": "LM",
     "Centre Forward": "CF", "Right Centre Forward": "RCF", "Left Centre Forward": "LCF",
+    # Por si StatsBomb devuelve estas dos: sin traducir llegan como texto en
+    # inglés y la app las reconoce igual, pero así van en el mismo código que
+    # el resto.
+    "Centre Midfielder": "CMF", "Secondary Striker": "SS",
 }
 
 # columna normalizada → (campo StatsBomb, multiplicador)
