@@ -1503,4 +1503,7 @@ const EN: Record<string, string> = {
   "Escudos y rating de Opta": "Crests and Opta rating",
   "Páginas": "Pages",
   "Ninguna": "None",
+  "Abre la app desde el puente local, en http://127.0.0.1:7001, y funcionará sin proxies.": "Open the app from the local bridge, at http://127.0.0.1:7001, and it will work without proxies.",
+  "Transfermarkt pide verificación humana y bloquea la lectura automática. Abre la ficha en tu navegador, copia el link de la foto y pégalo en «Reemplazar imágenes».": "Transfermarkt now asks for human verification and blocks automated reads. Open the profile in your browser, copy the photo link and paste it under “Replace images”.",
+  "Abrir la ficha": "Open the profile",
 };

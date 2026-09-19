@@ -96,11 +96,16 @@ async function fetchHtmlThroughLocalBridge(url: string) {
     const respuesta = await fetch(`${LOCAL_BRIDGE}/api/transfermarkt?url=${encodeURIComponent(url)}`, {
       signal: AbortSignal.timeout(35_000),
     });
+    const datos = await respuesta.json() as { html?: string; motivo?: string };
+    // El muro de verificación no es un puente caído: hay que decirlo, porque
+    // la salida es otra —abrir la ficha en el navegador y pegar el link—.
+    if (datos.motivo === "verificacion") throw new Error(t("Transfermarkt pide verificación humana y bloquea la lectura automática. Abre la ficha en tu navegador, copia el link de la foto y pégalo en «Reemplazar imágenes»."));
     if (!respuesta.ok) return null;
-    const datos = await respuesta.json() as { html?: string };
     return datos.html?.trim() ? datos.html : null;
-  } catch {
-    // Sin puente levantado no es un error: se sigue por los proxies.
+  } catch (error) {
+    // El muro de verificación se propaga; un puente apagado, no: ahí se sigue
+    // por los proxies, que es lo único que puede salvar a quien no lo tenga.
+    if (error instanceof Error && error.message.includes("verificación")) throw error;
     return null;
   }
 }
@@ -108,15 +113,17 @@ async function fetchHtmlThroughLocalBridge(url: string) {
 // Transfermarkt bloquea las IPs de la mayoría de proxies CORS públicos; el
 // lector de Jina sí llega a la página real, así que va primero. Los demás
 // quedan como respaldo por si Jina limita el número de peticiones.
-const CORS_PROXIES: Array<{ url: (target: string) => string; headers?: Record<string, string>; timeoutMs: number }> = [
-  { url: (target) => `https://r.jina.ai/${target}`, headers: { "x-return-format": "html" }, timeoutMs: 60_000 },
-  { url: (target) => `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`, timeoutMs: 20_000 },
-  { url: (target) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(target)}`, timeoutMs: 20_000 },
-  { url: (target) => `https://corsproxy.io/?url=${encodeURIComponent(target)}`, timeoutMs: 20_000 },
+const CORS_PROXIES: Array<{ nombre: string; url: (target: string) => string; headers?: Record<string, string>; timeoutMs: number }> = [
+  { nombre: "jina", url: (target) => `https://r.jina.ai/${target}`, headers: { "x-return-format": "html" }, timeoutMs: 60_000 },
+  { nombre: "allorigins", url: (target) => `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`, timeoutMs: 20_000 },
+  { nombre: "codetabs", url: (target) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(target)}`, timeoutMs: 20_000 },
 ];
 
 async function fetchHtmlThroughCorsProxy(url: string) {
-  let lastError: Error | null = null;
+  // Qué hizo cada uno, para que el aviso diga la causa y no el último error:
+  // antes se veía "el proxy respondió 401" —el de corsproxy.io, que ahora pide
+  // clave— aunque el problema fuera que Transfermarkt bloquea a todos.
+  const intentos: string[] = [];
   for (const proxy of CORS_PROXIES) {
     try {
       const response = await fetch(proxy.url(url), {
@@ -131,11 +138,11 @@ async function fetchHtmlThroughCorsProxy(url: string) {
       if (!html.includes("data-header")) throw new Error(t("El proxy devolvió una respuesta vacía."));
       return html;
     } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error));
+      intentos.push(`${proxy.nombre}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   throw new Error(
-    `${t("No se pudo leer Transfermarkt desde la versión publicada.")} ${lastError?.message ?? ""}`.trim(),
+    `${t("No se pudo leer Transfermarkt desde la versión publicada.")} ${t("Abre la app desde el puente local, en http://127.0.0.1:7001, y funcionará sin proxies.")} (${intentos.join(" · ")})`,
   );
 }
 

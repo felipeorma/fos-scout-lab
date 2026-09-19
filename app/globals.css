@@ -5481,3 +5481,7 @@ button.menu-fila:active { transform: scale(.985); }
     background: #fff;
   }
 }
+
+/* El enlace que abre la ficha en Transfermarkt usa el mismo botón que el resto;
+   como es un <a>, hay que quitarle el subrayado y alinearlo con el de extraer. */
+.app-shell[data-tema] a.abrir-ficha { margin-left: var(--sp-2); text-decoration: none; }

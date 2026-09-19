@@ -367,6 +367,15 @@ async def transfermarkt(url: str):
                            "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"),
             "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
         })
+        # Desde septiembre de 2026 Transfermarkt vive detrás del WAF de AWS con
+        # verificación humana para TODO el sitio —la portada incluida— y
+        # responde 405 con `x-amzn-waf-action: captcha` a cualquier cliente que
+        # no sea un navegador con la prueba resuelta. No es algo que el puente
+        # pueda sortear, así que se distingue del resto de fallos para que la
+        # app diga qué pasa y ofrezca la salida manual.
+        if respuesta.status_code == 405 or respuesta.headers.get("x-amzn-waf-action") == "captcha":
+            return Response(_json.dumps({"motivo": "verificacion"}),
+                            status_code=409, media_type="application/json", headers=cors_headers())
         respuesta.raise_for_status()
     except Exception as error:
         return Response(_json.dumps({"error": f"no se pudo leer la ficha: {error}"}),
@@ -1464,3 +1473,58 @@ async def skillcorner_teams(competition_edition_id: int):
 
     return Response(_json.dumps(sorted(nombres), ensure_ascii=False),
                     media_type="application/json", headers=cors_headers())
+
+
+# ---- La app servida desde el puente -----------------------------------------
+_ESPEJO_BASE = "https://felipeorma.github.io/fos-scout-lab/"
+# ruta → (momento, contenido, tipo). Los bundles de Next llevan su hash en el
+# nombre, así que se pueden guardar mucho rato; la página, poco.
+_espejo_cache = {}
+
+
+def _espejo_ttl(ruta: str) -> int:
+    return 86400 if "/_next/static/" in ruta else 60
+
+
+@app.get("/")
+async def espejo_raiz():
+    """La app, abierta desde aquí.
+
+    Chrome dejó de permitir que una web pública —la copia de GitHub Pages—
+    hable con un servidor de esta máquina sin un permiso explícito, y todos
+    los proxies CORS públicos están bloqueados por Transfermarkt o piden
+    clave. Sirviendo la misma app publicada desde el puente, la página y las
+    APIs comparten origen: no hace falta proxy, ni permiso de red local, ni
+    saltarse el contenido mixto. Lo que se sirve es exactamente lo desplegado,
+    así que no hay una segunda versión que mantener.
+    """
+    from fastapi.responses import RedirectResponse
+
+    return RedirectResponse("/fos-scout-lab/")
+
+
+@app.get("/fos-scout-lab")
+@app.get("/fos-scout-lab/{ruta:path}")
+async def espejo_app(ruta: str = ""):
+    import time as _time
+
+    if ".." in ruta:
+        return Response("ruta no válida", status_code=400, media_type="text/plain")
+    destino = _ESPEJO_BASE + ruta
+    if destino.endswith("/") or "." not in ruta.rsplit("/", 1)[-1]:
+        destino = destino.rstrip("/") + "/index.html"
+
+    guardado = _espejo_cache.get(ruta)
+    if guardado and _time.time() - guardado[0] < _espejo_ttl(ruta):
+        return Response(guardado[1], media_type=guardado[2], headers=cors_headers())
+
+    try:
+        respuesta = _requests.get(destino, timeout=30)
+    except Exception as error:
+        return Response(f"no se pudo leer la versión publicada: {error}", status_code=502, media_type="text/plain")
+    if respuesta.status_code != 200:
+        return Response(f"la versión publicada respondió {respuesta.status_code}", status_code=respuesta.status_code, media_type="text/plain")
+
+    tipo = respuesta.headers.get("content-type", "application/octet-stream")
+    _espejo_cache[ruta] = (_time.time(), respuesta.content, tipo)
+    return Response(respuesta.content, media_type=tipo, headers=cors_headers())

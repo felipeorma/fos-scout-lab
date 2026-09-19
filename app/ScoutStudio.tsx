@@ -1953,6 +1953,11 @@ export default function ScoutStudio() {
                   <div className="panel-title enrichment-title"><div><span className="mini-icon transfermarkt-panel-logo"><ReportImage src={TRANSFERMARKT_LOGO} alt="Transfermarkt" className="transfermarkt-logo-image" /></span><div><h2>{t("Transfermarkt e imágenes")}</h2><p>{t("Datos biográficos, logos y retrato")}</p></div></div><span className={profileReady ? "tiny-state ready-state" : "tiny-state"}>{profileReady ? t("CARGADO") : t("PENDIENTE")}</span></div>
                   <label className="field-group transfermarkt-url"><FieldLabel>{t("URL del perfil")}</FieldLabel><input className="text-input" type="url" placeholder="https://www.transfermarkt.com/.../profil/spieler/..." value={transfermarktUrl} onChange={(event) => setTransfermarktUrl(event.target.value)} /></label>
                   <button className="button primary extract-button" onClick={extractTransfermarktProfile} disabled={transfermarktLoading}><Sparkles size={15} /> {transfermarktLoading ? t("Extrayendo perfil…") : t("Extraer datos, logos y foto")}</button>
+                  {/* Transfermarkt pide verificación humana desde septiembre de 2026, así
+                      que la lectura automática ya no pasa. Desde aquí se abre la ficha en
+                      el navegador, donde la prueba sí se resuelve, para copiar el link de
+                      la foto y pegarlo abajo. */}
+                  {/^https?:\/\//i.test(transfermarktUrl.trim()) && <a className="button secondary compact abrir-ficha" href={transfermarktUrl.trim()} target="_blank" rel="noreferrer">{t("Abrir la ficha")}</a>}
                   {transfermarktError && <div className="inline-error">{transfermarktError}</div>}
                   <div className="asset-grid">
                     {PROFILE_ASSETS.map(({ field, linkLabel }) => {
