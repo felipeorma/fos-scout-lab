@@ -2029,7 +2029,7 @@ export default function ScoutStudio() {
               </div>
 
               {report && paginaMontada(BOARD_PAGE) && (
-                <div className={claseHoja(BOARD_PAGE)}><ScoutingBoard rows={reportRows} minimumMinutes={minimumMinutes} onSelectPlayer={(indice) => { selectPlayer(indice); setBoardPreviewOpen(true); }} /></div>
+                <div className={claseHoja(BOARD_PAGE)}><ScoutingBoard rows={reportRows} minimumMinutes={minimumMinutes} onSelectPlayer={(indice) => { selectPlayer(indice); setBoardPreviewOpen(true); }} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
               )}
               {paginaMontada(RUNS_PAGE) && (
                 <div className={claseHoja(RUNS_PAGE)}><RunsPage destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
@@ -2048,10 +2048,10 @@ export default function ScoutStudio() {
                 /></div>
               )}
               {report && paginaMontada(RANK_PAGE) && (
-                <div className={claseHoja(RANK_PAGE)}><RankingPage onSelectPlayer={(indice) => { selectPlayer(indice); setReportPage(CARD_PAGE); }} /></div>
+                <div className={claseHoja(RANK_PAGE)}><RankingPage onSelectPlayer={(indice) => { selectPlayer(indice); setReportPage(CARD_PAGE); }} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
               )}
               {paginaMontada(POOL_PAGE) && (
-                <div className={claseHoja(POOL_PAGE)}><PoolPage onAbrirJugador={(indice) => { selectPlayer(indice); setReportPage(CARD_PAGE); }} /></div>
+                <div className={claseHoja(POOL_PAGE)}><PoolPage onAbrirJugador={(indice) => { selectPlayer(indice); setReportPage(CARD_PAGE); }} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
               )}
               {boardPreviewOpen && (
                 <div className="board-preview-overlay" role="dialog" aria-modal="true" aria-label={t("Vista rápida del reporte")} onClick={() => setBoardPreviewOpen(false)}>
@@ -2070,7 +2070,7 @@ export default function ScoutStudio() {
                 </div>
               )}
               {report && paginaMontada(CONTEXT_PAGE) && (
-                <div className={claseHoja(CONTEXT_PAGE)}><ContextPage report={report} rows={reportRows} bases={sourceDatasets} minutosFiltro={minimumMinutes} controles={{
+                <div className={claseHoja(CONTEXT_PAGE)}><ContextPage report={report} rows={reportRows} bases={sourceDatasets} minutosFiltro={minimumMinutes} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} controles={{
                   equipos: teams, jugadores: teamPlayers, equipo: selectedTeam, jugador: selectedPlayer,
                   cohorte: cohort,
                   onEquipo: selectTeam, onJugador: selectPlayer, onCohorte: setCohort,

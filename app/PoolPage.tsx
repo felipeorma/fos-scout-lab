@@ -6,6 +6,7 @@ import { encogerHaciaLaMedia } from "@/lib/cobertura";
 import { positionSides } from "@/lib/positions";
 import { buildSimilaritySearch, type SimilarityFilters } from "@/lib/similarity";
 import { useBaseActiva } from "./BaseActiva";
+import { PieDeReporte } from "./PieDeReporte";
 import { BarraDeFiltros } from "./BarraDeFiltros";
 import { Paso } from "./Paso";
 import { BotonExportar } from "./BotonExportar";
@@ -45,9 +46,12 @@ function conCobertura<T extends { similarity: number; coverage: number }>(candid
     .sort((a, b) => b.ajustado - a.ajustado || b.coverage - a.coverage);
 }
 
-export function PoolPage({ onAbrirJugador }: {
+export function PoolPage({ onAbrirJugador, destinatario = "", logoDestinatario = "" }: {
   /** Abrir la ficha de un jugador. Es la misma base, así que basta el índice. */
   onAbrirJugador?: (indice: number) => void;
+  /** Club destinatario del PDF, para firmar la hoja como las de diseño. */
+  destinatario?: string;
+  logoDestinatario?: string;
 }) {
   const { rows, procedencia, competiciones, filtros, pasaFiltros } = useBaseActiva();
   const [objetivo, setObjetivo] = useState(-1);
@@ -243,5 +247,9 @@ export function PoolPage({ onAbrirJugador }: {
         {t("No se ajusta por nivel de liga: un parecido alto con un jugador de una competición más débil no significa que rinda igual aquí. Mira siempre de qué liga viene.")}
       </p>
     </div>}
+    {/* La misma firma que las hojas de diseño: en el PDF conviven páginas de
+        las dos clases y no debería notarse cuál viene de dónde. */}
+    <PieDeReporte asunto={nombreObjetivo || t("Entre ligas")} destinatario={destinatario} logo={logoDestinatario} />
+
   </section>;
 }

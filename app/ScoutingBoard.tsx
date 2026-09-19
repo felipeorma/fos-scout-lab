@@ -7,6 +7,7 @@ import { OnceIdeal } from "./OnceIdeal";
 import { Desplegable } from "./BarraDeFiltros";
 import { ChevronRight } from "./Icons";
 import { Interruptor } from "./Interruptor";
+import { PieDeReporte } from "./PieDeReporte";
 import {
   CLAVE_CLUBES_EXCLUIDOS,
   CLAVE_ESCUDOS,
@@ -133,10 +134,13 @@ function leerEscudo(archivo: File): Promise<string> {
   });
 }
 
-export function ScoutingBoard({ rows, minimumMinutes, onSelectPlayer }: {
+export function ScoutingBoard({ rows, minimumMinutes, onSelectPlayer, destinatario = "", logoDestinatario = "" }: {
   rows: DataRow[];
   minimumMinutes: number;
   onSelectPlayer?: (indice: number) => void;
+  /** Club destinatario del PDF, para firmar la hoja como las de diseño. */
+  destinatario?: string;
+  logoDestinatario?: string;
 }) {
   const [edadMax, setEdadMax] = useState(0);
   const [minutosMin, setMinutosMin] = useState(minimumMinutes);
@@ -868,6 +872,10 @@ export function ScoutingBoard({ rows, minimumMinutes, onSelectPlayer }: {
       </>}
       <p className="board-opta">{etiquetaOpta}</p>
     </section>}
+    {/* La misma firma que las hojas de diseño: en el PDF conviven páginas de
+        las dos clases y no debería notarse cuál viene de dónde. */}
+    <PieDeReporte asunto={`${t("Mesa de detección")} · ${mes}`} destinatario={destinatario} logo={logoDestinatario} />
+
   </section>;
 }
 

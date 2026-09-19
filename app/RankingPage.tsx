@@ -4,6 +4,7 @@ import { useMemo, useState, type KeyboardEvent } from "react";
 import { rankingDeCohorte } from "@/lib/ranking";
 import { PERFILES } from "@/lib/perfiles";
 import { useBaseActiva } from "./BaseActiva";
+import { PieDeReporte } from "./PieDeReporte";
 import { BarraDeFiltros, Desplegable } from "./BarraDeFiltros";
 import { ChevronDown, ChevronRight } from "./Icons";
 import { BotonExportar } from "./BotonExportar";
@@ -42,8 +43,11 @@ const COHORTE_FIABLE = 10;
 const COHORTE_MINIMA = 5;
 
 
-export function RankingPage({ onSelectPlayer }: {
+export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatario = "" }: {
   onSelectPlayer?: (indice: number) => void;
+  /** Club destinatario del PDF, para firmar la hoja como las de diseño. */
+  destinatario?: string;
+  logoDestinatario?: string;
 }) {
   const [perfil, setPerfil] = useState("CF");
   const [vista, setVista] = useState<"indice" | "arquetipos">("indice");
@@ -64,6 +68,9 @@ export function RankingPage({ onSelectPlayer }: {
     () => todos.filter((fila) => pasaFiltros(fila.indice)),
     [todos, pasaFiltros],
   );
+
+  // De qué puesto es esta hoja, para que la firma lo diga en el PDF.
+  const nombreDelPuesto = t(PERFILES.find((item) => item.id === perfil)?.nombre ?? perfil);
 
   const arquetipos = useMemo(
     () => (vista === "arquetipos" ? rankingPorArquetipo(rows, perfil, minutosMin) : []),
@@ -227,5 +234,9 @@ export function RankingPage({ onSelectPlayer }: {
     </div> : <p className="rank-empty">
       {t("Esta posición no tiene arquetipos, o la base no trae las métricas de SkillCorner que necesitan. Carga datos de SkillCorner desde Conectar API para verlos.")}
     </p>)}
+    {/* La misma firma que las hojas de diseño: en el PDF conviven páginas de
+        las dos clases y no debería notarse cuál viene de dónde. */}
+    <PieDeReporte asunto={`${t("Ranking")} · ${nombreDelPuesto}`} destinatario={destinatario} logo={logoDestinatario} />
+
   </section>;
 }

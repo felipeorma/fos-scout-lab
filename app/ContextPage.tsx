@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { buildPlayerReport, type DataRow, type PlayerReport, type SourceDataset } from "@/lib/scouting";
 import { METRIC_SOURCE_COLORS } from "@/lib/similarityMetricGroups";
 import { t, tf } from "@/lib/i18n";
+import { PieDeReporte } from "./PieDeReporte";
 import { BarrasRanking, BarrasZ, CuadranteMetricas, LeyendaGraficos, SwarmMetric, type BarraRank, type BarraZ, type PuntoCuadrante, type PuntoSwarm } from "./ContextCharts";
 import { CATALOGO, DEFINICIONES, type FichaContexto } from "./ContextCatalog";
 import { Arquetipos } from "./Arquetipos";
@@ -143,6 +144,8 @@ export function ContextPage({
   bases = [],
   controles,
   minutosFiltro = 0,
+  destinatario = "",
+  logoDestinatario = "",
 }: {
   report: PlayerReport;
   rows: DataRow[];
@@ -150,6 +153,9 @@ export function ContextPage({
   bases?: SourceDataset[];
   controles?: ControlesContexto;
   minutosFiltro?: number;
+  /** Club destinatario del PDF, para firmar la hoja como las de diseño. */
+  destinatario?: string;
+  logoDestinatario?: string;
 }) {
   /*
    * Filtro de ligas.
@@ -635,5 +641,9 @@ export function ContextPage({
     })()}
 
     <footer>{t("Percentiles contra jugadores de la misma posición en la base cargada. El puesto del equipo compara la mediana de cada club de la base.")}</footer>
+    {/* La misma firma que las hojas de diseño: en el PDF conviven páginas de
+        las dos clases y no debería notarse cuál viene de dónde. */}
+    <PieDeReporte asunto={informeCompleto.player} destinatario={destinatario} logo={logoDestinatario} />
+
   </article>;
 }
