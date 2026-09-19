@@ -120,7 +120,6 @@ const FIRMAS_POR_DEFECTO: Record<ClaveFirma, Firma> = {
 };
 const CLAVE_FIRMAS = "fos-scout-firmas-v1";
 
-type ReportFileMode = "single" | "combine" | "replace";
 type ProfileAssetField = "playerImage" | "clubLogo" | "leagueLogo";
 
 const TRANSFERMARKT_LOGO = process.env.NEXT_PUBLIC_GITHUB_PAGES === "true"
@@ -412,8 +411,6 @@ export default function ScoutStudio() {
   const [backgroundRemoving, setBackgroundRemoving] = useState(false);
   const [backgroundRemovalStatus, setBackgroundRemovalStatus] = useState("");
   const [assetSourceStatus, setAssetSourceStatus] = useState("");
-  const singleReportInputRef = useRef<HTMLInputElement>(null);
-  const combinedReportInputRef = useRef<HTMLInputElement>(null);
   const reportInputRef = useRef<HTMLInputElement>(null);
   const printFileNameRef = useRef("");
 
@@ -1271,15 +1268,22 @@ export default function ScoutStudio() {
     }
   }
 
-  async function onReportFiles(files?: FileList | File[], mode: ReportFileMode = "replace") {
+  /**
+   * Los archivos de Wyscout que se elijan, sean uno o varios.
+   *
+   * Había tres selectores con reglas distintas —uno exigía exactamente un
+   * archivo, otro exigía dos o más— y la portada usaba el de uno solo, aunque
+   * su propio texto prometiera que podías elegir varios y se combinaban. Las
+   * reglas no servían de nada: combinar es lo mismo con uno que con seis, así
+   * que ahora hay un solo selector y acepta lo que sea.
+   */
+  async function onReportFiles(files?: FileList | File[]) {
     if (!files) return;
     const list = [...files].filter((file) => /\.(xlsx|xls|csv)$/i.test(file.name));
     if (!list.length) return;
     setReportLoading(true);
     setReportError("");
     try {
-      if (mode === "single" && list.length !== 1) throw new Error(t("Para usar una base, selecciona solamente un archivo Excel."));
-      if (mode === "combine" && list.length < 2) throw new Error(t("Para combinar bases, selecciona dos o más archivos Excel."));
       const datasets = await Promise.all(list.map(readWorkbook));
       applyDatasets(datasets);
     } catch (error) {
@@ -1635,9 +1639,7 @@ export default function ScoutStudio() {
         </ol>}
 
         <div className="page-content reports-page">
-            <input ref={singleReportInputRef} type="file" accept=".xlsx,.xls,.csv" hidden onChange={(event) => { if (event.target.files) void onReportFiles(event.target.files, "single"); event.target.value = ""; }} />
-            <input ref={combinedReportInputRef} type="file" accept=".xlsx,.xls,.csv" multiple hidden onChange={(event) => { if (event.target.files) void onReportFiles(event.target.files, "combine"); event.target.value = ""; }} />
-            <input ref={reportInputRef} type="file" accept=".xlsx,.xls,.csv" multiple hidden onChange={(event) => { if (event.target.files) void onReportFiles(event.target.files, "replace"); event.target.value = ""; }} />
+            <input ref={reportInputRef} type="file" accept=".xlsx,.xls,.csv" multiple hidden onChange={(event) => { if (event.target.files) void onReportFiles(event.target.files); event.target.value = ""; }} />
 
             {apiDialogOpen && <div className="print-dialog-overlay" role="dialog" aria-modal="true" aria-label={t("Conectar plataformas de datos")} onClick={() => setApiDialogOpen(false)}>
                 <div className="print-dialog api-dialog" onClick={(event) => event.stopPropagation()}>
@@ -1753,10 +1755,10 @@ export default function ScoutStudio() {
                       </span>
                       <ChevronRight size={16} className="portada-opcion-galon" />
                     </button>
-                    <button type="button" className="portada-opcion" onClick={() => singleReportInputRef.current?.click()} disabled={reportLoading}>
+                    <button type="button" className="portada-opcion" onClick={() => reportInputRef.current?.click()} disabled={reportLoading}>
                       <span className="portada-opcion-icono"><FileSpreadsheet size={18} /></span>
                       <span className="portada-opcion-texto">
-                        <b>{t("Subir un archivo de Wyscout")}</b>
+                        <b>{t("Subir archivos de Wyscout")}</b>
                         <small>{t("Para las ligas que no están en la API. Puedes elegir varios y se combinan solos.")}</small>
                       </span>
                       <ChevronRight size={16} className="portada-opcion-galon" />

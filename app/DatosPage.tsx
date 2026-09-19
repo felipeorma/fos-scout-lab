@@ -160,7 +160,7 @@ export function DatosPage({
         <button type="button" className="datos-accion" disabled={cargando} onClick={onSubirArchivo}>
           <span className="datos-accion-icono"><FileSpreadsheet size={17} /></span>
           <span className="datos-accion-texto">
-            <b>{t("Subir un archivo de Wyscout")}</b>
+            <b>{t("Subir archivos de Wyscout")}</b>
             <small>{t("Para las ligas que no están en la API. Puedes elegir varios y se combinan solos.")}</small>
           </span>
           <ChevronRight size={14} className="datos-accion-galon" />

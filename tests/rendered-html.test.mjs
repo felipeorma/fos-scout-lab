@@ -91,7 +91,7 @@ test("la primera pantalla trae el conmutador de encargo y las puertas de entrada
   assert.match(texto, /¿Qué quieres hacer\?/);
   // Las tres puertas de entrada. Si se cae una, el usuario se queda fuera.
   assert.match(texto, /Trabajar con todas las ligas/);
-  assert.match(texto, /Subir un archivo de Wyscout/);
+  assert.match(texto, /Subir archivos de Wyscout/);
   assert.match(texto, /Elegir una competición/);
   // El idioma y el tema dejaron de ocupar la barra y viven en el menú de
   // ajustes, que se abre en el cliente: lo que tiene que estar en el HTML
