@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
-import { BarChart3, Check, ChevronDown, ChevronRight, Crosshair, Database, FileSpreadsheet, Files, ImageIcon, LockKeyhole, Menu, Merge, MoreHorizontal, Plus, Printer, RadarChart, RotateCcw, Route, Search, Sparkles, Trash, Trophy, Upload, X } from "./Icons";
+import { BarChart3, Check, ChevronDown, ChevronRight, Crosshair, Database, FileSpreadsheet, Files, ImageIcon, LockKeyhole, Menu, Merge, MoreHorizontal, Plus, Printer, RadarChart, RotateCcw, Route, Search, Sparkles, Trash, Trophy, Upload, X, ShieldCheck } from "./Icons";
 import { PizzaRadar } from "./PizzaRadar";
 import { ContextPage } from "./ContextPage";
 import { ScoutingBoard } from "./ScoutingBoard";
 import { RunsPage } from "./RunsPage";
 import { RankingPage } from "./RankingPage";
 import { PoolPage } from "./PoolPage";
+import { EstiloPage } from "./EstiloPage";
 import { ReportPageDesigner } from "./ReportPageDesigner";
 import { SimilarityStudio } from "./SimilarityStudio";
 import { CLIENT_THEMES, DEFAULT_REPORT_THEME, reportThemeStyle, type ReportTheme } from "./reportTheme";
@@ -62,6 +63,8 @@ const POOL_PAGE = 95;
 // repartido en tres botones distintos —la portada, "Conectar API" y
 // "Reemplazar archivos"— y cada uno hacía una parte; ahora es una etapa.
 const DATA_PAGE = 96;
+// Estilo de juego de los equipos: la página 7 del dossier con datos de StatsBomb.
+const STYLE_PAGE = 97;
 
 /**
  * Cómo se llama cada sección, en un solo sitio.
@@ -79,6 +82,7 @@ const NOMBRE_DE_SECCION: Record<number, string> = {
   [RANK_PAGE]: "Ranking",
   [POOL_PAGE]: "Entre ligas",
   [DATA_PAGE]: "Base activa",
+  [STYLE_PAGE]: "Estilo de juego",
 };
 
 /**
@@ -1530,6 +1534,7 @@ export default function ScoutStudio() {
       { page: RUNS_PAGE, title: t("Carreras"), hint: t("Mapa sin balón") },
       { page: RANK_PAGE, title: t("Ranking"), hint: t("Los mejores por puesto") },
       { page: POOL_PAGE, title: t("Entre ligas"), hint: t("Buscar parecidos") },
+      { page: STYLE_PAGE, title: t("Estilo de juego"), hint: t("Cómo juega cada equipo") },
       ...visualPages.map((page, index) => ({ page, title: tf("Visuales {n}", { n: index + 1 }), hint: t("Mapas, imágenes y texto") })),
     ];
   const todasMarcadas = paginasParaImprimir.every(({ page }) => printPages.includes(page));
@@ -1824,6 +1829,8 @@ export default function ScoutStudio() {
                       icono={<Trophy size={16} />} titulo={t("Ranking")} detalle={t("Los mejores por puesto")} />
                     <FilaSeccion activa={reportPage === POOL_PAGE} onClick={() => setReportPage(POOL_PAGE)}
                       icono={<Search size={16} />} titulo={t("Entre ligas")} detalle={t("Buscar parecidos")} api />
+                    <FilaSeccion activa={reportPage === STYLE_PAGE} onClick={() => setReportPage(STYLE_PAGE)}
+                      icono={<ShieldCheck size={16} />} titulo={t("Estilo de juego")} detalle={t("Cómo juega cada equipo")} api />
                   </div>
                 </section>
 
@@ -2059,6 +2066,9 @@ export default function ScoutStudio() {
               )}
               {paginaMontada(POOL_PAGE) && (
                 <div className={claseHoja(POOL_PAGE)}><PoolPage onAbrirJugador={(indice) => { selectPlayer(indice); setReportPage(CARD_PAGE); }} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
+              )}
+              {paginaMontada(STYLE_PAGE) && (
+                <div className={claseHoja(STYLE_PAGE)}><EstiloPage destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
               )}
               {boardPreviewOpen && (
                 <div className="board-preview-overlay" role="dialog" aria-modal="true" aria-label={t("Vista rápida del reporte")} onClick={() => setBoardPreviewOpen(false)}>

@@ -592,6 +592,38 @@ def _temporada_cerrada_sc(edition_id: int, auth) -> bool:
     return _temporada_cerrada_sb(hermana["competition_id"], hermana["season_id"], sb_auth)
 
 
+@app.get("/api/statsbomb/team-stats")
+async def statsbomb_team_stats(competition_id: int, season_id: int):
+    """Estadísticas de temporada por equipo, tal como las da StatsBomb.
+
+    Son la base del estilo de juego: 181 campos por equipo, todos por partido.
+    Se devuelven crudas —el cálculo vive en la app, en lib/estiloEquipo.ts—
+    y se guardan en disco igual que las de jugadores.
+    """
+    import json as _json
+    auth = _statsbomb_auth()
+    if not auth:
+        return Response('{"error": "sin credenciales"}', status_code=503, media_type="application/json", headers=cors_headers())
+    clave_disco = f"sbteam-{competition_id}-{season_id}"
+    guardadas = _pool_cache_leer(
+        clave_disco,
+        _POOL_TTL_CERRADA if _temporada_cerrada_sb(competition_id, season_id, auth) else None,
+    )
+    if guardadas is not None:
+        return Response(_json.dumps({"rows": guardadas, "cache": "disco"}), media_type="application/json", headers=cors_headers())
+    url = f"https://data.statsbomb.com/api/v2/competitions/{competition_id}/seasons/{season_id}/team-stats"
+    try:
+        data = _cached_get(f"sbteam:{competition_id}:{season_id}", url, auth)
+    except Exception as error:
+        # StatsBomb responde a veces 200 sin cuerpo para competiciones sin
+        # partidos procesados: se trata como "sin equipos", no como caída.
+        return Response(_json.dumps({"rows": [], "error": str(error)}), media_type="application/json", headers=cors_headers())
+    rows = [fila for fila in (data or []) if isinstance(fila, dict)]
+    if rows:
+        _pool_cache_escribir(clave_disco, rows)
+    return Response(_json.dumps({"rows": rows}), media_type="application/json", headers=cors_headers())
+
+
 @app.get("/api/statsbomb/player-stats")
 async def statsbomb_player_stats(competition_id: int, season_id: int):
     import json as _json

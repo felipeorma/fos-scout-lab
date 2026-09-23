@@ -158,6 +158,7 @@ async function fetchHtmlThroughCorsProxy(url: string) {
 // con las credenciales guardadas SOLO en esta máquina.
 import { extractSeason, type DataRow, type SourceDataset } from "./scouting";
 import { OPTA_URL, type FotoMensual, type OptaLiga } from "./maldonado";
+import type { FilaEquipo } from "./estiloEquipo";
 
 const LOCAL_BRIDGE = "http://127.0.0.1:7001";
 
@@ -216,6 +217,17 @@ export async function fetchStatsbombDataset(competition: ApiCompetition): Promis
     `/api/statsbomb/player-stats?competition_id=${competition.competition_id}&season_id=${competition.season_id}`,
   );
   return toDataset(`StatsBomb · ${competition.name} ${competition.season}`, competition.season, payload.rows, "statsbomb");
+}
+
+/**
+ * Estadísticas de temporada de cada equipo de una competición (StatsBomb).
+ * Crudas: el estilo se calcula en lib/estiloEquipo.ts.
+ */
+export async function fetchStatsbombTeamStats(competition: ApiCompetition): Promise<FilaEquipo[]> {
+  const payload = await bridgeJson<{ rows: FilaEquipo[] }>(
+    `/api/statsbomb/team-stats?competition_id=${competition.competition_id}&season_id=${competition.season_id}`,
+  );
+  return payload.rows ?? [];
 }
 
 export async function fetchSkillcornerDataset(competition: ApiCompetition): Promise<SourceDataset> {
