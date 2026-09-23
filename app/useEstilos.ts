@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { fetchStatsbombCompetitions, fetchStatsbombTeamStats, temporadasUtiles } from "@/lib/remoteData";
-import type { FilaEquipo } from "@/lib/estiloEquipo";
+import { fetchSkillcornerCompetitions, fetchSkillcornerTeamStats, fetchStatsbombCompetitions, fetchStatsbombTeamStats, temporadasUtiles } from "@/lib/remoteData";
+import { fusionarSkillcorner, type FilaEquipo } from "@/lib/estiloEquipo";
 import { t, tf } from "@/lib/i18n";
 
 /**
@@ -20,6 +20,7 @@ type Estado = { filas: FilaEquipo[] | null; cargando: boolean; mensaje: string }
 let estado: Estado = { filas: null, cargando: false, mensaje: "" };
 const oyentes = new Set<(nuevo: Estado) => void>();
 let enCurso: Promise<void> | null = null;
+const sinTildes = (valor: unknown) => String(valor ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 
 function publicar(cambio: Partial<Estado>) {
   estado = { ...estado, ...cambio };
@@ -32,17 +33,36 @@ export function cargarEstilos(forzar = false): Promise<void> {
   enCurso = (async () => {
     publicar({ cargando: true, mensaje: t("Leyendo el catálogo de StatsBomb…") });
     try {
-      const catalogo = await fetchStatsbombCompetitions();
+      // SkillCorner es opcional: sin él, el estilo sale solo con StatsBomb.
+      const [catalogo, catalogoSc] = await Promise.all([
+        fetchStatsbombCompetitions(),
+        fetchSkillcornerCompetitions().catch(() => []),
+      ]);
       const { elegidas } = temporadasUtiles(catalogo);
       const juntas: FilaEquipo[] = [];
       let fallidas = 0;
       for (const [i, competicion] of elegidas.entries()) {
         publicar({ mensaje: tf("{n} de {total} · {liga}", { n: i + 1, total: elegidas.length, liga: competicion.name }) });
+        let filas: FilaEquipo[];
         try {
-          juntas.push(...await fetchStatsbombTeamStats(competicion));
+          filas = await fetchStatsbombTeamStats(competicion);
         } catch {
           fallidas += 1;
+          continue;
         }
+        // La misma liga y temporada en SkillCorner, casada igual que al cargar
+        // la base de jugadores: por nombre sin tildes y temporada exacta.
+        const hermana = catalogoSc.find((edicion) => (
+          sinTildes(edicion.name) === sinTildes(competicion.name)
+          && String(edicion.season ?? "") === String(competicion.season ?? "")
+        ));
+        if (hermana && filas.length) {
+          publicar({ mensaje: tf("{n} de {total} · {liga} · SkillCorner", { n: i + 1, total: elegidas.length, liga: competicion.name }) });
+          try {
+            filas = fusionarSkillcorner(filas, await fetchSkillcornerTeamStats(hermana));
+          } catch { /* sin SkillCorner la liga sigue con StatsBomb */ }
+        }
+        juntas.push(...filas);
       }
       if (!juntas.length) throw new Error(t("StatsBomb no devolvió equipos."));
       publicar({ filas: juntas, mensaje: fallidas ? tf("{n} competiciones sin datos de equipo.", { n: fallidas }) : "" });

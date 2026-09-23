@@ -49,6 +49,7 @@ export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", lo
   const [clave, setClave] = useState("");
   const [claveRival, setClaveRival] = useState("");
   const [metricaTop, setMetricaTop] = useState("contragolpe");
+  const [fuenteRosa, setFuenteRosa] = useState<"statsbomb" | "skillcorner">("statsbomb");
 
   const perfiles = useMemo(() => (filas ? perfilesDeEstilo(filas) : []), [filas]);
   // Las listas —parecidos, top 10— salen del grupo profesional: la NCAA se
@@ -63,6 +64,8 @@ export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", lo
   const rival = perfiles.find((perfil) => perfil.clave === claveRival) ?? parecidos[0]?.perfil ?? null;
   const duelo = useMemo(() => (elegido && rival ? cabezaACabeza(elegido, rival) : []), [elegido, rival]);
   const encaje = elegido && propio && elegido.clave !== propio.clave ? parecidoDeEstilo(elegido, propio) : Number.NaN;
+  const encajeSc = elegido && propio && elegido.clave !== propio.clave ? parecidoDeEstilo(elegido, propio, ["statsbomb", "skillcorner"]) : Number.NaN;
+  const rosaDe = fuenteRosa === "skillcorner" && elegido?.conSkillcorner ? "skillcorner" : "statsbomb";
 
   const porCompeticion = useMemo(() => {
     const mapa = new Map<string, PerfilEquipo[]>();
@@ -94,6 +97,7 @@ export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", lo
           <summary><ChevronDown size={13} />{t("Cómo se calcula")}</summary>
           <p>{t("Cada métrica se pasa a desviaciones típicas y percentil contra los equipos profesionales de todas las competiciones cargadas; la NCAA se puede consultar pero no entra en las medias. Las que menos es más —PPDA, tiros concedidos— van invertidas, así que a la derecha siempre está «más» de lo que dice la etiqueta.")}</p>
           <p>{t("El parecido entre equipos es el coseno entre sus perfiles, usando solo las métricas de estilo: dos equipos que presionan arriba y salen en corto se parecen aunque uno meta el doble de goles. 100 es jugar igual, 50 no tener nada que ver.")}</p>
+          <p>{t("SkillCorner por equipo solo cubre la CPL y la MLS Next Pro con nuestra suscripción. Sus métricas se ven en la ficha y en su rosa, pero el parecido que ordena usa solo StatsBomb, para que todos los equipos se comparen en las mismas dimensiones; cuando los dos equipos tienen SkillCorner se da además un segundo parecido que lo incluye.")}</p>
         </details>
       </div>
     </header>
@@ -132,13 +136,15 @@ export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", lo
             {Number.isFinite(encaje) && propio && <p className="estilo-encaje">
               {tf("Parecido con {equipo}", { equipo: propio.equipo })}<b>{encaje.toFixed(1)}</b>
             </p>}
+            {Number.isFinite(encajeSc) && <p className="estilo-encaje-sc">{tf("Con SkillCorner también: {n}", { n: encajeSc.toFixed(1) })}</p>}
             {!elegido.referencia && <p className="estilo-aviso">{t("Este equipo no entra en el grupo de referencia (NCAA, liga femenina o menos de diez partidos): se le mide contra los profesionales, pero no forma sus medias.")}</p>}
           </div>
 
-          {FAMILIAS.map((familia) => (
-            <section key={familia.id} className="estilo-familia">
-              <h3><i style={{ background: COLOR_FAMILIA[familia.id] }} />{t(familia.nombre)}</h3>
-              <ol>
+          {FAMILIAS.map((familia) => {
+            const deSkillcorner = familia.id === "movimiento" || familia.id === "presion";
+            return <section key={familia.id} className="estilo-familia">
+              <h3><i style={{ background: COLOR_FAMILIA[familia.id] }} />{t(familia.nombre)}{deSkillcorner && <em>SkillCorner</em>}</h3>
+              {deSkillcorner && !elegido.conSkillcorner ? <p className="estilo-sin-fuente">{t("Sin datos de equipo de SkillCorner para esta liga.")}</p> : <ol>
                 {METRICAS_ESTILO.filter((metrica) => metrica.familia === familia.id && elegido.valores[metrica.id]).map((metrica) => {
                   const valor = elegido.valores[metrica.id];
                   return <li key={metrica.id} title={metrica.estilo ? t("Métrica de estilo: entra en el parecido.") : t("Métrica de rendimiento: se enseña, pero no entra en el parecido.")}>
@@ -148,14 +154,21 @@ export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", lo
                     <span className={`estilo-pct ${tramo(valor.percentil)}`}>{valor.percentil}</span>
                   </li>;
                 })}
-              </ol>
-            </section>
-          ))}
+              </ol>}
+            </section>;
+          })}
         </div>
 
         <div className="estilo-centro">
           <figure className="estilo-rosa">
-            <RosaDeEstilo perfil={elegido} rival={rival} />
+            {/* Una rosa por proveedor. Si el equipo no tiene SkillCorner, esa
+                pestaña se apaga en vez de enseñar una rosa vacía. */}
+            <div className="estilo-fuente" role="tablist" aria-label={t("Datos de la rosa")}>
+              <button type="button" role="tab" aria-selected={rosaDe === "statsbomb"} className={rosaDe === "statsbomb" ? "on" : ""} onClick={() => setFuenteRosa("statsbomb")}>StatsBomb</button>
+              <button type="button" role="tab" aria-selected={rosaDe === "skillcorner"} className={rosaDe === "skillcorner" ? "on" : ""} disabled={!elegido.conSkillcorner}
+                title={elegido.conSkillcorner ? undefined : t("Sin datos de equipo de SkillCorner para esta liga.")} onClick={() => setFuenteRosa("skillcorner")}>SkillCorner</button>
+            </div>
+            <RosaDeEstilo perfil={elegido} rival={rival} fuente={rosaDe} />
             <figcaption>
               <span><i className="relleno" />{elegido.equipo}</span>
               {rival && <span><i className="contorno" />{rival.equipo}</span>}
@@ -166,14 +179,14 @@ export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", lo
           <section className="estilo-bloque">
             <h3>{tf("Juegan como {equipo}", { equipo: elegido.equipo })}</h3>
             <ol className="rank-list estilo-lista">
-              {parecidos.map(({ perfil, parecido }, posicion) => (
+              {parecidos.map(({ perfil, parecido, conSkillcorner }, posicion) => (
                 <li key={perfil.clave} className={perfil.clave === rival?.clave ? "clicable activa" : "clicable"}
                   role="button" tabIndex={0} aria-pressed={perfil.clave === rival?.clave}
                   onClick={() => setClaveRival(perfil.clave)}
                   onKeyDown={(evento) => { if (evento.key === "Enter" || evento.key === " ") { evento.preventDefault(); setClaveRival(perfil.clave); } }}>
                   <span className={posicion < 3 ? "rank-pos podio" : "rank-pos"}>{posicion + 1}</span>
                   <span className="pool-cuerpo"><b>{perfil.equipo}</b><small>{perfil.competicion}</small></span>
-                  <span className="pool-cifras"><b>{parecido.toFixed(1)}</b><small>{t("parecido")}</small></span>
+                  <span className="pool-cifras"><b>{parecido.toFixed(1)}</b><small>{Number.isFinite(conSkillcorner) ? tf("con SkillCorner {n}", { n: conSkillcorner.toFixed(1) }) : t("parecido")}</small></span>
                   <span />
                 </li>
               ))}

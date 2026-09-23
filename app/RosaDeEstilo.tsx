@@ -19,6 +19,8 @@ export const COLOR_FAMILIA: Record<FamiliaEstilo, string> = {
   circulacion: "#2f9e62",
   ataque: "#e08a2e",
   defensa: "#d0503f",
+  movimiento: "#7b61d1",
+  presion: "#1f9aa6",
 };
 
 const LADO = 560;
@@ -40,8 +42,18 @@ function enDosLineas(texto: string): string[] {
   return corte < 0 ? [texto] : [texto.slice(0, corte), texto.slice(corte + 1)];
 }
 
-export function RosaDeEstilo({ perfil, rival }: { perfil: PerfilEquipo; rival?: PerfilEquipo | null }) {
-  const metricas = METRICAS_ESTILO.filter((metrica) => perfil.valores[metrica.id]);
+export function RosaDeEstilo({ perfil, rival, fuente = "statsbomb" }: {
+  perfil: PerfilEquipo;
+  rival?: PerfilEquipo | null;
+  /** Una rosa por proveedor: juntas serían 35 cuñas y no se leería ninguna. */
+  fuente?: "statsbomb" | "skillcorner";
+}) {
+  const metricas = METRICAS_ESTILO.filter((metrica) => (metrica.fuente ?? "statsbomb") === fuente && perfil.valores[metrica.id]);
+  // El contorno del rival solo si tiene dato en todas: con huecos, el
+  // polígono se hundiría al centro donde no hay dato, que no es lo mismo que
+  // un percentil cero.
+  const rivalDibujable = rival && metricas.every((metrica) => rival.valores[metrica.id]) ? rival : null;
+  const familias = FAMILIAS.filter((familia) => metricas.some((metrica) => metrica.familia === familia.id));
   const n = metricas.length;
   if (!n) return null;
   const paso = (Math.PI * 2) / n;
@@ -54,8 +66,8 @@ export function RosaDeEstilo({ perfil, rival }: { perfil: PerfilEquipo; rival?: 
     return `M${x0} ${y0}L${x1} ${y1}A${r} ${r} 0 0 1 ${x2} ${y2}L${x3} ${y3}A${R_DENTRO} ${R_DENTRO} 0 0 0 ${x0} ${y0}Z`;
   };
 
-  const contornoRival = rival
-    ? metricas.map((metrica, i) => punto((i + 0.5) * paso, radio(rival.valores[metrica.id]?.percentil ?? 0)).join(",")).join(" ")
+  const contornoRival = rivalDibujable
+    ? metricas.map((metrica, i) => punto((i + 0.5) * paso, radio(rivalDibujable.valores[metrica.id].percentil)).join(",")).join(" ")
     : "";
 
   return <svg className="rosa-estilo" viewBox="-110 -24 780 608" role="img"
@@ -75,7 +87,7 @@ export function RosaDeEstilo({ perfil, rival }: { perfil: PerfilEquipo; rival?: 
       </path>;
     })}
 
-    {rival && <polygon points={contornoRival} className="rosa-rival" />}
+    {rivalDibujable && <polygon points={contornoRival} className="rosa-rival" />}
 
     {metricas.map((metrica, i) => {
       const angulo = (i + 0.5) * paso;
@@ -94,7 +106,7 @@ export function RosaDeEstilo({ perfil, rival }: { perfil: PerfilEquipo; rival?: 
     })}
 
     <circle cx={CENTRO} cy={CENTRO} r={R_DENTRO - 4} className="rosa-centro" />
-    {FAMILIAS.map((familia, i) => (
+    {familias.map((familia, i) => (
       <g key={familia.id} transform={`translate(${-100 + i * 190}, 578)`}>
         <rect width="12" height="12" rx="3" fill={COLOR_FAMILIA[familia.id]} />
         <text x="18" y="10" className="rosa-leyenda">{t(familia.nombre)}</text>

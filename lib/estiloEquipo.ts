@@ -32,13 +32,15 @@ export type FilaEquipo = Record<string, unknown> & {
   team_season_matches?: number;
 };
 
-export type FamiliaEstilo = "construccion" | "circulacion" | "ataque" | "defensa";
+export type FamiliaEstilo = "construccion" | "circulacion" | "ataque" | "defensa" | "movimiento" | "presion";
 
 export const FAMILIAS: Array<{ id: FamiliaEstilo; nombre: string }> = [
   { id: "construccion", nombre: "Construcción" },
   { id: "circulacion", nombre: "Circulación" },
   { id: "ataque", nombre: "Ataque" },
   { id: "defensa", nombre: "Defensa" },
+  { id: "movimiento", nombre: "Movimiento sin balón" },
+  { id: "presion", nombre: "Presión sin balón" },
 ];
 
 export type MetricaEstilo = {
@@ -58,6 +60,8 @@ export type MetricaEstilo = {
   /** Describe cómo juega. Si no, describe cuánto rinde y no entra en el parecido. */
   estilo: boolean;
   formato: "pct" | "n1" | "n2" | "n3";
+  /** De dónde sale. Las de SkillCorner solo existen en las ligas que cubre. */
+  fuente?: "statsbomb" | "skillcorner";
 };
 
 const num = (fila: FilaEquipo, campo: string) => {
@@ -65,6 +69,15 @@ const num = (fila: FilaEquipo, campo: string) => {
   return typeof valor === "number" && Number.isFinite(valor) ? valor : Number.NaN;
 };
 const cociente = (a: number, b: number) => (Number.isFinite(a) && Number.isFinite(b) && b > 0 ? a / b : Number.NaN);
+
+/*
+ * SkillCorner por equipo da el promedio por jugador y partido, no el total.
+ * Se normaliza como lo hace SkillCorner: por cada 30 minutos con balón (tip)
+ * o sin balón (otip). Así la métrica no premia al que tiene más posesión.
+ */
+const sc = (f: FilaEquipo, campo: string) => num(f, `sc_${campo}`);
+const porTreinta = (f: FilaEquipo, valor: number, fase: "tip" | "otip") => cociente(valor, sc(f, `minutes_${fase}`)) * 30;
+const sumaSc = (f: FilaEquipo, ...campos: string[]) => campos.reduce((suma, campo) => suma + sc(f, campo), 0);
 
 /*
  * Cada métrica, con la equivalencia en la página 7 cuando la hay. Donde el
@@ -128,6 +141,35 @@ export const METRICAS_ESTILO: MetricaEstilo[] = [
     valor: (f) => num(f, "team_season_np_xg_per_shot_conceded") },
   { id: "llegadas_contra", etiqueta: "Llegadas concedidas cerca del área", corta: "Llegadas concedidas", familia: "defensa", estilo: false, formato: "n1", invertida: true,
     valor: (f) => num(f, "team_season_deep_completions_conceded_pg") },
+
+  // ---- Movimiento sin balón (SkillCorner) ----
+  { id: "sc_rupturas", etiqueta: "Rupturas a la espalda", corta: "Rupturas", familia: "movimiento", estilo: true, formato: "n2", fuente: "skillcorner",
+    valor: (f) => porTreinta(f, sc(f, "behindrun_count"), "tip") },
+  { id: "sc_apoyos", etiqueta: "Desmarques de apoyo", corta: "Apoyos", familia: "movimiento", estilo: true, formato: "n2", fuente: "skillcorner",
+    valor: (f) => porTreinta(f, sumaSc(f, "comingshortrun_count", "droppingoffrun_count", "supportrun_count"), "tip") },
+  { id: "sc_abriendo", etiqueta: "Desmarques abriendo el campo", corta: "Abriendo", familia: "movimiento", estilo: true, formato: "n2", fuente: "skillcorner",
+    valor: (f) => porTreinta(f, sumaSc(f, "overlaprun_count", "underlaprun_count", "pullingwiderun_count", "pullinghalfspacerun_count"), "tip") },
+  { id: "sc_al_area", etiqueta: "Carreras al área para el centro", corta: "Al área", familia: "movimiento", estilo: true, formato: "n2", fuente: "skillcorner",
+    valor: (f) => porTreinta(f, sc(f, "crossreceiverrun_count"), "tip") },
+  { id: "sc_sirve", etiqueta: "Sirve la carrera %", corta: "Sirve la carrera", familia: "movimiento", estilo: true, formato: "pct", fuente: "skillcorner",
+    valor: (f) => cociente(sc(f, "pass_count_torun_attempted"), sc(f, "passopportunity_count_torun")) },
+  { id: "sc_rompe_lineas", etiqueta: "Pases rompe-líneas", corta: "Rompe-líneas", familia: "movimiento", estilo: true, formato: "n2", fuente: "skillcorner",
+    valor: (f) => porTreinta(f, sc(f, "pass_count_linebreak_completed"), "tip") },
+  { id: "sc_retencion", etiqueta: "Retención bajo presión %", corta: "Retiene presionado", familia: "movimiento", estilo: false, formato: "pct", fuente: "skillcorner",
+    valor: (f) => sc(f, "possession_pct_drawnpressure_retained") / 100 },
+
+  // ---- Presión sin balón (SkillCorner) ----
+  { id: "sc_presiones", etiqueta: "Presiones sobre el balón", corta: "Presiones", familia: "presion", estilo: true, formato: "n1", fuente: "skillcorner",
+    valor: (f) => porTreinta(f, sc(f, "onballengagement_count"), "otip") },
+  // Descriptiva, no de estilo: sobre los 37 equipos con SkillCorner va con
+  // "Presiones en campo rival %" de StatsBomb a 0,80, y contarla también en
+  // el parecido sería contar dos veces la misma presión.
+  { id: "sc_cadenas", etiqueta: "Presiones en cadena %", corta: "En cadena", familia: "presion", estilo: false, formato: "pct", fuente: "skillcorner",
+    valor: (f) => cociente(sc(f, "onballengagement_count_pressingchain"), sc(f, "onballengagement_count")) },
+  { id: "sc_robo_directo", etiqueta: "Robo directo al presionar %", corta: "Robo directo", familia: "presion", estilo: false, formato: "pct", fuente: "skillcorner",
+    valor: (f) => sc(f, "onballengagement_pct_directregain") / 100 },
+  { id: "sc_hacia_atras", etiqueta: "Obliga a jugar hacia atrás %", corta: "Hacia atrás", familia: "presion", estilo: false, formato: "pct", fuente: "skillcorner",
+    valor: (f) => sc(f, "onballengagement_pct_forcedbackward") / 100 },
 ];
 
 /**
@@ -182,6 +224,8 @@ export type PerfilEquipo = {
   partidos: number;
   /** Si forma parte del grupo de referencia (profesional, masculino, con muestra). */
   referencia: boolean;
+  /** Si su liga tiene datos de equipo de SkillCorner. */
+  conSkillcorner: boolean;
   valores: Record<string, ValorEstilo>;
 };
 
@@ -225,10 +269,13 @@ export function perfilesDeEstilo(todas: FilaEquipo[]): PerfilEquipo[] {
       temporada: String(fila.season_name),
       partidos: Number(fila.team_season_matches ?? 0),
       referencia: entraEnReferencia(fila),
+      conSkillcorner: Number.isFinite(num(fila, "sc_minutes_tip")),
       valores,
     };
   });
 }
+
+export type Fuente = "statsbomb" | "skillcorner";
 
 /**
  * Cuánto se parecen dos equipos en cómo juegan, de 0 a 100.
@@ -237,11 +284,19 @@ export function perfilesDeEstilo(todas: FilaEquipo[]): PerfilEquipo[] {
  * estilo: dos equipos que presionan arriba y salen en corto se parecen aunque
  * uno meta el doble de goles. 100 es la misma forma de jugar, 50 no tener
  * nada que ver, 0 jugar al revés.
+ *
+ * Por defecto, solo StatsBomb. SkillCorner por equipo cubre la CPL y la MLS
+ * Next Pro —37 de 224 equipos— y meterlo en el parecido que ordena sesgaba la
+ * lista: un equipo sin SkillCorner se comparaba en menos dimensiones, y con
+ * menos dimensiones es más fácil coincidir. Los diez que "jugaban como
+ * Cavalry" salían todos de ligas sin SkillCorner. Con las dos fuentes solo se
+ * calcula cuando los dos equipos las tienen, y se enseña aparte.
  */
-export function parecidoDeEstilo(a: PerfilEquipo, b: PerfilEquipo): number {
+export function parecidoDeEstilo(a: PerfilEquipo, b: PerfilEquipo, fuentes: Fuente[] = ["statsbomb"]): number {
+  if (fuentes.includes("skillcorner") && !(a.conSkillcorner && b.conSkillcorner)) return Number.NaN;
   let producto = 0, normaA = 0, normaB = 0, comunes = 0;
   for (const metrica of METRICAS_ESTILO) {
-    if (!metrica.estilo) continue;
+    if (!metrica.estilo || !fuentes.includes(metrica.fuente ?? "statsbomb")) continue;
     const va = a.valores[metrica.id]?.z, vb = b.valores[metrica.id]?.z;
     if (!Number.isFinite(va) || !Number.isFinite(vb)) continue;
     producto += va! * vb!; normaA += va! ** 2; normaB += vb! ** 2; comunes += 1;
@@ -255,7 +310,12 @@ export function parecidoDeEstilo(a: PerfilEquipo, b: PerfilEquipo): number {
 export function equiposParecidos(objetivo: PerfilEquipo, perfiles: PerfilEquipo[], cuantos = 10) {
   return perfiles
     .filter((otro) => otro.clave !== objetivo.clave)
-    .map((otro) => ({ perfil: otro, parecido: parecidoDeEstilo(objetivo, otro) }))
+    .map((otro) => ({
+      perfil: otro,
+      parecido: parecidoDeEstilo(objetivo, otro),
+      /** Con SkillCorner también, cuando los dos equipos lo tienen. */
+      conSkillcorner: parecidoDeEstilo(objetivo, otro, ["statsbomb", "skillcorner"]),
+    }))
     .filter((fila) => Number.isFinite(fila.parecido))
     .sort((x, y) => y.parecido - x.parecido)
     .slice(0, cuantos);
@@ -349,3 +409,21 @@ export function crearEncaje(perfiles: PerfilEquipo[], propio: string = EQUIPO_PR
 
 /** Tramo para pintarlo: alto desde 75, medio desde 60. */
 export const tramoDeEncaje = (valor: number) => (valor >= 75 ? "alto" : valor >= 60 ? "medio" : "bajo");
+
+/**
+ * Pega los datos de equipo de SkillCorner a los de StatsBomb de la misma
+ * competición, casando por nombre (mismoEquipo). Cada campo entra con prefijo
+ * sc_ para que no pise nada. Un club que solo esté en un proveedor queda como
+ * estaba: sin las métricas de SkillCorner, que es lo honesto.
+ */
+export function fusionarSkillcorner(filas: FilaEquipo[], deSkillcorner: Array<Record<string, unknown>>): FilaEquipo[] {
+  return filas.map((fila) => {
+    const suya = deSkillcorner.find((otra) => mismoEquipo(String(otra.team_name ?? ""), String(fila.team_name)));
+    if (!suya) return fila;
+    const extra: Record<string, unknown> = {};
+    for (const [campo, valor] of Object.entries(suya)) {
+      if (typeof valor === "number" && Number.isFinite(valor)) extra[`sc_${campo}`] = valor;
+    }
+    return { ...fila, ...extra };
+  });
+}

@@ -5673,3 +5673,30 @@ button.menu-fila:active { transform: scale(.985); }
   .estilo-page .rosa-estilo { max-height: 150mm; }
   .celda-encaje { cursor: default; }
 }
+
+/* ---- Estilo de juego: SkillCorner ---- */
+.app-shell[data-tema] .estilo-familia > h3 > em {
+  margin-left: 4px; padding: 1px 6px; border-radius: 4px;
+  color: var(--muted); background: color-mix(in srgb, var(--ink) 7%, transparent);
+  font-size: 9.5px; font-style: normal; letter-spacing: .02em; text-transform: none;
+}
+.app-shell[data-tema] p.estilo-sin-fuente {
+  margin: 0; padding: 10px 12px; border-radius: 12px;
+  color: var(--muted); background: var(--paper); box-shadow: 0 0 0 1px var(--line);
+  font-size: 12px;
+}
+.app-shell[data-tema] .estilo-fuente {
+  margin: 0 auto 6px; padding: 2px; width: max-content;
+  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr);
+  border-radius: 9px; background: color-mix(in srgb, var(--ink) 7%, transparent);
+}
+.app-shell[data-tema] .estilo-fuente > button {
+  min-width: 110px; min-height: 28px; padding: 0 12px;
+  border: 0; border-radius: 7px; background: none; box-shadow: none;
+  color: var(--ink); font: inherit; font-size: 12.5px; font-weight: 500; cursor: pointer;
+}
+.app-shell[data-tema] .estilo-fuente > button.on { background: var(--segmento); box-shadow: 0 1px 3px rgba(0,0,0,.12); font-weight: 600; }
+.app-shell[data-tema] .estilo-fuente > button:disabled { opacity: .4; cursor: not-allowed; }
+@media print { .estilo-fuente { display: none !important; } }
+
+.app-shell[data-tema] p.estilo-encaje-sc { margin: 4px 0 0; color: var(--muted); font-size: 12px; text-align: right; }

@@ -10,6 +10,7 @@ import {
   unaTemporadaPorEquipo,
   crearEncaje,
   mismoEquipo,
+  fusionarSkillcorner,
 } from "../lib/estiloEquipo.ts";
 
 /**
@@ -169,4 +170,34 @@ test("el encaje: 100 con el propio, el parecido con el resto y nada si el club n
   assert.equal(forge?.equipo, "Forge FC");
   assert.ok(forge.valor > 50 && forge.valor < 100, "su vecino de estilo");
   assert.equal(encaje("Club que no existe"), null, "sin perfil no hay número");
+});
+
+test("SkillCorner se pega por nombre de club y se normaliza por 30 minutos con balón", () => {
+  const filas = grupo();
+  filas[0] = { ...filas[0], team_name: "Cavalry FC" };
+  const deSc = [{ team_name: "Cavalry", minutes_tip: 20, minutes_otip: 20, behindrun_count: 1, onballengagement_count: 30 }];
+  const juntas = fusionarSkillcorner(filas, deSc);
+  assert.equal(juntas[0].sc_behindrun_count, 1);
+  assert.equal(juntas[1].sc_behindrun_count, undefined, "un club sin SkillCorner queda como estaba");
+  const perfiles = perfilesDeEstilo(juntas);
+  assert.equal(perfiles[0].conSkillcorner, true);
+  assert.equal(perfiles[1].conSkillcorner, false);
+  // Con un solo equipo con SkillCorner no hay dispersión: la métrica no puntúa,
+  // pero sí queda el dato en bruto calculable.
+  const rupturas = METRICAS_ESTILO.find((m) => m.id === "sc_rupturas");
+  assert.equal(rupturas.valor(juntas[0]), 1.5, "1 ruptura en 20 minutos con balón = 1,5 por cada 30");
+});
+
+test("el parecido que ordena usa solo StatsBomb; con SkillCorner es un segundo número", () => {
+  const filas = grupo().map((fila, i) => ({ ...fila, sc_minutes_tip: 20, sc_minutes_otip: 20, sc_behindrun_count: 0.5 + ((i * 7) % 11) * 0.05, sc_onballengagement_count: 20 + ((i * 3) % 13) }));
+  const perfiles = perfilesDeEstilo(filas);
+  assert.ok(perfiles[3].valores.sc_rupturas && perfiles[3].valores.sc_presiones);
+  // Tener o no SkillCorner no mueve el parecido por defecto: todos se comparan
+  // en las mismas dimensiones, que es lo que evita el sesgo.
+  const sinSc = perfilesDeEstilo(filas.map((fila, i) => (i === 3 ? grupo()[3] : fila)));
+  assert.equal(parecidoDeEstilo(perfiles[3], perfiles[10]), parecidoDeEstilo(sinSc[3], sinSc[10]));
+  // Con las dos fuentes solo si los dos lo tienen, y entonces sí cuenta.
+  assert.ok(Number.isFinite(parecidoDeEstilo(perfiles[3], perfiles[10], ["statsbomb", "skillcorner"])));
+  assert.ok(Number.isNaN(parecidoDeEstilo(sinSc[3], sinSc[10], ["statsbomb", "skillcorner"])));
+  assert.notEqual(parecidoDeEstilo(perfiles[3], perfiles[10]), parecidoDeEstilo(perfiles[3], perfiles[10], ["statsbomb", "skillcorner"]));
 });

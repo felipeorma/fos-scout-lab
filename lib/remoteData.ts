@@ -230,6 +230,14 @@ export async function fetchStatsbombTeamStats(competition: ApiCompetition): Prom
   return payload.rows ?? [];
 }
 
+/** Game intelligence de SkillCorner por equipo: promedios por jugador y partido. */
+export async function fetchSkillcornerTeamStats(edition: ApiCompetition): Promise<Array<Record<string, unknown>>> {
+  const payload = await bridgeJson<{ rows: Array<Record<string, unknown>> }>(
+    `/api/skillcorner/team-stats?competition_edition_id=${edition.id}`,
+  );
+  return payload.rows ?? [];
+}
+
 export async function fetchSkillcornerDataset(competition: ApiCompetition): Promise<SourceDataset> {
   const payload = await bridgeJson<{ rows: DataRow[] }>(
     `/api/skillcorner/player-stats?competition_edition_id=${competition.id}`,

@@ -862,6 +862,48 @@ async def skillcorner_competitions():
     return Response(_json.dumps(comps), media_type="application/json", headers=cors_headers())
 
 
+@app.get("/api/skillcorner/team-stats")
+async def skillcorner_team_stats(competition_edition_id: int):
+    """Game intelligence de SkillCorner agrupado por equipo.
+
+    Las cinco rutas (carreras sin balón, pases, opciones de pase, posesiones y
+    presiones sin balón) aceptan group_by=team; el físico no (responde 400).
+    Ojo con lo que devuelven: no son totales del equipo sino el promedio por
+    jugador y partido —minutes ronda los 71—, así que la app normaliza por
+    cada 30 minutos con o sin balón, que es como lo hace SkillCorner.
+    """
+    import json as _json
+    auth = _skillcorner_auth()
+    if not auth:
+        return Response('{"error": "sin credenciales"}', status_code=503, media_type="application/json", headers=cors_headers())
+    clave_disco = f"scteam-{competition_edition_id}"
+    guardadas = _pool_cache_leer(clave_disco)
+    if guardadas is not None:
+        return Response(_json.dumps({"rows": guardadas, "cache": "disco"}), media_type="application/json", headers=cors_headers())
+    equipos: dict = {}
+    for ruta_clave, ruta in _SC_GI_ROUTES.items():
+        params = {"competition_edition": competition_edition_id, "group_by": "team", "limit": 100}
+        if ruta_clave == "off_ball_runs":
+            params["variants"] = "obr_type"
+        try:
+            data = _cached_get(f"scteam:{competition_edition_id}:{ruta_clave}",
+                               f"https://skillcorner.com/api/metrics/game_intelligence/{ruta}", auth, params=params, ttl_seconds=1800)
+        except Exception:
+            continue
+        for fila in data.get("results", []) if isinstance(data, dict) else []:
+            equipo = fila.get("team_id")
+            if equipo is None:
+                continue
+            destino = equipos.setdefault(equipo, {"team_id": equipo, "team_name": fila.get("team_name") or ""})
+            for campo, valor in fila.items():
+                if isinstance(valor, (int, float)) and not isinstance(valor, bool):
+                    destino[campo] = valor
+    filas = list(equipos.values())
+    if filas:
+        _pool_cache_escribir(clave_disco, filas)
+    return Response(_json.dumps({"rows": filas}), media_type="application/json", headers=cors_headers())
+
+
 @app.get("/api/skillcorner/player-stats")
 async def skillcorner_player_stats(competition_edition_id: int):
     import json as _json
