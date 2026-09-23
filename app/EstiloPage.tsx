@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Desplegable } from "./BarraDeFiltros";
 import { ChevronDown } from "./Icons";
 import { PieDeReporte } from "./PieDeReporte";
 import { COLOR_FAMILIA, RosaDeEstilo } from "./RosaDeEstilo";
 import { numberLocale, t, tf } from "@/lib/i18n";
-import { fetchStatsbombCompetitions, fetchStatsbombTeamStats, temporadasUtiles } from "@/lib/remoteData";
+import { useEstilos } from "./useEstilos";
 import {
   FAMILIAS,
   METRICAS_ESTILO,
@@ -14,7 +14,7 @@ import {
   equiposParecidos,
   parecidoDeEstilo,
   perfilesDeEstilo,
-  type FilaEquipo,
+  EQUIPO_PROPIO,
   type MetricaEstilo,
   type PerfilEquipo,
 } from "@/lib/estiloEquipo";
@@ -29,10 +29,6 @@ import {
  * quien viene de un equipo que juega como el nuestro se adapta antes.
  */
 
-// Los datos de la sesión. Son dieciséis descargas; volver a la página no
-// debería repetirlas, y el puente ya las guarda en disco para la próxima vez.
-let memoria: FilaEquipo[] | null = null;
-
 function formatear(metrica: MetricaEstilo, valor: number) {
   if (!Number.isFinite(valor)) return "—";
   if (metrica.formato === "pct") return `${Math.round(valor * 100)}%`;
@@ -43,51 +39,16 @@ function formatear(metrica: MetricaEstilo, valor: number) {
 const tramo = (percentil: number) => (percentil >= 80 ? "p5" : percentil >= 60 ? "p4" : percentil >= 40 ? "p3" : percentil >= 20 ? "p2" : "p1");
 const conSigno = (z: number) => `${z >= 0 ? "+" : "−"}${Math.abs(z).toFixed(2)}`;
 
-export function EstiloPage({ equipoPropio = "Cavalry", destinatario = "", logoDestinatario = "" }: {
+export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", logoDestinatario = "" }: {
   /** El equipo con el que se mide el encaje. En el espacio de Cavalry, Cavalry. */
   equipoPropio?: string;
   destinatario?: string;
   logoDestinatario?: string;
 }) {
-  const [filas, setFilas] = useState<FilaEquipo[] | null>(memoria);
-  const [estado, setEstado] = useState("");
-  const [cargando, setCargando] = useState(false);
+  const { filas, cargando, mensaje: estado, recargar } = useEstilos();
   const [clave, setClave] = useState("");
   const [claveRival, setClaveRival] = useState("");
   const [metricaTop, setMetricaTop] = useState("contragolpe");
-
-  async function cargar() {
-    setCargando(true);
-    setEstado(t("Leyendo el catálogo de StatsBomb…"));
-    try {
-      const catalogo = await fetchStatsbombCompetitions();
-      const { elegidas } = temporadasUtiles(catalogo);
-      const juntas: FilaEquipo[] = [];
-      let fallidas = 0;
-      for (const [i, competicion] of elegidas.entries()) {
-        setEstado(tf("{n} de {total} · {liga}", { n: i + 1, total: elegidas.length, liga: competicion.name }));
-        try {
-          juntas.push(...await fetchStatsbombTeamStats(competicion));
-        } catch {
-          fallidas += 1;
-        }
-      }
-      if (!juntas.length) throw new Error(t("StatsBomb no devolvió equipos."));
-      memoria = juntas;
-      setFilas(juntas);
-      setEstado(fallidas ? tf("{n} competiciones sin datos de equipo.", { n: fallidas }) : "");
-    } catch (error) {
-      setEstado(error instanceof TypeError
-        ? t("El servidor local no respondió. Arranca npm run bg:server y reintenta.")
-        : error instanceof Error ? error.message : String(error));
-    } finally {
-      setCargando(false);
-    }
-  }
-
-  useEffect(() => {
-    if (!memoria) void cargar();
-  }, []);
 
   const perfiles = useMemo(() => (filas ? perfilesDeEstilo(filas) : []), [filas]);
   // Las listas —parecidos, top 10— salen del grupo profesional: la NCAA se
@@ -139,7 +100,7 @@ export function EstiloPage({ equipoPropio = "Cavalry", destinatario = "", logoDe
 
     {!elegido ? <p className="estilo-estado" role="status">
       {cargando ? estado : estado || t("Todavía no hay datos de equipo.")}
-      {!cargando && <button type="button" className="estilo-reintentar" onClick={() => void cargar()}>{t("Reintentar")}</button>}
+      {!cargando && <button type="button" className="estilo-reintentar" onClick={() => void recargar()}>{t("Reintentar")}</button>}
     </p> : <>
       <div className="filtros-barra estilo-controles" role="group" aria-label={t("Qué equipo y con quién compararlo")}>
         <div className="filtros-chips">

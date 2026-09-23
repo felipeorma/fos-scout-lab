@@ -5607,3 +5607,69 @@ button.menu-fila:active { transform: scale(.985); }
   .estilo-reintentar { display: none !important; }
   .estilo-grid { grid-template-columns: 330px minmax(0, 1fr); }
 }
+
+/* ---- Encaje de estilo en Ranking y Entre ligas ---- */
+/* Una columna más entre el cuerpo de la fila y la cifra principal. */
+.app-shell[data-tema] :is(.rank-list, .pool-lista).con-encaje > li { grid-template-columns: 30px minmax(0, 1fr) 54px auto 14px; }
+.celda-encaje { display: flex; flex-direction: column; align-items: center; gap: 1px; font-variant-numeric: tabular-nums; cursor: help; }
+.app-shell[data-tema] span.celda-encaje > b { color: var(--ink); font-size: 16px; font-weight: 700; line-height: 1.1; }
+.app-shell[data-tema] span.celda-encaje > small { color: var(--muted); font-size: 10px; letter-spacing: .02em; }
+.app-shell[data-tema] span.celda-encaje.alto > b { color: #34c759; }
+.app-shell[data-tema="claro"] span.celda-encaje.alto > b { color: #1a7f37; }
+.app-shell[data-tema] span.celda-encaje.bajo > b,
+.app-shell[data-tema] span.celda-encaje.vacia > b { color: var(--muted); font-weight: 500; }
+.app-shell[data-tema] small.pool-encaje { margin-top: 3px; display: block; color: var(--acento-claro); font-size: 11.5px; font-weight: 600; }
+@media (max-width: 640px) {
+  .app-shell[data-tema] :is(.rank-list, .pool-lista).con-encaje > li { grid-template-columns: 24px minmax(0, 1fr) 44px auto; }
+}
+
+/* =====================================================================
+   Texto que se corta: que salte de línea en vez de esconderse
+   =====================================================================
+   Medido en el navegador a 1280, 1024 y 800 px: el valor de las fichas de
+   filtro se cortaba a 16 caracteres ("Football Club Fleury 91"), el club
+   destinatario de la firma perdía la parte de abajo de las letras en todas
+   las páginas de análisis, y en Contexto "Entradas + intercepciones (SB)"
+   quedaba en puntos suspensivos. Además había una docena de reglas que cortan
+   nombres con "…" y que hoy no se notan solo porque los nombres de la CPL son
+   cortos. Un nombre a medias no se puede leer; en dos líneas, sí. */
+.app-shell[data-tema] .filtros-barra .filtro-chip > b { max-width: 34ch; }
+@media (max-width: 640px) {
+  .app-shell[data-tema] .filtros-barra .filtro-chip > b { max-width: none; white-space: normal; overflow-wrap: break-word; }
+}
+.app-shell[data-tema] :is(
+  .pool-cuerpo > b, .pool-cuerpo > small,
+  .rank-cuerpo .rank-nombre,
+  .datos-competicion > b, .board-archivo > b, .inspector-bloque-nombre > b,
+  .run-mix-row > span,
+  .ctx-metric-label, .ctx-rank-row > span, .ctx-z-row > span, .ctx-swarm figcaption span, .arq-nombre,
+  .once-cand > b, .once-cand > em, .board-variacion-cols p em
+) {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+/* La firma: el interlineado de Oswald es más alto que su caja, y con el
+   desborde escondido se comía los trazos de abajo. */
+.report-recipient > div > b,
+.report-author > b {
+  line-height: 1.25;
+  padding-bottom: 1px;
+}
+.report-recipient > div > b {
+  max-width: 240px;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+
+/* ---- Estilo de juego al imprimir ---- */
+@media print {
+  .estilo-page :is(.estilo-ficha, .estilo-familia, .estilo-rosa, .estilo-bloque) { break-inside: avoid; }
+  .estilo-page .estilo-top-titulo .filtro-chip { padding: 0; border: 0; background: none; box-shadow: none; }
+  .estilo-page .estilo-top-titulo .filtro-chip > :is(span, svg, select) { display: none !important; }
+  .estilo-page .rosa-estilo { max-height: 150mm; }
+  .celda-encaje { cursor: default; }
+}

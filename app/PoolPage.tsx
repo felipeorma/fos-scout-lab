@@ -12,6 +12,9 @@ import { Paso } from "./Paso";
 import { BotonExportar } from "./BotonExportar";
 import { ChevronDown, ChevronRight, Search } from "./Icons";
 import { Interruptor } from "./Interruptor";
+import { CeldaEncaje } from "./CeldaEncaje";
+import { useEstilos } from "./useEstilos";
+import { EQUIPO_PROPIO, crearEncaje, perfilesDeEstilo } from "@/lib/estiloEquipo";
 
 /**
  * Buscador entre ligas: quién se parece a este jugador en todo lo cargado.
@@ -57,6 +60,12 @@ export function PoolPage({ onAbrirJugador, destinatario = "", logoDestinatario =
   const [objetivo, setObjetivo] = useState(-1);
   const [busqueda, setBusqueda] = useState("");
   const [mismoFlanco, setMismoFlanco] = useState(false);
+  // El encaje de estilo del club de cada candidato con el nuestro. Ver Ranking.
+  const estilos = useEstilos();
+  const encaje = useMemo(
+    () => crearEncaje(estilos.filas ? perfilesDeEstilo(estilos.filas) : [], EQUIPO_PROPIO),
+    [estilos.filas],
+  );
 
   const aniosMezclados = useMemo(
     () => [...new Set(competiciones.map((c) => c.anio).filter(Boolean))].sort(),
@@ -180,6 +189,10 @@ export function PoolPage({ onAbrirJugador, destinatario = "", logoDestinatario =
           <small>{t("Jugador de referencia")}</small>
           <b>{nombreObjetivo}</b>
           <span>{[equipoObjetivo, ligaObjetivo].filter(Boolean).join(" · ")}</span>
+          {(() => {
+            const suyo = encaje(equipoObjetivo);
+            return suyo && <small className="pool-encaje">{tf("Encaje de estilo de su club con {equipo}: {n}", { equipo: EQUIPO_PROPIO, n: suyo.valor.toFixed(0) })}</small>;
+          })()}
         </span>
         <button type="button" className="pool-cambiar" onClick={cambiarReferencia}>{t("Cambiar")}</button>
       </div>
@@ -202,13 +215,14 @@ export function PoolPage({ onAbrirJugador, destinatario = "", logoDestinatario =
          porque un 90% con 55% de cobertura no es un 90% con 100. */
       <BotonExportar
         nombre={[t("parecidos-a"), nombreObjetivo, filtros.liga !== "TODAS" ? filtros.liga : null, filtros.anio || null]}
-        columnas={[t("#"), t("Jugador"), t("Equipo"), t("Liga"), t("Año"), t("Edad"), t("Min"), t("Parecido"), t("Bruto"), t("Cobertura")]}
+        columnas={[t("#"), t("Jugador"), t("Equipo"), t("Liga"), t("Año"), t("Edad"), t("Min"), t("Parecido"), t("Bruto"), t("Cobertura"), tf("Encaje de estilo con {equipo}", { equipo: EQUIPO_PROPIO })]}
         cuantas={ordenados.length}
         filas={() => ordenados.map((candidato, posicion) => [
           posicion + 1, candidato.name, candidato.team,
           candidato.origen.ligas.join(" · "), candidato.origen.anios.join(" · "),
           candidato.age ?? null, Math.round(candidato.minutes),
           candidato.ajustado, candidato.similarity, candidato.coverage,
+          encaje(candidato.team)?.valor ?? null,
         ])}
       />
     } />}
@@ -221,7 +235,7 @@ export function PoolPage({ onAbrirJugador, destinatario = "", logoDestinatario =
         que ese número vale menos. */}
     {resultado && <div className="pool-resultado">
       <h3>{tf("Se parecen a {jugador}", { jugador: nombreObjetivo })}</h3>
-      {ordenados.length > 0 && <ol className="pool-lista">
+      {ordenados.length > 0 && <ol className="pool-lista con-encaje">
         {ordenados.slice(0, 40).map((candidato, posicionEnLista) => (
           <li key={`${candidato.name}-${candidato.team}-${posicionEnLista}`}
             className={onAbrirJugador ? "clicable" : ""}
@@ -235,6 +249,7 @@ export function PoolPage({ onAbrirJugador, destinatario = "", logoDestinatario =
               <b className="pool-name">{candidato.name}</b>
               <small>{[candidato.team, candidato.origen.ligas.join(" · "), candidato.age != null ? String(candidato.age) : null, `${Math.round(candidato.minutes)}′`].filter(Boolean).join(" · ")}</small>
             </span>
+            <CeldaEncaje encaje={encaje(candidato.team)} cargando={estilos.cargando} />
             <span className="pool-cifras">
               <b>{candidato.ajustado}%</b>
               <small>{tf("bruto {n}%", { n: candidato.similarity })} · <span className={candidato.coverage < 60 ? "pool-baja" : undefined}>{tf("cobertura {n}%", { n: candidato.coverage })}</span></small>

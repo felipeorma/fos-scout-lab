@@ -8,6 +8,8 @@ import {
   parecidoDeEstilo,
   perfilesDeEstilo,
   unaTemporadaPorEquipo,
+  crearEncaje,
+  mismoEquipo,
 } from "../lib/estiloEquipo.ts";
 
 /**
@@ -147,4 +149,24 @@ test("con menos de diez partidos se puntúa pero no forma las medias", () => {
   const sin = perfilesDeEstilo(grupo());
   const con = perfilesDeEstilo([...grupo(), corto]);
   assert.equal(sin[4].valores.posesion.z, con[4].valores.posesion.z);
+});
+
+test("el club de un jugador casa con su perfil sin mezclar filiales", () => {
+  assert.ok(mismoEquipo("Cavalry FC", "Cavalry"), "Wyscout escribe Cavalry, StatsBomb Cavalry FC");
+  assert.ok(mismoEquipo("Atlético Ottawa", "Atletico Ottawa"), "sin tildes");
+  assert.ok(!mismoEquipo("Toronto FC", "Toronto FC II"), "el primer equipo no es su filial");
+  assert.ok(!mismoEquipo("Portland Timbers", "Portland Timbers II"));
+  assert.ok(!mismoEquipo("Toronto FC", "Inter Toronto"), "otra ciudad, otro club");
+});
+
+test("el encaje: 100 con el propio, el parecido con el resto y nada si el club no tiene perfil", () => {
+  const filas = grupo();
+  filas[0] = { ...filas[0], team_name: "Cavalry FC" };
+  filas[1] = { ...filas[1], team_name: "Forge FC" };
+  const encaje = crearEncaje(perfilesDeEstilo(filas), "Cavalry");
+  assert.equal(encaje("Cavalry")?.valor, 100);
+  const forge = encaje("Forge");
+  assert.equal(forge?.equipo, "Forge FC");
+  assert.ok(forge.valor > 50 && forge.valor < 100, "su vecino de estilo");
+  assert.equal(encaje("Club que no existe"), null, "sin perfil no hay número");
 });

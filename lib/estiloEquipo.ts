@@ -17,6 +17,11 @@
  * (endpoint team-stats v2, 181 campos por equipo). Todo va por partido.
  */
 
+import { clubsMatch } from "./scouting.ts";
+
+/** El equipo con el que se mide el encaje. */
+export const EQUIPO_PROPIO = "Cavalry";
+
 export type FilaEquipo = Record<string, unknown> & {
   team_id: number;
   team_name: string;
@@ -265,3 +270,82 @@ export function cabezaACabeza(a: PerfilEquipo, b: PerfilEquipo) {
       return { metrica, za, zb, lider: za >= zb ? "a" as const : "b" as const, diferencia: Math.abs(za - zb) };
     });
 }
+
+// ---- Encaje de estilo de un jugador --------------------------------------
+
+/** El nombre de un club en la forma que usa clubsMatch: minúsculas, sin tildes ni signos. */
+export function normalizarEquipo(nombre: string) {
+  return String(nombre ?? "")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+// Lo que distingue a un filial de su primer equipo. clubsMatch acepta que un
+// nombre sea subconjunto del otro —"Vancouver FC" ≡ "Vancouver Football
+// Club"—, y con esa regla "Toronto FC" casaba con "Toronto FC II".
+const MARCAS_DE_FILIAL = new Set(["ii", "iii", "b", "2", "u23", "u21", "u19", "reserves", "reserve", "academy", "youth"]);
+const marcasDe = (nombre: string) => normalizarEquipo(nombre).split(" ").filter((token) => MARCAS_DE_FILIAL.has(token)).sort().join(" ");
+
+/** ¿Son el mismo club? Igual nombre, o el mismo según clubsMatch sin mezclar filiales. */
+export function mismoEquipo(a: string, b: string) {
+  const na = normalizarEquipo(a), nb = normalizarEquipo(b);
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+  if (marcasDe(a) !== marcasDe(b)) return false;
+  return clubsMatch(na, nb);
+}
+
+/**
+ * Busca el perfil de estilo del club de un jugador.
+ *
+ * Primero por nombre idéntico —las bases de StatsBomb escriben el club igual
+ * que sus estadísticas de equipo—, después por clubsMatch, que es lo que casa
+ * las grafías de Wyscout. Si hay más de uno, gana el que forma parte de la
+ * referencia. Se recuerda por nombre: un ranking pregunta por el mismo club
+ * decenas de veces.
+ */
+export function crearBuscadorDeEquipos(perfiles: PerfilEquipo[]) {
+  const exactos = new Map<string, PerfilEquipo>();
+  for (const perfil of perfiles) {
+    const clave = normalizarEquipo(perfil.equipo);
+    const previo = exactos.get(clave);
+    if (!previo || (perfil.referencia && !previo.referencia)) exactos.set(clave, perfil);
+  }
+  const memoria = new Map<string, PerfilEquipo | null>();
+  return (equipo: string): PerfilEquipo | null => {
+    const clave = normalizarEquipo(equipo);
+    if (!clave) return null;
+    if (memoria.has(clave)) return memoria.get(clave)!;
+    let hallado = exactos.get(clave) ?? null;
+    if (!hallado) {
+      const candidatos = perfiles.filter((perfil) => mismoEquipo(perfil.equipo, equipo));
+      hallado = candidatos.find((perfil) => perfil.referencia) ?? candidatos[0] ?? null;
+    }
+    memoria.set(clave, hallado);
+    return hallado;
+  };
+}
+
+export type EncajeDeEstilo = { valor: number; equipo: string } | null;
+
+/**
+ * Cuánto se parece el estilo del club de un jugador al del nuestro.
+ *
+ * Null si no hay perfil de su club —liga sin estadísticas de equipo en
+ * StatsBomb, o un nombre que no casa—: la ausencia se enseña como tal, no
+ * como un cero.
+ */
+export function crearEncaje(perfiles: PerfilEquipo[], propio: string = EQUIPO_PROPIO) {
+  const buscar = crearBuscadorDeEquipos(perfiles);
+  const nuestro = buscar(propio) ?? perfiles.find((perfil) => normalizarEquipo(perfil.equipo).includes(normalizarEquipo(propio))) ?? null;
+  return (equipo: string): EncajeDeEstilo => {
+    if (!nuestro) return null;
+    const perfil = buscar(equipo);
+    if (!perfil) return null;
+    const valor = perfil.clave === nuestro.clave ? 100 : parecidoDeEstilo(perfil, nuestro);
+    return Number.isFinite(valor) ? { valor, equipo: perfil.equipo } : null;
+  };
+}
+
+/** Tramo para pintarlo: alto desde 75, medio desde 60. */
+export const tramoDeEncaje = (valor: number) => (valor >= 75 ? "alto" : valor >= 60 ? "medio" : "bajo");

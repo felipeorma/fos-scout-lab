@@ -1575,4 +1575,10 @@ const EN: Record<string, string> = {
   "Robo alto": "High regains",
   "xG/tiro concedido": "xG/shot conceded",
   "Llegadas concedidas": "Completions conceded",
+  "Encaje de estilo con {equipo}": "Style fit with {equipo}",
+  "Encaje de estilo de su club con {equipo}: {n}": "His club's style fit with {equipo}: {n}",
+  "Cargando los estilos de equipo…": "Loading team styles…",
+  "Sin estilo de equipo para este club": "No team style for this club",
+  "encaje": "fit",
+  "Cómo juega {club} se parece un {n} sobre 100 a cómo juega {equipo}": "The way {club} plays is {n} out of 100 alike to how {equipo} plays",
 };

@@ -10,6 +10,9 @@ import { ChevronDown, ChevronRight } from "./Icons";
 import { BotonExportar } from "./BotonExportar";
 import { t, tf } from "@/lib/i18n";
 import { rankingPorArquetipo } from "@/lib/arquetipos";
+import { EQUIPO_PROPIO, crearEncaje, perfilesDeEstilo, tramoDeEncaje } from "@/lib/estiloEquipo";
+import { useEstilos } from "./useEstilos";
+import { CeldaEncaje } from "./CeldaEncaje";
 
 /**
  * Ranking de la base por posición.
@@ -67,6 +70,18 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
   const visibles = useMemo(
     () => todos.filter((fila) => pasaFiltros(fila.indice)),
     [todos, pasaFiltros],
+  );
+
+  /*
+   * Encaje de estilo: cuánto se parece cómo juega el club de cada jugador a
+   * cómo juega el nuestro. Las estadísticas de equipo llegan aparte y más
+   * tarde que la lista; mientras tanto, y para las ligas sin datos de equipo,
+   * la columna dice "—" en vez de inventar un número.
+   */
+  const estilos = useEstilos();
+  const encaje = useMemo(
+    () => crearEncaje(estilos.filas ? perfilesDeEstilo(estilos.filas) : [], EQUIPO_PROPIO),
+    [estilos.filas],
   );
 
   // De qué puesto es esta hoja, para que la firma lo diga en el PDF.
@@ -140,7 +155,7 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
     <BarraDeFiltros campos={["liga", "anio", "equipo", "pasaporte", "minutos", "edad"]} resultado={visibles.length} accesorio={
       <BotonExportar
         nombre={[t("ranking"), nombreDelPerfil, filtros.liga !== "TODAS" ? filtros.liga : null, filtros.anio || null]}
-        columnas={[t("#"), t("Jugador"), t("Equipo"), t("Liga"), t("Año"), t("Edad"), t("Min"), t("Índice"), t("Índice sin corregir"), t("Métricas"), t("Pasaportes"), t("Destacadas")]}
+        columnas={[t("#"), t("Jugador"), t("Equipo"), t("Liga"), t("Año"), t("Edad"), t("Min"), t("Índice"), t("Índice sin corregir"), t("Métricas"), tf("Encaje de estilo con {equipo}", { equipo: EQUIPO_PROPIO }), t("Pasaportes"), t("Destacadas")]}
         cuantas={visibles.length}
         filas={() => visibles.map((fila, posicion) => {
           const origen = procedencia?.[fila.indice];
@@ -149,6 +164,7 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
             origen?.ligas.join(" · ") ?? "", origen?.anios.join(" · ") ?? "",
             Number.isFinite(fila.edad) ? fila.edad : null,
             Math.round(fila.minutos), fila.puntuacion, fila.puntuacionCruda, fila.metricas,
+            encaje(fila.equipo)?.valor ?? null,
             fila.pasaportes.join(" · "),
             fila.destacadas.map((m) => `${t(m.label)} P${m.percentile}`).join(" · "),
           ];
@@ -175,7 +191,7 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
         él, y el índice se lee grande a la derecha, que es donde se busca un
         número. */}
     {vista === "indice" && visibles.length > 0 && <>
-      <ol className="rank-list">
+      <ol className="rank-list con-encaje">
         {visibles.slice(0, 40).map((fila, posicion) => (
           <li
             key={fila.indice}
@@ -196,6 +212,7 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
                 {fila.destacadas.map((metrica) => <em key={metrica.label}>{t(metrica.label)} <u>P{metrica.percentile}</u></em>)}
               </span>}
             </span>
+            <CeldaEncaje encaje={encaje(fila.equipo)} cargando={estilos.cargando} />
             <b className="rank-indice">{fila.puntuacion}<u title={tf("Índice sin corregir: {c} · calculado con {m} métricas", { c: fila.puntuacionCruda, m: fila.metricas })}>{fila.puntuacionCruda}</u></b>
             {onSelectPlayer ? <ChevronRight size={14} className="rank-chevron" /> : <span />}
           </li>
