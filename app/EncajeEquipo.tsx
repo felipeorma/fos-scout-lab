@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Desplegable } from "./BarraDeFiltros";
 import { useEstilos } from "./useEstilos";
 import { useRoles } from "./useRolesDeLiga";
+import { usePuestos } from "./usePuestosDeEquipo";
 import type { DatosFicha } from "./PiezasFicha";
 import { numberLocale, t, tf } from "@/lib/i18n";
-import { fetchPuestosDeEquipo } from "@/lib/remoteData";
 import { buildPlayerReport, detectCoreColumns, headersOf, numeric } from "@/lib/scouting";
 import { COMPUESTAS, ROLES_SECUENCIA, fuenteStatsbomb, rolesFrenteAlGrupo } from "@/lib/snapshot";
 import { EQUIPO_PROPIO, crearBuscadorDeEquipos, mismoEquipo, parecidoDeEstilo, perfilesDeEstilo } from "@/lib/estiloEquipo";
@@ -17,7 +17,6 @@ import {
   perfilDelPuesto,
   presenciaDelPuesto,
   tramo,
-  type Alineaciones,
   type Perfil,
 } from "@/lib/encaje";
 
@@ -26,40 +25,6 @@ import {
  * que se leen por separado (ver lib/encaje.ts). El equipo es Cavalry por
  * defecto y se puede cambiar por cualquiera de la base.
  */
-
-// Las alineaciones de cada equipo ya pedidas, y las que están en camino.
-const puestosGuardados = new Map<string, Alineaciones>();
-const puestosEnCamino = new Map<string, Promise<Alineaciones>>();
-
-function usePuestos(clave: string) {
-  const [datos, setDatos] = useState<Alineaciones | null>(() => (clave ? puestosGuardados.get(clave) ?? null : null));
-  const [error, setError] = useState("");
-  useEffect(() => {
-    if (!clave) { setDatos(null); setError(""); return; }
-    const guardado = puestosGuardados.get(clave);
-    if (guardado) { setDatos(guardado); setError(""); return; }
-    setDatos(null);
-    setError("");
-    let vivo = true;
-    let promesa = puestosEnCamino.get(clave);
-    if (!promesa) {
-      promesa = fetchPuestosDeEquipo(clave)
-        .then((respuesta) => { puestosGuardados.set(clave, respuesta); return respuesta; })
-        .finally(() => puestosEnCamino.delete(clave));
-      puestosEnCamino.set(clave, promesa);
-    }
-    promesa
-      .then((respuesta) => { if (vivo) setDatos(respuesta); })
-      .catch((fallo) => {
-        if (!vivo) return;
-        setError(fallo instanceof TypeError
-          ? t("El servidor local no respondió. Arranca npm run bg:server y reintenta.")
-          : fallo instanceof Error ? fallo.message : String(fallo));
-      });
-    return () => { vivo = false; };
-  }, [clave]);
-  return { datos, error };
-}
 
 /** El puesto de un rol, en singular y en minúscula: "con un extremo". */
 const PUESTO_DEL_ROL: Record<string, string> = {

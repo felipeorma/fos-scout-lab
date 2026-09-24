@@ -6179,3 +6179,14 @@ body.print-layout-check .legal-page-shell > :is(.rank-page, .pool-page) :is(.ran
 @container (max-width: 760px) {
   .app-shell[data-tema] .visual-pieza-content .encaje-partes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* ---- Ranking y Entre ligas · encaje con un equipo (columna opcional) ----
+   Una columna más, al lado del encaje de estilo: la cifra grande es cuánto se
+   parece a lo que el equipo pide en su puesto; debajo, lugar en la plantilla
+   y % de partidos con su puesto. */
+.app-shell[data-tema] :is(.rank-list, .pool-lista).con-encaje.con-encaje-equipo > li { grid-template-columns: 30px minmax(0, 1fr) 54px 64px auto 14px; }
+@media screen and (max-width: 640px) {
+  body:not(.print-layout-check) .app-shell[data-tema] :is(.rank-list, .pool-lista).con-encaje.con-encaje-equipo > li { grid-template-columns: 24px minmax(0, 1fr) 44px 52px auto; }
+}
+.app-shell[data-tema] span.celda-encaje-equipo > small { white-space: nowrap; }
+.app-shell[data-tema] .pool-encaje-barra { margin: 6px 0 10px; }

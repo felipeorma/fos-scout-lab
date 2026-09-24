@@ -13,6 +13,8 @@ import { rankingPorArquetipo } from "@/lib/arquetipos";
 import { EQUIPO_PROPIO, crearEncaje, perfilesDeEstilo, tramoDeEncaje } from "@/lib/estiloEquipo";
 import { useEstilos } from "./useEstilos";
 import { CeldaEncaje } from "./CeldaEncaje";
+import { CeldaEncajeEquipo } from "./CeldaEncajeEquipo";
+import { equiposParaEncaje, useEncajeDeLista } from "./useEncajeDeLista";
 
 /**
  * Ranking de la base por posición.
@@ -84,6 +86,15 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
     [estilos.filas],
   );
 
+  /*
+   * Encaje con un equipo, opcional: por defecto no se muestra. Al elegir un
+   * equipo aparece una columna con lo que ese equipo pide en el puesto, el
+   * lugar que ocuparía en su plantilla y si usa ese puesto.
+   */
+  const [equipoEncaje, setEquipoEncaje] = useState("");
+  const equiposEncaje = useMemo(() => equiposParaEncaje(rows), [rows]);
+  const encajeEquipo = useEncajeDeLista(rows, minutosMin, equipoEncaje);
+
   // De qué puesto es esta hoja, para que la firma lo diga en el PDF.
   const nombreDelPuesto = t(PERFILES.find((item) => item.id === perfil)?.nombre ?? perfil);
 
@@ -142,6 +153,12 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
             {PERFILES.map((item) => <option key={item.id} value={item.id}>{t(item.nombre)}</option>)}
           </select>
         </Desplegable>
+        <Desplegable etiqueta={t("Encaje con")} valor={equipoEncaje || t("No mostrar")} activo={Boolean(equipoEncaje)}>
+          <select aria-label={t("Encaje con un equipo")} value={equipoEncaje} onChange={(event) => setEquipoEncaje(event.target.value)}>
+            <option value="">{t("No mostrar")}</option>
+            {equiposEncaje.map((equipo) => <option key={equipo} value={equipo}>{equipo}</option>)}
+          </select>
+        </Desplegable>
       </div>
       <div className="rank-tabs" role="group" aria-label={t("Cómo ordenar")}>
         <button type="button" className={vista === "indice" ? "on" : ""} aria-pressed={vista === "indice"} onClick={() => setVista("indice")}>{t("Por índice")}</button>
@@ -155,7 +172,9 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
     <BarraDeFiltros campos={["liga", "anio", "equipo", "pasaporte", "minutos", "edad"]} resultado={visibles.length} accesorio={
       <BotonExportar
         nombre={[t("ranking"), nombreDelPerfil, filtros.liga !== "TODAS" ? filtros.liga : null, filtros.anio || null]}
-        columnas={[t("#"), t("Jugador"), t("Equipo"), t("Liga"), t("Año"), t("Edad"), t("Min"), t("Índice"), t("Índice sin corregir"), t("Métricas"), tf("Encaje de estilo con {equipo}", { equipo: EQUIPO_PROPIO }), t("Pasaportes"), t("Destacadas")]}
+        columnas={[t("#"), t("Jugador"), t("Equipo"), t("Liga"), t("Año"), t("Edad"), t("Min"), t("Índice"), t("Índice sin corregir"), t("Métricas"), tf("Encaje de estilo con {equipo}", { equipo: EQUIPO_PROPIO }),
+          ...(equipoEncaje ? [tf("Encaje con {equipo}: puesto", { equipo: equipoEncaje }), tf("Encaje con {equipo}: lugar en la plantilla", { equipo: equipoEncaje }), tf("Encaje con {equipo}: % de partidos con su puesto", { equipo: equipoEncaje })] : []),
+          t("Pasaportes"), t("Destacadas")]}
         cuantas={visibles.length}
         filas={() => visibles.map((fila, posicion) => {
           const origen = procedencia?.[fila.indice];
@@ -165,6 +184,10 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
             Number.isFinite(fila.edad) ? fila.edad : null,
             Math.round(fila.minutos), fila.puntuacion, fila.puntuacionCruda, fila.metricas,
             encaje(fila.equipo)?.valor ?? null,
+            ...(equipoEncaje ? (() => {
+              const suyo = encajeEquipo.para(fila.indice, perfil);
+              return [suyo?.puesto ?? null, suyo?.lugar ? `${suyo.lugar.lugar}/${suyo.lugar.de}` : null, suyo?.sitio ?? null];
+            })() : []),
             fila.pasaportes.join(" · "),
             fila.destacadas.map((m) => `${t(m.label)} P${m.percentile}`).join(" · "),
           ];
@@ -191,7 +214,7 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
         él, y el índice se lee grande a la derecha, que es donde se busca un
         número. */}
     {vista === "indice" && visibles.length > 0 && <>
-      <ol className="rank-list con-encaje">
+      <ol className={encajeEquipo.activo ? "rank-list con-encaje con-encaje-equipo" : "rank-list con-encaje"}>
         {visibles.slice(0, 40).map((fila, posicion) => (
           <li
             key={fila.indice}
@@ -213,6 +236,7 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
               </span>}
             </span>
             <CeldaEncaje encaje={encaje(fila.equipo)} cargando={estilos.cargando} />
+            {encajeEquipo.activo && <CeldaEncajeEquipo encaje={encajeEquipo.para(fila.indice, perfil)} cargandoSitio={encajeEquipo.cargandoSitio} />}
             <b className="rank-indice">{fila.puntuacion}<u title={tf("Índice sin corregir: {c} · calculado con {m} métricas", { c: fila.puntuacionCruda, m: fila.metricas })}>{fila.puntuacionCruda}</u></b>
             {onSelectPlayer ? <ChevronRight size={14} className="rank-chevron" /> : <span />}
           </li>
