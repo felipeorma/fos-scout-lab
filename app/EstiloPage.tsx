@@ -259,8 +259,7 @@ export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", lo
                 se resaltan al tocar su cuña. */}
             <RosaDeEstilo perfil={elegido} rival={rival} activa={familiaActiva} onActiva={setFamiliaActiva} />
             <figcaption>
-              <span><i className="con" />{`${elegido.equipo} · ${t("con balón")}`}</span>
-              <span><i className="sin" />{t("sin balón")}</span>
+              <span><i className="relleno" />{elegido.equipo}</span>
               {rival && <span><i className="contorno" />{rival.equipo}</span>}
               <small>{elegido.conSkillcorner
                 ? t("Cada cuña, la media de los percentiles de su familia; StatsBomb y SkillCorner juntos. Toca una para ver sus métricas.")

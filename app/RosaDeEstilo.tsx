@@ -11,11 +11,10 @@ import { t, tf } from "@/lib/i18n";
  * métrica a métrica, está en las cajas de la izquierda: tocar una cuña
  * resalta su caja, y al revés.
  *
- * El color no es una paleta de categorías: es la fase. Las cuatro familias
- * con balón van en el color del club, de más a menos intenso siguiendo la
- * jugada (construir, circular, atacar, moverse para recibir); las dos sin
- * balón, en grafito. Un arco por fuera nombra cada fase. En el espacio de
- * Cavalry sale en su rojo; en el de Maldonado, en su verde.
+ * Los colores son los de Ficha y radar (ver "rosa de estilo" en
+ * globals.css). Las familias van en el orden de la jugada, las cuatro con
+ * balón arriba y las dos sin balón abajo, y un arco por fuera nombra cada
+ * fase.
  *
  * El equipo con el que se compara va encima como una línea continua en la
  * tinta —blanca en el tema oscuro—, para leer las dos formas a la vez.
