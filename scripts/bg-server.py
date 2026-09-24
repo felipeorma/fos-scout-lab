@@ -2208,11 +2208,16 @@ def _af_get(ruta: str, params: dict, datos):
         return None, "cuota"
     try:
         r = _requests.get(_AF_BASE + ruta, headers={"x-apisports-key": _af_clave() or ""}, params=params, timeout=20)
-        datos["cuota"]["usadas"] += 1
         cuerpo = r.json()
     except Exception as error:
         return None, f"red: {error}"
     errores = cuerpo.get("errors")
+    # Con la clave mala la API contesta {"errors": {"token": ...}} y no gasta cuota.
+    if isinstance(errores, dict) and "token" in errores:
+        return None, "clave"
+    datos["cuota"]["usadas"] += 1
+    if isinstance(errores, dict) and "requests" in errores:
+        return None, "cuota"
     if errores:
         return None, str(errores)
     return cuerpo, None
@@ -2246,10 +2251,10 @@ def _equipos_de_liga(liga: str, datos):
     """Los equipos de una liga en API-Football, con escudo. Una petición por liga, para siempre."""
     id_liga = _AF_LIGAS.get(_sin_tildes(liga or "").lower().strip())
     if not id_liga:
-        return None
+        return None, None
     guardada = datos["ligas"].get(str(id_liga))
     if guardada and guardada.get("equipos"):
-        return guardada["equipos"]
+        return guardada["equipos"], None
     # La temporada: la más reciente que deje ver el plan. Las gratuitas no ven
     # todas; la que funcionó se recuerda para no gastar intentos en la
     # siguiente liga.
@@ -2257,15 +2262,15 @@ def _equipos_de_liga(liga: str, datos):
     desde = int(datos.get("temporadaQueFunciona") or ano)
     for temporada in range(desde, 2019, -1):
         cuerpo, error = _af_get("/teams", {"league": id_liga, "season": temporada}, datos)
-        if error == "cuota":
-            return None
+        if error in ("cuota", "clave"):
+            return None, error
         if error or not cuerpo or not cuerpo.get("response"):
             continue
         equipos = [{"id": e["team"]["id"], "nombre": e["team"]["name"], "logo": e["team"]["logo"]} for e in cuerpo["response"]]
         datos["ligas"][str(id_liga)] = {"temporada": temporada, "equipos": equipos}
         datos["temporadaQueFunciona"] = temporada
-        return equipos
-    return None
+        return equipos, None
+    return None, None
 
 
 @app.get("/api/logos")
@@ -2281,17 +2286,23 @@ def logos_equipo(equipo: str, liga: str = ""):
         if not _af_clave():
             return Response('{"logo": null, "estado": "sin-clave"}', media_type="application/json", headers=cors_headers())
         mejor, puntos = None, 0.0
-        for candidato in _equipos_de_liga(liga, datos) or []:
+        de_liga, fallo = _equipos_de_liga(liga, datos)
+        if fallo == "clave":
+            _logos_guardar(datos)
+            return Response('{"logo": null, "estado": "clave-invalida"}', media_type="application/json", headers=cors_headers())
+        for candidato in de_liga or []:
             p = _parecido_equipo(equipo, candidato["nombre"])
             if p > puntos:
                 mejor, puntos = candidato, p
-        agotada = False
-        if puntos < 0.5:
+        error = None
+        if puntos < 0.5 and fallo != "cuota":
             # Fuera de su liga (o liga sin mapa): búsqueda por nombre.
             tokens = sorted(_tokens_equipo(equipo), key=len, reverse=True)
             texto = " ".join(t for t in tokens if len(t) >= 3)[:40] or _sin_tildes(equipo)
             cuerpo, error = _af_get("/teams", {"search": texto}, datos)
-            agotada = error == "cuota"
+            if error == "clave":
+                _logos_guardar(datos)
+                return Response('{"logo": null, "estado": "clave-invalida"}', media_type="application/json", headers=cors_headers())
             mejor, puntos = None, 0.0
             for e in (cuerpo or {}).get("response", []):
                 candidato = {"id": e["team"]["id"], "nombre": e["team"]["name"], "logo": e["team"]["logo"]}
@@ -2300,10 +2311,13 @@ def logos_equipo(equipo: str, liga: str = ""):
                     mejor, puntos = candidato, p
             if puntos < 0.6:
                 mejor = None
+        encontrado = bool(mejor and puntos >= 0.5)
+        agotada = "cuota" in (fallo, error)
         resultado = ({"logo": mejor["logo"], "id": mejor["id"], "nombre": mejor["nombre"]}
-                     if mejor and puntos >= 0.5 else {"logo": None, "estado": "cuota" if agotada else "sin-coincidencia"})
-        # Una falta por cuota no se guarda: mañana se vuelve a intentar.
-        if not agotada:
+                     if encontrado else {"logo": None, "estado": "cuota" if agotada else "sin-coincidencia" if not error else "error"})
+        # Una falta solo se guarda si la búsqueda por nombre contestó de verdad:
+        # por cuota o por un fallo de red, mañana se vuelve a intentar.
+        if encontrado or (puntos < 0.5 and not agotada and not error):
             datos["equipos"][clave_equipo] = resultado
         _logos_guardar(datos)
     return Response(_json.dumps(resultado), media_type="application/json", headers=cors_headers())
@@ -2317,8 +2331,19 @@ def logos_estado():
         datos = _logos_leer()
     hoy = _dt.date.today().isoformat()
     usadas = datos["cuota"]["usadas"] if datos["cuota"].get("dia") == hoy else 0
-    return Response(_json.dumps({"clave": bool(_af_clave()), "usadasHoy": usadas, "tope": _AF_TOPE_DIARIO,
-                                 "equipos": len(datos["equipos"])}),
+    valida, plan = None, None
+    if _af_clave():
+        try:
+            cuerpo = _requests.get(_AF_BASE + "/status", headers={"x-apisports-key": _af_clave()}, timeout=15).json()
+            errores = cuerpo.get("errors")
+            valida = not (isinstance(errores, dict) and "token" in errores)
+            respuesta = cuerpo.get("response") or {}
+            if valida and isinstance(respuesta, dict):
+                plan = (respuesta.get("subscription") or {}).get("plan")
+        except Exception:
+            valida = None
+    return Response(_json.dumps({"clave": bool(_af_clave()), "valida": valida, "plan": plan, "usadasHoy": usadas,
+                                 "tope": _AF_TOPE_DIARIO, "equipos": len(datos["equipos"])}),
                     media_type="application/json", headers=cors_headers())
 
 

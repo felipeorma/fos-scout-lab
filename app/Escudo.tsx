@@ -37,7 +37,8 @@ function pedirLogo(equipo: string, liga: string) {
     // Lo que ya esperaba turno cuando llegó el "sin clave" no sale.
     promesa = turno(() => (sinClave ? Promise.resolve({ logo: null, estado: "sin-clave" }) : fetchLogo(equipo, liga)))
       .then((respuesta) => {
-        if (respuesta.estado === "sin-clave") sinClave = true;
+        // Sin clave o con la clave mala, igual: no se pregunta más hasta recargar.
+        if (respuesta.estado === "sin-clave" || respuesta.estado === "clave-invalida") sinClave = true;
         guardados.set(clave, respuesta.logo ?? null);
         return respuesta.logo ?? null;
       })
