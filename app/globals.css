@@ -6227,3 +6227,11 @@ body.print-layout-check .legal-page-shell > :is(.rank-page, .pool-page) :is(.ran
 @media print {
   .encaje-chips > button:not([aria-pressed="true"]), .encaje-chips > .encaje-limpiar, p.rank-ajuste > button { display: none !important; }
 }
+
+/* Escudos de club (API-Football, ver app/Escudo.tsx). En línea dentro del
+   texto de las listas; en las cabeceras, a la izquierda del nombre. */
+.escudo { flex: none; display: inline-block; margin-right: .4em; object-fit: contain; vertical-align: -.22em; }
+:where(.estilo-extras-nombre, .con-escudo, .snap-ficha-texto > small) > .escudo { margin-right: 0; }
+.app-shell[data-tema] :is(.estilo-ficha, .encaje-titulo) > b.con-escudo { display: flex; align-items: center; gap: 10px; }
+.app-shell[data-tema] .pool-cuerpo > b.con-escudo > .escudo { margin-right: .45em; }
+.escudo-vacio { display: inline-grid; place-items: center; border-radius: 50%; background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--muted); font-weight: 700; letter-spacing: .02em; line-height: 1; }

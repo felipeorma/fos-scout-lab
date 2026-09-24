@@ -6,6 +6,7 @@ import { numberLocale, t, tf } from "@/lib/i18n";
 import { fetchEventosJugador } from "@/lib/remoteData";
 import { useRoles } from "./useRolesDeLiga";
 import { EncajeEquipo } from "./EncajeEquipo";
+import { Escudo } from "./Escudo";
 import { buildSimilaritySearch, type SimilarityFilters, type SimilarityPlayer } from "@/lib/similarity";
 import { PERFILES } from "@/lib/perfiles";
 import { primaryPositionRole } from "@/lib/positions";
@@ -501,7 +502,10 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
         <div className="snap-ficha-texto">
           <b>{jugador}</b>
           <small>
-            {perfilTm?.clubLogo && /* eslint-disable-next-line @next/next/no-img-element */ <img src={perfilTm.clubLogo} alt="" />}
+            {perfilTm?.clubLogo
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img src={perfilTm.clubLogo} alt="" />
+              : <Escudo equipo={equipo} liga={fuente?.liga ?? ""} tamano={16} />}
             {perfilTm?.club || equipo}
           </small>
         </div>

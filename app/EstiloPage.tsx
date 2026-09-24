@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Desplegable } from "./BarraDeFiltros";
 import { ChevronDown } from "./Icons";
 import { PieDeReporte } from "./PieDeReporte";
+import { Escudo } from "./Escudo";
 import { COLOR_FAMILIA, RosaDeEstilo } from "./RosaDeEstilo";
 import { numberLocale, t, tf } from "@/lib/i18n";
 import { useEstilos } from "./useEstilos";
@@ -85,7 +86,7 @@ function ColumnaExtras({ perfil, rival = false }: { perfil: PerfilEquipo; rival?
   const { datos, error } = useExtras(perfil.clave);
   const decimal = (valor: number | null) => (valor === null ? "—" : valor.toLocaleString(numberLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }));
   return <div className={rival ? "estilo-extras-equipo rival" : "estilo-extras-equipo"}>
-    <b className="estilo-extras-nombre"><i />{perfil.equipo}</b>
+    <b className="estilo-extras-nombre"><i /><Escudo equipo={perfil.equipo} liga={perfil.competicion} tamano={16} />{perfil.equipo}</b>
     {!datos ? <small className="estilo-extras-estado" role="status">
       {error || tf("Leyendo los partidos de {equipo}… la primera vez tarda un par de minutos.", { equipo: perfil.equipo })}
     </small> : <>
@@ -210,7 +211,7 @@ export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", lo
       <div className="estilo-grid">
         <div className="estilo-lado">
           <div className="estilo-ficha">
-            <b>{elegido.equipo}</b>
+            <b className="con-escudo"><Escudo equipo={elegido.equipo} liga={elegido.competicion} tamano={30} respaldo />{elegido.equipo}</b>
             <small>{`${elegido.competicion} · ${elegido.temporada} · ${tf("{n} partidos", { n: elegido.partidos })}`}</small>
             <div className="estilo-cifras">
               {(["tiros", "xg_tiro", "posesion"] as const).map((id) => {
@@ -285,7 +286,7 @@ export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", lo
                   onClick={() => setClaveRival(perfil.clave)}
                   onKeyDown={(evento) => { if (evento.key === "Enter" || evento.key === " ") { evento.preventDefault(); setClaveRival(perfil.clave); } }}>
                   <span className={posicion < 3 ? "rank-pos podio" : "rank-pos"}>{posicion + 1}</span>
-                  <span className="pool-cuerpo"><b>{perfil.equipo}</b><small>{perfil.competicion}</small></span>
+                  <span className="pool-cuerpo"><b className="con-escudo"><Escudo equipo={perfil.equipo} liga={perfil.competicion} tamano={15} />{perfil.equipo}</b><small>{perfil.competicion}</small></span>
                   <span className="pool-cifras"><b>{parecido.toFixed(1)}</b><small>{Number.isFinite(conSkillcorner) ? tf("con SkillCorner {n}", { n: conSkillcorner.toFixed(1) }) : t("parecido")}</small></span>
                   <span />
                 </li>
@@ -349,7 +350,7 @@ export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", lo
           {top.map((perfil, posicion) => (
             <li key={perfil.clave} className={perfil.clave === elegido.clave ? "activa" : undefined}>
               <span className={posicion < 3 ? "rank-pos podio" : "rank-pos"}>{posicion + 1}</span>
-              <span className="pool-cuerpo"><b>{perfil.equipo}</b><small>{perfil.competicion}</small></span>
+              <span className="pool-cuerpo"><b className="con-escudo"><Escudo equipo={perfil.equipo} liga={perfil.competicion} tamano={15} />{perfil.equipo}</b><small>{perfil.competicion}</small></span>
               <span className="pool-cifras"><b>{formatear(metricaElegida, perfil.valores[metricaElegida.id].bruto)}</b><small>{`z ${conSigno(perfil.valores[metricaElegida.id].z)}`}</small></span>
               <span />
             </li>

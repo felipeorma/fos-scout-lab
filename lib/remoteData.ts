@@ -244,6 +244,15 @@ export async function fetchPuestosDeEquipo(clave: string): Promise<Alineaciones>
   );
 }
 
+/**
+ * El escudo de un equipo, de API-Football a través del puente. `liga` ayuda a
+ * casar el nombre (se busca primero entre los equipos de esa liga). Sin clave
+ * de API-Football, `logo` es null y `estado` dice "sin-clave".
+ */
+export async function fetchLogo(equipo: string, liga = ""): Promise<{ logo: string | null; estado?: string }> {
+  return bridgeJson(`/api/logos?equipo=${encodeURIComponent(equipo)}&liga=${encodeURIComponent(liga)}`, 60_000);
+}
+
 export type RolesDeLiga = {
   liga: string;
   temporada: string;

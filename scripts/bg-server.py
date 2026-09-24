@@ -2151,6 +2151,177 @@ def skillcorner_teams(competition_edition_id: int):
                     media_type="application/json", headers=cors_headers())
 
 
+# ---- Escudos: API-Football ---------------------------------------------------
+# Ni StatsBomb ni SkillCorner traen escudos. API-Football sí, y sus imágenes
+# (media.api-sports.io) se sirven sin clave; lo que pide clave es saber qué id
+# tiene cada equipo. Se casa por liga —una petición trae sus ~20 equipos con
+# el escudo— y, si un equipo no aparece, por búsqueda de nombre. Todo queda en
+# disco para siempre: un escudo no cambia. El plan gratuito da 100 peticiones
+# al día; el puente se para en 90.
+_LOGOS_FICHERO = Path.home() / ".fos-scouting" / "logos.json"
+_AF_BASE = "https://v3.football.api-sports.io"
+_AF_TOPE_DIARIO = 90
+# Competición de StatsBomb (sin tildes, minúscula) → liga de API-Football.
+_AF_LIGAS = {
+    "canadian premier league": 479, "mls": 253, "mls next pro": 909,
+    "usl championship": 255, "usl league one": 489,
+    "allsvenskan": 113, "superettan": 114, "obos-ligaen": 104, "veikkausliiga": 244,
+    "eerste divisie": 89, "ligue 3": 63, "national league": 43, "premier division": 357,
+}
+_TOKENS_GENERICOS = {"fc", "cf", "sc", "afc", "club", "cd", "fk", "if", "bk", "ik", "ac", "sk", "sv", "vv",
+                     "the", "de", "del", "du", "la", "le", "el", "football", "futbol", "soccer", "calcio"}
+import threading as _threading_logos
+_LOGOS_LOCK = _threading_logos.Lock()
+
+
+def _af_clave():
+    return os.environ.get("API_FOOTBALL_KEY") or _keychain_secret("api-football") or None
+
+
+def _logos_leer():
+    import json as _json
+    try:
+        datos = _json.loads(_LOGOS_FICHERO.read_text(encoding="utf-8"))
+    except Exception:
+        datos = {}
+    datos.setdefault("equipos", {})
+    datos.setdefault("ligas", {})
+    datos.setdefault("cuota", {"dia": "", "usadas": 0})
+    return datos
+
+
+def _logos_guardar(datos):
+    import json as _json
+    try:
+        _LOGOS_FICHERO.parent.mkdir(parents=True, exist_ok=True)
+        _escribir_atomico(_LOGOS_FICHERO, _json.dumps(datos, ensure_ascii=False))
+    except OSError:
+        pass
+
+
+def _af_get(ruta: str, params: dict, datos):
+    """Una petición a API-Football, contando la cuota del día. Devuelve (json, error)."""
+    hoy = _dt.date.today().isoformat()
+    if datos["cuota"].get("dia") != hoy:
+        datos["cuota"] = {"dia": hoy, "usadas": 0}
+    if datos["cuota"]["usadas"] >= _AF_TOPE_DIARIO:
+        return None, "cuota"
+    try:
+        r = _requests.get(_AF_BASE + ruta, headers={"x-apisports-key": _af_clave() or ""}, params=params, timeout=20)
+        datos["cuota"]["usadas"] += 1
+        cuerpo = r.json()
+    except Exception as error:
+        return None, f"red: {error}"
+    errores = cuerpo.get("errors")
+    if errores:
+        return None, str(errores)
+    return cuerpo, None
+
+
+def _tokens_equipo(nombre: str):
+    import re as _re
+    limpio = _re.sub(r"[^a-z0-9 ]", " ", _sin_tildes(nombre or "").lower())
+    return frozenset(t for t in limpio.split() if t and t not in _TOKENS_GENERICOS)
+
+
+def _parecido_equipo(a: str, b: str, estricto: bool = False) -> float:
+    """Parecido entre dos nombres de club por palabras significativas.
+
+    Que uno contenga al otro ("FC Supra" en "Supra du Québec") basta dentro de
+    una liga, donde no hay dos equipos así. En una búsqueda abierta no: "Inter
+    Toronto" contiene "Toronto" y es otro club. Ahí (`estricto`) la contención
+    solo cuenta si el nombre corto tiene al menos dos palabras.
+    """
+    ta, tb = _tokens_equipo(a), _tokens_equipo(b)
+    if not ta or not tb:
+        return 0.0
+    base = len(ta & tb) / len(ta | tb)
+    contiene = ta <= tb or tb <= ta
+    if contiene and (not estricto or min(len(ta), len(tb)) >= 2 or ta == tb):
+        return max(base, 0.8)
+    return base
+
+
+def _equipos_de_liga(liga: str, datos):
+    """Los equipos de una liga en API-Football, con escudo. Una petición por liga, para siempre."""
+    id_liga = _AF_LIGAS.get(_sin_tildes(liga or "").lower().strip())
+    if not id_liga:
+        return None
+    guardada = datos["ligas"].get(str(id_liga))
+    if guardada and guardada.get("equipos"):
+        return guardada["equipos"]
+    # La temporada: la más reciente que deje ver el plan. Las gratuitas no ven
+    # todas; la que funcionó se recuerda para no gastar intentos en la
+    # siguiente liga.
+    ano = _dt.date.today().year
+    desde = int(datos.get("temporadaQueFunciona") or ano)
+    for temporada in range(desde, 2019, -1):
+        cuerpo, error = _af_get("/teams", {"league": id_liga, "season": temporada}, datos)
+        if error == "cuota":
+            return None
+        if error or not cuerpo or not cuerpo.get("response"):
+            continue
+        equipos = [{"id": e["team"]["id"], "nombre": e["team"]["name"], "logo": e["team"]["logo"]} for e in cuerpo["response"]]
+        datos["ligas"][str(id_liga)] = {"temporada": temporada, "equipos": equipos}
+        datos["temporadaQueFunciona"] = temporada
+        return equipos
+    return None
+
+
+@app.get("/api/logos")
+def logos_equipo(equipo: str, liga: str = ""):
+    """El escudo de un equipo: {"logo": url | null, "estado": ...}. Sin clave, null."""
+    import json as _json
+    clave_equipo = " ".join(sorted(_tokens_equipo(equipo))) or _sin_tildes(equipo).lower()
+    with _LOGOS_LOCK:
+        datos = _logos_leer()
+        guardado = datos["equipos"].get(clave_equipo)
+        if guardado is not None:
+            return Response(_json.dumps(guardado), media_type="application/json", headers=cors_headers())
+        if not _af_clave():
+            return Response('{"logo": null, "estado": "sin-clave"}', media_type="application/json", headers=cors_headers())
+        mejor, puntos = None, 0.0
+        for candidato in _equipos_de_liga(liga, datos) or []:
+            p = _parecido_equipo(equipo, candidato["nombre"])
+            if p > puntos:
+                mejor, puntos = candidato, p
+        agotada = False
+        if puntos < 0.5:
+            # Fuera de su liga (o liga sin mapa): búsqueda por nombre.
+            tokens = sorted(_tokens_equipo(equipo), key=len, reverse=True)
+            texto = " ".join(t for t in tokens if len(t) >= 3)[:40] or _sin_tildes(equipo)
+            cuerpo, error = _af_get("/teams", {"search": texto}, datos)
+            agotada = error == "cuota"
+            mejor, puntos = None, 0.0
+            for e in (cuerpo or {}).get("response", []):
+                candidato = {"id": e["team"]["id"], "nombre": e["team"]["name"], "logo": e["team"]["logo"]}
+                p = _parecido_equipo(equipo, candidato["nombre"], estricto=True)
+                if p > puntos:
+                    mejor, puntos = candidato, p
+            if puntos < 0.6:
+                mejor = None
+        resultado = ({"logo": mejor["logo"], "id": mejor["id"], "nombre": mejor["nombre"]}
+                     if mejor and puntos >= 0.5 else {"logo": None, "estado": "cuota" if agotada else "sin-coincidencia"})
+        # Una falta por cuota no se guarda: mañana se vuelve a intentar.
+        if not agotada:
+            datos["equipos"][clave_equipo] = resultado
+        _logos_guardar(datos)
+    return Response(_json.dumps(resultado), media_type="application/json", headers=cors_headers())
+
+
+@app.get("/api/logos/estado")
+def logos_estado():
+    """Si hay clave y cuánta cuota queda hoy: para el aviso de la app."""
+    import json as _json
+    with _LOGOS_LOCK:
+        datos = _logos_leer()
+    hoy = _dt.date.today().isoformat()
+    usadas = datos["cuota"]["usadas"] if datos["cuota"].get("dia") == hoy else 0
+    return Response(_json.dumps({"clave": bool(_af_clave()), "usadasHoy": usadas, "tope": _AF_TOPE_DIARIO,
+                                 "equipos": len(datos["equipos"])}),
+                    media_type="application/json", headers=cors_headers())
+
+
 # ---- La app servida desde el puente -----------------------------------------
 _ESPEJO_BASE = "https://felipeorma.github.io/fos-scout-lab/"
 # ruta → (momento, contenido, tipo). Los bundles de Next llevan su hash en el

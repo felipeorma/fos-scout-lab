@@ -10,10 +10,11 @@ import { ChevronDown, ChevronRight } from "./Icons";
 import { BotonExportar } from "./BotonExportar";
 import { t, tf } from "@/lib/i18n";
 import { rankingPorArquetipo } from "@/lib/arquetipos";
-import { EQUIPO_PROPIO, crearEncaje, perfilesDeEstilo, tramoDeEncaje } from "@/lib/estiloEquipo";
+import { EQUIPO_PROPIO, crearEncaje, perfilesDeEstilo } from "@/lib/estiloEquipo";
 import { useEstilos } from "./useEstilos";
 import { CeldaEncaje } from "./CeldaEncaje";
 import { CeldaEncajeEquipo } from "./CeldaEncajeEquipo";
+import { Escudo } from "./Escudo";
 import { equiposParaEncaje, useEncajeDeLista } from "./useEncajeDeLista";
 import { useRefuerzos } from "./useAjustesDeEncaje";
 import { nombreDeDimension } from "./EncajeEquipo";
@@ -241,7 +242,7 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
             <span className="rank-cuerpo">
               <span className="rank-nombre">
                 {fila.jugador}
-                <small>{fila.equipo}{Number.isFinite(fila.edad) ? ` · ${fila.edad}` : ""}{fila.minutos ? ` · ${Math.round(fila.minutos)}′` : ""}</small>
+                <small><Escudo equipo={fila.equipo} liga={procedencia?.[fila.indice]?.ligas[0] ?? ""} tamano={13} />{fila.equipo}{Number.isFinite(fila.edad) ? ` · ${fila.edad}` : ""}{fila.minutos ? ` · ${Math.round(fila.minutos)}′` : ""}</small>
               </span>
               <i className="rank-progreso" aria-hidden="true"><em style={{ width: `${Math.max(2, (fila.puntuacion / maximo) * 100)}%` }} /></i>
               {fila.destacadas.length > 0 && <span className="rank-flags">

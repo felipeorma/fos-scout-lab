@@ -6,6 +6,7 @@ import { useEstilos } from "./useEstilos";
 import { useRoles } from "./useRolesDeLiga";
 import { usePuestos } from "./usePuestosDeEquipo";
 import { useRefuerzos } from "./useAjustesDeEncaje";
+import { Escudo } from "./Escudo";
 import type { DatosFicha } from "./PiezasFicha";
 import { numberLocale, t, tf } from "@/lib/i18n";
 import { buildPlayerReport, detectCoreColumns, headersOf, numeric } from "@/lib/scouting";
@@ -206,7 +207,7 @@ export function EncajeEquipo({ datos, equipo: elegido = "", onEquipo, detalle = 
 
   return <div className="encaje">
     <header className="encaje-titulo">
-      <b>{tf("Encaje con {equipo}", { equipo: destino })}</b>
+      <b className="con-escudo"><Escudo equipo={llegada?.equipo ?? destino} liga={llegada?.competicion ?? ""} tamano={22} />{tf("Encaje con {equipo}", { equipo: destino })}</b>
       <small>{t("Cuatro partes que se leen por separado: juntarlas en un número escondería cuál falla.")}</small>
     </header>
     <div className="encaje-cabecera">

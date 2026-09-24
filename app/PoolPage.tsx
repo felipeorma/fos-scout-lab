@@ -14,6 +14,7 @@ import { ChevronDown, ChevronRight, Search } from "./Icons";
 import { Interruptor } from "./Interruptor";
 import { CeldaEncaje } from "./CeldaEncaje";
 import { CeldaEncajeEquipo } from "./CeldaEncajeEquipo";
+import { Escudo } from "./Escudo";
 import { equiposParaEncaje, useEncajeDeLista } from "./useEncajeDeLista";
 import { useEstilos } from "./useEstilos";
 import { EQUIPO_PROPIO, crearEncaje, perfilesDeEstilo } from "@/lib/estiloEquipo";
@@ -270,7 +271,7 @@ export function PoolPage({ onAbrirJugador, destinatario = "", logoDestinatario =
             <span className={posicionEnLista < 3 ? "rank-pos podio" : "rank-pos"}>{posicionEnLista + 1}</span>
             <span className="pool-cuerpo">
               <b className="pool-name">{candidato.name}</b>
-              <small>{[candidato.team, candidato.origen.ligas.join(" · "), candidato.age != null ? String(candidato.age) : null, `${Math.round(candidato.minutes)}′`].filter(Boolean).join(" · ")}</small>
+              <small><Escudo equipo={candidato.team} liga={candidato.origen.ligas[0] ?? ""} tamano={13} />{[candidato.team, candidato.origen.ligas.join(" · "), candidato.age != null ? String(candidato.age) : null, `${Math.round(candidato.minutes)}′`].filter(Boolean).join(" · ")}</small>
             </span>
             <CeldaEncaje encaje={encaje(candidato.team)} cargando={estilos.cargando} />
             {encajeEquipo.activo && <CeldaEncajeEquipo encaje={encajeEquipo.para(candidato.index)} cargandoSitio={encajeEquipo.cargandoSitio} />}
