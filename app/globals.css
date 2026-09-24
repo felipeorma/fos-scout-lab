@@ -4269,7 +4269,7 @@ button.menu-fila:active { transform: scale(.985); }
 }
 .filtros-chips { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip {
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip {
   position: relative;
   min-width: 0; min-height: 30px;
   padding: 0 10px 0 12px;
@@ -4283,28 +4283,28 @@ button.menu-fila:active { transform: scale(.985); }
   cursor: pointer;
   transition: background .12s ease, border-color .12s ease, transform .1s ease;
 }
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip:hover { background: color-mix(in srgb, var(--ink) 10%, transparent); }
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip:active { transform: scale(.97); }
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip:focus-within { border-color: var(--acento-borde); }
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip > span { color: var(--muted); font-weight: 500; }
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip > b {
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip:hover { background: color-mix(in srgb, var(--ink) 10%, transparent); }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip:active { transform: scale(.97); }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip:focus-within { border-color: var(--acento-borde); }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip > span { color: var(--muted); font-weight: 500; }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip > b {
   max-width: 16ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   color: inherit; font-weight: 600;
 }
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip > .ui-icon { flex: none; color: var(--muted); }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip > .ui-icon { flex: none; color: var(--muted); }
 
 /* La ficha que está filtrando se tiñe: se ve QUÉ acota la lista sin leer. */
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip.activo {
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip.activo {
   border-color: var(--acento-borde);
   color: var(--acento-claro);
   background: var(--acento-suave);
 }
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip.activo > .ui-icon { color: inherit; }
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip.apagado { cursor: not-allowed; opacity: .55; }
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip.apagado:active { transform: none; }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip.activo > .ui-icon { color: inherit; }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip.apagado { cursor: not-allowed; opacity: .55; }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip.apagado:active { transform: none; }
 
 /* El select de verdad, encima e invisible. */
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip > select {
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip > select {
   position: absolute; inset: 0;
   width: 100%; height: 100%; min-height: 0;
   margin: 0; padding: 0;
@@ -4315,8 +4315,8 @@ button.menu-fila:active { transform: scale(.985); }
   cursor: inherit;
 }
 
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip.numero { padding-right: 5px; cursor: text; }
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip > input {
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip.numero { padding-right: 5px; cursor: text; }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip > input {
   width: 5.4ch; height: 22px; min-height: 0;
   margin: 0; padding: 0 6px;
   border: 0; border-radius: 999px; outline: 0;
@@ -4325,9 +4325,9 @@ button.menu-fila:active { transform: scale(.985); }
   font: inherit; font-weight: 600; font-variant-numeric: tabular-nums; text-align: center;
   -moz-appearance: textfield; appearance: textfield;
 }
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip > input::-webkit-outer-spin-button,
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip > input::-webkit-inner-spin-button { margin: 0; -webkit-appearance: none; }
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip > input::placeholder { color: var(--muted); }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip > input::-webkit-outer-spin-button,
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip > input::-webkit-inner-spin-button { margin: 0; -webkit-appearance: none; }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip > input::placeholder { color: var(--muted); }
 
 .app-shell[data-tema] .filtros-barra-cola { margin-left: auto; padding: 0; display: flex; align-items: center; gap: 12px; }
 .app-shell[data-tema] .filtros-barra-cola > b { color: var(--muted); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -4341,7 +4341,7 @@ button.menu-fila:active { transform: scale(.985); }
 .app-shell[data-tema] .filtros-barra-cola > button:hover { opacity: .75; transform: none; }
 
 @media (prefers-reduced-motion: reduce) {
-  .app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip:active { transform: none; }
+  .app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip:active { transform: none; }
 }
 
 /* =====================================================================
@@ -4350,7 +4350,7 @@ button.menu-fila:active { transform: scale(.985); }
 /* Una sola columna: la lista va detrás del jugador objetivo, con sus
    filtros encima. El select de una ficha no puede heredar el tope de ancho
    de los controles antiguos, o dejaría parte de la ficha sin respuesta. */
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip > select { max-width: none; }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip > select { max-width: none; }
 .app-shell[data-tema] .similarity-workspace { display: block; margin-top: 12px; }
 .app-shell[data-tema] .similarity-results { gap: 18px; }
 
@@ -4490,8 +4490,8 @@ button.menu-fila:active { transform: scale(.985); }
    apiladas en vertical —la barra medía 306 px— desde que pasaron a fichas.
    Se fija para toda la plataforma, no solo aquí, porque cualquier página con
    una regla genérica sobre "label" haría lo mismo. */
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip { flex-direction: row; }
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip > span { font-size: inherit; letter-spacing: normal; text-transform: none; }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip { flex-direction: row; }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip > span { font-size: inherit; letter-spacing: normal; text-transform: none; }
 .app-shell[data-tema] .campo-busqueda { flex-direction: row; }
 .app-shell[data-tema] .campo-busqueda > input { width: auto; }
 
@@ -5637,9 +5637,9 @@ button.menu-fila:active { transform: scale(.985); }
    quedaba en puntos suspensivos. Además había una docena de reglas que cortan
    nombres con "…" y que hoy no se notan solo porque los nombres de la CPL son
    cortos. Un nombre a medias no se puede leer; en dos líneas, sí. */
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip > b { max-width: 34ch; }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip > b { max-width: 34ch; }
 @media (max-width: 640px) {
-  .app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip > b { max-width: none; white-space: normal; overflow-wrap: break-word; }
+  .app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip > b { max-width: none; white-space: normal; overflow-wrap: break-word; }
 }
 .app-shell[data-tema] :is(
   .pool-cuerpo > b, .pool-cuerpo > small,
@@ -5708,7 +5708,7 @@ button.menu-fila:active { transform: scale(.985); }
 .app-shell[data-tema] p.snap-estado { margin: 0 4px 12px; color: var(--muted); font-size: 12.5px; }
 
 .snap-fila { margin-bottom: 14px; display: grid; gap: 14px; align-items: start; }
-.snap-fila-1 { grid-template-columns: minmax(250px, 300px) minmax(0, 1.25fr) minmax(210px, .8fr) minmax(210px, .8fr); }
+.snap-fila-1 { grid-template-columns: minmax(250px, 300px) minmax(0, 1.2fr) minmax(210px, .8fr); }
 .snap-fila-2 { grid-template-columns: minmax(0, 1.15fr) repeat(3, minmax(0, 1fr)); }
 .snap-fila-3 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .snap-fila-4 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
@@ -5816,18 +5816,18 @@ button.menu-fila:active { transform: scale(.985); }
 .app-shell[data-tema] p.snap-vacio { margin: 8px 0; color: var(--muted); font-size: 12px; }
 
 @media print {
-  .snap-fila-1 { grid-template-columns: 240px minmax(0, 1.25fr) minmax(0, .8fr) minmax(0, .8fr); }
+  .snap-fila-1 { grid-template-columns: 240px minmax(0, 1.2fr) minmax(0, .8fr); }
   .snap-fila-2 { grid-template-columns: minmax(0, 1.15fr) repeat(3, minmax(0, 1fr)); }
   .snap-fila-3 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .snap-page :is(.snap-tarjeta, .snap-ficha, .snap-tabla, .snap-fila) { break-inside: avoid; }
-  .snap-top .filtro-chip > :is(svg, select) { display: none !important; }
+  :is(.snap-top, .snap-con-chip) .filtro-chip > :is(svg, select) { display: none !important; }
   .snap-page .snap-punto, .snap-page .snap-regate, .snap-page .snap-ocasion, .snap-page .snap-tiro { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
 }
 
 /* Las fichas de filtro también fuera de la barra: en los dos "Top 10" la
    ficha salía sin su estilo y con el desplegable nativo a la vista debajo,
    porque todas sus reglas colgaban de .filtros-barra. */
-.app-shell[data-tema] .snap-top .filtro-chip { margin-bottom: 4px; }
+.app-shell[data-tema] :is(.snap-top, .snap-con-chip) .filtro-chip { margin-bottom: 4px; }
 
 /* =====================================================================
    Visuales · piezas de la ficha ampliada como bloques
@@ -5872,11 +5872,30 @@ button.menu-fila:active { transform: scale(.985); }
 .visual-pieza-content .snap-top ol, .visual-pieza-content .snap-parecidos ol { overflow: hidden; }
 /* En la hoja, el Top 10 ya dice su familia en el subtítulo: el menú se usa
    para cambiarla, pero no hace falta repetirla en grande. */
-.visual-pieza-content .snap-top .filtro-chip { align-self: flex-start; }
+.visual-pieza-content :is(.snap-top, .snap-con-chip) .filtro-chip { align-self: flex-start; }
 
 body.print-layout-check .visual-pieza-content { height: 100%; }
 @media print {
   .visual-pieza-content { height: 100% !important; }
-  .visual-pieza-content .snap-top .filtro-chip { display: none !important; }
+  .visual-pieza-content :is(.snap-top, .snap-con-chip) .filtro-chip { display: none !important; }
   .visual-pieza-content :is(.snap-punto, .snap-regate, .snap-ocasion, .snap-tiro, .snap-celda, .snap-calor, .snap-cuna, .snap-puesto) { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
 }
+
+/* ---- Ficha ampliada · recepciones ---- */
+.app-shell[data-tema] .snap-recepcion { fill-opacity: .82; stroke: var(--paper); stroke-width: .12; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+.app-shell[data-tema] .snap-recepcion.fallida { fill: none; fill-opacity: 1; stroke-width: .32; }
+.snap-l-grupo { display: inline-flex; align-items: center; gap: 4px; }
+.snap-l-grupo > i { width: 10px; height: 10px; flex: none; display: inline-block; border-radius: 50%; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+.app-shell[data-tema] .snap-l-grupo > i.hueco { background: none; box-shadow: inset 0 0 0 1.5px var(--muted); }
+.app-shell[data-tema] .snap-l-grupo > b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.app-shell[data-tema] .snap-barras { margin: 4px 0 12px; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.app-shell[data-tema] .snap-barras > li { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) 36px; align-items: center; gap: 8px; font-size: 12px; }
+.app-shell[data-tema] .snap-barras > li > span { color: var(--ink); overflow-wrap: break-word; }
+.app-shell[data-tema] .snap-barras > li > i { height: 8px; overflow: hidden; border-radius: 4px; background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.snap-barras > li > i > b { height: 100%; display: block; border-radius: 4px; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+.app-shell[data-tema] .snap-barras > li > em { color: var(--ink); font-style: normal; font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+.app-shell[data-tema] .snap-cifras { margin: 0; padding-top: 10px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; border-top: 1px solid var(--line); }
+.app-shell[data-tema] .snap-cifras dt { color: var(--muted); font-size: 10.5px; }
+.app-shell[data-tema] .snap-cifras dd { margin: 0; color: var(--ink); font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.app-shell[data-tema] .snap-pasadores li > small { font-variant-numeric: tabular-nums; }

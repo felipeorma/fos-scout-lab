@@ -9,16 +9,20 @@ import { PERFILES } from "@/lib/perfiles";
 import type { DataRow, PlayerReport } from "@/lib/scouting";
 import type { TransfermarktProfile } from "@/lib/transfermarkt";
 import {
+  AGRUPACIONES_RECEPCION,
   COMPUESTAS,
   POSICION_EN_CAMPO,
   aVertical,
+  agrupacionRecepcion,
   densidad,
   enjambre,
   esJuegoAbierto,
   esPaseEnJuego,
   familiasCompuestas,
   fuenteStatsbomb,
+  grupoDeRecepcion,
   rejilla,
+  resumenRecepciones,
   type EventoSB,
   type EventosJugador,
   type GrupoCompuesto,
@@ -49,7 +53,8 @@ export type ContextoFicha = {
 export type IdPieza =
   | "ficha" | "tabla" | "radar" | "top10" | "puestos" | "parecidos"
   | "tiros" | "ocasiones" | "regates" | "pases_inicio" | "pases_fin"
-  | "calor" | "defensa" | "enjambres" | "dispersion";
+  | "calor" | "defensa" | "enjambres" | "dispersion"
+  | "recepciones" | "recepciones_tipo" | "recepciones_origen" | "recepciones_pasadores";
 
 /**
  * El catálogo que ofrece Visuales. `ancho` y `alto` son el tamaño con el que
@@ -70,15 +75,32 @@ export const PIEZAS_FICHA: Array<{ id: IdPieza; titulo: string; ancho: number; a
   { id: "pases_fin", titulo: "Dónde terminan sus pases", ancho: 4, alto: 500, eventos: true },
   { id: "calor", titulo: "Mapa de calor", ancho: 4, alto: 500, eventos: true },
   { id: "defensa", titulo: "Acciones defensivas", ancho: 4, alto: 500, eventos: true },
+  { id: "recepciones", titulo: "Dónde recibe", ancho: 4, alto: 560, eventos: true },
+  { id: "recepciones_tipo", titulo: "Cómo recibe", ancho: 4, alto: 500, eventos: true },
+  { id: "recepciones_origen", titulo: "De dónde le llega", ancho: 4, alto: 500, eventos: true },
+  { id: "recepciones_pasadores", titulo: "Quién se la da", ancho: 4, alto: 420, eventos: true },
   { id: "enjambres", titulo: "Frente a su grupo", ancho: 12, alto: 380, eventos: false },
   { id: "dispersion", titulo: "Construcción frente a asociación", ancho: 6, alto: 400, eventos: false },
 ];
 
 export const esPieza = (id: unknown): id is IdPieza => PIEZAS_FICHA.some((pieza) => pieza.id === id);
 
+/**
+ * El ajuste propio de una pieza, si lo tiene: la familia del Top 10 o cómo se
+ * agrupan las recepciones. Visuales lo ofrece en el inspector del bloque.
+ */
+export function opcionesDePieza(id: IdPieza): { etiqueta: string; inicial: string; opciones: Array<{ valor: string; etiqueta: string }> } | null {
+  if (id === "top10") return { etiqueta: "Familia", inicial: "progresion", opciones: COMPUESTAS.map((c) => ({ valor: c.id, etiqueta: c.etiqueta })) };
+  if (id === "recepciones" || id === "recepciones_tipo") {
+    return { etiqueta: "Agrupar por", inicial: "tipo", opciones: AGRUPACIONES_RECEPCION.map((a) => ({ valor: a.id, etiqueta: a.etiqueta })) };
+  }
+  return null;
+}
+
 const tramo = (percentil: number) => (percentil >= 80 ? "p5" : percentil >= 60 ? "p4" : percentil >= 40 ? "p3" : percentil >= 20 ? "p2" : "p1");
 const conSigno = (z: number) => `${z >= 0 ? "+" : "−"}${Math.abs(z).toFixed(2)}`;
 export const apellido = (nombre: string) => nombre.trim().split(/\s+/).slice(-1)[0] ?? nombre;
+const pct = (parte: number, total: number) => `${total ? Math.round((parte / total) * 100) : 0}%`;
 const num = (valor: number, decimales = 0) => valor.toLocaleString(numberLocale(), { minimumFractionDigits: decimales, maximumFractionDigits: decimales });
 
 // ---- Lo que se comparte entre piezas ---------------------------------------
@@ -350,7 +372,10 @@ function Dispersion({ grupo, objetivo, destacados, nombres, ejeX, ejeY }: {
       const esObjetivo = p.i === objetivo, destacado = destacados.includes(p.i);
       return <g key={p.i}>
         <circle cx={X(p.x)} cy={Y(p.y)} r={esObjetivo ? 5 : destacado ? 3.6 : 2.4} className={esObjetivo ? "snap-punto objetivo" : destacado ? "snap-punto parecido" : "snap-punto"} />
-        {(esObjetivo || destacado) && <text x={X(p.x) + 6} y={Y(p.y) - 5} className={esObjetivo ? "snap-punto-nombre objetivo" : "snap-punto-nombre"}>{apellido(nombres(p.i))}</text>}
+        {/* El nombre va arriba a la derecha del punto, salvo pegado al borde:
+            arriba del todo baja, y a la derecha del todo se ancla por el final. */}
+        {(esObjetivo || destacado) && <text x={X(p.x) > W - 80 ? X(p.x) - 6 : X(p.x) + 6} y={Y(p.y) < 20 ? Y(p.y) + 14 : Y(p.y) - 5}
+          textAnchor={X(p.x) > W - 80 ? "end" : "start"} className={esObjetivo ? "snap-punto-nombre objetivo" : "snap-punto-nombre"}>{apellido(nombres(p.i))}</text>}
       </g>;
     })}
     <text x={(W + m) / 2} y={H - 2} className="snap-eje-titulo">{t(COMPUESTAS.find((c) => c.id === ejeX)!.etiqueta)}</text>
@@ -539,6 +564,89 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
         n: defensivas.length, e: cuenta("Duel", "Tackle"), r: cuenta("Ball Recovery"), i: cuenta("Interception"), d: cuenta("Clearance"),
       })} aviso={aviso}>
         <RejillaCampo puntos={defensivas.map((e) => [e.l![0], e.l![1]] as Punto)} modo="n" etiqueta={t("Acciones defensivas")} />
+      </Tarjeta>;
+    }
+
+    case "recepciones": {
+      const agrupacion = agrupacionRecepcion(opcion);
+      const r = resumenRecepciones(eventos?.eventos ?? [], agrupacion.id);
+      const color = new Map(agrupacion.grupos.map((g) => [g.id, g.color]));
+      const porNoventa = datos.totalPos ? (r.total / datos.totalPos) * 90 : 0;
+      // Primero lo más frecuente: los grupos raros van encima y no quedan
+      // enterrados bajo cien recepciones al pie.
+      const frecuencia = new Map(r.grupos.map((g) => [g.id, g.n]));
+      const orden = r.lista
+        .map((e) => ({ e, grupo: grupoDeRecepcion(e, agrupacion.id) }))
+        .sort((a, b) => (frecuencia.get(b.grupo ?? "") ?? 0) - (frecuencia.get(a.grupo ?? "") ?? 0));
+      return <Tarjeta titulo={t("Dónde recibe")} subtitulo={sinEventos ? undefined : tf("{n} recepciones · {p} por 90", { n: num(r.total), p: num(porNoventa, 1) })} aviso={aviso} clase="snap-con-chip snap-recepciones"
+        leyenda={<>
+          {r.grupos.filter((g) => g.n).map((g) => <span key={g.id} className="snap-l-grupo"><i style={{ background: g.color }} />{t(g.etiqueta)} <b>{num(g.n)}</b></span>)}
+          {r.fallidas > 0 && <span className="snap-l-grupo"><i className="hueco" />{t("No controlada")}</span>}
+        </>}>
+        <Desplegable etiqueta={t("Agrupar por")} valor={t(agrupacion.etiqueta)} activo={false}>
+          <select aria-label={t("Agrupar por")} value={agrupacion.id} onChange={(evento) => onOpcion?.(evento.target.value)} onClick={(evento) => evento.stopPropagation()}>
+            {AGRUPACIONES_RECEPCION.map((a) => <option key={a.id} value={a.id}>{t(a.etiqueta)}</option>)}
+          </select>
+        </Desplegable>
+        <Cancha etiqueta={t("Dónde recibe")}>
+          {orden.map(({ e, grupo }, i) => {
+            const [X, Y] = aVertical(e.l!);
+            const tinta = (grupo && color.get(grupo)) || "#9aa0a6";
+            return e.o === "Incomplete"
+              ? <circle key={i} cx={X} cy={Y} r={0.85} className="snap-recepcion fallida" style={{ stroke: tinta }} />
+              : <circle key={i} cx={X} cy={Y} r={0.95} className="snap-recepcion" style={{ fill: tinta }} />;
+          })}
+        </Cancha>
+      </Tarjeta>;
+    }
+
+    case "recepciones_tipo": {
+      const agrupacion = agrupacionRecepcion(opcion);
+      const r = resumenRecepciones(eventos?.eventos ?? [], agrupacion.id);
+      const agrupadas = r.grupos.reduce((s, g) => s + g.n, 0);
+      const maximo = Math.max(1, ...r.grupos.map((g) => g.n));
+      return <Tarjeta titulo={t("Cómo recibe")} subtitulo={sinEventos ? undefined : `${t(agrupacion.etiqueta)} · ${tf("{n} recepciones", { n: num(r.total) })}`} aviso={aviso} clase="snap-como-recibe">
+        <ol className="snap-barras">
+          {r.grupos.map((g) => (
+            <li key={g.id}>
+              <span>{t(g.etiqueta)}</span>
+              <i><b style={{ width: `${(g.n / maximo) * 100}%`, background: g.color }} /></i>
+              <em>{pct(g.n, agrupadas)}</em>
+            </li>
+          ))}
+        </ol>
+        <dl className="snap-cifras">
+          <div><dt>{t("En el último tercio")}</dt><dd>{pct(r.ultimoTercio, r.total)}</dd></div>
+          <div><dt>{t("En el área")}</dt><dd>{pct(r.area, r.total)}</dd></div>
+          <div><dt>{t("Presionado")}</dt><dd>{pct(r.presionadas, r.total)}</dd></div>
+          <div><dt>{t("Progresivas")}</dt><dd>{pct(r.progresivas, r.total)}</dd></div>
+          <div><dt>{t("No controladas")}</dt><dd>{pct(r.fallidas, r.total)}</dd></div>
+          <div><dt>{t("Por 90")}</dt><dd>{num(datos.totalPos ? (r.total / datos.totalPos) * 90 : 0, 1)}</dd></div>
+        </dl>
+      </Tarjeta>;
+    }
+
+    case "recepciones_origen": {
+      const r = resumenRecepciones(eventos?.eventos ?? [], "tipo");
+      return <Tarjeta titulo={t("De dónde le llega")} subtitulo={sinEventos ? undefined : tf("Origen de {n} pases que recibe", { n: num(r.origenes.length) })} aviso={aviso}>
+        <RejillaCampo puntos={r.origenes} modo="pct" etiqueta={t("De dónde le llega")} />
+      </Tarjeta>;
+    }
+
+    case "recepciones_pasadores": {
+      const r = resumenRecepciones(eventos?.eventos ?? [], "tipo");
+      const lista = r.pasadores.slice(0, 8);
+      return <Tarjeta titulo={t("Quién se la da")} subtitulo={sinEventos ? undefined : tf("{n} compañeros distintos", { n: r.pasadores.length })} aviso={aviso} clase="snap-parecidos snap-pasadores">
+        <ol>
+          {lista.map((p, posicion) => (
+            <li key={p.nombre}>
+              <span>{posicion + 1}</span>
+              <b>{p.nombre}</b>
+              <small>{tf("{n} balones", { n: num(p.n) })}</small>
+              <em>{pct(p.n, r.total)}</em>
+            </li>
+          ))}
+        </ol>
       </Tarjeta>;
     }
 

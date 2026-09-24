@@ -10,10 +10,12 @@ import type { TransfermarktProfile } from "@/lib/transfermarkt";
 /**
  * Ficha ampliada: la página 2 del dossier ("Player Snapshot") con StatsBomb.
  *
- * Arriba, quién es y en qué destaca: la ficha, las trece familias en radar y
- * en tabla, un top 10 y dónde ha jugado. En medio, con quién se parece y qué
- * hace con el balón —tiros, ocasiones, regates—. Abajo, dónde lo hace —pases,
- * mapa de calor, defensa— y cómo queda frente a su grupo.
+ * Arriba, quién es y en qué destaca: la ficha, las trece familias en tabla,
+ * un top 10 y dónde ha jugado. El radar no va: ya tiene su página en Ficha y
+ * radar, y aquí repetía lo mismo. En medio, con quién se parece y qué hace
+ * con el balón —tiros, ocasiones, regates—. Después, dónde lo hace —pases,
+ * mapa de calor, defensa—, dónde y cómo le llega el balón, y cómo queda
+ * frente a su grupo.
  *
  * Cada gráfico es una pieza de PiezasFicha: los mismos que Visuales ofrece
  * sueltos para montar una hoja a medida.
@@ -31,6 +33,8 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
   const contexto: ContextoFicha = { rows, indice, informe, perfilTm, minutosMin, onAbrirJugador };
   const datos = useDatosFicha(contexto, true);
   const [familiaTop, setFamiliaTop] = useState("progresion");
+  // El mapa de recepciones y su reparto se agrupan igual: cambiar uno cambia los dos.
+  const [agruparRecepciones, setAgruparRecepciones] = useState("tipo");
   const pieza = (id: IdPieza) => <PiezaFicha pieza={id} datos={datos} />;
 
   return <section className="snap-page">
@@ -48,7 +52,6 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
         {pieza("ficha")}
         {pieza("tabla")}
       </div>
-      {pieza("radar")}
       <PiezaFicha pieza="top10" datos={datos} opcion={familiaTop} onOpcion={setFamiliaTop} />
       {pieza("puestos")}
     </div>
@@ -65,6 +68,13 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
       {pieza("pases_fin")}
       {pieza("calor")}
       {pieza("defensa")}
+    </div>
+
+    <div className="snap-fila snap-fila-3 snap-fila-recepciones">
+      <PiezaFicha pieza="recepciones" datos={datos} opcion={agruparRecepciones} onOpcion={setAgruparRecepciones} />
+      <PiezaFicha pieza="recepciones_tipo" datos={datos} opcion={agruparRecepciones} onOpcion={setAgruparRecepciones} />
+      {pieza("recepciones_origen")}
+      {pieza("recepciones_pasadores")}
     </div>
 
     <div className="snap-fila snap-fila-4">

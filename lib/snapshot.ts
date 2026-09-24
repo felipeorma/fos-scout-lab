@@ -125,6 +125,19 @@ export type EventoSB = {
   ga?: boolean;
   dt?: string | null;
   aw?: boolean;
+  // Solo en las recepciones ("Ball Receipt*"): el pase que se la da.
+  /** Recibió presionado. */
+  up?: boolean;
+  /** Desde dónde salió el pase. */
+  de?: [number, number, number?] | null;
+  /** Quién se la dio. */
+  dj?: string | null;
+  /** Altura del pase: Ground Pass, Low Pass, High Pass. */
+  h?: string | null;
+  /** Técnica del pase: Through Ball, Inswinging… */
+  tq?: string | null;
+  /** Cambio de orientación. */
+  sw?: boolean;
 };
 
 export type EventosJugador = {
@@ -143,6 +156,114 @@ export const esPaseEnJuego = (e: EventoSB) => e.t === "Pass" && !(e.pt && TIPOS_
 export const esJuegoAbierto = (e: EventoSB) => !/Corner|Free Kick|Throw In|Goal Kick|Kick Off/i.test(e.pp ?? "");
 
 export type Punto = [number, number];
+
+// ---- Recepciones -----------------------------------------------------------
+
+export type AgrupacionRecepcion = "tipo" | "presion" | "altura" | "direccion";
+
+/**
+ * Las formas de agrupar dónde recibe. Cada grupo lleva su color: el mismo en
+ * el mapa, en la leyenda y en las barras, para leer las tres cosas de un vistazo.
+ */
+export const AGRUPACIONES_RECEPCION: Array<{
+  id: AgrupacionRecepcion;
+  etiqueta: string;
+  grupos: Array<{ id: string; etiqueta: string; color: string }>;
+}> = [
+  {
+    id: "tipo", etiqueta: "Tipo de pase", grupos: [
+      { id: "al_pie", etiqueta: "Al pie", color: "#2f9e62" },
+      { id: "por_alto", etiqueta: "Por alto", color: "#3b7dd8" },
+      { id: "al_espacio", etiqueta: "Al espacio", color: "#7b61d1" },
+      { id: "cambio", etiqueta: "Cambio de orientación", color: "#1f9aa6" },
+      { id: "centro", etiqueta: "Centro", color: "#e08a2e" },
+      { id: "parado", etiqueta: "Balón parado", color: "#8a8f98" },
+    ],
+  },
+  {
+    id: "presion", etiqueta: "Presión", grupos: [
+      { id: "libre", etiqueta: "Sin presión", color: "#2f9e62" },
+      { id: "presionado", etiqueta: "Presionado", color: "#d0503f" },
+    ],
+  },
+  {
+    id: "altura", etiqueta: "Altura del pase", grupos: [
+      { id: "raso", etiqueta: "Raso", color: "#2f9e62" },
+      { id: "media", etiqueta: "A media altura", color: "#e08a2e" },
+      { id: "alto", etiqueta: "Por alto", color: "#3b7dd8" },
+    ],
+  },
+  {
+    id: "direccion", etiqueta: "Dirección del pase", grupos: [
+      { id: "adelante", etiqueta: "Pase adelante", color: "#2f9e62" },
+      { id: "horizontal", etiqueta: "Pase lateral", color: "#e08a2e" },
+      { id: "atras", etiqueta: "Pase atrás", color: "#d0503f" },
+    ],
+  },
+];
+
+export const agrupacionRecepcion = (id: unknown) => AGRUPACIONES_RECEPCION.find((a) => a.id === id) ?? AGRUPACIONES_RECEPCION[0];
+
+export const esRecepcion = (e: EventoSB) => e.t === "Ball Receipt*" && Boolean(e.l);
+
+/**
+ * El grupo de una recepción. En "tipo" manda lo más específico: un saque de
+ * banda por alto es balón parado, un centro raso es centro y un cambio de
+ * orientación por alto es cambio; solo lo que no es nada de eso se reparte
+ * entre al pie y por alto. Sin el pase de origen no hay grupo.
+ */
+export function grupoDeRecepcion(e: EventoSB, por: AgrupacionRecepcion): string | null {
+  if (por === "presion") return e.up ? "presionado" : "libre";
+  if (!e.de && !e.h && !e.pt) return null;
+  if (por === "altura") return e.h === "High Pass" ? "alto" : e.h === "Low Pass" ? "media" : e.h === "Ground Pass" ? "raso" : null;
+  if (por === "direccion") {
+    if (!e.de || !e.l) return null;
+    const dx = e.l[0] - e.de[0], dy = Math.abs(e.l[1] - e.de[1]);
+    const angulo = (Math.atan2(dy, dx) * 180) / Math.PI;
+    return angulo < 45 ? "adelante" : angulo > 135 ? "atras" : "horizontal";
+  }
+  if (e.pt && TIPOS_PARADO.has(e.pt)) return "parado";
+  if (e.cr) return "centro";
+  if (e.sw) return "cambio";
+  if (e.tq === "Through Ball") return "al_espacio";
+  return e.h === "High Pass" ? "por_alto" : "al_pie";
+}
+
+const aPorteria = (p: [number, number, number?]) => Math.hypot(120 - p[0], 40 - p[1]);
+
+/**
+ * Lo que se cuenta de sus recepciones. Progresiva: el pase le deja al menos un
+ * 25 % más cerca de la portería rival que desde donde salió.
+ */
+export function resumenRecepciones(eventos: EventoSB[], por: AgrupacionRecepcion) {
+  const lista = eventos.filter(esRecepcion);
+  const conteo = new Map<string, number>();
+  const pasadores = new Map<string, number>();
+  let fallidas = 0, presionadas = 0, ultimoTercio = 0, area = 0, progresivas = 0;
+  for (const e of lista) {
+    const [x, y] = e.l!;
+    if (e.o === "Incomplete") fallidas += 1;
+    if (e.up) presionadas += 1;
+    if (x >= 80) ultimoTercio += 1;
+    if (x >= 102 && y >= 18 && y <= 62) area += 1;
+    if (e.de && aPorteria(e.l!) <= 0.75 * aPorteria(e.de)) progresivas += 1;
+    const grupo = grupoDeRecepcion(e, por);
+    if (grupo) conteo.set(grupo, (conteo.get(grupo) ?? 0) + 1);
+    if (e.dj) pasadores.set(e.dj, (pasadores.get(e.dj) ?? 0) + 1);
+  }
+  return {
+    lista,
+    total: lista.length,
+    fallidas,
+    presionadas,
+    ultimoTercio,
+    area,
+    progresivas,
+    grupos: agrupacionRecepcion(por).grupos.map((g) => ({ ...g, n: conteo.get(g.id) ?? 0 })),
+    pasadores: [...pasadores.entries()].sort((a, b) => b[1] - a[1]).map(([nombre, n]) => ({ nombre, n })),
+    origenes: lista.filter((e) => e.de).map((e) => [e.de![0], e.de![1]] as Punto),
+  };
+}
 
 /**
  * Cuenta por zonas del campo en vertical: columnas a lo ancho, filas a lo

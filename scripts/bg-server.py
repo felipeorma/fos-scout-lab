@@ -666,6 +666,10 @@ def statsbomb_team_stats(competition_id: int, season_id: int):
 
 
 _SB_EVENTS_CACHE_DIR = Path.home() / ".fos-scouting" / "sb-events-cache"
+# Sube cuando cambia lo que se guarda de cada partido: los ficheros de una
+# versión anterior se vuelven a bajar en vez de servir campos que faltan.
+# 2: cada recepción lleva el pase que la origina (altura, tipo, quién la da).
+_SB_COMPACTO_VERSION = 2
 # Lo que dibuja la ficha ampliada. Presiones y demás se quedan fuera: una
 # temporada de un equipo son 30 partidos y así cada uno pesa ~250 KB, no 2,7 MB.
 _SB_TIPOS_FICHA = {"Shot", "Pass", "Carry", "Dribble", "Duel", "Ball Recovery", "Interception", "Clearance", "Block", "Ball Receipt*"}
@@ -697,7 +701,9 @@ def _sb_partido_compacto(match_id: int, auth):
     ruta = _SB_EVENTS_CACHE_DIR / f"m-{int(match_id)}.json"
     if ruta.exists():
         try:
-            return _json.loads(ruta.read_text(encoding="utf-8"))
+            guardado = _json.loads(ruta.read_text(encoding="utf-8"))
+            if guardado.get("v") == _SB_COMPACTO_VERSION:
+                return guardado
         except Exception:
             pass
     try:
@@ -709,6 +715,9 @@ def _sb_partido_compacto(match_id: int, auth):
         alineaciones = rl.json() if rl.status_code == 200 else []
     except Exception:
         return None
+    # Cada recepción apunta a su pase por `related_events` (en la prueba, 772
+    # de 772): de ahí sale cómo le llega el balón.
+    pases = {e.get("id"): e for e in eventos if (e.get("type") or {}).get("name") == "Pass"}
     fin, salida = 0.0, []
     for e in eventos:
         fin = max(fin, (e.get("minute") or 0) + (e.get("second") or 0) / 60)
@@ -733,12 +742,22 @@ def _sb_partido_compacto(match_id: int, auth):
             fila.update({"dt": (duelo.get("type") or {}).get("name"), "o": (duelo.get("outcome") or {}).get("name")})
         elif tipo == "Clearance":
             fila["aw"] = bool((e.get("clearance") or {}).get("aerial_won"))
+        elif tipo == "Ball Receipt*":
+            fila.update({"o": ((e.get("ball_receipt") or {}).get("outcome") or {}).get("name"), "up": bool(e.get("under_pressure"))})
+            pase = next((pases[i] for i in e.get("related_events") or [] if i in pases), None)
+            if pase:
+                dp = pase.get("pass") or {}
+                fila.update({
+                    "de": pase.get("location"), "dj": (pase.get("player") or {}).get("name"),
+                    "h": (dp.get("height") or {}).get("name"), "pt": (dp.get("type") or {}).get("name"),
+                    "tq": (dp.get("technique") or {}).get("name"), "sw": bool(dp.get("switch")), "cr": bool(dp.get("cross")),
+                })
         salida.append(fila)
     alineacion = {}
     for equipo in alineaciones if isinstance(alineaciones, list) else []:
         for j in equipo.get("lineup", []):
             alineacion[j.get("player_name")] = {"dorsal": j.get("jersey_number"), "equipo": equipo.get("team_name"), "pos": j.get("positions") or []}
-    compacto = {"fin": round(fin, 2), "eventos": salida, "alineacion": alineacion}
+    compacto = {"v": _SB_COMPACTO_VERSION, "fin": round(fin, 2), "eventos": salida, "alineacion": alineacion}
     try:
         _escribir_atomico(ruta, _json.dumps(compacto, ensure_ascii=False))
     except OSError:

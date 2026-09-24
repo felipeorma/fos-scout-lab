@@ -1,13 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  AGRUPACIONES_RECEPCION,
   COMPUESTAS,
   aVertical,
   densidad,
   enjambre,
   familiasCompuestas,
   fuenteStatsbomb,
+  grupoDeRecepcion,
   rejilla,
+  resumenRecepciones,
 } from "../lib/snapshot.ts";
 
 /**
@@ -101,4 +104,51 @@ test("de la columna de fuentes sale la liga y la temporada de StatsBomb", () => 
   assert.deepEqual(fuenteStatsbomb("SkillCorner · Eerste Divisie 2025/2026, StatsBomb · Eerste Divisie 2025/2026"), { liga: "Eerste Divisie", temporada: "2025/2026" });
   assert.deepEqual(fuenteStatsbomb("StatsBomb · Canadian Premier League 2025"), { liga: "Canadian Premier League", temporada: "2025" });
   assert.equal(fuenteStatsbomb("liga-uno.csv"), null, "un archivo de Wyscout no tiene eventos");
+});
+
+const recibe = (extra) => ({ t: "Ball Receipt*", j: "X", l: [70, 40], de: [50, 40], h: "Ground Pass", dj: "Y", ...extra });
+
+test("en el tipo de recepción manda lo más específico", () => {
+  assert.equal(grupoDeRecepcion(recibe({ pt: "Throw-in", h: "High Pass" }), "tipo"), "parado", "un saque de banda por alto es balón parado");
+  assert.equal(grupoDeRecepcion(recibe({ cr: true, h: "Ground Pass" }), "tipo"), "centro", "un centro raso sigue siendo centro");
+  assert.equal(grupoDeRecepcion(recibe({ sw: true, h: "High Pass" }), "tipo"), "cambio");
+  assert.equal(grupoDeRecepcion(recibe({ tq: "Through Ball" }), "tipo"), "al_espacio");
+  assert.equal(grupoDeRecepcion(recibe({ h: "High Pass" }), "tipo"), "por_alto");
+  assert.equal(grupoDeRecepcion(recibe({ h: "Low Pass" }), "tipo"), "al_pie");
+  assert.equal(grupoDeRecepcion({ t: "Ball Receipt*", j: "X", l: [70, 40] }, "tipo"), null, "sin el pase de origen no se inventa");
+});
+
+test("la dirección se mide desde donde salió el pase", () => {
+  assert.equal(grupoDeRecepcion(recibe({ de: [50, 40], l: [70, 45] }), "direccion"), "adelante");
+  assert.equal(grupoDeRecepcion(recibe({ de: [50, 10], l: [52, 60] }), "direccion"), "horizontal");
+  assert.equal(grupoDeRecepcion(recibe({ de: [70, 40], l: [50, 38] }), "direccion"), "atras");
+});
+
+test("cada agrupación reparte todas las recepciones que tienen pase", () => {
+  const lista = [
+    recibe({ h: "Ground Pass", up: true }), recibe({ h: "High Pass" }), recibe({ h: "Low Pass", cr: true }),
+    recibe({ pt: "Corner", h: "High Pass" }), recibe({ sw: true, h: "High Pass" }),
+  ];
+  for (const agrupacion of AGRUPACIONES_RECEPCION) {
+    const { grupos, total } = resumenRecepciones(lista, agrupacion.id);
+    assert.equal(grupos.reduce((s, g) => s + g.n, 0), total, `${agrupacion.id} deja recepciones fuera`);
+  }
+});
+
+test("el resumen cuenta zonas, presión, progresivas y quién se la da", () => {
+  const lista = [
+    recibe({ l: [110, 40], de: [60, 40], up: true, dj: "A" }),   // área, progresiva, presionado
+    recibe({ l: [85, 10], de: [80, 10], dj: "A" }),              // último tercio, no progresiva
+    recibe({ l: [40, 40], de: [45, 40], o: "Incomplete", dj: "B" }),
+    { t: "Pass", j: "X", l: [50, 40], e: [60, 40] },            // no es recepción
+  ];
+  const r = resumenRecepciones(lista, "presion");
+  assert.equal(r.total, 3);
+  assert.equal(r.area, 1);
+  assert.equal(r.ultimoTercio, 2);
+  assert.equal(r.progresivas, 1);
+  assert.equal(r.presionadas, 1);
+  assert.equal(r.fallidas, 1);
+  assert.deepEqual(r.pasadores, [{ nombre: "A", n: 2 }, { nombre: "B", n: 1 }]);
+  assert.deepEqual(r.grupos.map((g) => [g.id, g.n]), [["libre", 2], ["presionado", 1]]);
 });

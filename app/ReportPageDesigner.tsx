@@ -22,8 +22,7 @@ import { DEFAULT_REPORT_THEME, REPORT_THEMES, reportThemeStyle, type ReportTheme
 import { fetchAiSummary, type AiMetricFact, type AiPlayerFacts } from "@/lib/remoteData";
 import { PieDeReporte } from "./PieDeReporte";
 import { SimilarityReportMain, type SimilarityReportPayload } from "./SimilarityReport";
-import { PIEZAS_FICHA, PiezaSuelta, esPieza, type ContextoFicha } from "./PiezasFicha";
-import { COMPUESTAS } from "@/lib/snapshot";
+import { PIEZAS_FICHA, PiezaSuelta, esPieza, opcionesDePieza, type ContextoFicha } from "./PiezasFicha";
 import { t, tDefault, tf } from "@/lib/i18n";
 import {
   clampReportBlockHeight,
@@ -652,13 +651,20 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
                 const despues = PIEZAS_FICHA.find((pieza) => pieza.id === event.target.value);
                 if (!despues) return;
                 // La etiqueta sigue a la pieza salvo que se haya escrito a mano.
-                patchSelected({ pieza: despues.id, title: !selected.title || selected.title === antes?.titulo ? despues.titulo : selected.title });
+                // El ajuste es de cada pieza: una familia no sirve para agrupar recepciones.
+                patchSelected({ pieza: despues.id, opcion: undefined, title: !selected.title || selected.title === antes?.titulo ? despues.titulo : selected.title });
               }}>
                 {PIEZAS_FICHA.map((pieza) => <option key={pieza.id} value={pieza.id}>{t(pieza.titulo)}</option>)}
               </select></label>
-              {selected.pieza === "top10" && <label className="inspector-fila"><span>{t("Familia")}</span><select className="inspector-selector" value={selected.opcion ?? "progresion"} onChange={(event) => patchSelected({ opcion: event.target.value })}>
-                {COMPUESTAS.map((familia) => <option key={familia.id} value={familia.id}>{t(familia.etiqueta)}</option>)}
-              </select></label>}
+              {(() => {
+                // El ajuste propio de la pieza: la familia del Top 10, cómo se
+                // agrupan las recepciones… Las que no tienen, no enseñan nada.
+                const ajuste = esPieza(selected.pieza) ? opcionesDePieza(selected.pieza) : null;
+                if (!ajuste) return null;
+                return <label className="inspector-fila"><span>{t(ajuste.etiqueta)}</span><select className="inspector-selector" value={selected.opcion ?? ajuste.inicial} onChange={(event) => patchSelected({ opcion: event.target.value })}>
+                  {ajuste.opciones.map((opcion) => <option key={opcion.valor} value={opcion.valor}>{t(opcion.etiqueta)}</option>)}
+                </select></label>;
+              })()}
             </div>
             <p className="inspector-pie">{t("Se dibuja con los datos del jugador del informe y cambia con él.")}</p>
           </section> : selected.type === "image" ? (selected.id === SIMILARITY_BLOCK_ID
