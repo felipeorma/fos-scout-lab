@@ -159,6 +159,7 @@ async function fetchHtmlThroughCorsProxy(url: string) {
 import { extractSeason, type DataRow, type SourceDataset } from "./scouting";
 import { OPTA_URL, type FotoMensual, type OptaLiga } from "./maldonado";
 import type { FilaEquipo } from "./estiloEquipo";
+import type { EventosJugador } from "./snapshot";
 
 const LOCAL_BRIDGE = "http://127.0.0.1:7001";
 
@@ -236,6 +237,19 @@ export async function fetchSkillcornerTeamStats(edition: ApiCompetition): Promis
     `/api/skillcorner/team-stats?competition_edition_id=${edition.id}`,
   );
   return payload.rows ?? [];
+}
+
+/**
+ * Los eventos de un jugador en su temporada de StatsBomb, para la ficha
+ * ampliada. La primera vez de un equipo el puente baja sus ~30 partidos (un
+ * par de minutos); después salen del disco.
+ */
+export function fetchEventosJugador(liga: string, temporada: string, equipo: string, jugador: string) {
+  const q = (valor: string) => encodeURIComponent(valor);
+  return bridgeJson<EventosJugador>(
+    `/api/statsbomb/player-events?liga=${q(liga)}&temporada=${q(temporada)}&equipo=${q(equipo)}&jugador=${q(jugador)}`,
+    300_000,
+  );
 }
 
 export async function fetchSkillcornerDataset(competition: ApiCompetition): Promise<SourceDataset> {

@@ -4269,7 +4269,7 @@ button.menu-fila:active { transform: scale(.985); }
 }
 .filtros-chips { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 
-.app-shell[data-tema] .filtros-barra .filtro-chip {
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip {
   position: relative;
   min-width: 0; min-height: 30px;
   padding: 0 10px 0 12px;
@@ -4283,28 +4283,28 @@ button.menu-fila:active { transform: scale(.985); }
   cursor: pointer;
   transition: background .12s ease, border-color .12s ease, transform .1s ease;
 }
-.app-shell[data-tema] .filtros-barra .filtro-chip:hover { background: color-mix(in srgb, var(--ink) 10%, transparent); }
-.app-shell[data-tema] .filtros-barra .filtro-chip:active { transform: scale(.97); }
-.app-shell[data-tema] .filtros-barra .filtro-chip:focus-within { border-color: var(--acento-borde); }
-.app-shell[data-tema] .filtros-barra .filtro-chip > span { color: var(--muted); font-weight: 500; }
-.app-shell[data-tema] .filtros-barra .filtro-chip > b {
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip:hover { background: color-mix(in srgb, var(--ink) 10%, transparent); }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip:active { transform: scale(.97); }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip:focus-within { border-color: var(--acento-borde); }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip > span { color: var(--muted); font-weight: 500; }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip > b {
   max-width: 16ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   color: inherit; font-weight: 600;
 }
-.app-shell[data-tema] .filtros-barra .filtro-chip > .ui-icon { flex: none; color: var(--muted); }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip > .ui-icon { flex: none; color: var(--muted); }
 
 /* La ficha que está filtrando se tiñe: se ve QUÉ acota la lista sin leer. */
-.app-shell[data-tema] .filtros-barra .filtro-chip.activo {
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip.activo {
   border-color: var(--acento-borde);
   color: var(--acento-claro);
   background: var(--acento-suave);
 }
-.app-shell[data-tema] .filtros-barra .filtro-chip.activo > .ui-icon { color: inherit; }
-.app-shell[data-tema] .filtros-barra .filtro-chip.apagado { cursor: not-allowed; opacity: .55; }
-.app-shell[data-tema] .filtros-barra .filtro-chip.apagado:active { transform: none; }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip.activo > .ui-icon { color: inherit; }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip.apagado { cursor: not-allowed; opacity: .55; }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip.apagado:active { transform: none; }
 
 /* El select de verdad, encima e invisible. */
-.app-shell[data-tema] .filtros-barra .filtro-chip > select {
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip > select {
   position: absolute; inset: 0;
   width: 100%; height: 100%; min-height: 0;
   margin: 0; padding: 0;
@@ -4315,8 +4315,8 @@ button.menu-fila:active { transform: scale(.985); }
   cursor: inherit;
 }
 
-.app-shell[data-tema] .filtros-barra .filtro-chip.numero { padding-right: 5px; cursor: text; }
-.app-shell[data-tema] .filtros-barra .filtro-chip > input {
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip.numero { padding-right: 5px; cursor: text; }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip > input {
   width: 5.4ch; height: 22px; min-height: 0;
   margin: 0; padding: 0 6px;
   border: 0; border-radius: 999px; outline: 0;
@@ -4325,9 +4325,9 @@ button.menu-fila:active { transform: scale(.985); }
   font: inherit; font-weight: 600; font-variant-numeric: tabular-nums; text-align: center;
   -moz-appearance: textfield; appearance: textfield;
 }
-.app-shell[data-tema] .filtros-barra .filtro-chip > input::-webkit-outer-spin-button,
-.app-shell[data-tema] .filtros-barra .filtro-chip > input::-webkit-inner-spin-button { margin: 0; -webkit-appearance: none; }
-.app-shell[data-tema] .filtros-barra .filtro-chip > input::placeholder { color: var(--muted); }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip > input::-webkit-outer-spin-button,
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip > input::-webkit-inner-spin-button { margin: 0; -webkit-appearance: none; }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip > input::placeholder { color: var(--muted); }
 
 .app-shell[data-tema] .filtros-barra-cola { margin-left: auto; padding: 0; display: flex; align-items: center; gap: 12px; }
 .app-shell[data-tema] .filtros-barra-cola > b { color: var(--muted); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -4341,7 +4341,7 @@ button.menu-fila:active { transform: scale(.985); }
 .app-shell[data-tema] .filtros-barra-cola > button:hover { opacity: .75; transform: none; }
 
 @media (prefers-reduced-motion: reduce) {
-  .app-shell[data-tema] .filtros-barra .filtro-chip:active { transform: none; }
+  .app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip:active { transform: none; }
 }
 
 /* =====================================================================
@@ -4350,7 +4350,7 @@ button.menu-fila:active { transform: scale(.985); }
 /* Una sola columna: la lista va detrás del jugador objetivo, con sus
    filtros encima. El select de una ficha no puede heredar el tope de ancho
    de los controles antiguos, o dejaría parte de la ficha sin respuesta. */
-.app-shell[data-tema] .filtros-barra .filtro-chip > select { max-width: none; }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip > select { max-width: none; }
 .app-shell[data-tema] .similarity-workspace { display: block; margin-top: 12px; }
 .app-shell[data-tema] .similarity-results { gap: 18px; }
 
@@ -4490,8 +4490,8 @@ button.menu-fila:active { transform: scale(.985); }
    apiladas en vertical —la barra medía 306 px— desde que pasaron a fichas.
    Se fija para toda la plataforma, no solo aquí, porque cualquier página con
    una regla genérica sobre "label" haría lo mismo. */
-.app-shell[data-tema] .filtros-barra .filtro-chip { flex-direction: row; }
-.app-shell[data-tema] .filtros-barra .filtro-chip > span { font-size: inherit; letter-spacing: normal; text-transform: none; }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip { flex-direction: row; }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip > span { font-size: inherit; letter-spacing: normal; text-transform: none; }
 .app-shell[data-tema] .campo-busqueda { flex-direction: row; }
 .app-shell[data-tema] .campo-busqueda > input { width: auto; }
 
@@ -5434,19 +5434,19 @@ button.menu-fila:active { transform: scale(.985); }
 /* Entran en el mismo PDF que las páginas de diseño, así que se firman igual.
    Los colores son los del tema y no los del papel del reporte: esta página se
    imprime con su propio fondo, y el gris del papel se perdería encima. */
-.app-shell[data-tema] :is(.runs-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page) .visual-page-footer {
+.app-shell[data-tema] :is(.runs-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) .visual-page-footer {
   margin: 20px 0 0; padding-top: 14px;
   border-top: 1px solid var(--line);
   color: var(--muted);
 }
-.app-shell[data-tema] :is(.runs-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page) .report-signatures { gap: 14px; }
-.app-shell[data-tema] :is(.runs-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page) :is(.report-author, .report-recipient > div) > span { color: var(--muted); font-size: 9px; letter-spacing: .12em; }
-.app-shell[data-tema] :is(.runs-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page) :is(.report-author, .report-recipient > div) > b { color: var(--ink); font-size: 12.5px; }
-.app-shell[data-tema] :is(.runs-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page) .report-author > small { color: var(--muted); font-size: 9px; letter-spacing: .1em; }
-.app-shell[data-tema] :is(.runs-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page) .visual-footer-confidential { color: var(--muted); font-size: 9px; }
-.app-shell[data-tema] :is(.runs-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page) .report-recipient { border-left: 1px solid var(--line); }
-.app-shell[data-tema] :is(.runs-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page) :is(.dossier-footer-club-logo, .dossier-footer-club-fallback) { width: 30px; height: 30px; }
-.app-shell[data-tema] :is(.runs-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page) .dossier-footer-club-fallback {
+.app-shell[data-tema] :is(.runs-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) .report-signatures { gap: 14px; }
+.app-shell[data-tema] :is(.runs-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) :is(.report-author, .report-recipient > div) > span { color: var(--muted); font-size: 9px; letter-spacing: .12em; }
+.app-shell[data-tema] :is(.runs-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) :is(.report-author, .report-recipient > div) > b { color: var(--ink); font-size: 12.5px; }
+.app-shell[data-tema] :is(.runs-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) .report-author > small { color: var(--muted); font-size: 9px; letter-spacing: .1em; }
+.app-shell[data-tema] :is(.runs-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) .visual-footer-confidential { color: var(--muted); font-size: 9px; }
+.app-shell[data-tema] :is(.runs-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) .report-recipient { border-left: 1px solid var(--line); }
+.app-shell[data-tema] :is(.runs-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) :is(.dossier-footer-club-logo, .dossier-footer-club-fallback) { width: 30px; height: 30px; }
+.app-shell[data-tema] :is(.runs-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) .dossier-footer-club-fallback {
   display: grid; place-items: center;
   border-radius: 8px; color: var(--muted);
   background: color-mix(in srgb, var(--ink) 8%, transparent);
@@ -5463,7 +5463,7 @@ button.menu-fila:active { transform: scale(.985); }
    impresión. El campo del mapa mantiene su fondo oscuro: es un dibujo, no
    texto, y lleva su propio print-color-adjust. */
 @media print {
-  .app-shell[data-tema] :is(.runs-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page) {
+  .app-shell[data-tema] :is(.runs-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) {
     --ink: #1d1d1f;
     --muted: #5b6472;
     --line: rgba(0, 0, 0, .16);
@@ -5633,9 +5633,9 @@ button.menu-fila:active { transform: scale(.985); }
    quedaba en puntos suspensivos. Además había una docena de reglas que cortan
    nombres con "…" y que hoy no se notan solo porque los nombres de la CPL son
    cortos. Un nombre a medias no se puede leer; en dos líneas, sí. */
-.app-shell[data-tema] .filtros-barra .filtro-chip > b { max-width: 34ch; }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip > b { max-width: 34ch; }
 @media (max-width: 640px) {
-  .app-shell[data-tema] .filtros-barra .filtro-chip > b { max-width: none; white-space: normal; overflow-wrap: break-word; }
+  .app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top) .filtro-chip > b { max-width: none; white-space: normal; overflow-wrap: break-word; }
 }
 .app-shell[data-tema] :is(
   .pool-cuerpo > b, .pool-cuerpo > small,
@@ -5700,3 +5700,140 @@ button.menu-fila:active { transform: scale(.985); }
 @media print { .estilo-fuente { display: none !important; } }
 
 .app-shell[data-tema] p.estilo-encaje-sc { margin: 4px 0 0; color: var(--muted); font-size: 12px; text-align: right; }
+
+/* =====================================================================
+   Ficha ampliada · la página 2 del dossier con eventos de StatsBomb
+   ===================================================================== */
+.app-shell[data-tema] .snap-page {
+  --verde: #2f9e62; --azul: #3b7dd8; --naranja: #e08a2e; --rojo: #d0503f;
+  --sube: #34c759; --baja: #ff6961;
+  max-width: 1280px; margin: 18px auto 32px; padding: 0 4px; color: var(--ink);
+}
+.app-shell[data-tema="claro"] .snap-page { --sube: #1a7f37; --baja: #c62828; }
+.app-shell[data-tema] .snap-page > header { margin: 0 0 12px; padding: 0 4px; }
+.app-shell[data-tema] .snap-page > header span { color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .06em; }
+.app-shell[data-tema] .snap-page > header h2 { margin: 2px 0 4px; color: var(--ink); font-size: 28px; font-weight: 700; letter-spacing: -.025em; line-height: 1.1; }
+.app-shell[data-tema] .snap-page > header p { margin: 0; color: var(--muted); font-size: 13px; }
+.app-shell[data-tema] p.snap-estado { margin: 0 4px 12px; color: var(--muted); font-size: 12.5px; }
+
+.snap-fila { margin-bottom: 14px; display: grid; gap: 14px; align-items: start; }
+.snap-fila-1 { grid-template-columns: minmax(250px, 300px) minmax(0, 1.25fr) minmax(210px, .8fr) minmax(210px, .8fr); }
+.snap-fila-2 { grid-template-columns: minmax(0, 1.15fr) repeat(3, minmax(0, 1fr)); }
+.snap-fila-3 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.snap-fila-4 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+@media (max-width: 1100px) { .snap-fila-1, .snap-fila-2, .snap-fila-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .snap-fila-1, .snap-fila-2, .snap-fila-3, .snap-fila-4 { grid-template-columns: minmax(0, 1fr); } }
+.snap-columna { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+
+.app-shell[data-tema] :is(.snap-tarjeta, .snap-ficha, .snap-tabla) {
+  margin: 0; min-width: 0; padding: 12px 14px;
+  border-radius: 14px; background: var(--paper); box-shadow: 0 0 0 1px var(--line);
+}
+.app-shell[data-tema] .snap-tarjeta > figcaption { margin-bottom: 8px; display: flex; flex-direction: column; gap: 1px; }
+.app-shell[data-tema] .snap-tarjeta > figcaption > b { color: var(--ink); font-size: 13.5px; font-weight: 600; }
+.app-shell[data-tema] .snap-tarjeta > figcaption > small { color: var(--muted); font-size: 11px; line-height: 1.4; }
+.app-shell[data-tema] .snap-leyenda { margin-top: 6px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; color: var(--muted); font-size: 10.5px; }
+.snap-leyenda > i { width: 10px; height: 10px; margin-right: -6px; display: inline-block; border-radius: 50%; }
+.snap-l.gol { background: var(--acento); } .snap-l.tiro { box-shadow: inset 0 0 0 1.5px var(--muted); }
+.snap-l.juego { background: var(--verde); } .snap-l.centro { background: var(--azul); } .snap-l.parado { background: var(--naranja); }
+.snap-l.asistencia { background: var(--acento); } .snap-l.fallo { background: var(--rojo); }
+
+/* La ficha */
+.app-shell[data-tema] .snap-ficha { display: grid; grid-template-columns: 60px minmax(0, 1fr); gap: 10px 12px; align-items: center; }
+.snap-foto { width: 60px; height: 60px; border-radius: 50%; object-fit: cover; background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.app-shell[data-tema] .snap-foto.vacia { display: grid; place-items: center; color: var(--muted); font-size: 18px; font-weight: 700; }
+.snap-ficha-texto { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.app-shell[data-tema] .snap-ficha-texto > b { color: var(--ink); font-size: 16px; font-weight: 700; line-height: 1.2; overflow-wrap: break-word; }
+.app-shell[data-tema] .snap-ficha-texto > small { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+.snap-ficha-texto > small > img { width: 18px; height: 18px; object-fit: contain; }
+.snap-ficha > dl { grid-column: 1 / -1; margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px; }
+.app-shell[data-tema] .snap-ficha dt { color: var(--muted); font-size: 10.5px; }
+.app-shell[data-tema] .snap-ficha dd { margin: 0; color: var(--ink); font-size: 12.5px; font-weight: 600; overflow-wrap: break-word; }
+
+/* La tabla de familias */
+.app-shell[data-tema] .snap-tabla { margin: 0; padding: 8px 12px; list-style: none; }
+.app-shell[data-tema] .snap-tabla > li { min-height: 25px; display: grid; grid-template-columns: minmax(0, 1fr) 48px 32px; align-items: center; gap: 8px; font-size: 12px; }
+.app-shell[data-tema] .snap-tabla > li > span { color: var(--ink); }
+.app-shell[data-tema] .snap-tabla > li > em { font-style: normal; font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+.app-shell[data-tema] .snap-tabla > li > em.sube { color: var(--sube); }
+.app-shell[data-tema] .snap-tabla > li > em.baja { color: var(--baja); }
+.app-shell[data-tema] .snap-tabla > li > i { font-style: normal; }
+.app-shell[data-tema] .snap-tabla > li.snap-tabla-titulo { min-height: 20px; display: block; color: var(--muted); font-size: 10.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+
+/* Campos */
+.snap-cancha { display: block; width: 100%; height: auto; }
+.app-shell[data-tema] .snap-lineas { fill: none; stroke: color-mix(in srgb, var(--ink) 30%, transparent); stroke-width: .35; }
+.app-shell[data-tema] .snap-celda { fill: var(--acento); print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+.app-shell[data-tema] .snap-celda-texto { fill: var(--ink); font-size: 3.2px; font-weight: 600; text-anchor: middle; paint-order: stroke; stroke: var(--paper); stroke-width: .7px; }
+.app-shell[data-tema] .snap-calor { fill: var(--acento); print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+.app-shell[data-tema] .snap-tiro { fill: color-mix(in srgb, var(--muted) 30%, transparent); stroke: var(--muted); stroke-width: .3; }
+.app-shell[data-tema] .snap-tiro.gol { fill: var(--acento); stroke: var(--paper); stroke-width: .4; }
+.app-shell[data-tema] .snap-ocasion line { stroke-width: .5; stroke-linecap: round; }
+.snap-ocasion.juego line { stroke: var(--verde); } .snap-ocasion.juego circle { fill: var(--verde); }
+.snap-ocasion.centro line { stroke: var(--azul); stroke-dasharray: 1.2 .8; } .snap-ocasion.centro circle { fill: var(--azul); }
+.snap-ocasion.parado line { stroke: var(--naranja); } .snap-ocasion.parado circle { fill: var(--naranja); }
+.app-shell[data-tema] .snap-ocasion.asistencia line { stroke: var(--acento); stroke-width: .8; } .app-shell[data-tema] .snap-ocasion.asistencia circle { fill: var(--acento); }
+.snap-regate.bien { fill: var(--verde); } .snap-regate.mal { fill: var(--rojo); }
+.app-shell[data-tema] .snap-puesto { fill: var(--acento); fill-opacity: .85; stroke: var(--paper); stroke-width: .4; }
+.snap-puesto-pct { fill: #fff; font-size: 2.9px; font-weight: 700; text-anchor: middle; }
+.app-shell[data-tema] .snap-puesto-codigo { fill: var(--muted); font-size: 2.7px; text-anchor: middle; }
+.app-shell[data-tema] .snap-puestos-lista { margin: 6px 0 0; padding: 0; list-style: none; }
+.app-shell[data-tema] .snap-puestos-lista > li { display: grid; grid-template-columns: 44px 1fr auto; gap: 6px; font-size: 11.5px; }
+.app-shell[data-tema] .snap-puestos-lista b { color: var(--ink); } .app-shell[data-tema] .snap-puestos-lista span { color: var(--muted); }
+.app-shell[data-tema] .snap-puestos-lista em { color: var(--ink); font-style: normal; font-weight: 600; }
+
+/* Radar de familias */
+.snap-radar { display: block; width: 100%; height: auto; }
+.app-shell[data-tema] .snap-anillo { fill: none; stroke: var(--line); }
+.app-shell[data-tema] .snap-anillo.mediana { stroke: color-mix(in srgb, var(--ink) 40%, transparent); stroke-dasharray: 4 4; }
+.app-shell[data-tema] .snap-cuna { fill: var(--acento); fill-opacity: .82; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+.app-shell[data-tema] .snap-cuna-z { fill: var(--ink); font-size: 9.5px; font-weight: 700; text-anchor: middle; paint-order: stroke; stroke: var(--paper); stroke-width: 3px; }
+.app-shell[data-tema] .snap-radar-etiqueta { fill: var(--muted); font-size: 10.5px; }
+.app-shell[data-tema] .snap-radar-centro { fill: var(--paper); stroke: var(--line); }
+
+/* Listas: top 10 y parecidos */
+.app-shell[data-tema] :is(.snap-top, .snap-parecidos) ol { margin: 6px 0 0; padding: 0; list-style: none; }
+.app-shell[data-tema] :is(.snap-top, .snap-parecidos) li {
+  min-height: 28px; padding: 3px 4px; border-radius: 6px;
+  display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: 6px;
+  font-size: 12px; cursor: pointer;
+}
+.app-shell[data-tema] .snap-parecidos li { grid-template-columns: 18px minmax(0, 1fr) minmax(0, .8fr) auto; }
+.app-shell[data-tema] :is(.snap-top, .snap-parecidos) li:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.app-shell[data-tema] .snap-top li.activo { background: var(--acento-suave); }
+.app-shell[data-tema] :is(.snap-top, .snap-parecidos) li > span { color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+.app-shell[data-tema] :is(.snap-top, .snap-parecidos) li > b { color: var(--ink); font-weight: 600; overflow-wrap: break-word; }
+.app-shell[data-tema] .snap-top li > b > small { display: block; color: var(--muted); font-size: 10.5px; font-weight: 400; }
+.app-shell[data-tema] .snap-parecidos li > small { color: var(--muted); font-size: 11px; overflow-wrap: break-word; }
+.app-shell[data-tema] :is(.snap-top, .snap-parecidos) li > em { color: var(--ink); font-style: normal; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* Enjambres y dispersión */
+.snap-enjambre-fila { margin-top: 4px; }
+.app-shell[data-tema] .snap-enjambre-fila > small { color: var(--muted); font-size: 11px; font-weight: 600; }
+.snap-enjambre, .snap-dispersion { display: block; width: 100%; height: auto; }
+.app-shell[data-tema] .snap-punto { fill: color-mix(in srgb, var(--muted) 45%, transparent); }
+.app-shell[data-tema] .snap-punto.parecido { fill: var(--paper); stroke: var(--acento-claro); stroke-width: 1.6; }
+.app-shell[data-tema] .snap-punto.objetivo { fill: var(--acento); stroke: var(--paper); stroke-width: 1.5; }
+.app-shell[data-tema] .snap-eje { stroke: var(--line); }
+.app-shell[data-tema] .snap-eje.cero { stroke: color-mix(in srgb, var(--ink) 35%, transparent); stroke-dasharray: 3 3; }
+.app-shell[data-tema] .snap-rejilla { stroke: var(--line); stroke-width: .5; }
+.app-shell[data-tema] .snap-eje-texto { fill: var(--muted); font-size: 9px; text-anchor: middle; }
+.app-shell[data-tema] .snap-eje-texto.fin { text-anchor: end; }
+.app-shell[data-tema] .snap-eje-titulo { fill: var(--muted); font-size: 10px; text-anchor: middle; }
+.app-shell[data-tema] .snap-punto-nombre { fill: var(--ink); font-size: 9px; paint-order: stroke; stroke: var(--paper); stroke-width: 2.5px; }
+.app-shell[data-tema] .snap-punto-nombre.objetivo { fill: var(--acento-claro); font-weight: 700; }
+.app-shell[data-tema] p.snap-vacio { margin: 8px 0; color: var(--muted); font-size: 12px; }
+
+@media print {
+  .snap-fila-1 { grid-template-columns: 240px minmax(0, 1.25fr) minmax(0, .8fr) minmax(0, .8fr); }
+  .snap-fila-2 { grid-template-columns: minmax(0, 1.15fr) repeat(3, minmax(0, 1fr)); }
+  .snap-fila-3 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .snap-page :is(.snap-tarjeta, .snap-ficha, .snap-tabla, .snap-fila) { break-inside: avoid; }
+  .snap-top .filtro-chip > :is(svg, select) { display: none !important; }
+  .snap-page .snap-punto, .snap-page .snap-regate, .snap-page .snap-ocasion, .snap-page .snap-tiro { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+}
+
+/* Las fichas de filtro también fuera de la barra: en los dos "Top 10" la
+   ficha salía sin su estilo y con el desplegable nativo a la vista debajo,
+   porque todas sus reglas colgaban de .filtros-barra. */
+.app-shell[data-tema] .snap-top .filtro-chip { margin-bottom: 4px; }

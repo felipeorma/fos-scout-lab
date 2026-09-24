@@ -298,6 +298,26 @@ _SB_METRICS = {
     "Opp NP PSxG faced (SB)": ("player_season_np_psxg_faced_90", 1),
     "GK aggressive distance (SB)": ("player_season_da_aggressive_distance", 1),
     "Pass length (SB)": ("player_season_pass_length", 1),
+    # Para las familias compuestas de la ficha ampliada (página 2 del dossier).
+    "OP F3 passes (SB)": ("player_season_op_f3_passes_90", 1),
+    "OP xG buildup (SB)": ("player_season_op_xgbuildup_90", 1),
+    "OP xG chain (SB)": ("player_season_op_xgchain_90", 1),
+    "Forward pass % (SB)": ("player_season_forward_pass_proportion", 100),
+    "SP key passes (SB)": ("player_season_sp_key_passes_90", 1),
+    "SP xG assisted (SB)": ("player_season_sp_xa_90", 1),
+    "SP passes into box (SB)": ("player_season_sp_passes_into_box_90", 1),
+    "xG per shot (SB)": ("player_season_np_xg_per_shot", 1),
+    "Shot OBV (SB)": ("player_season_obv_shot_90", 1),
+    "Crosses (SB)": ("player_season_crosses_90", 1),
+    "Cross completion % (SB)": ("player_season_crossing_ratio", 100),
+    "Opp half pressures (SB)": ("player_season_fhalf_pressures_90", 1),
+    "Opp half ball recoveries (SB)": ("player_season_fhalf_ball_recoveries_90", 1),
+    "Opp half counterpressures (SB)": ("player_season_fhalf_counterpressures_90", 1),
+    "PAdj tackles interceptions (SB)": ("player_season_padj_tackles_and_interceptions_90", 1),
+    "Defensive action regains (SB)": ("player_season_defensive_action_regains_90", 1),
+    "PAdj clearances (SB)": ("player_season_padj_clearances_90", 1),
+    "Pressure regains (SB)": ("player_season_pressure_regains_90", 1),
+    "Counterpressure regains (SB)": ("player_season_counterpressure_regains_90", 1),
 }
 
 
@@ -624,13 +644,176 @@ async def statsbomb_team_stats(competition_id: int, season_id: int):
     return Response(_json.dumps({"rows": rows}), media_type="application/json", headers=cors_headers())
 
 
+_SB_EVENTS_CACHE_DIR = Path.home() / ".fos-scouting" / "sb-events-cache"
+# Lo que dibuja la ficha ampliada. Presiones y demás se quedan fuera: una
+# temporada de un equipo son 30 partidos y así cada uno pesa ~250 KB, no 2,7 MB.
+_SB_TIPOS_FICHA = {"Shot", "Pass", "Carry", "Dribble", "Duel", "Ball Recovery", "Interception", "Clearance", "Block", "Ball Receipt*"}
+# Las alineaciones escriben "Center" (inglés de EE. UU.) donde las
+# estadísticas de temporada dicen "Centre": su propia tabla.
+_SB_POS_ALINEACION = {
+    "Goalkeeper": "GK", "Right Back": "RB", "Right Center Back": "RCB", "Center Back": "CB", "Left Center Back": "LCB",
+    "Left Back": "LB", "Right Wing Back": "RWB", "Left Wing Back": "LWB",
+    "Right Defensive Midfield": "RDMF", "Center Defensive Midfield": "DMF", "Left Defensive Midfield": "LDMF",
+    "Right Midfield": "RM", "Right Center Midfield": "RCMF", "Center Midfield": "CMF", "Left Center Midfield": "LCMF", "Left Midfield": "LM",
+    "Right Wing": "RW", "Right Attacking Midfield": "RAMF", "Center Attacking Midfield": "AMF", "Left Attacking Midfield": "LAMF", "Left Wing": "LW",
+    "Right Center Forward": "RCF", "Striker": "CF", "Center Forward": "CF", "Left Center Forward": "LCF", "Secondary Striker": "SS",
+}
+
+
+def _reloj(valor) -> float | None:
+    """'01:04:16.829' → 64,28 minutos de partido."""
+    try:
+        h, m, sgs = str(valor).split(":")
+        return int(h) * 60 + int(m) + float(sgs) / 60
+    except Exception:
+        return None
+
+
+def _sb_partido_compacto(match_id: int, auth):
+    """Eventos y alineaciones de un partido, recortados y guardados en disco."""
+    import json as _json
+    _SB_EVENTS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    ruta = _SB_EVENTS_CACHE_DIR / f"m-{int(match_id)}.json"
+    if ruta.exists():
+        try:
+            return _json.loads(ruta.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    try:
+        r = _requests.get(f"https://data.statsbomb.com/api/v8/events/{int(match_id)}", auth=auth, timeout=120)
+        if r.status_code != 200:
+            return None
+        eventos = r.json()
+        rl = _requests.get(f"https://data.statsbomb.com/api/v4/lineups/{int(match_id)}", auth=auth, timeout=60)
+        alineaciones = rl.json() if rl.status_code == 200 else []
+    except Exception:
+        return None
+    fin, salida = 0.0, []
+    for e in eventos:
+        fin = max(fin, (e.get("minute") or 0) + (e.get("second") or 0) / 60)
+        tipo = (e.get("type") or {}).get("name")
+        jugador = (e.get("player") or {}).get("name")
+        if tipo not in _SB_TIPOS_FICHA or not jugador:
+            continue
+        fila = {"t": tipo, "j": jugador, "l": e.get("location"), "pp": (e.get("play_pattern") or {}).get("name")}
+        if tipo == "Shot":
+            tiro = e.get("shot") or {}
+            fila.update({"xg": tiro.get("statsbomb_xg"), "o": (tiro.get("outcome") or {}).get("name"), "st": (tiro.get("type") or {}).get("name")})
+        elif tipo == "Pass":
+            pase = e.get("pass") or {}
+            fila.update({"e": pase.get("end_location"), "o": (pase.get("outcome") or {}).get("name"), "pt": (pase.get("type") or {}).get("name"),
+                         "cr": bool(pase.get("cross")), "sa": bool(pase.get("shot_assist")), "ga": bool(pase.get("goal_assist"))})
+        elif tipo == "Carry":
+            fila["e"] = (e.get("carry") or {}).get("end_location")
+        elif tipo == "Dribble":
+            fila["o"] = ((e.get("dribble") or {}).get("outcome") or {}).get("name")
+        elif tipo == "Duel":
+            duelo = e.get("duel") or {}
+            fila.update({"dt": (duelo.get("type") or {}).get("name"), "o": (duelo.get("outcome") or {}).get("name")})
+        elif tipo == "Clearance":
+            fila["aw"] = bool((e.get("clearance") or {}).get("aerial_won"))
+        salida.append(fila)
+    alineacion = {}
+    for equipo in alineaciones if isinstance(alineaciones, list) else []:
+        for j in equipo.get("lineup", []):
+            alineacion[j.get("player_name")] = {"dorsal": j.get("jersey_number"), "equipo": equipo.get("team_name"), "pos": j.get("positions") or []}
+    compacto = {"fin": round(fin, 2), "eventos": salida, "alineacion": alineacion}
+    try:
+        ruta.write_text(_json.dumps(compacto, ensure_ascii=False), encoding="utf-8")
+        os.chmod(ruta, 0o600)
+    except OSError:
+        pass
+    return compacto
+
+
+@app.get("/api/statsbomb/player-events")
+async def statsbomb_player_events(liga: str, temporada: str, equipo: str, jugador: str):
+    """Los eventos de un jugador en su temporada, y cuántos minutos jugó en cada puesto.
+
+    Recorre los partidos de su equipo; cada partido se baja una vez y se guarda
+    recortado en ~/.fos-scouting/sb-events-cache. La primera vez de un equipo
+    son un par de minutos; después, un instante.
+    """
+    import json as _json
+    auth = _statsbomb_auth()
+    if not auth:
+        return Response('{"error": "sin credenciales"}', status_code=503, media_type="application/json", headers=cors_headers())
+    catalogo = _cached_get("sb:comps", "https://data.statsbomb.com/api/v4/competitions", auth, ttl_seconds=3600)
+    comp = next((c for c in catalogo if _sin_tildes(str(c.get("competition_name") or "")) == _sin_tildes(liga)
+                 and str(c.get("season_name") or "") == temporada), None)
+    if not comp:
+        return Response(_json.dumps({"error": f"no encuentro {liga} {temporada} en StatsBomb"}), status_code=404,
+                        media_type="application/json", headers=cors_headers())
+    cid, sid = comp["competition_id"], comp["season_id"]
+    partidos = _cached_get(f"sb:matches6:{cid}:{sid}", f"https://data.statsbomb.com/api/v6/competitions/{cid}/seasons/{sid}/matches", auth, ttl_seconds=1800)
+    buscado = _sin_tildes(equipo)
+    def es_suyo(nombre):
+        n = _sin_tildes(str(nombre or ""))
+        return n == buscado or (len(buscado) > 3 and (buscado in n or n in buscado))
+    suyos = [p for p in partidos
+             if (es_suyo((p.get("home_team") or {}).get("home_team_name")) or es_suyo((p.get("away_team") or {}).get("away_team_name")))
+             and p.get("home_score") is not None]
+    suyos.sort(key=lambda p: str(p.get("match_date") or ""))
+
+    objetivo = _sin_tildes(jugador)
+    apellido = objetivo.split(" ")[-1] if objetivo else ""
+    def es_el(nombre):
+        n = _sin_tildes(str(nombre or ""))
+        return n == objetivo
+    def parecido(nombre):
+        # Si la base trae el nombre abreviado ("T. Warschewski"), por apellido e inicial.
+        n = _sin_tildes(str(nombre or ""))
+        return bool(apellido) and n.split(" ")[-1] == apellido and n[:1] == objetivo[:1]
+
+    # StatsBomb tarda entre 2,5 y 16 segundos por partido: uno detrás de otro,
+    # los ~30 de una temporada pasaban de cinco minutos. Seis a la vez.
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        compactos = list(pool.map(lambda partido: _sb_partido_compacto(partido["match_id"], auth), suyos))
+
+    eventos, posiciones, jugados, dorsal, nombre_sb = [], {}, 0, None, None
+    for compacto in compactos:
+        if not compacto:
+            continue
+        alineacion = compacto.get("alineacion", {})
+        nombre = next((n for n in alineacion if es_el(n)), None) or next((n for n in alineacion if parecido(n)), None)
+        if not nombre:
+            continue
+        ficha = alineacion[nombre]
+        if not es_suyo(ficha.get("equipo")):
+            continue
+        minutos_partido = 0.0
+        for tramo in ficha.get("pos") or []:
+            desde = _reloj(tramo.get("from")) or 0.0
+            hasta = _reloj(tramo.get("to")) if tramo.get("to") else compacto.get("fin", 90)
+            minutos = max(0.0, (hasta or 0) - desde)
+            codigo = _SB_POS_ALINEACION.get(tramo.get("position"), tramo.get("position") or "")
+            posiciones[codigo] = posiciones.get(codigo, 0) + minutos
+            minutos_partido += minutos
+        if minutos_partido <= 0:
+            continue
+        jugados += 1
+        dorsal = dorsal or ficha.get("dorsal")
+        nombre_sb = nombre_sb or nombre
+        eventos.extend(e for e in compacto.get("eventos", []) if e.get("j") == nombre)
+
+    return Response(_json.dumps({
+        "jugador": nombre_sb or jugador,
+        "partidos": jugados,
+        "partidosEquipo": len(suyos),
+        "dorsal": dorsal,
+        "posiciones": {codigo: round(minutos, 1) for codigo, minutos in sorted(posiciones.items(), key=lambda x: -x[1])},
+        "eventos": eventos,
+    }, ensure_ascii=False), media_type="application/json", headers=cors_headers())
+
+
 @app.get("/api/statsbomb/player-stats")
 async def statsbomb_player_stats(competition_id: int, season_id: int):
     import json as _json
     auth = _statsbomb_auth()
     if not auth:
         return Response('{"error": "sin credenciales"}', status_code=503, media_type="application/json", headers=cors_headers())
-    clave_disco = f"sb-{competition_id}-{season_id}"
+    clave_disco = f"sb2-{competition_id}-{season_id}"
     guardadas = _pool_cache_leer(
         clave_disco,
         _POOL_TTL_CERRADA if _temporada_cerrada_sb(competition_id, season_id, auth) else None,
@@ -880,16 +1063,23 @@ async def skillcorner_team_stats(competition_edition_id: int):
     guardadas = _pool_cache_leer(clave_disco)
     if guardadas is not None:
         return Response(_json.dumps({"rows": guardadas, "cache": "disco"}), media_type="application/json", headers=cors_headers())
-    equipos: dict = {}
-    for ruta_clave, ruta in _SC_GI_ROUTES.items():
+    def pedir(ruta_clave: str, ruta: str):
         params = {"competition_edition": competition_edition_id, "group_by": "team", "limit": 100}
         if ruta_clave == "off_ball_runs":
             params["variants"] = "obr_type"
         try:
-            data = _cached_get(f"scteam:{competition_edition_id}:{ruta_clave}",
+            return _cached_get(f"scteam:{competition_edition_id}:{ruta_clave}",
                                f"https://skillcorner.com/api/metrics/game_intelligence/{ruta}", auth, params=params, ttl_seconds=1800)
         except Exception:
-            continue
+            return {}
+
+    # Las cinco rutas a la vez: una detrás de otra eran ~30 s por edición.
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        respuestas = list(pool.map(lambda par: pedir(*par), _SC_GI_ROUTES.items()))
+
+    equipos: dict = {}
+    for data in respuestas:
         for fila in data.get("results", []) if isinstance(data, dict) else []:
             equipo = fila.get("team_id")
             if equipo is None:
@@ -899,8 +1089,10 @@ async def skillcorner_team_stats(competition_edition_id: int):
                 if isinstance(valor, (int, float)) and not isinstance(valor, bool):
                     destino[campo] = valor
     filas = list(equipos.values())
-    if filas:
-        _pool_cache_escribir(clave_disco, filas)
+    # También las vacías: cinco ligas tienen edición pero ningún equipo con
+    # datos de juego, y sin recordarlo se volvían a preguntar las cinco rutas
+    # de cada una en cada carga.
+    _pool_cache_escribir(clave_disco, filas)
     return Response(_json.dumps({"rows": filas}), media_type="application/json", headers=cors_headers())
 
 

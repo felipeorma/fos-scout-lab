@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
-import { BarChart3, Check, ChevronDown, ChevronRight, Crosshair, Database, FileSpreadsheet, Files, ImageIcon, LockKeyhole, Menu, Merge, MoreHorizontal, Plus, Printer, RadarChart, RotateCcw, Route, Search, Sparkles, Trash, Trophy, Upload, X, ShieldCheck } from "./Icons";
+import { BarChart3, Check, ChevronDown, ChevronRight, Crosshair, Database, FileSpreadsheet, Files, ImageIcon, LockKeyhole, Menu, Merge, MoreHorizontal, Plus, Printer, RadarChart, RotateCcw, Route, Search, Sparkles, Trash, Trophy, Upload, X, ShieldCheck, LayoutDashboard } from "./Icons";
 import { PizzaRadar } from "./PizzaRadar";
 import { ContextPage } from "./ContextPage";
 import { ScoutingBoard } from "./ScoutingBoard";
@@ -10,6 +10,7 @@ import { RunsPage } from "./RunsPage";
 import { RankingPage } from "./RankingPage";
 import { PoolPage } from "./PoolPage";
 import { EstiloPage } from "./EstiloPage";
+import { SnapshotPage } from "./SnapshotPage";
 import { ReportPageDesigner } from "./ReportPageDesigner";
 import { SimilarityStudio } from "./SimilarityStudio";
 import { CLIENT_THEMES, DEFAULT_REPORT_THEME, reportThemeStyle, type ReportTheme } from "./reportTheme";
@@ -65,6 +66,8 @@ const POOL_PAGE = 95;
 const DATA_PAGE = 96;
 // Estilo de juego de los equipos: la página 7 del dossier con datos de StatsBomb.
 const STYLE_PAGE = 97;
+// Ficha ampliada del jugador: la página 2 del dossier con eventos de StatsBomb.
+const SNAPSHOT_PAGE = 98;
 
 /**
  * Cómo se llama cada sección, en un solo sitio.
@@ -83,6 +86,7 @@ const NOMBRE_DE_SECCION: Record<number, string> = {
   [POOL_PAGE]: "Entre ligas",
   [DATA_PAGE]: "Base activa",
   [STYLE_PAGE]: "Estilo de juego",
+  [SNAPSHOT_PAGE]: "Ficha ampliada",
 };
 
 /**
@@ -1530,6 +1534,7 @@ export default function ScoutStudio() {
     : [
       { page: CARD_PAGE, title: t("Ficha y radar"), hint: t("Percentiles del jugador") },
       { page: SIMILARITY_PAGE, title: t("Similitud"), hint: t("Jugadores comparables") },
+      { page: SNAPSHOT_PAGE, title: t("Ficha ampliada"), hint: t("Familias, mapas y parecidos") },
       { page: CONTEXT_PAGE, title: t("Contexto"), hint: t("Dónde destaca y por qué") },
       { page: RUNS_PAGE, title: t("Carreras"), hint: t("Mapa sin balón") },
       { page: RANK_PAGE, title: t("Ranking"), hint: t("Los mejores por puesto") },
@@ -1851,6 +1856,8 @@ export default function ScoutStudio() {
                       icono={<RadarChart size={16} />} titulo={t("Ficha y radar")} detalle={t("Percentiles del jugador")} />
                     <FilaSeccion activa={reportPage === SIMILARITY_PAGE} onClick={() => setReportPage(SIMILARITY_PAGE)}
                       icono={<Sparkles size={16} />} titulo={t("Similitud")} detalle={t("Jugadores comparables")} />
+                    <FilaSeccion activa={reportPage === SNAPSHOT_PAGE} onClick={() => setReportPage(SNAPSHOT_PAGE)}
+                      icono={<LayoutDashboard size={16} />} titulo={t("Ficha ampliada")} detalle={t("Familias, mapas y parecidos")} api />
                     {visualPages.map((page, index) => (
                       <FilaSeccion key={page} activa={reportPage === page} onClick={() => setReportPage(page)}
                         icono={<ImageIcon size={16} />} titulo={tf("Visuales {n}", { n: index + 1 })} detalle={t("Mapas, imágenes y texto")} />
@@ -2085,6 +2092,10 @@ export default function ScoutStudio() {
                     </div>
                   </div>
                 </div>
+              )}
+              {report && paginaMontada(SNAPSHOT_PAGE) && (
+                <div className={claseHoja(SNAPSHOT_PAGE)}><SnapshotPage rows={reportRows} indice={selectedPlayer} informe={report} perfilTm={profile} minutosMin={minimumMinutes}
+                  destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} onAbrirJugador={(indice) => selectPlayer(indice)} /></div>
               )}
               {report && paginaMontada(CONTEXT_PAGE) && (
                 <div className={claseHoja(CONTEXT_PAGE)}><ContextPage report={report} rows={reportRows} bases={sourceDatasets} minutosFiltro={minimumMinutes} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} controles={{
