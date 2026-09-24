@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Desplegable } from "./BarraDeFiltros";
 import { ChevronDown } from "./Icons";
 import { PieDeReporte } from "./PieDeReporte";
-import { COLOR_FAMILIA, RadarDeEstilo } from "./RadarDeEstilo";
+import { COLOR_FAMILIA, RosaDeEstilo } from "./RosaDeEstilo";
 import { numberLocale, t, tf } from "@/lib/i18n";
 import { useEstilos } from "./useEstilos";
 import { fetchExtrasDeEquipo, type ExtrasDeEquipo } from "@/lib/remoteData";
@@ -254,16 +254,17 @@ export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", lo
 
         <div className="estilo-centro">
           <figure className="estilo-rosa">
-            {/* Seis aristas, una por familia: con una cuña por métrica eran 35
-                y no se leía ninguna. El detalle está en las cajas de la
-                izquierda, que se resaltan al tocar su arista. */}
-            <RadarDeEstilo perfil={elegido} rival={rival} activa={familiaActiva} onActiva={setFamiliaActiva} />
+            {/* Seis cuñas, una por familia: con una por métrica eran 35 y no se
+                leía ninguna. El detalle está en las cajas de la izquierda, que
+                se resaltan al tocar su cuña. */}
+            <RosaDeEstilo perfil={elegido} rival={rival} activa={familiaActiva} onActiva={setFamiliaActiva} />
             <figcaption>
-              <span><i className="relleno" />{elegido.equipo}</span>
+              <span><i className="con" />{`${elegido.equipo} · ${t("con balón")}`}</span>
+              <span><i className="sin" />{t("sin balón")}</span>
               {rival && <span><i className="contorno" />{rival.equipo}</span>}
               <small>{elegido.conSkillcorner
-                ? t("Cada arista, la media de los percentiles de su familia; StatsBomb y SkillCorner juntos. Toca una para ver sus métricas.")
-                : t("Cada arista, la media de los percentiles de su familia. Sin SkillCorner en esta liga, movimiento y presión sin balón no salen. Toca una para ver sus métricas.")}</small>
+                ? t("Cada cuña, la media de los percentiles de su familia; StatsBomb y SkillCorner juntos. Toca una para ver sus métricas.")
+                : t("Cada cuña, la media de los percentiles de su familia. Sin SkillCorner en esta liga, movimiento y presión sin balón no salen. Toca una para ver sus métricas.")}</small>
             </figcaption>
           </figure>
 
@@ -311,16 +312,27 @@ export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", lo
     <div className="estilo-grid-2">
       {rival && <section className="estilo-bloque">
         <h3>{tf("Cara a cara: {a} y {b}", { a: elegido.equipo, b: rival.equipo })}</h3>
-        <ol className="estilo-duelo">
-          {duelo.map(({ metrica, za, zb, lider, diferencia }) => (
-            <li key={metrica.id}>
-              <span className="estilo-metrica"><i style={{ background: COLOR_FAMILIA[metrica.familia] }} />{t(metrica.etiqueta)}</span>
-              <span className={lider === "a" ? "estilo-lider a" : "estilo-lider b"}>{lider === "a" ? elegido.equipo : rival.equipo}</span>
-              <span className="estilo-dif">{`+${diferencia.toFixed(2)}`}</span>
-              <small className="estilo-dos">{`${conSigno(za)} / ${conSigno(zb)}`}</small>
-            </li>
-          ))}
-        </ol>
+        {/* Agrupado por familia, en el orden de la rosa, con el nombre de la
+            familia en vertical a la izquierda de su grupo de métricas. */}
+        <div className="estilo-duelo-grupos">
+          {FAMILIAS.map((familia) => {
+            const filas = duelo.filter(({ metrica }) => metrica.familia === familia.id);
+            if (!filas.length) return null;
+            return <section key={familia.id} className="estilo-duelo-grupo" style={{ "--familia": COLOR_FAMILIA[familia.id] } as CSSProperties}>
+              <h4 className="estilo-duelo-familia"><span>{t(familia.nombre)}</span></h4>
+              <ol className="estilo-duelo">
+                {filas.map(({ metrica, za, zb, lider, diferencia }) => (
+                  <li key={metrica.id}>
+                    <span className="estilo-metrica">{t(metrica.etiqueta)}</span>
+                    <span className={lider === "a" ? "estilo-lider a" : "estilo-lider b"}>{lider === "a" ? elegido.equipo : rival.equipo}</span>
+                    <span className="estilo-dif">{`+${diferencia.toFixed(2)}`}</span>
+                    <small className="estilo-dos">{`${conSigno(za)} / ${conSigno(zb)}`}</small>
+                  </li>
+                ))}
+              </ol>
+            </section>;
+          })}
+        </div>
       </section>}
 
       <section className="estilo-bloque">

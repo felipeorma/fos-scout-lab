@@ -34,13 +34,18 @@ export type FilaEquipo = Record<string, unknown> & {
 
 export type FamiliaEstilo = "construccion" | "circulacion" | "ataque" | "defensa" | "movimiento" | "presion";
 
-export const FAMILIAS: Array<{ id: FamiliaEstilo; nombre: string }> = [
-  { id: "construccion", nombre: "Construcción" },
-  { id: "circulacion", nombre: "Circulación" },
-  { id: "ataque", nombre: "Ataque" },
-  { id: "defensa", nombre: "Defensa" },
-  { id: "movimiento", nombre: "Movimiento sin balón" },
-  { id: "presion", nombre: "Presión sin balón" },
+/**
+ * Las familias en el orden de la jugada: primero las cuatro con balón —de
+ * salir desde atrás a moverse para recibir—, después las dos sin él. La rosa
+ * y las cajas siguen este orden, y la fase agrupa sus colores.
+ */
+export const FAMILIAS: Array<{ id: FamiliaEstilo; nombre: string; fase: "con" | "sin" }> = [
+  { id: "construccion", nombre: "Construcción", fase: "con" },
+  { id: "circulacion", nombre: "Circulación", fase: "con" },
+  { id: "ataque", nombre: "Ataque", fase: "con" },
+  { id: "movimiento", nombre: "Movimiento sin balón", fase: "con" },
+  { id: "defensa", nombre: "Defensa", fase: "sin" },
+  { id: "presion", nombre: "Presión sin balón", fase: "sin" },
 ];
 
 export type MetricaEstilo = {

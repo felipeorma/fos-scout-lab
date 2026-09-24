@@ -5567,32 +5567,48 @@ button.menu-fila:active { transform: scale(.985); }
   margin: 0; padding: 12px 12px 10px;
   border-radius: 16px; background: var(--paper); box-shadow: 0 0 0 1px var(--line);
 }
-/* El radar de seis aristas. El equipo, en el acento; el que se compara, una
-   línea continua en la tinta (blanca en el tema oscuro), como antes. */
-.radar-estilo { display: block; width: 100%; height: auto; }
-.app-shell[data-tema] .radar-anillo { fill: none; stroke: var(--line); stroke-width: 1; }
-.app-shell[data-tema] .radar-anillo.mediana { stroke: color-mix(in srgb, var(--ink) 40%, transparent); stroke-dasharray: 4 4; }
-.app-shell[data-tema] .radar-eje { stroke: var(--line); stroke-width: 1; }
-.app-shell[data-tema] .radar-eje.activo { stroke-width: 2.5; }
-.app-shell[data-tema] .radar-equipo {
-  fill: var(--acento); fill-opacity: .22; stroke: var(--acento); stroke-width: 2.5; stroke-linejoin: round;
-  print-color-adjust: exact; -webkit-print-color-adjust: exact;
+/* La rosa de estilo: una cuña por familia. El color es la fase, no una
+   paleta de categorías: las cuatro con balón en el color del club, de más a
+   menos intenso siguiendo la jugada; las dos sin balón, en grafito. Sale del
+   tema, así que cambia sola con el club y con el modo claro u oscuro. Van en
+   la propia página y no más arriba: al imprimir, la página cambia su tinta y
+   su papel, y las variables tienen que calcularse con los de la hoja. */
+.app-shell[data-tema] .estilo-page {
+  --familia-construccion: var(--acento);
+  --familia-circulacion: color-mix(in srgb, var(--acento) 80%, var(--paper));
+  --familia-ataque: color-mix(in srgb, var(--acento) 62%, var(--paper));
+  --familia-movimiento: color-mix(in srgb, var(--acento) 44%, var(--paper));
+  /* Grafito en tonos medios: la línea del rival va en la tinta a pleno y
+     tiene que verse encima de estas cuñas en los dos modos. */
+  --familia-defensa: color-mix(in srgb, var(--ink) 52%, var(--paper));
+  --familia-presion: color-mix(in srgb, var(--ink) 32%, var(--paper));
 }
-.app-shell[data-tema] .radar-rival { fill: color-mix(in srgb, var(--ink) 6%, transparent); stroke: var(--ink); stroke-width: 2.5; stroke-linejoin: round; }
-.app-shell[data-tema] .radar-rival.abierto { fill: none; stroke-linecap: round; }
-.app-shell[data-tema] .radar-rival-vertice { fill: var(--ink); }
-.app-shell[data-tema] .radar-vertice { stroke: var(--paper); stroke-width: 2; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-.radar-familia { cursor: pointer; transition: opacity .18s ease; }
-.radar-familia:focus { outline: none; }
-.app-shell[data-tema] .radar-familia:focus-visible .radar-nombre { text-decoration: underline; }
-.radar-familia.atenuada { opacity: .35; }
-.app-shell[data-tema] .radar-nombre { font-size: 15px; font-weight: 700; letter-spacing: .01em; }
-.app-shell[data-tema] .radar-valor { fill: var(--ink); font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
-@media (prefers-reduced-motion: reduce) { .radar-familia { transition: none; } }
+.rosa-estilo { display: block; width: 100%; height: auto; }
+.app-shell[data-tema] .rosa-anillo { fill: none; stroke: var(--line); stroke-width: 1; }
+.app-shell[data-tema] .rosa-anillo.mediana { stroke: color-mix(in srgb, var(--ink) 40%, transparent); stroke-dasharray: 4 4; }
+.app-shell[data-tema] .rosa-radio { stroke: var(--line); stroke-width: .8; }
+.app-shell[data-tema] .rosa-cuna { cursor: pointer; transition: opacity .18s ease; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+.app-shell[data-tema] .rosa-cuna.atenuada { opacity: .22; }
+.app-shell[data-tema] .rosa-rival { fill: color-mix(in srgb, var(--ink) 6%, transparent); stroke: var(--ink); stroke-width: 2.5; stroke-linejoin: round; }
+.app-shell[data-tema] .rosa-rival.abierto { fill: none; stroke-linecap: round; }
+.app-shell[data-tema] .rosa-centro { fill: var(--paper); stroke: var(--line); }
+.app-shell[data-tema] .rosa-fase-arco { fill: none; stroke-width: 2; stroke-linecap: round; }
+.app-shell[data-tema] .rosa-fase.con .rosa-fase-arco { stroke: var(--acento); }
+.app-shell[data-tema] .rosa-fase.sin .rosa-fase-arco { stroke: var(--familia-defensa); }
+.app-shell[data-tema] .rosa-fase-nombre { fill: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .16em; }
+.rosa-familia { cursor: pointer; transition: opacity .18s ease; }
+.rosa-familia:focus { outline: none; }
+.app-shell[data-tema] .rosa-familia:focus-visible .rosa-nombre { text-decoration: underline; }
+.rosa-familia.atenuada { opacity: .35; }
+.app-shell[data-tema] .rosa-nombre { fill: var(--ink); font-size: 14px; font-weight: 600; }
+.app-shell[data-tema] .rosa-familia.activa .rosa-nombre { fill: var(--acento-claro); }
+.app-shell[data-tema] .rosa-valor { fill: var(--muted); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) { .app-shell[data-tema] .rosa-cuna, .rosa-familia { transition: none; } }
 .app-shell[data-tema] .estilo-rosa > figcaption { margin-top: 4px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; color: var(--ink); font-size: 12.5px; }
 .estilo-rosa > figcaption > span { display: inline-flex; align-items: center; gap: 6px; }
 .estilo-rosa > figcaption i { width: 14px; height: 10px; display: inline-block; border-radius: 2px; }
-.app-shell[data-tema] .estilo-rosa > figcaption i.relleno { background: color-mix(in srgb, var(--acento) 30%, transparent); box-shadow: inset 0 0 0 2px var(--acento); }
+.app-shell[data-tema] .estilo-rosa > figcaption i.con { background: linear-gradient(90deg, var(--familia-construccion) 25%, var(--familia-circulacion) 25% 50%, var(--familia-ataque) 50% 75%, var(--familia-movimiento) 75%); print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+.app-shell[data-tema] .estilo-rosa > figcaption i.sin { background: linear-gradient(90deg, var(--familia-defensa) 50%, var(--familia-presion) 50%); print-color-adjust: exact; -webkit-print-color-adjust: exact; }
 .app-shell[data-tema] .estilo-rosa > figcaption i.contorno { border: 2px solid var(--ink); }
 .app-shell[data-tema] .estilo-rosa > figcaption small { margin-left: auto; color: var(--muted); font-size: 11px; }
 
@@ -5683,7 +5699,7 @@ button.menu-fila:active { transform: scale(.985); }
   .estilo-page :is(.estilo-ficha, .estilo-familia, .estilo-rosa, .estilo-bloque) { break-inside: avoid; }
   .estilo-page .estilo-top-titulo .filtro-chip { padding: 0; border: 0; background: none; box-shadow: none; }
   .estilo-page .estilo-top-titulo .filtro-chip > :is(span, svg, select) { display: none !important; }
-  .estilo-page .radar-estilo { max-height: 150mm; }
+  .estilo-page .rosa-estilo { max-height: 150mm; }
   .celda-encaje { cursor: default; }
 }
 
@@ -6051,3 +6067,22 @@ body.print-layout-check .legal-page-shell > :is(.rank-page, .pool-page) :is(.ran
 .app-shell[data-tema] .snap-roles-lista > li > i > em { margin-left: 8px; color: var(--ink); font-size: 13px; font-style: normal; font-weight: 700; font-variant-numeric: tabular-nums; }
 .app-shell[data-tema] .snap-roles-lista > li > small { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; }
 .app-shell[data-tema] p.snap-roles-nota { margin: 10px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+
+/* ---- Estilo de juego · cara a cara por familias ----
+   Cada grupo de métricas con el nombre de su familia en vertical a la
+   izquierda: una franja con un tinte del color de la familia (el de la
+   rosa) y un borde a pleno. El texto va en tinta: sobre las familias más
+   claras, el blanco no se leía. */
+.app-shell[data-tema] .estilo-duelo-grupos { display: flex; flex-direction: column; gap: 10px; }
+.app-shell[data-tema] .estilo-duelo-grupo { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 8px; break-inside: avoid; }
+.app-shell[data-tema] .estilo-duelo-familia {
+  margin: 0; display: flex; align-items: center; justify-content: center;
+  border-radius: 8px; background: color-mix(in srgb, var(--familia) 20%, var(--paper));
+  box-shadow: inset 3px 0 0 var(--familia);
+  print-color-adjust: exact; -webkit-print-color-adjust: exact;
+}
+.app-shell[data-tema] .estilo-duelo-familia > span {
+  writing-mode: vertical-rl; transform: rotate(180deg);
+  padding: 8px 0; white-space: nowrap;
+  color: var(--ink); font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+}
