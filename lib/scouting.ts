@@ -38,6 +38,9 @@ export type RadarMetric = {
   source?: MetricSource;
   /** Nº de valores reales de la cohorte contra los que se calculó el percentil */
   sample?: number;
+  sinIndice?: boolean;
+  familia?: string;
+  familiaPrincipal?: boolean;
 };
 
 export type PlayerReport = {
@@ -61,6 +64,8 @@ export type PlayerReport = {
   score: number;
   /** Con cuánto peso ordena en un ranking. Ver `indiceDeScouting`. */
   indice: number;
+  /** Cuántas métricas sostienen el índice: sin las que no separan ni las repetidas de familia. */
+  metricasDelIndice: number;
   metrics: RadarMetric[];
   reading: string;
 };
@@ -958,7 +963,16 @@ export function positionColumnOf(headers: string[]) {
   return findColumn(headers, POSITION_ALIASES);
 }
 
-type MetricDefinition = { label: string; aliases: string[]; group: number; colorGroup: MetricColorGroup; inverse?: boolean; source?: MetricSource };
+type MetricDefinition = {
+  label: string; aliases: string[]; group: number; colorGroup: MetricColorGroup;
+  inverse?: boolean; source?: MetricSource;
+  /** Se dibuja en el radar pero no entra en el índice: no separa a nadie. */
+  sinIndice?: boolean;
+  /** Métricas que miden lo mismo; en el índice entra una sola de cada familia. */
+  familia?: string;
+  /** La que representa a su familia cuando están varias. */
+  familiaPrincipal?: boolean;
+};
 
 // Sets de métricas por rol según la especificación del cuaderno de análisis.
 // `colorGroup` fija el color del anillo del radar; para Wingers, Forwards y
@@ -1105,16 +1119,16 @@ export function peerCohort(cohort: string) {
 // Perfiles posicionales definidos por dirección de scouting (agosto 2026):
 // StatsBomb aporta el bloque técnico-táctico y SkillCorner el bloque de
 // game intelligence + físico (siempre en verde y como porción "salida").
-function sbMetric(label: string, aliases: string[], group: number, colorGroup: MetricColorGroup, inverse = false): MetricDefinition {
-  return { label, aliases, group, colorGroup, inverse, source: "statsbomb" };
+function sbMetric(label: string, aliases: string[], group: number, colorGroup: MetricColorGroup, inverse = false, extra: Partial<MetricDefinition> = {}): MetricDefinition {
+  return { label, aliases, group, colorGroup, inverse, source: "statsbomb", ...extra };
 }
-function scMetric(label: string, aliases: string[], inverse = false): MetricDefinition {
-  return { label, aliases, group: 2, colorGroup: "physical", inverse, source: "skillcorner" };
+function scMetric(label: string, aliases: string[], inverse = false, extra: Partial<MetricDefinition> = {}): MetricDefinition {
+  return { label, aliases, group: 2, colorGroup: "physical", inverse, source: "skillcorner", ...extra };
 }
 
 const SB = {
-  carries: sbMetric("Conducciones (SB)", ["carries sb"], 1, "creating"),
-  deepProg: sbMetric("Progresiones profundas (SB)", ["deep progressions sb"], 2, "passing"),
+  carries: sbMetric("Conducciones (SB)", ["carries sb"], 1, "creating", false, { familia: "progresion" }),
+  deepProg: sbMetric("Progresiones profundas (SB)", ["deep progressions sb"], 2, "passing", false, { familia: "progresion", familiaPrincipal: true }),
   obvDribbleCarry: sbMetric("OBV regate y conducción (SB)", ["dribble carry obv sb"], 1, "creating"),
   obvDefensive: sbMetric("OBV defensivo (SB)", ["defensive action obv sb"], 0, "defending"),
   obvPass: sbMetric("OBV pase (SB)", ["pass obv sb"], 2, "passing"),
@@ -1123,9 +1137,9 @@ const SB = {
   challenge: sbMetric("Entradas ganadas % (SB)", ["tackle dribbled past % sb"], 0, "defending"),
   deepCompletions: sbMetric("Pases profundos completados (SB)", ["deep completions sb"], 2, "passing"),
   tacklesInterceptions: sbMetric("Entradas + intercepciones (SB)", ["tackles interceptions sb"], 0, "defending"),
-  opKeyPasses: sbMetric("Pases clave JA (SB)", ["op key passes sb"], 1, "creating"),
+  opKeyPasses: sbMetric("Pases clave JA (SB)", ["op key passes sb"], 1, "creating", false, { familia: "creacion" }),
   opPassesIntoBox: sbMetric("Pases al área JA (SB)", ["op passes into box sb"], 1, "creating"),
-  opXa: sbMetric("xG asistido JA (SB)", ["op xg assisted sb"], 1, "creating"),
+  opXa: sbMetric("xG asistido JA (SB)", ["op xg assisted sb"], 1, "creating", false, { familia: "creacion", familiaPrincipal: true }),
   passingPct: sbMetric("Precisión de pase % (SB)", ["passing % sb"], 2, "passing"),
   longBallPct: sbMetric("Precisión balón largo % (SB)", ["long ball % sb"], 2, "passing"),
   longBalls: sbMetric("Balones largos (SB)", ["long balls sb"], 2, "passing"),
@@ -1137,17 +1151,17 @@ const SB = {
   interceptions: sbMetric("Intercepciones (SB)", ["interceptions sb"], 0, "defending"),
   blocksPerShot: sbMetric("Bloqueos por remate (SB)", ["blocks per shot sb"], 0, "defending"),
   pressuredPassPct: sbMetric("Precisión bajo presión % (SB)", ["pressured pass % sb"], 2, "passing"),
-  opPasses: sbMetric("Pases JA (SB)", ["op passes sb"], 2, "passing"),
-  shots: sbMetric("Remates (SB)", ["np shots sb"], 0, "finishing"),
-  xg: sbMetric("xG (SB)", ["xg sb"], 0, "finishing"),
+  opPasses: sbMetric("Pases JA (SB)", ["op passes sb"], 2, "passing", false, { familia: "progresion" }),
+  shots: sbMetric("Remates (SB)", ["np shots sb"], 0, "finishing", false, { familia: "remate" }),
+  xg: sbMetric("xG (SB)", ["xg sb"], 0, "finishing", false, { familia: "remate", familiaPrincipal: true }),
   throughBalls: sbMetric("Pases filtrados (SB)", ["through balls sb"], 1, "creating"),
   dribbles: sbMetric("Regates exitosos (SB)", ["successful dribbles sb"], 1, "creating"),
   touchesBox: sbMetric("Toques en el área (SB)", ["touches in box sb"], 0, "finishing"),
   goalConversion: sbMetric("Conversión de gol % (SB)", ["goal conversion % sb"], 0, "finishing"),
-  goals: sbMetric("Goles /90 (SB)", ["goals per 90 sb"], 0, "finishing"),
-  npPsxg: sbMetric("PSxG sin penales (SB)", ["np psxg sb"], 0, "finishing"),
+  goals: sbMetric("Goles /90 (SB)", ["goals per 90 sb"], 0, "finishing", false, { familia: "remate" }),
+  npPsxg: sbMetric("PSxG sin penales (SB)", ["np psxg sb"], 0, "finishing", false, { familia: "remate" }),
   foulsWon: sbMetric("Faltas recibidas (SB)", ["fouls won sb"], 1, "creating"),
-  penaltyWins: sbMetric("Penales ganados (SB)", ["penalty wins sb"], 1, "creating"),
+  penaltyWins: sbMetric("Penales ganados (SB)", ["penalty wins sb"], 1, "creating", false, { sinIndice: true }),
   boxCross: sbMetric("Centros al área % (SB)", ["box cross % sb"], 1, "creating"),
 };
 
@@ -1161,7 +1175,7 @@ const SC = {
   // El valor crudo es la probabilidad de completar el pase: cuanto más bajo,
   // más difícil es lo que intenta. Se invierte para que el percentil alto
   // signifique "arriesga más", que es la lectura útil para el scout.
-  avgXPass: scMetric("Dificultad de pase (SC)", ["avg xpass attempted sc"], true),
+  avgXPass: scMetric("Dificultad de pase (SC)", ["avg xpass attempted sc"], true, { sinIndice: true }),
   passesToRuns: scMetric("Pases a desmarques (SC)", ["passes to runs p30 sc"]),
   wideOptions: scMetric("Opciones en banda (SC)", ["wide options p30 sc"]),
   linebreakOptions: scMetric("Opciones rompe-líneas (SC)", ["linebreak options p30 sc"]),
@@ -1173,10 +1187,10 @@ const SC = {
   overlapRuns: scMetric("Desmarques por fuera y por dentro (SC)", ["overlap underlap runs p30 sc"]),
   offBallRuns: scMetric("Desmarques totales (SC)", ["off ball runs p30 sc"]),
   pullingWideRuns: scMetric("Desmarques abriendo el campo (SC)", ["pulling wide runs p30 sc"]),
-  runsInBehind: scMetric("Rupturas a la espalda (SC)", ["runs in behind p30 sc"]),
-  dangerousRuns: scMetric("Rupturas peligrosas (SC)", ["dangerous runs behind p30 sc"]),
+  runsInBehind: scMetric("Rupturas a la espalda (SC)", ["runs in behind p30 sc"], false, { familia: "rupturas", familiaPrincipal: true }),
+  dangerousRuns: scMetric("Rupturas peligrosas (SC)", ["dangerous runs behind p30 sc"], false, { familia: "rupturas" }),
   runsReceived: scMetric("Desmarques atendidos (SC)", ["runs received p30 sc"]),
-  psv99: scMetric("Velocidad punta km/h (SC)", ["psv 99 sc", "psv99 sc"]),
+  psv99: scMetric("Velocidad punta km/h (SC)", ["psv 99 sc", "psv99 sc"], false, { sinIndice: true }),
   hsr: scMetric("Distancia a alta velocidad (SC)", ["hsr distance sc"]),
   metersPerMinute: scMetric("Metros por minuto (SC)", ["meters per minute sc"]),
   timeToSprint: scMetric("Reacción al sprint tras giro (SC)", ["time to sprint post cod sc"], true),
@@ -1448,6 +1462,30 @@ function sinDuplicadosDeDestreza<T extends { label: string }>(metricas: T[]): T[
 }
 
 /**
+ * Una sola métrica por familia en el índice.
+ *
+ * Medido sobre las dieciséis ligas en septiembre de 2026: en delanteros el
+ * remate entraba por cinco puertas —xG con PSxG 0,83; goles con PSxG 0,79;
+ * conversión con goles 0,76; remates con xG 0,71—, así que esa destreza
+ * pesaba cinco veces dentro de una media de dieciséis métricas. Igual con las
+ * rupturas a la espalda y las peligrosas (0,96), con pases JA, conducciones y
+ * progresiones profundas (0,77 a 0,93) y con xG asistido y pases clave (0,72
+ * a 0,84).
+ *
+ * Se queda la principal de cada familia; si esa no está en el perfil, la
+ * primera que aparezca. Las demás se siguen dibujando en el radar.
+ */
+function unaPorFamilia<T extends { familia?: string; familiaPrincipal?: boolean }>(metricas: T[]): T[] {
+  const elegida = new Map<string, T>();
+  for (const metrica of metricas) {
+    if (!metrica.familia) continue;
+    const actual = elegida.get(metrica.familia);
+    if (!actual || (metrica.familiaPrincipal && !actual.familiaPrincipal)) elegida.set(metrica.familia, metrica);
+  }
+  return metricas.filter((metrica) => !metrica.familia || elegida.get(metrica.familia) === metrica);
+}
+
+/**
  * Las cabeceras de una base, recordadas por base.
  *
  * Recorrer todas las filas para juntar sus claves cuesta poco una vez y una
@@ -1587,7 +1625,7 @@ export function buildPlayerReport(rows: DataRow[], selectedIndex: number, minimu
     // métrica se omite en lugar de dibujarse contra un grupo vacío.
     const peerValues = poblacionDeMetrica(peers, key);
     if (!peerValues.length) return [];
-    return [{ key, label: definition.label, value, percentile: percentile(value, peerValues, definition.inverse), group: definition.group, colorGroup: definition.colorGroup, inverse: definition.inverse, source: definition.source ?? "wyscout", sample: peerValues.length }];
+    return [{ key, label: definition.label, value, percentile: percentile(value, peerValues, definition.inverse), group: definition.group, colorGroup: definition.colorGroup, inverse: definition.inverse, source: definition.source ?? "wyscout", sample: peerValues.length, sinIndice: definition.sinIndice, familia: definition.familia, familiaPrincipal: definition.familiaPrincipal }];
   });
   // Una destreza, una métrica: con dos plataformas enlazadas entraban las dos
   // versiones y esa destreza pesaba el doble en el índice. La elección manual
@@ -1606,6 +1644,23 @@ export function buildPlayerReport(rows: DataRow[], selectedIndex: number, minimu
   });
   const percentiles = metricsUnicas.map((metric) => metric.percentile);
   const score = percentiles.length ? Math.round(average(percentiles)) : 0;
+
+  /*
+   * Lo que se enseña y lo que ordena dejan de ser lo mismo.
+   *
+   * El radar sigue con todas las métricas del perfil —su centro es la media de
+   * todas—, pero el índice se calcula sin las que no separan a nadie y con una
+   * sola por familia. Medido sobre las dieciséis ligas en septiembre de 2026:
+   * la velocidad punta deja al 45% de los centrales dentro de un 2% de la
+   * mediana, la dificultad de pase al 47% de los porteros, y el 70% de los
+   * delanteros tiene cero penales ganados. Ordenar por eso es ordenar por
+   * ruido. Una elección manual de métricas manda sobre esto, igual que sobre
+   * el descarte de duplicados.
+   */
+  const paraIndice = selectedMetricLabels?.length
+    ? metricsUnicas
+    : unaPorFamilia(metricsUnicas.filter((metrica) => !metrica.sinIndice));
+  const percentilesDelIndice = paraIndice.map((metric) => metric.percentile);
   const text = (aliases: string[]) => String(field(row, headers, aliases) ?? "").trim();
   const value = (aliases: string[]) => numeric(field(row, headers, aliases));
   return {
@@ -1625,7 +1680,8 @@ export function buildPlayerReport(rows: DataRow[], selectedIndex: number, minimu
     assists: value(["assists", "asistencias"]) || 0,
     cohortSize: peers.length,
     score,
-    indice: indiceDeScouting(percentiles),
+    indice: indiceDeScouting(percentilesDelIndice),
+    metricasDelIndice: paraIndice.length,
     metrics: metricsUnicas,
     reading: roleReading(cohort, metricsUnicas),
   };

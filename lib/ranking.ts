@@ -81,7 +81,9 @@ export function rankingDeCohorte(rows: DataRow[], perfil: string, minutosMin: nu
       minutos: Number.isFinite(minutos) ? minutos : 0,
       puntuacion: informe.indice,
       puntuacionCruda: informe.indice,
-      metricas: informe.metrics.length,
+      // Las que sostienen el índice, no las que se dibujan: es lo que mide
+      // la evidencia detrás del número y lo que corrige encogerHaciaLaMedia.
+      metricas: informe.metricasDelIndice,
       destacadas: informe.metrics
         .filter((metrica) => metrica.percentile >= 85)
         .sort((a, b) => b.percentile - a.percentile)
