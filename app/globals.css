@@ -5988,13 +5988,13 @@ body.print-layout-check .legal-page-shell > * > :is(.visual-page-footer, .dossie
   .legal-page-shell > * > :is(.visual-page-footer, .dossier-footer) { margin-top: auto !important; }
 }
 
-/* Ficha ampliada en dos hojas. En pantalla se leen seguidas: sin el pie de
-   la primera ni la cabecera de la segunda, y sin hueco entre ellas. */
+/* Ficha ampliada en tres hojas. En pantalla se leen seguidas: sin el pie de
+   las dos primeras ni la cabecera de las siguientes, y sin hueco entre ellas. */
 @media screen {
-  body:not(.print-layout-check) .snap-hoja-1 > .visual-page-footer,
+  body:not(.print-layout-check) :is(.snap-hoja-1, .snap-hoja-2) > .visual-page-footer,
   body:not(.print-layout-check) .snap-cabecera-continuacion { display: none; }
-  body:not(.print-layout-check) .app-shell[data-tema] .snap-page.snap-hoja-1 { margin-bottom: 0; }
-  body:not(.print-layout-check) .app-shell[data-tema] .snap-page.snap-hoja-2 { margin-top: 0; }
+  body:not(.print-layout-check) .app-shell[data-tema] .snap-page:is(.snap-hoja-1, .snap-hoja-2) { margin-bottom: 0; }
+  body:not(.print-layout-check) .app-shell[data-tema] .snap-page:is(.snap-hoja-2, .snap-hoja-3) { margin-top: 0; }
 }
 
 /* La hoja de similitud en Legal tiene más alto que la comparación: el radar
@@ -6092,3 +6092,82 @@ body.print-layout-check .legal-page-shell > :is(.rank-page, .pool-page) :is(.ran
   font-size: 9.5px; font-style: normal; font-weight: 700; letter-spacing: .04em; vertical-align: 1px;
 }
 @media screen { .app-shell[data-tema="oscuro"] .snap-fuente-sc { color: #3fdca6; } }
+
+/* =====================================================================
+   Ficha ampliada · encaje con un equipo
+   ---------------------------------------------------------------------
+   Cuatro partes en fila, cada una con su cifra y lo que la explica; debajo,
+   el detalle dimensión a dimensión: lo que pide el puesto (aro) frente a lo
+   que da el jugador (punto), en la misma escala de desviaciones típicas.
+   ===================================================================== */
+.snap-fila-encaje { grid-template-columns: minmax(0, 1fr); }
+.app-shell[data-tema] .encaje {
+  --encaje-alto: #1a7f37; --encaje-medio: #9a5a00; --encaje-bajo: #c62828;
+  display: flex; flex-direction: column; gap: 14px;
+}
+@media screen { .app-shell[data-tema="oscuro"] .encaje { --encaje-alto: #34c759; --encaje-medio: #ffb340; --encaje-bajo: #ff6961; } }
+.app-shell[data-tema] .encaje-titulo { display: flex; flex-direction: column; gap: 2px; }
+.app-shell[data-tema] .encaje-titulo > b { color: var(--ink); font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
+.app-shell[data-tema] .encaje-titulo > small { color: var(--muted); font-size: 12px; }
+.app-shell[data-tema] .encaje-cabecera { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.app-shell[data-tema] .encaje-cabecera .filtro-chip { margin: 0; }
+.app-shell[data-tema] .encaje-aviso { color: var(--muted); font-size: 12px; }
+.app-shell[data-tema] p.encaje-lectura {
+  margin: 0; padding: 12px 14px; border-radius: 12px;
+  color: var(--ink); background: color-mix(in srgb, var(--acento) 7%, var(--paper));
+  box-shadow: inset 3px 0 0 var(--acento);
+  font-size: 14px; line-height: 1.55;
+  print-color-adjust: exact; -webkit-print-color-adjust: exact;
+}
+.app-shell[data-tema] .encaje-partes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+@media screen and (max-width: 900px) { body:not(.print-layout-check) .app-shell[data-tema] .encaje-partes { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media screen and (max-width: 520px) { body:not(.print-layout-check) .app-shell[data-tema] .encaje-partes { grid-template-columns: minmax(0, 1fr); } }
+.app-shell[data-tema] .encaje-parte {
+  min-width: 0; padding: 12px 14px; border-radius: 12px;
+  display: flex; flex-direction: column; gap: 6px;
+  background: var(--paper); box-shadow: 0 0 0 1px var(--line);
+}
+.app-shell[data-tema] .encaje-parte > h4,
+.app-shell[data-tema] .encaje-detalle > h4 { margin: 0; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.app-shell[data-tema] .encaje-parte > small { color: var(--muted); font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
+.app-shell[data-tema] .encaje-parte > p { margin: auto 0 0; padding-top: 6px; color: var(--muted); font-size: 11px; line-height: 1.4; }
+.app-shell[data-tema] .encaje-cifra { color: var(--ink); font-size: 30px; font-weight: 700; letter-spacing: -.02em; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.app-shell[data-tema] .encaje-cifra.alto { color: var(--encaje-alto); }
+.app-shell[data-tema] .encaje-cifra.medio { color: var(--encaje-medio); }
+.app-shell[data-tema] .encaje-cifra.bajo { color: var(--encaje-bajo); }
+.app-shell[data-tema] .encaje-listas { margin: 4px 0 0; display: flex; flex-direction: column; gap: 7px; }
+.app-shell[data-tema] .encaje-listas dt { color: var(--encaje-alto); font-size: 10.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.app-shell[data-tema] .encaje-listas .falta dt { color: var(--encaje-bajo); }
+.app-shell[data-tema] .encaje-listas .extra dt { color: var(--muted); }
+.app-shell[data-tema] .encaje-listas dd { margin: 1px 0 0; color: var(--ink); font-size: 12.5px; line-height: 1.4; }
+.app-shell[data-tema] .encaje-barra { height: 8px; overflow: hidden; border-radius: 4px; background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.app-shell[data-tema] .encaje-barra > b { height: 100%; display: block; border-radius: 4px; background: var(--acento); print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+.app-shell[data-tema] .encaje-plantilla { margin: 4px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.app-shell[data-tema] .encaje-plantilla > li { display: grid; grid-template-columns: minmax(0, 1fr) 64px 26px; align-items: center; gap: 8px; font-size: 12px; }
+.app-shell[data-tema] .encaje-plantilla > li > span { overflow: hidden; color: var(--ink); text-overflow: ellipsis; white-space: nowrap; }
+.app-shell[data-tema] .encaje-plantilla > li > i { height: 6px; overflow: hidden; border-radius: 3px; background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.app-shell[data-tema] .encaje-plantilla > li > i > b { height: 100%; display: block; border-radius: 3px; background: color-mix(in srgb, var(--ink) 40%, transparent); }
+.app-shell[data-tema] .encaje-plantilla > li.suyo > span { font-weight: 700; }
+.app-shell[data-tema] .encaje-plantilla > li.suyo > i > b { background: var(--acento); print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+.app-shell[data-tema] .encaje-plantilla > li > em { color: var(--ink); font-style: normal; font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+
+.app-shell[data-tema] .encaje-detalle { padding-top: 4px; }
+.app-shell[data-tema] .encaje-detalle-leyenda { margin: 6px 0 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; color: var(--ink); font-size: 12px; }
+.encaje-detalle-leyenda > span { display: inline-flex; align-items: center; gap: 6px; }
+.app-shell[data-tema] .encaje-detalle-leyenda i { width: 12px; height: 12px; display: inline-block; border-radius: 50%; }
+.app-shell[data-tema] .encaje-detalle-leyenda i.puesto { box-shadow: inset 0 0 0 2px var(--ink); }
+.app-shell[data-tema] .encaje-detalle-leyenda i.jugador { background: var(--acento); print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+.app-shell[data-tema] .encaje-detalle-leyenda small { color: var(--muted); font-size: 11px; }
+.app-shell[data-tema] .encaje-mancuernas { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.app-shell[data-tema] .encaje-mancuernas > li { display: grid; grid-template-columns: 200px minmax(0, 1fr) 96px; align-items: center; gap: 12px; font-size: 12.5px; }
+.app-shell[data-tema] .encaje-mancuernas > li > span { color: var(--ink); text-align: right; }
+.app-shell[data-tema] .encaje-mancuernas .pista { position: relative; height: 18px; border-radius: 9px; background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.app-shell[data-tema] .encaje-mancuernas .pista > b { position: absolute; display: block; }
+.app-shell[data-tema] .encaje-mancuernas .pista > .cero { top: 2px; bottom: 2px; left: 50%; width: 1px; background: color-mix(in srgb, var(--ink) 28%, transparent); }
+.app-shell[data-tema] .encaje-mancuernas .pista > .tramo { top: 8px; height: 2px; background: color-mix(in srgb, var(--ink) 35%, transparent); }
+.app-shell[data-tema] .encaje-mancuernas .pista > :is(.puesto, .jugador) { top: 3px; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; }
+.app-shell[data-tema] .encaje-mancuernas .pista > .puesto { background: var(--paper); box-shadow: inset 0 0 0 2px var(--ink); }
+.app-shell[data-tema] .encaje-mancuernas .pista > .jugador { background: var(--acento); box-shadow: 0 0 0 2px var(--paper); print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+.app-shell[data-tema] .encaje-mancuernas > li > em { color: var(--muted); font-size: 11.5px; font-style: normal; font-variant-numeric: tabular-nums; text-align: right; }
+@media screen and (max-width: 640px) { body:not(.print-layout-check) .app-shell[data-tema] .encaje-mancuernas > li { grid-template-columns: 110px minmax(0, 1fr); } body:not(.print-layout-check) .app-shell[data-tema] .encaje-mancuernas > li > em { grid-column: 2; text-align: left; } }
+@media print { .snap-encaje .encaje-cabecera .filtro-chip > :is(svg, select) { display: none !important; } }

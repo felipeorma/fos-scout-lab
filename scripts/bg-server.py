@@ -844,6 +844,83 @@ def _sb_ppda_partido(match_id: int, auth):
     return ppda
 
 
+def _sb_alineacion_partido(match_id: int, auth):
+    """Los puestos de cada equipo en un partido: {team_id: [[codigo, desde, hasta], ...]}.
+
+    Solo la alineación (v4), no los eventos: es ligera. Guardada en disco. Un
+    tramo sin final ("to" vacío) dura hasta el pitido, que se toma en 95'.
+    """
+    import json as _json
+    ruta = _SB_EVENTS_CACHE_DIR / f"lu-{int(match_id)}.json"
+    if ruta.exists():
+        try:
+            return {int(k): v for k, v in _json.loads(ruta.read_text(encoding="utf-8")).items()}
+        except Exception:
+            pass
+    try:
+        r = _requests.get(f"https://data.statsbomb.com/api/v4/lineups/{int(match_id)}", auth=auth, timeout=60)
+        if r.status_code != 200:
+            return None
+        equipos = r.json()
+    except Exception:
+        return None
+    salida = {}
+    for equipo in equipos if isinstance(equipos, list) else []:
+        tramos = []
+        for jugador in equipo.get("lineup", []):
+            for tramo in jugador.get("positions") or []:
+                codigo = _SB_POS_ALINEACION.get(tramo.get("position"))
+                if not codigo:
+                    continue
+                desde = _reloj(tramo.get("from")) or 0.0
+                hasta = _reloj(tramo.get("to")) if tramo.get("to") else 95.0
+                tramos.append([codigo, round(desde, 2), round(hasta or 95.0, 2)])
+        salida[int(equipo.get("team_id"))] = tramos
+    try:
+        _SB_EVENTS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        _escribir_atomico(ruta, _json.dumps(salida))
+    except OSError:
+        pass
+    return salida
+
+
+@app.get("/api/statsbomb/team-positions")
+def statsbomb_team_positions(competition_id: int, season_id: int, team_id: int):
+    """En qué puestos juega un equipo: partidos en que usa cada puesto (20' o más) y minutos.
+
+    Para el encaje de un jugador: un carrilero sirve de poco a un equipo que
+    casi nunca juega con carrileros.
+    """
+    import json as _json
+    from concurrent.futures import ThreadPoolExecutor
+    auth = _statsbomb_auth()
+    if not auth:
+        return Response('{"error": "sin credenciales"}', status_code=503, media_type="application/json", headers=cors_headers())
+    partidos = _cached_get(f"sb:matches6:{competition_id}:{season_id}",
+                           f"https://data.statsbomb.com/api/v6/competitions/{competition_id}/seasons/{season_id}/matches", auth, ttl_seconds=1800)
+    suyos = [p for p in partidos
+             if team_id in ((p.get("home_team") or {}).get("home_team_id"), (p.get("away_team") or {}).get("away_team_id"))
+             and p.get("home_score") is not None]
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        alineaciones = list(pool.map(lambda p: _sb_alineacion_partido(p["match_id"], auth), suyos))
+    puestos, jugados, por_partido = {}, 0, []
+    for alineacion in alineaciones:
+        if not alineacion or team_id not in alineacion:
+            continue
+        jugados += 1
+        por_puesto = {}
+        for codigo, desde, hasta in alineacion[team_id]:
+            por_puesto[codigo] = por_puesto.get(codigo, 0.0) + max(0.0, hasta - desde)
+        for codigo, minutos in por_puesto.items():
+            ficha = puestos.setdefault(codigo, {"partidos": 0, "minutos": 0.0})
+            ficha["minutos"] = round(ficha["minutos"] + minutos, 1)
+            if minutos >= 20:
+                ficha["partidos"] += 1
+        por_partido.append(sorted(c for c, m in por_puesto.items() if m >= 20))
+    return Response(_json.dumps({"partidos": jugados, "puestos": puestos, "porPartido": por_partido}),
+                    media_type="application/json", headers=cors_headers())
+
+
 @app.get("/api/statsbomb/team-extras")
 def statsbomb_team_extras(competition_id: int, season_id: int, team_id: int):
     """Formaciones más usadas y PPDA a favor y en contra de un equipo en su temporada.

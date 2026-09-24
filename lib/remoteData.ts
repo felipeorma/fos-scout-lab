@@ -6,6 +6,7 @@ import {
   type TransfermarktProfile,
 } from "./transfermarkt";
 import { activeLang, t, tf } from "./i18n";
+import type { Alineaciones } from "./encaje";
 
 /**
  * En GitHub Pages no hay servidor: las rutas /api/* no existen. Este flag se
@@ -229,6 +230,18 @@ export async function fetchStatsbombTeamStats(competition: ApiCompetition): Prom
     `/api/statsbomb/team-stats?competition_id=${competition.competition_id}&season_id=${competition.season_id}`,
   );
   return payload.rows ?? [];
+}
+
+/**
+ * En qué puestos juega un equipo en su temporada, de las alineaciones de
+ * StatsBomb. La clave es la del perfil de estilo: "competición:temporada:equipo".
+ */
+export async function fetchPuestosDeEquipo(clave: string): Promise<Alineaciones> {
+  const [competicion, temporada, equipo] = clave.split(":");
+  return bridgeJson(
+    `/api/statsbomb/team-positions?competition_id=${competicion}&season_id=${temporada}&team_id=${equipo}`,
+    300_000,
+  );
 }
 
 export type RolesDeLiga = {

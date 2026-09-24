@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Desplegable } from "./BarraDeFiltros";
 import { numberLocale, t, tf } from "@/lib/i18n";
-import { fetchEventosJugador, fetchRolesDeSecuencia, type RolesDeLiga } from "@/lib/remoteData";
+import { fetchEventosJugador } from "@/lib/remoteData";
+import { useRoles } from "./useRolesDeLiga";
+import { EncajeEquipo } from "./EncajeEquipo";
 import { buildSimilaritySearch, type SimilarityFilters, type SimilarityPlayer } from "@/lib/similarity";
 import { PERFILES } from "@/lib/perfiles";
 import { primaryPositionRole } from "@/lib/positions";
@@ -62,7 +64,7 @@ export type IdPieza =
   | "tiros" | "ocasiones" | "regates" | "pases_inicio" | "pases_fin"
   | "calor" | "defensa" | "enjambres" | "dispersion"
   | "recepciones" | "recepciones_tipo" | "recepciones_origen" | "recepciones_pasadores"
-  | "roles";
+  | "roles" | "encaje";
 
 /**
  * El catálogo que ofrece Visuales. `ancho` y `alto` son el tamaño con el que
@@ -88,6 +90,7 @@ export const PIEZAS_FICHA: Array<{ id: IdPieza; titulo: string; ancho: number; a
   { id: "recepciones_origen", titulo: "De dónde le llega", ancho: 4, alto: 500, eventos: true },
   { id: "recepciones_pasadores", titulo: "Quién se la da", ancho: 4, alto: 420, eventos: true },
   { id: "roles", titulo: "Rol en la secuencia", ancho: 12, alto: 420, eventos: false, roles: true },
+  { id: "encaje", titulo: "Encaje con un equipo", ancho: 12, alto: 560, eventos: false, roles: true },
   { id: "enjambres", titulo: "Frente a su grupo", ancho: 12, alto: 380, eventos: false },
   { id: "dispersion", titulo: "Construcción frente a asociación", ancho: 6, alto: 400, eventos: false },
 ];
@@ -179,43 +182,6 @@ function useEventos(clave: string, activo: boolean, club: string) {
   }, [clave, activo, club]);
 
   return { eventos, estado };
-}
-
-// Los roles de cada liga ya pedidos, y los que están en camino.
-const rolesGuardados = new Map<string, RolesDeLiga>();
-const rolesEnCamino = new Map<string, Promise<RolesDeLiga>>();
-
-/** Los roles en la secuencia de la liga del jugador. Sin `activo` no se piden. */
-function useRoles(liga: string, temporada: string, activo: boolean) {
-  const clave = liga ? `${liga}|${temporada}` : "";
-  const [roles, setRoles] = useState<RolesDeLiga | null>(() => (clave ? rolesGuardados.get(clave) ?? null : null));
-  const [estado, setEstado] = useState("");
-  useEffect(() => {
-    if (!clave) { setRoles(null); setEstado(""); return; }
-    const guardado = rolesGuardados.get(clave);
-    if (guardado) { setRoles(guardado); setEstado(""); return; }
-    setRoles(null);
-    if (!activo) { setEstado(""); return; }
-    let vivo = true;
-    setEstado(tf("Analizando las secuencias de {liga}… la primera vez tarda unos minutos.", { liga }));
-    let promesa = rolesEnCamino.get(clave);
-    if (!promesa) {
-      promesa = fetchRolesDeSecuencia(liga, temporada)
-        .then((respuesta) => { rolesGuardados.set(clave, respuesta); return respuesta; })
-        .finally(() => rolesEnCamino.delete(clave));
-      rolesEnCamino.set(clave, promesa);
-    }
-    promesa
-      .then((respuesta) => { if (vivo) { setRoles(respuesta); setEstado(""); } })
-      .catch((error) => {
-        if (!vivo) return;
-        setEstado(error instanceof TypeError
-          ? t("El servidor local no respondió. Arranca npm run bg:server y reintenta.")
-          : error instanceof Error ? error.message : String(error));
-      });
-    return () => { vivo = false; };
-  }, [clave, liga, temporada, activo]);
-  return { roles, estado };
 }
 
 /** Los eventos ya separados por mapa. */
@@ -794,6 +760,11 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
         {r && <p className="snap-roles-nota">{t("Barra: percentil frente a su grupo en la parte de sus intervenciones que es cada rol. Derecha: esa parte. Cada intervención cuenta en un solo rol, el primero que cumple: remate, iniciador, vertical, progresor, conductor, apoyo, enlace, control.")}</p>}
       </Tarjeta>;
     }
+
+    case "encaje":
+      // En Visuales, sin el detalle dimensión a dimensión: el resumen cabe en
+      // un bloque; el detalle es la hoja entera de la ficha ampliada.
+      return <figure className="snap-tarjeta snap-encaje snap-con-chip"><EncajeEquipo datos={datos} equipo={opcion} onEquipo={onOpcion} detalle={!suelta} /></figure>;
 
     case "enjambres":
       return <Tarjeta titulo={tf("Frente a su grupo: {grupo}", { grupo: nombreGrupo.toLowerCase() })} subtitulo={t("Cada punto es un jugador; relleno, él; con aro, sus cinco más parecidos")} clase="snap-enjambres">

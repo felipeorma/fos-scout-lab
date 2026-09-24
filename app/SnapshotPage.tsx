@@ -37,25 +37,27 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
   const [familiaTop, setFamiliaTop] = useState("progresion");
   // El mapa de recepciones y su reparto se agrupan igual: cambiar uno cambia los dos.
   const [agruparRecepciones, setAgruparRecepciones] = useState("tipo");
+  // El equipo con el que se mide el encaje; vacío, Cavalry.
+  const [equipoEncaje, setEquipoEncaje] = useState("");
   const pieza = (id: IdPieza) => <PiezaFicha pieza={id} datos={datos} />;
 
-  const cabecera = (continuacion: boolean) => <header className={continuacion ? "snap-cabecera-continuacion" : undefined}>
+  const cabecera = (hoja: number) => <header className={hoja > 1 ? "snap-cabecera-continuacion" : undefined}>
     <div>
-      <span>{continuacion ? t("STATSBOMB · FICHA AMPLIADA · 2 DE 2") : t("STATSBOMB · FICHA AMPLIADA")}</span>
+      <span>{hoja > 1 ? tf("STATSBOMB · FICHA AMPLIADA · {n} DE {total}", { n: hoja, total: 3 }) : t("STATSBOMB · FICHA AMPLIADA")}</span>
       <h2>{datos.jugador}</h2>
       <p>{tf("Familias contra {n} {grupo} de la base cargada, con al menos {m} minutos.", { n: datos.grupo.indices.length, grupo: datos.nombreGrupo.toLowerCase(), m: minutosMin })}</p>
     </div>
   </header>;
   const pie = <PieDeReporte asunto={datos.jugador} destinatario={destinatario} logo={logoDestinatario} />;
 
-  // Dos hojas: con las recepciones, todo junto no cabe en una Legal ni
+  // Tres hojas: con las recepciones, todo junto no cabe en una Legal ni
   // reducido al mínimo legible. En pantalla se leen seguidas —la cabecera de
   // la segunda y el pie de la primera solo salen al imprimir—; en el PDF, cada
   // una con su marco y su pie, como Ficha y radar.
   return <>
     <div className={claseHoja}>
       <section className="snap-page snap-hoja-1">
-        {cabecera(false)}
+        {cabecera(1)}
         {datos.estado && <p className="snap-estado" role="status">{datos.estado}</p>}
 
         <div className="snap-fila snap-fila-1">
@@ -83,7 +85,7 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
 
     <div className={claseHoja}>
       <section className="snap-page snap-hoja-2">
-        {cabecera(true)}
+        {cabecera(2)}
         <div className="snap-fila snap-fila-3">
           {pieza("pases_inicio")}
           {pieza("pases_fin")}
@@ -101,6 +103,18 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
         <div className="snap-fila snap-fila-4">
           {pieza("enjambres")}
           {pieza("dispersion")}
+        </div>
+        {pie}
+      </section>
+    </div>
+
+    {/* Tercera hoja: si encaja en un equipo. Es la conclusión de las otras
+        dos, así que va al final. */}
+    <div className={claseHoja}>
+      <section className="snap-page snap-hoja-3">
+        {cabecera(3)}
+        <div className="snap-fila snap-fila-encaje">
+          <PiezaFicha pieza="encaje" datos={datos} opcion={equipoEncaje} onOpcion={setEquipoEncaje} />
         </div>
         {pie}
       </section>
