@@ -2025,13 +2025,17 @@ export default function ScoutStudio() {
                   onConectarApi={() => void openApiDialog()}
                 /></div>
               )}
-              {report && paginaMontada(RANK_PAGE) && (
+              {/* Ranking, Entre ligas, Estilo de juego y Ficha ampliada —con el
+                  encaje de equipo— son de Cavalry: en el espacio Maldonado no
+                  se montan aunque la página quede recordada o llegue por un
+                  enlace. Allí se trabaja con la mesa y nada más. */}
+              {espacio === "cavalry" && report && paginaMontada(RANK_PAGE) && (
                 <div className={claseHoja(RANK_PAGE)}><RankingPage onSelectPlayer={(indice) => { selectPlayer(indice); setReportPage(CARD_PAGE); }} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
               )}
-              {paginaMontada(POOL_PAGE) && (
+              {espacio === "cavalry" && paginaMontada(POOL_PAGE) && (
                 <div className={claseHoja(POOL_PAGE)}><PoolPage onAbrirJugador={(indice) => { selectPlayer(indice); setReportPage(CARD_PAGE); }} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
               )}
-              {paginaMontada(STYLE_PAGE) && (
+              {espacio === "cavalry" && paginaMontada(STYLE_PAGE) && (
                 <EstiloPage claseHoja={claseHoja(STYLE_PAGE)} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} />
               )}
               {boardPreviewOpen && (
@@ -2050,7 +2054,7 @@ export default function ScoutStudio() {
                   </div>
                 </div>
               )}
-              {report && paginaMontada(SNAPSHOT_PAGE) && (
+              {espacio === "cavalry" && report && paginaMontada(SNAPSHOT_PAGE) && (
                 <SnapshotPage rows={reportRows} indice={selectedPlayer} informe={report} perfilTm={profile} minutosMin={minimumMinutes} claseHoja={claseHoja(SNAPSHOT_PAGE)}
                   destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} onAbrirJugador={(indice) => selectPlayer(indice)} />
               )}

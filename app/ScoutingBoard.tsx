@@ -210,7 +210,9 @@ export function ScoutingBoard({ rows, minimumMinutes, onSelectPlayer, destinatar
   const fichasBase = useMemo(() => {
     const salida: FichaBase[] = [];
     for (let indice = 0; indice < rows.length; indice += 1) {
-      const informe = buildPlayerReport(rows, indice, minutosMin, "AUTO");
+      // El índice de siempre, sin el recorte de 2026-09: la mesa compara
+      // fotos mes a mes y no puede cambiar de fórmula a mitad de la serie.
+      const informe = buildPlayerReport(rows, indice, minutosMin, "AUTO", null, { indiceSinRecorte: true });
       if (!informe || informe.metrics.length < 4) continue;
       const minutos = numero(rows[indice]["Minutes played"]);
       if (Number.isFinite(minutos) && minutos < minutosMin) continue;

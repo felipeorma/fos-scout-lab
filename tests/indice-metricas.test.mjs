@@ -58,3 +58,13 @@ test("una elección manual de métricas manda sobre el recorte", () => {
   const informe = buildPlayerReport(base(), 11, 0, "CF", elegidas);
   assert.equal(informe.metricasDelIndice, elegidas.length, "si el scout las pide, entran todas");
 });
+
+test("la mesa de Maldonado puede pedir el índice de siempre, sin recorte", () => {
+  // El del último delantero con muchos penales ganados: el recortado no los
+  // cuenta; el de siempre, sí.
+  const filas = base({ "Penalty Wins (SB)": 5 });
+  const recortado = buildPlayerReport(filas, 11, 0, "CF");
+  const deSiempre = buildPlayerReport(filas, 11, 0, "CF", null, { indiceSinRecorte: true });
+  assert.ok(deSiempre.metricasDelIndice > recortado.metricasDelIndice, "el de siempre usa todas las métricas del perfil");
+  assert.equal(deSiempre.metricasDelIndice, deSiempre.metrics.length);
+});

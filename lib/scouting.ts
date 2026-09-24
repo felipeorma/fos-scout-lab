@@ -1595,7 +1595,15 @@ function poblacionDeMetrica(peers: DataRow[], key: string) {
   return valores;
 }
 
-export function buildPlayerReport(rows: DataRow[], selectedIndex: number, minimumMinutes: number, forcedCohort = "AUTO", selectedMetricLabels?: string[] | null): PlayerReport | null {
+export function buildPlayerReport(
+  rows: DataRow[], selectedIndex: number, minimumMinutes: number, forcedCohort = "AUTO", selectedMetricLabels?: string[] | null,
+  /**
+   * `indiceSinRecorte`: el índice de antes del recorte, con todas las métricas
+   * del perfil. Lo usa la mesa de Maldonado, que compara fotos mes a mes y no
+   * puede cambiar de fórmula a mitad de la serie.
+   */
+  opciones: { indiceSinRecorte?: boolean } = {},
+): PlayerReport | null {
   const row = rows[selectedIndex];
   if (!row) return null;
   const headers = headersOf(rows);
@@ -1657,7 +1665,7 @@ export function buildPlayerReport(rows: DataRow[], selectedIndex: number, minimu
    * ruido. Una elección manual de métricas manda sobre esto, igual que sobre
    * el descarte de duplicados.
    */
-  const paraIndice = selectedMetricLabels?.length
+  const paraIndice = selectedMetricLabels?.length || opciones.indiceSinRecorte
     ? metricsUnicas
     : unaPorFamilia(metricsUnicas.filter((metrica) => !metrica.sinIndice));
   const percentilesDelIndice = paraIndice.map((metric) => metric.percentile);
