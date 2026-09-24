@@ -54,14 +54,16 @@ const recorte = (z: number) => Math.max(-3, Math.min(3, z));
 /**
  * Compara al jugador con el perfil del puesto. El parecido es el coseno entre
  * los dos perfiles —como el de estilo entre equipos—, con los z recortados a
- * ±3 para que un valor extremo no decida solo.
+ * ±3 para que un valor extremo no decida solo. `pesos` da más voz a unas
+ * dimensiones (las que el ajuste refuerza); sin pesos, todas igual.
  */
-export function compararConPuesto(jugador: Perfil, puesto: Perfil): ComparacionDePuesto | null {
+export function compararConPuesto(jugador: Perfil, puesto: Perfil, pesos: Record<string, number> = {}): ComparacionDePuesto | null {
   const ids = Object.keys(puesto).filter((id) => Number.isFinite(jugador[id]) && Number.isFinite(puesto[id]));
   if (ids.length < 3) return null;
+  const w = ids.map((id) => pesos[id] ?? 1);
   const a = ids.map((id) => recorte(jugador[id])), b = ids.map((id) => recorte(puesto[id]));
-  const punto = a.reduce((s, v, i) => s + v * b[i], 0);
-  const na = Math.hypot(...a), nb = Math.hypot(...b);
+  const punto = a.reduce((s, v, i) => s + w[i] * v * b[i], 0);
+  const na = Math.sqrt(a.reduce((s, v, i) => s + w[i] * v * v, 0)), nb = Math.sqrt(b.reduce((s, v, i) => s + w[i] * v * v, 0));
   const coseno = na && nb ? punto / (na * nb) : 0;
   const pide = ids.filter((id) => puesto[id] >= 0.3).sort((x, y) => puesto[y] - puesto[x]);
   return {
@@ -73,6 +75,42 @@ export function compararConPuesto(jugador: Perfil, puesto: Perfil): ComparacionD
     daDeMas: ids.filter((id) => puesto[id] < 0.3 && jugador[id] - puesto[id] >= 0.75)
       .sort((x, y) => (jugador[y] - puesto[y]) - (jugador[x] - puesto[x])).slice(0, 3),
   };
+}
+
+// ---- Ajuste: lo que necesita el puesto ------------------------------------
+
+/** El nivel que se pide en lo reforzado: una desviación típica, en torno al percentil 84. */
+export const NIVEL_REFUERZO = 1;
+/** Cuánta más voz tiene lo reforzado en el parecido. */
+export const PESO_REFUERZO = 2;
+
+/**
+ * Ajusta lo que pide el puesto a lo que necesita el equipo. En las
+ * dimensiones reforzadas se pide al menos un nivel bueno (NIVEL_REFUERZO) y
+ * cuentan el doble; el resto queda como está, porque es la esencia de cómo
+ * juega ese equipo. Si la plantilla ya pide más de ese nivel, no se baja.
+ */
+export function ajustarPuesto(puesto: Perfil, refuerzos: string[]) {
+  const perfil: Perfil = { ...puesto };
+  const pesos: Record<string, number> = {};
+  for (const id of refuerzos) {
+    if (!(id in perfil)) continue;
+    perfil[id] = Math.max(perfil[id], NIVEL_REFUERZO);
+    pesos[id] = PESO_REFUERZO;
+  }
+  return { perfil, pesos };
+}
+
+/**
+ * Lo que la plantilla actual hace por debajo de la media en el puesto: las
+ * candidatas a reforzar, de la más floja a la menos. Es una sugerencia; lo
+ * decide quien conoce la temporada.
+ */
+export function sugerirRefuerzos(puesto: Perfil, cuantas = 4) {
+  return Object.keys(puesto)
+    .filter((id) => puesto[id] <= -0.3)
+    .sort((a, b) => puesto[a] - puesto[b])
+    .slice(0, cuantas);
 }
 
 export type Alineaciones = {

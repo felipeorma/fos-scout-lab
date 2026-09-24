@@ -5,17 +5,20 @@ import { Desplegable } from "./BarraDeFiltros";
 import { useEstilos } from "./useEstilos";
 import { useRoles } from "./useRolesDeLiga";
 import { usePuestos } from "./usePuestosDeEquipo";
+import { useRefuerzos } from "./useAjustesDeEncaje";
 import type { DatosFicha } from "./PiezasFicha";
 import { numberLocale, t, tf } from "@/lib/i18n";
 import { buildPlayerReport, detectCoreColumns, headersOf, numeric } from "@/lib/scouting";
 import { COMPUESTAS, ROLES_SECUENCIA, fuenteStatsbomb, rolesFrenteAlGrupo } from "@/lib/snapshot";
 import { EQUIPO_PROPIO, crearBuscadorDeEquipos, mismoEquipo, parecidoDeEstilo, perfilesDeEstilo } from "@/lib/estiloEquipo";
 import {
+  ajustarPuesto,
   compararConPuesto,
   nivelFrenteAPlantilla,
   percentilAZ,
   perfilDelPuesto,
   presenciaDelPuesto,
+  sugerirRefuerzos,
   tramo,
   type Perfil,
 } from "@/lib/encaje";
@@ -36,7 +39,7 @@ const conSigno = (z: number) => `${z >= 0 ? "+" : "−"}${Math.abs(z).toLocaleSt
 const ordinal = (n: number) => `${n}.º`;
 
 /** El nombre de una dimensión: una familia, o un rol en la secuencia. */
-function nombreDe(id: string) {
+export function nombreDeDimension(id: string) {
   if (id.startsWith("rol:")) {
     const rol = ROLES_SECUENCIA.find((r) => r.id === id.slice(4));
     return rol ? tf("Rol: {r}", { r: t(rol.etiqueta) }) : id;
@@ -103,7 +106,19 @@ export function EncajeEquipo({ datos, equipo: elegido = "", onEquipo, detalle = 
     return { perfil, minutos: minutos(i) };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   })), [actuales, grupo, rolesDestino, rows, columnaMinutos]);
-  const comparacion = useMemo(() => compararConPuesto(perfilJugador, puesto), [perfilJugador, puesto]);
+  // Lo que necesita el puesto esta temporada, si el scout lo ha marcado: se
+  // pide un nivel bueno en eso y cuenta el doble; el resto no se toca.
+  const { refuerzos, alternar, limpiar } = useRefuerzos(destino, informe.cohort);
+  const ajustado = useMemo(() => ajustarPuesto(puesto, refuerzos), [puesto, refuerzos]);
+  const hayAjuste = Object.keys(ajustado.pesos).length > 0;
+  const comparacionBase = useMemo(() => compararConPuesto(perfilJugador, puesto), [perfilJugador, puesto]);
+  const comparacion = useMemo(
+    () => (hayAjuste ? compararConPuesto(perfilJugador, ajustado.perfil, ajustado.pesos) : comparacionBase),
+    [hayAjuste, perfilJugador, ajustado, comparacionBase],
+  );
+  const sugeridas = useMemo(() => sugerirRefuerzos(puesto), [puesto]);
+  const elegibles = useMemo(() => Object.keys(puesto).filter((id) => Number.isFinite(perfilJugador[id]))
+    .sort((a, b) => Number(a.startsWith("rol:")) - Number(b.startsWith("rol:"))), [puesto, perfilJugador]);
 
   // 3. Sitio en el dibujo.
   const { datos: alineaciones, error: errorPuestos } = usePuestos(llegada?.clave ?? "");
@@ -133,12 +148,36 @@ export function EncajeEquipo({ datos, equipo: elegido = "", onEquipo, detalle = 
         ? tf("{origen} juega algo distinto a {destino}: le tocará adaptarse.", { origen: origen!.equipo, destino: llegada!.equipo })
         : tf("{origen} juega muy distinto a {destino}: la adaptación es el riesgo.", { origen: origen!.equipo, destino: llegada!.equipo }));
   }
+  const grupoMin = nombreGrupo.toLowerCase();
+  const esElMejor = actuales.length > 0 && nivel.lugar === 1;
   if (comparacion) {
-    frases.push(tramo(comparacion.parecido) === "alto"
-      ? tf("Hace lo que {destino} pide a sus {grupo}.", { destino, grupo: nombreGrupo.toLowerCase() })
-      : tramo(comparacion.parecido) === "medio"
-        ? tf("Hace en parte lo que {destino} pide a sus {grupo}.", { destino, grupo: nombreGrupo.toLowerCase() })
-        : tf("Su perfil no es el que {destino} pide a sus {grupo}.", { destino, grupo: nombreGrupo.toLowerCase() }));
+    const t0 = tramo(comparacion.parecido);
+    if (esSuEquipo) {
+      // Con su propio equipo, "lo que pide el puesto" son sus compañeros: se
+      // dice así, sin veredicto de encaje sobre alguien que ya está ahí.
+      frases.push(t0 === "alto"
+        ? t("Su perfil se parece al de sus compañeros de puesto.")
+        : t0 === "medio"
+          ? t("Su perfil se parece en parte al de sus compañeros de puesto.")
+          : t("Su perfil es distinto al de sus compañeros de puesto."));
+    } else if (t0 !== "alto" && esElMejor && !hayAjuste) {
+      // No se parece a los que están, pero los supera: si el puesto es el
+      // problema, eso es justo lo que se busca, no una mala noticia.
+      frases.push(tf("Hace otra cosa que los {grupo} que {destino} tiene hoy, y por índice los supera: puede ser justo lo que le falta al puesto. Marca abajo qué necesita para medirlo.", { grupo: grupoMin, destino }));
+    } else if (hayAjuste) {
+      const lista = Object.keys(ajustado.pesos).map(nombreDeDimension).join(", ").toLowerCase();
+      frases.push(t0 === "alto"
+        ? tf("Con lo que {destino} necesita reforzar ({lista}), hace lo que pide a sus {grupo}.", { destino, lista, grupo: grupoMin })
+        : t0 === "medio"
+          ? tf("Con lo que {destino} necesita reforzar ({lista}), hace en parte lo que pide a sus {grupo}.", { destino, lista, grupo: grupoMin })
+          : tf("Con lo que {destino} necesita reforzar ({lista}), su perfil sigue sin ser el que pide a sus {grupo}.", { destino, lista, grupo: grupoMin }));
+    } else {
+      frases.push(t0 === "alto"
+        ? tf("Hace lo que {destino} pide a sus {grupo}.", { destino, grupo: grupoMin })
+        : t0 === "medio"
+          ? tf("Hace en parte lo que {destino} pide a sus {grupo}.", { destino, grupo: grupoMin })
+          : tf("Su perfil no es el que {destino} pide a sus {grupo}.", { destino, grupo: grupoMin }));
+    }
   }
   if (presencia) {
     frases.push(presencia.porcentajeRol >= 70
@@ -148,14 +187,21 @@ export function EncajeEquipo({ datos, equipo: elegido = "", onEquipo, detalle = 
         : tf("Casi no juega con ese puesto ({p} % de los partidos).", { p: presencia.porcentajeRol }));
   }
   if (actuales.length) {
-    frases.push(nivel.lugar === 1
-      ? tf("Por índice, sería el mejor de sus {n} {grupo}.", { n: nivel.de, grupo: nombreGrupo.toLowerCase() })
-      : tf("Por índice, sería el {l} de sus {n} {grupo}.", { l: ordinal(nivel.lugar), n: nivel.de, grupo: nombreGrupo.toLowerCase() }));
+    if (esSuEquipo) {
+      frases.push(nivel.lugar === 1
+        ? tf("Por índice, es el mejor de los {n} {grupo} de {destino}.", { n: nivel.de, grupo: grupoMin, destino })
+        : tf("Por índice, es el {l} de los {n} {grupo} de {destino}.", { l: ordinal(nivel.lugar), n: nivel.de, grupo: grupoMin, destino }));
+    } else if (!(comparacion && tramo(comparacion.parecido) !== "alto" && esElMejor && !hayAjuste)) {
+      frases.push(nivel.lugar === 1
+        ? tf("Por índice, sería el mejor de sus {n} {grupo}.", { n: nivel.de, grupo: grupoMin })
+        : tf("Por índice, sería el {l} de sus {n} {grupo}.", { l: ordinal(nivel.lugar), n: nivel.de, grupo: grupoMin }));
+    }
   }
 
-  const dimensiones = Object.keys(puesto)
+  const pedido = ajustado.perfil;
+  const dimensiones = Object.keys(pedido)
     .filter((id) => Number.isFinite(perfilJugador[id]))
-    .sort((a, b) => puesto[b] - puesto[a]);
+    .sort((a, b) => Number(Boolean(ajustado.pesos[b])) - Number(Boolean(ajustado.pesos[a])) || pedido[b] - pedido[a]);
   const escala = (z: number) => `${((Math.max(-2.5, Math.min(2.5, z)) + 2.5) / 5) * 100}%`;
 
   return <div className="encaje">
@@ -173,6 +219,29 @@ export function EncajeEquipo({ datos, equipo: elegido = "", onEquipo, detalle = 
     </div>
     <p className="encaje-lectura">{frases.length ? frases.join(" ") : t("Reuniendo los datos del equipo…")}</p>
 
+    {/* La pregunta al scout: qué le falta al puesto esta temporada. La
+        plantilla actual dice lo que el equipo HACE en el puesto; si ese es
+        justo el problema, pedir más de lo mismo no ayuda. */}
+    {elegibles.length > 0 && <section className="encaje-necesidad">
+      <header>
+        <b>{tf("¿Qué necesita reforzar {destino} en este puesto?", { destino })}</b>
+        <small>{t("Elige lo que le falta esta temporada: en eso se pide un nivel bueno y cuenta el doble. El resto del perfil —cómo juega el equipo— no se toca.")}</small>
+      </header>
+      {sugeridas.length > 0 && <p className="encaje-sugeridas">
+        {t("Sugerido, porque la plantilla actual está por debajo de la media:")}{" "}
+        {sugeridas.map(nombreDeDimension).join(" · ")}
+      </p>}
+      <div className="encaje-chips" role="group" aria-label={t("Qué reforzar")}>
+        {elegibles.map((id) => (
+          <button key={id} type="button" aria-pressed={refuerzos.includes(id)} onClick={() => alternar(id)}
+            className={sugeridas.includes(id) ? "sugerida" : undefined}>
+            {nombreDeDimension(id)}
+          </button>
+        ))}
+        {hayAjuste && <button type="button" className="encaje-limpiar" onClick={limpiar}>{t("Quitar el ajuste")}</button>}
+      </div>
+    </section>}
+
     <div className="encaje-partes">
       <section className="encaje-parte">
         <h4>{t("Estilo de origen")}</h4>
@@ -188,10 +257,11 @@ export function EncajeEquipo({ datos, equipo: elegido = "", onEquipo, detalle = 
         {comparacion
           ? <><b className={`encaje-cifra ${tramo(comparacion.parecido)}`}>{Math.round(comparacion.parecido)}</b>
             <small>{tf("Frente a {n} {grupo} de {destino}", { n: actuales.length, grupo: nombreGrupo.toLowerCase(), destino })}</small>
+            {hayAjuste && comparacionBase && <small className="encaje-sin-ajuste">{tf("Con el ajuste · sin él: {n}", { n: Math.round(comparacionBase.parecido) })}</small>}
             <dl className="encaje-listas">
-              {comparacion.pideYDa.length > 0 && <div><dt>{t("Pide y da")}</dt><dd>{comparacion.pideYDa.map(nombreDe).join(" · ")}</dd></div>}
-              {comparacion.pideYNoDa.length > 0 && <div className="falta"><dt>{t("Pide y no da")}</dt><dd>{comparacion.pideYNoDa.map(nombreDe).join(" · ")}</dd></div>}
-              {comparacion.daDeMas.length > 0 && <div className="extra"><dt>{t("Da de más")}</dt><dd>{comparacion.daDeMas.map(nombreDe).join(" · ")}</dd></div>}
+              {comparacion.pideYDa.length > 0 && <div><dt>{t("Pide y da")}</dt><dd>{comparacion.pideYDa.map(nombreDeDimension).join(" · ")}</dd></div>}
+              {comparacion.pideYNoDa.length > 0 && <div className="falta"><dt>{t("Pide y no da")}</dt><dd>{comparacion.pideYNoDa.map(nombreDeDimension).join(" · ")}</dd></div>}
+              {comparacion.daDeMas.length > 0 && <div className="extra"><dt>{t("Da de más")}</dt><dd>{comparacion.daDeMas.map(nombreDeDimension).join(" · ")}</dd></div>}
             </dl></>
           : <small>{!actuales.length
             ? tf("{destino} no tiene {grupo} con {m} minutos en la base.", { destino, grupo: nombreGrupo.toLowerCase(), m: minutosMin })
@@ -230,17 +300,20 @@ export function EncajeEquipo({ datos, equipo: elegido = "", onEquipo, detalle = 
     {detalle && comparacion && <section className="encaje-detalle">
       <h4>{t("Dimensión a dimensión")}</h4>
       <p className="encaje-detalle-leyenda">
-        <span><i className="puesto" />{tf("Lo que pide el puesto en {destino}", { destino })}</span>
+        <span><i className="puesto" />{hayAjuste ? tf("Lo que pide el puesto en {destino}, con el ajuste", { destino }) : tf("Lo que pide el puesto en {destino}", { destino })}</span>
+        {hayAjuste && <span><i className="original" />{t("Lo que pide su plantilla actual")}</span>}
         <span><i className="jugador" />{datos.jugador}</span>
         <small>{t("Desviaciones típicas frente a su grupo; los roles, de su percentil. Ordenado por lo que más pide el puesto.")}</small>
       </p>
       <ol className="encaje-mancuernas">
         {dimensiones.map((id) => {
-          const pide = puesto[id], da = perfilJugador[id];
-          return <li key={id}>
-            <span>{nombreDe(id)}</span>
+          const pide = pedido[id], da = perfilJugador[id];
+          const reforzada = Boolean(ajustado.pesos[id]);
+          return <li key={id} className={reforzada ? "reforzada" : undefined}>
+            <span>{nombreDeDimension(id)}{reforzada && <em>{t("reforzado")}</em>}</span>
             <i className="pista">
               <b className="cero" />
+              {reforzada && puesto[id] !== pide && <b className="original" style={{ left: escala(puesto[id]) }} title={t("Lo que pide la plantilla actual, sin el ajuste")} />}
               <b className="tramo" style={{ left: escala(Math.min(pide, da)), width: `calc(${escala(Math.max(pide, da))} - ${escala(Math.min(pide, da))})` }} />
               <b className="puesto" style={{ left: escala(pide) }} />
               <b className="jugador" style={{ left: escala(da) }} />

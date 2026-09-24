@@ -15,6 +15,8 @@ import { useEstilos } from "./useEstilos";
 import { CeldaEncaje } from "./CeldaEncaje";
 import { CeldaEncajeEquipo } from "./CeldaEncajeEquipo";
 import { equiposParaEncaje, useEncajeDeLista } from "./useEncajeDeLista";
+import { useRefuerzos } from "./useAjustesDeEncaje";
+import { nombreDeDimension } from "./EncajeEquipo";
 
 /**
  * Ranking de la base por posición.
@@ -94,6 +96,9 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
   const [equipoEncaje, setEquipoEncaje] = useState("");
   const equiposEncaje = useMemo(() => equiposParaEncaje(rows), [rows]);
   const encajeEquipo = useEncajeDeLista(rows, minutosMin, equipoEncaje);
+  // Si el scout marcó en la ficha qué necesita ese puesto, la columna ya lo
+  // aplica; aquí se dice cuál es y se puede quitar.
+  const ajusteDelPuesto = useRefuerzos(equipoEncaje, perfil);
 
   // De qué puesto es esta hoja, para que la firma lo diga en el PDF.
   const nombreDelPuesto = t(PERFILES.find((item) => item.id === perfil)?.nombre ?? perfil);
@@ -194,6 +199,14 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
         })}
       />
     } />
+
+    {equipoEncaje && ajusteDelPuesto.refuerzos.length > 0 && <p className="rank-ajuste">
+      {tf("El encaje con {equipo} aplica lo que marcaste que necesita el puesto: se refuerza {lista}.", {
+        equipo: equipoEncaje, lista: ajusteDelPuesto.refuerzos.map(nombreDeDimension).join(", ").toLowerCase(),
+      })}
+      {ajusteDelPuesto.refuerzos.some((id) => id.startsWith("rol:")) && ` ${t("Los roles en la secuencia solo cuentan en la ficha ampliada.")}`}
+      <button type="button" onClick={ajusteDelPuesto.limpiar}>{t("Quitar el ajuste")}</button>
+    </p>}
 
     {todos.length > 0 && todos.length < COHORTE_FIABLE && (
       <p className={todos.length < COHORTE_MINIMA ? "rank-muestra grave" : "rank-muestra"}>

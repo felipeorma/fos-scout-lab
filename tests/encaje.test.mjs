@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compararConPuesto, nivelFrenteAPlantilla, percentilAZ, perfilDelPuesto, presenciaDelPuesto } from "../lib/encaje.ts";
+import { NIVEL_REFUERZO, ajustarPuesto, compararConPuesto, nivelFrenteAPlantilla, percentilAZ, perfilDelPuesto, presenciaDelPuesto, sugerirRefuerzos } from "../lib/encaje.ts";
 
 /**
  * El encaje de un jugador en un equipo: lo que pide el puesto, si hay sitio
@@ -59,4 +59,32 @@ test("el nivel frente a la plantilla: en qué lugar quedaría", () => {
   assert.equal(r.lugar, 2);
   assert.equal(r.de, 4);
   assert.deepEqual(r.actuales.map((a) => a.nombre), ["A", "B", "C"]);
+});
+
+test("el ajuste refuerza solo lo elegido y deja el resto del puesto como está", () => {
+  // Extremos flojos en centros y progresión: la plantilla pide poco de eso.
+  const puesto = { centros: -0.9, progresion: -0.4, presion_rival: 1.2, asociacion: 0.8 };
+  const { perfil, pesos } = ajustarPuesto(puesto, ["centros", "progresion", "inexistente"]);
+  assert.equal(perfil.centros, NIVEL_REFUERZO);
+  assert.equal(perfil.progresion, NIVEL_REFUERZO);
+  assert.equal(perfil.presion_rival, 1.2, "la esencia del modelo no se toca");
+  assert.equal(perfil.asociacion, 0.8);
+  assert.deepEqual(Object.keys(pesos).sort(), ["centros", "progresion"]);
+  assert.equal(ajustarPuesto({ centros: 1.8 }, ["centros"]).perfil.centros, 1.8, "si ya pide más, no se baja");
+});
+
+test("con el ajuste sube quien da lo que falta, sin dejar de lado el resto", () => {
+  const puesto = { centros: -0.9, progresion: -0.4, presion_rival: 1.2, asociacion: 0.8 };
+  const centrador = { centros: 1.6, progresion: 1.1, presion_rival: 1.0, asociacion: 0.5 };
+  const sinAjuste = compararConPuesto(centrador, puesto).parecido;
+  const { perfil, pesos } = ajustarPuesto(puesto, ["centros", "progresion"]);
+  const conAjuste = compararConPuesto(centrador, perfil, pesos).parecido;
+  assert.ok(conAjuste > sinAjuste + 10, `${sinAjuste} → ${conAjuste}`);
+  // Uno que centra pero no presiona nada no gana tanto: la esencia sigue pesando.
+  const soloCentra = { centros: 1.6, progresion: 1.1, presion_rival: -1.5, asociacion: -1 };
+  assert.ok(compararConPuesto(soloCentra, perfil, pesos).parecido < conAjuste);
+});
+
+test("las sugerencias son lo que la plantilla hace por debajo de la media, de lo más flojo a lo menos", () => {
+  assert.deepEqual(sugerirRefuerzos({ centros: -0.9, progresion: -0.4, presion_rival: 1.2, aereo: -0.1 }), ["centros", "progresion"]);
 });

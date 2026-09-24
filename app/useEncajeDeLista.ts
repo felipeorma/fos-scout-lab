@@ -3,10 +3,11 @@
 import { useMemo } from "react";
 import { useEstilos } from "./useEstilos";
 import { usePuestos } from "./usePuestosDeEquipo";
+import { refuerzosDe, useVersionDeAjustes } from "./useAjustesDeEncaje";
 import { buildPlayerReport, cohortOf, detectCoreColumns, headersOf, numeric, type DataRow } from "@/lib/scouting";
 import { familiasCompuestas, type GrupoCompuesto } from "@/lib/snapshot";
 import { EQUIPO_PROPIO, crearBuscadorDeEquipos, mismoEquipo, perfilesDeEstilo } from "@/lib/estiloEquipo";
-import { compararConPuesto, nivelFrenteAPlantilla, perfilDelPuesto, presenciaDelPuesto, type Perfil } from "@/lib/encaje";
+import { ajustarPuesto, compararConPuesto, nivelFrenteAPlantilla, perfilDelPuesto, presenciaDelPuesto, type Perfil } from "@/lib/encaje";
 
 /**
  * El encaje con un equipo en una lista (Ranking, Entre ligas).
@@ -26,6 +27,8 @@ export type EncajeDeFila = {
   lugar: { lugar: number; de: number } | null;
   /** % de partidos en que el equipo usa su puesto (o uno de su familia). */
   sitio: number | null;
+  /** Lo que el scout marcó que ese puesto necesita reforzar (ver useAjustesDeEncaje). */
+  refuerzos: string[];
 };
 
 /** Los equipos de la base, con el nuestro primero: es el que más se elige. */
@@ -49,13 +52,15 @@ export function useEncajeDeLista(rows: DataRow[], minutosMin: number, destino: s
   const llegada = activo ? buscar(destino) : null;
   const { datos: alineaciones, error } = usePuestos(llegada?.clave ?? "");
   const columnaMinutos = useMemo(() => detectCoreColumns(headersOf(rows)).minutes, [rows]);
+  // Al marcar o quitar un refuerzo, la columna se recalcula.
+  const versionAjustes = useVersionDeAjustes();
 
   // Lo que se calcula por grupo de posición y por fila, una vez por base,
   // mínimo de minutos y equipo. Una lista se vuelve a pintar a menudo y el
   // informe de cada jugador no es barato.
   const cache = useMemo(() => ({ cohortes: new Map<string, DeCohorte>(), filas: new Map<string, EncajeDeFila | null>() }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [rows, minutosMin, destino, alineaciones]);
+    [rows, minutosMin, destino, alineaciones, versionAjustes]);
 
   const minutos = (i: number) => (columnaMinutos ? numeric(rows[i]?.[columnaMinutos]) : 0) || 0;
 
@@ -85,7 +90,10 @@ export function useEncajeDeLista(rows: DataRow[], minutosMin: number, destino: s
     // Si ya juega en el equipo, se le compara con sus compañeros, no consigo.
     const otros = datos.actuales.filter((i) => i !== indice);
     const puesto = perfilDelPuesto(otros.map((i) => ({ perfil: datos.perfilDe(i), minutos: minutos(i) })));
-    const comparacion = datos.grupo.valores.has(indice) && otros.length ? compararConPuesto(datos.perfilDe(indice), puesto) : null;
+    // Lo que el scout marcó que el puesto necesita, el mismo ajuste que en la ficha.
+    const ajustado = ajustarPuesto(puesto, refuerzosDe(destino, grupoId));
+    const comparacion = datos.grupo.valores.has(indice) && otros.length
+      ? compararConPuesto(datos.perfilDe(indice), ajustado.perfil, ajustado.pesos) : null;
     const suyo = buildPlayerReport(rows, indice, minutosMin, grupoId)?.indice;
     const plantilla = datos.plantilla.filter((p) => p.i !== indice);
     const nivel = suyo != null && plantilla.length ? nivelFrenteAPlantilla(suyo, plantilla) : null;
@@ -95,6 +103,7 @@ export function useEncajeDeLista(rows: DataRow[], minutosMin: number, destino: s
       puesto: comparacion?.parecido ?? null,
       lugar: nivel ? { lugar: nivel.lugar, de: nivel.de } : null,
       sitio: presencia?.porcentajeRol ?? null,
+      refuerzos: Object.keys(ajustado.pesos),
     };
     cache.filas.set(clave, resultado);
     return resultado;
