@@ -3,7 +3,10 @@ import test from "node:test";
 import {
   AGRUPACIONES_RECEPCION,
   COMPUESTAS,
+  anchoDeTexto,
   aVertical,
+  carriles,
+  colocarEtiquetas,
   densidad,
   enjambre,
   familiasCompuestas,
@@ -151,4 +154,47 @@ test("el resumen cuenta zonas, presión, progresivas y quién se la da", () => {
   assert.equal(r.fallidas, 1);
   assert.deepEqual(r.pasadores, [{ nombre: "A", n: 2 }, { nombre: "B", n: 1 }]);
   assert.deepEqual(r.grupos.map((g) => [g.id, g.n]), [["libre", 2], ["presionado", 1]]);
+});
+
+const cajaDe = (e, p) => {
+  const ancho = anchoDeTexto(p.texto, p.tamano);
+  const x0 = e.ancla === "start" ? e.x : e.ancla === "end" ? e.x - ancho : e.x - ancho / 2;
+  return { x0, x1: x0 + ancho, y0: e.y - p.tamano * 0.8, y1: e.y + p.tamano * 0.2 };
+};
+
+test("las etiquetas no se pisan, no se salen y las forzadas salen siempre", () => {
+  // Una nube apretada: no caben todas, pero las que salen no se tocan.
+  const puntos = Array.from({ length: 40 }, (_, i) => ({
+    id: i, x: 100 + (i % 8) * 9, y: 100 + Math.floor(i / 8) * 7, r: 2.5,
+    texto: `Jugador${i}`, tamano: 9, prioridad: i === 17 ? 3 : i < 5 ? 2 : 1, forzar: i === 17 || i < 5,
+  }));
+  const limites = { x0: 0, y0: 0, x1: 380, y1: 290 };
+  const colocadas = colocarEtiquetas(puntos, limites);
+  const porId = new Map(puntos.map((p) => [p.id, p]));
+  for (const id of [17, 0, 1, 2, 3, 4]) assert.ok(colocadas.some((e) => e.id === id), `falta la forzada ${id}`);
+  const cajas = colocadas.map((e) => cajaDe(e, porId.get(e.id)));
+  for (const k of cajas) assert.ok(k.x0 >= 0 && k.x1 <= 380 && k.y0 >= 0 && k.y1 <= 290, "se sale del gráfico");
+  for (let i = 0; i < cajas.length; i += 1) {
+    for (let j = i + 1; j < cajas.length; j += 1) {
+      const [a, b] = [cajas[i], cajas[j]];
+      const pisan = a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+      assert.ok(!pisan, `se pisan ${colocadas[i].id} y ${colocadas[j].id}`);
+    }
+  }
+  assert.deepEqual(colocarEtiquetas(puntos, limites), colocadas, "siempre el mismo dibujo");
+});
+
+test("junto al borde derecho la etiqueta se va a la izquierda", () => {
+  const [e] = colocarEtiquetas([{ id: 1, x: 375, y: 100, r: 3, texto: "Warschewski", tamano: 10, prioridad: 3, forzar: true }], { x0: 0, y0: 0, x1: 380, y1: 290 });
+  assert.equal(e.ancla, "end");
+});
+
+test("los carriles del enjambre separan las etiquetas que chocarían", () => {
+  const { posiciones, total } = carriles([
+    { id: 1, x: 100, ancho: 50 }, { id: 2, x: 120, ancho: 50 }, { id: 3, x: 300, ancho: 50 }, { id: 4, x: 5, ancho: 40 },
+  ], 0, 380);
+  assert.equal(posiciones.get(1).carril === posiciones.get(2).carril, false, "1 y 2 se pisarían en el mismo carril");
+  assert.equal(posiciones.get(3).carril, 0, "la que está sola va en el primero");
+  assert.equal(posiciones.get(4).x, 20, "no se sale por la izquierda");
+  assert.equal(total, 2);
 });

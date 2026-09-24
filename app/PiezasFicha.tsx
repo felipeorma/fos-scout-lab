@@ -14,6 +14,9 @@ import {
   POSICION_EN_CAMPO,
   aVertical,
   agrupacionRecepcion,
+  anchoDeTexto,
+  carriles,
+  colocarEtiquetas,
   densidad,
   enjambre,
   esJuegoAbierto,
@@ -320,7 +323,11 @@ function RadarFamilias({ valores }: { valores: DatosFicha["propias"] }) {
   </svg>;
 }
 
-function Enjambre({ id, grupo, objetivo, destacados }: { id: string; grupo: GrupoCompuesto; objetivo: number; destacados: number[] }) {
+// Los tres tamaños de nombre, en unidades del SVG: el del informe manda, sus
+// parecidos se leen y el resto acompaña sin competir.
+const NOMBRE = { objetivo: 11, parecido: 9.5, resto: 8.5 } as const;
+
+function Enjambre({ id, grupo, objetivo, destacados, nombres }: { id: string; grupo: GrupoCompuesto; objetivo: number; destacados: number[]; nombres: (i: number) => string }) {
   const puntos = [...new Set([...grupo.indices, objetivo])]
     .map((i) => ({ i, z: grupo.valores.get(i)?.[id]?.z ?? Number.NaN }))
     .filter((p) => Number.isFinite(p.z));
@@ -329,8 +336,16 @@ function Enjambre({ id, grupo, objetivo, destacados }: { id: string; grupo: Grup
   const min = Math.min(...puntos.map((p) => p.z)), max = Math.max(...puntos.map((p) => p.z));
   const x = (z: number) => margen + ((z - min) / Math.max(max - min, 1e-6)) * (W - margen * 2);
   const ys = enjambre(puntos.map((p) => x(p.z)), r);
-  const alto = Math.max(34, ...ys.map((y) => Math.abs(y))) * 2 + 26;
-  const cy = (alto - 18) / 2;
+  // Los nombres van encima, en carriles, con una línea hasta su punto: en
+  // una fila de puntos tan juntos no hay sitio para ponerlos al lado.
+  const tamano = (i: number) => (i === objetivo ? NOMBRE.objetivo : NOMBRE.parecido);
+  const conNombre = puntos.map((p, k) => ({ ...p, k })).filter((p) => p.i === objetivo || destacados.includes(p.i));
+  const { posiciones, total } = carriles(conNombre.map((p) => ({ id: p.i, x: x(p.z), ancho: anchoDeTexto(apellido(nombres(p.i)), tamano(p.i)) })), 2, W - 2);
+  const semi = Math.max(18, ...ys.map((y) => Math.abs(y))) + r + 2;
+  const arriba = total ? total * 12 + 8 : 4;
+  const cy = arriba + semi;
+  const eje = cy + semi + 4;
+  const alto = eje + 14;
   const marcas = [];
   for (let z = Math.ceil(min); z <= Math.floor(max); z += 1) marcas.push(z);
   const orden = [...puntos.keys()].sort((a, b) => {
@@ -338,15 +353,26 @@ function Enjambre({ id, grupo, objetivo, destacados }: { id: string; grupo: Grup
     return rango(puntos[a]) - rango(puntos[b]);
   });
   return <svg className="snap-enjambre" viewBox={`0 0 ${W} ${alto}`} role="img" aria-label={t(COMPUESTAS.find((c) => c.id === id)?.etiqueta ?? id)}>
-    <line x1={margen} y1={alto - 14} x2={W - margen} y2={alto - 14} className="snap-eje" />
+    <line x1={margen} y1={eje} x2={W - margen} y2={eje} className="snap-eje" />
     {marcas.map((z) => <g key={z}>
-      <line x1={x(z)} y1={4} x2={x(z)} y2={alto - 12} className={z === 0 ? "snap-eje cero" : "snap-rejilla"} />
-      <text x={x(z)} y={alto - 3} className="snap-eje-texto">{z}</text>
+      <line x1={x(z)} y1={arriba - 2} x2={x(z)} y2={eje + 2} className={z === 0 ? "snap-eje cero" : "snap-rejilla"} />
+      <text x={x(z)} y={eje + 11} className="snap-eje-texto">{z}</text>
     </g>)}
+    {conNombre.map((p) => {
+      const sitio = posiciones.get(p.i)!;
+      const base = arriba - 5 - sitio.carril * 12;
+      const radioPunto = p.i === objetivo ? 4.6 : r;
+      return <line key={`g${p.i}`} x1={sitio.x} y1={base + 2} x2={x(p.z)} y2={cy + ys[p.k] - radioPunto - 0.5} className="snap-guia" />;
+    })}
     {orden.map((k) => {
       const p = puntos[k];
       const clase = p.i === objetivo ? "snap-punto objetivo" : destacados.includes(p.i) ? "snap-punto parecido" : "snap-punto";
       return <circle key={p.i} cx={x(p.z)} cy={cy + ys[k]} r={p.i === objetivo ? 4.6 : r} className={clase} />;
+    })}
+    {conNombre.map((p) => {
+      const sitio = posiciones.get(p.i)!;
+      return <text key={`n${p.i}`} x={sitio.x} y={arriba - 5 - sitio.carril * 12} textAnchor="middle" style={{ fontSize: tamano(p.i) }}
+        className={p.i === objetivo ? "snap-punto-nombre objetivo" : "snap-punto-nombre parecido"}>{apellido(nombres(p.i))}</text>;
     })}
   </svg>;
 }
@@ -360,24 +386,43 @@ function Dispersion({ grupo, objetivo, destacados, nombres, ejeX, ejeY }: {
   if (puntos.length < 3) return <p className="snap-vacio">{t("Sin datos suficientes.")}</p>;
   const W = 380, H = 290, m = 30;
   const xs = puntos.map((p) => p.x), ys = puntos.map((p) => p.y);
-  const [x0, x1] = [Math.min(...xs, -1), Math.max(...xs, 1)], [y0, y1] = [Math.min(...ys, -1), Math.max(...ys, 1)];
+  // Un 7 % de aire a cada lado: los jugadores de los extremos no quedan
+  // pegados al marco y su nombre tiene dónde ir.
+  const aire = (a: number, b: number) => [a - (b - a) * 0.07, b + (b - a) * 0.07];
+  const [x0, x1] = aire(Math.min(...xs, -1), Math.max(...xs, 1)), [y0, y1] = aire(Math.min(...ys, -1), Math.max(...ys, 1));
   const X = (v: number) => m + ((v - x0) / (x1 - x0)) * (W - m - 10);
   const Y = (v: number) => H - m - ((v - y0) / (y1 - y0)) * (H - m - 10);
   const marcas = (a: number, b: number) => { const s = []; for (let v = Math.ceil(a); v <= Math.floor(b); v += 1) s.push(v); return s; };
   const orden = [...puntos].sort((a, b) => Number(a.i === objetivo || destacados.includes(a.i)) - Number(b.i === objetivo || destacados.includes(b.i)));
+  const tipo = (i: number) => (i === objetivo ? "objetivo" : destacados.includes(i) ? "parecido" : "resto");
+  const radio = (i: number) => (i === objetivo ? 5 : destacados.includes(i) ? 3.6 : 2.6);
+  // Todos con nombre. En un grupo grande sería una pared de texto: ahí solo
+  // el jugador, sus parecidos y los diez que más se alejan del centro.
+  const nombrables = new Set(puntos.length > 40
+    ? [...puntos].sort((a, b) => Math.hypot(b.x, b.y) - Math.hypot(a.x, a.y)).slice(0, 10).map((p) => p.i)
+    : puntos.map((p) => p.i));
+  const etiquetas = colocarEtiquetas(
+    puntos.filter((p) => tipo(p.i) !== "resto" || nombrables.has(p.i)).map((p) => ({
+      id: p.i, x: X(p.x), y: Y(p.y), r: radio(p.i), texto: apellido(nombres(p.i)),
+      tamano: NOMBRE[tipo(p.i)], prioridad: tipo(p.i) === "objetivo" ? 3 : tipo(p.i) === "parecido" ? 2 : 1, forzar: tipo(p.i) !== "resto",
+    })),
+    { x0: m + 2, y0: 2, x1: W - 2, y1: H - m - 2 },
+    puntos.map((p) => ({ x: X(p.x), y: Y(p.y), r: radio(p.i) })),
+  );
+  const punto = new Map(puntos.map((p) => [p.i, p]));
   return <svg className="snap-dispersion" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${t(COMPUESTAS.find((c) => c.id === ejeX)!.etiqueta)} · ${t(COMPUESTAS.find((c) => c.id === ejeY)!.etiqueta)}`}>
     {marcas(x0, x1).map((v) => <g key={`x${v}`}><line x1={X(v)} y1={10} x2={X(v)} y2={H - m} className={v === 0 ? "snap-eje cero" : "snap-rejilla"} /><text x={X(v)} y={H - m + 12} className="snap-eje-texto">{v}</text></g>)}
     {marcas(y0, y1).map((v) => <g key={`y${v}`}><line x1={m} y1={Y(v)} x2={W - 10} y2={Y(v)} className={v === 0 ? "snap-eje cero" : "snap-rejilla"} /><text x={m - 6} y={Y(v) + 3} className="snap-eje-texto fin">{v}</text></g>)}
-    {orden.map((p) => {
-      const esObjetivo = p.i === objetivo, destacado = destacados.includes(p.i);
-      return <g key={p.i}>
-        <circle cx={X(p.x)} cy={Y(p.y)} r={esObjetivo ? 5 : destacado ? 3.6 : 2.4} className={esObjetivo ? "snap-punto objetivo" : destacado ? "snap-punto parecido" : "snap-punto"} />
-        {/* El nombre va arriba a la derecha del punto, salvo pegado al borde:
-            arriba del todo baja, y a la derecha del todo se ancla por el final. */}
-        {(esObjetivo || destacado) && <text x={X(p.x) > W - 80 ? X(p.x) - 6 : X(p.x) + 6} y={Y(p.y) < 20 ? Y(p.y) + 14 : Y(p.y) - 5}
-          textAnchor={X(p.x) > W - 80 ? "end" : "start"} className={esObjetivo ? "snap-punto-nombre objetivo" : "snap-punto-nombre"}>{apellido(nombres(p.i))}</text>}
-      </g>;
+    {etiquetas.filter((e) => e.guia).map((e) => {
+      const p = punto.get(e.id)!;
+      return <line key={`g${e.id}`} x1={X(p.x)} y1={Y(p.y)} x2={e.x} y2={e.y - NOMBRE[tipo(e.id)] * 0.3} className="snap-guia" />;
     })}
+    {orden.map((p) => <circle key={p.i} cx={X(p.x)} cy={Y(p.y)} r={radio(p.i)}
+      className={tipo(p.i) === "objetivo" ? "snap-punto objetivo" : tipo(p.i) === "parecido" ? "snap-punto parecido" : "snap-punto"} />)}
+    {/* Los nombres, encima de todos los puntos y con un halo del color del
+        papel: se leen aunque pasen por encima de una línea de la rejilla. */}
+    {etiquetas.map((e) => <text key={`n${e.id}`} x={e.x} y={e.y} textAnchor={e.ancla} style={{ fontSize: NOMBRE[tipo(e.id)] }}
+      className={`snap-punto-nombre ${tipo(e.id)}`}>{apellido(nombres(e.id))}</text>)}
     <text x={(W + m) / 2} y={H - 2} className="snap-eje-titulo">{t(COMPUESTAS.find((c) => c.id === ejeX)!.etiqueta)}</text>
     <text x={10} y={(H - m) / 2} transform={`rotate(-90 10 ${(H - m) / 2})`} className="snap-eje-titulo">{t(COMPUESTAS.find((c) => c.id === ejeY)!.etiqueta)}</text>
   </svg>;
@@ -655,7 +700,7 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
         {(["progresion", "defensa_propia", "amenaza"] as const).map((id) => (
           <div key={id} className="snap-enjambre-fila">
             <small>{t(COMPUESTAS.find((c) => c.id === id)!.etiqueta)}</small>
-            <Enjambre id={id} grupo={grupo} objetivo={indice} destacados={destacados} />
+            <Enjambre id={id} grupo={grupo} objetivo={indice} destacados={destacados} nombres={nombres} />
           </div>
         ))}
       </Tarjeta>;

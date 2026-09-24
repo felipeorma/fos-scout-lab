@@ -5811,8 +5811,13 @@ button.menu-fila:active { transform: scale(.985); }
 .app-shell[data-tema] .snap-eje-texto { fill: var(--muted); font-size: 9px; text-anchor: middle; }
 .app-shell[data-tema] .snap-eje-texto.fin { text-anchor: end; }
 .app-shell[data-tema] .snap-eje-titulo { fill: var(--muted); font-size: 10px; text-anchor: middle; }
-.app-shell[data-tema] .snap-punto-nombre { fill: var(--ink); font-size: 9px; paint-order: stroke; stroke: var(--paper); stroke-width: 2.5px; }
+/* Nombres fijos en los gráficos de puntos. El tamaño va en el propio texto
+   (el colocador de etiquetas lo usa para medir); aquí, color y peso: el
+   jugador del informe en el acento, sus parecidos en tinta y el resto en gris. */
+.app-shell[data-tema] .snap-punto-nombre { fill: var(--muted); paint-order: stroke; stroke: var(--paper); stroke-width: 2.8px; stroke-linejoin: round; }
+.app-shell[data-tema] .snap-punto-nombre.parecido { fill: var(--ink); font-weight: 600; }
 .app-shell[data-tema] .snap-punto-nombre.objetivo { fill: var(--acento-claro); font-weight: 700; }
+.app-shell[data-tema] .snap-guia { stroke: color-mix(in srgb, var(--ink) 38%, transparent); stroke-width: .7; }
 .app-shell[data-tema] p.snap-vacio { margin: 8px 0; color: var(--muted); font-size: 12px; }
 
 @media print {

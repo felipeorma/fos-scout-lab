@@ -335,6 +335,108 @@ export function enjambre(xs: number[], radio: number) {
   return ys;
 }
 
+// ---- Etiquetas de los gráficos de puntos ------------------------------------
+
+/** Un rectángulo en unidades del SVG. */
+export type Caja = { x0: number; y0: number; x1: number; y1: number };
+
+const solapan = (a: Caja, b: Caja, holgura = 1) => a.x0 < b.x1 + holgura && b.x0 < a.x1 + holgura && a.y0 < b.y1 + holgura && b.y0 < a.y1 + holgura;
+
+/** Ancho aproximado de un texto: Barlow ronda medio cuerpo por letra; se estima por arriba. */
+export const anchoDeTexto = (texto: string, tamano: number) => texto.length * tamano * 0.56;
+
+export type PuntoConEtiqueta = {
+  id: number;
+  x: number;
+  y: number;
+  /** Radio del punto: la etiqueta se separa de él. */
+  r: number;
+  texto: string;
+  tamano: number;
+  /** Se colocan primero las de más prioridad; las demás, si queda sitio. */
+  prioridad: number;
+  /** Sale aunque no haya un hueco limpio (el jugador del informe y sus parecidos). */
+  forzar?: boolean;
+};
+
+export type EtiquetaColocada = {
+  id: number;
+  x: number;
+  y: number;
+  ancla: "start" | "middle" | "end";
+  /** Quedó lejos de su punto: se dibuja una línea guía hasta él. */
+  guia: boolean;
+};
+
+/**
+ * Coloca los nombres junto a sus puntos sin que se pisen. Prueba ocho sitios
+ * alrededor de cada punto —derecha, izquierda, arriba, abajo y diagonales— y
+ * se queda con el primero que cabe en el gráfico, no toca otra etiqueta y, a
+ * poder ser, no tapa otro punto. Si no hay hueco al lado, prueba un anillo
+ * más alejado con línea guía; una etiqueta forzada (el jugador del informe y
+ * sus parecidos) sigue alejándose hasta encontrar sitio, y una sin forzar que
+ * tampoco cabe ahí se omite. Determinista: el mismo gráfico sale igual cada vez.
+ */
+export function colocarEtiquetas(puntos: PuntoConEtiqueta[], limites: Caja, obstaculos: Array<{ x: number; y: number; r: number }> = []): EtiquetaColocada[] {
+  const ocupadas: Caja[] = [];
+  const colocadas: EtiquetaColocada[] = [];
+  const orden = [...puntos].sort((a, b) => b.prioridad - a.prioridad || a.id - b.id);
+  for (const p of orden) {
+    const ancho = anchoDeTexto(p.texto, p.tamano), alto = p.tamano;
+    type Candidato = Omit<EtiquetaColocada, "id">;
+    const anillo = (k: number): Candidato[] => {
+      const d = p.r + 2.5 + k * (alto + 3), dd = d * 0.75, guia = k > 0;
+      return [
+        { x: p.x + d, y: p.y + alto * 0.35, ancla: "start", guia },
+        { x: p.x - d, y: p.y + alto * 0.35, ancla: "end", guia },
+        { x: p.x, y: p.y - d, ancla: "middle", guia },
+        { x: p.x, y: p.y + d + alto * 0.8, ancla: "middle", guia },
+        { x: p.x + dd, y: p.y - dd, ancla: "start", guia },
+        { x: p.x - dd, y: p.y - dd, ancla: "end", guia },
+        { x: p.x + dd, y: p.y + dd + alto * 0.7, ancla: "start", guia },
+        { x: p.x - dd, y: p.y + dd + alto * 0.7, ancla: "end", guia },
+      ];
+    };
+    const caja = (c: Candidato): Caja => {
+      const x0 = c.ancla === "start" ? c.x : c.ancla === "end" ? c.x - ancho : c.x - ancho / 2;
+      return { x0, x1: x0 + ancho, y0: c.y - alto * 0.8, y1: c.y + alto * 0.2 };
+    };
+    const dentro = (k: Caja) => k.x0 >= limites.x0 && k.x1 <= limites.x1 && k.y0 >= limites.y0 && k.y1 <= limites.y1;
+    const tapa = (k: Caja, q: { x: number; y: number; r: number }) => k.x0 < q.x + q.r && q.x - q.r < k.x1 && k.y0 < q.y + q.r && q.y - q.r < k.y1;
+    const tapaPunto = (k: Caja) => puntos.some((q) => q.id !== p.id && tapa(k, q)) || obstaculos.some((q) => tapa(k, q));
+    let elegido: Candidato | undefined;
+    for (let k = 0; k < (p.forzar ? 8 : 2) && !elegido; k += 1) {
+      const libres = anillo(k).filter((c) => { const kj = caja(c); return dentro(kj) && !ocupadas.some((o) => solapan(o, kj)); });
+      elegido = libres.find((c) => !tapaPunto(caja(c))) ?? libres[0];
+    }
+    if (!elegido && p.forzar) elegido = anillo(0).find((c) => dentro(caja(c))) ?? anillo(0)[0];
+    if (!elegido) continue;
+    ocupadas.push(caja(elegido));
+    colocadas.push({ id: p.id, ...elegido });
+  }
+  return colocadas;
+}
+
+/**
+ * Reparte etiquetas en carriles horizontales: cada una va centrada sobre su
+ * punto (sin salirse de [x0, x1]) en el carril más bajo donde no pisa a otra.
+ * Es lo que usa el enjambre, donde los puntos están demasiado juntos para
+ * poner el nombre al lado y va encima, con una línea guía.
+ */
+export function carriles(etiquetas: Array<{ id: number; x: number; ancho: number }>, x0: number, x1: number, hueco = 5) {
+  const fin: number[] = [];
+  const salida = new Map<number, { x: number; carril: number }>();
+  for (const e of [...etiquetas].sort((a, b) => a.x - b.x || a.id - b.id)) {
+    const centro = Math.max(x0 + e.ancho / 2, Math.min(x1 - e.ancho / 2, e.x));
+    const desde = centro - e.ancho / 2;
+    let carril = fin.findIndex((f) => f + hueco <= desde);
+    if (carril < 0) { carril = fin.length; fin.push(0); }
+    fin[carril] = desde + e.ancho;
+    salida.set(e.id, { x: centro, carril });
+  }
+  return { posiciones: salida, total: fin.length };
+}
+
 /** De la columna "Data sources", la competición y temporada de StatsBomb del jugador. */
 export function fuenteStatsbomb(fuentes: unknown): { liga: string; temporada: string } | null {
   for (const parte of String(fuentes ?? "").split(",")) {
