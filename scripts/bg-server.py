@@ -19,6 +19,13 @@ from PIL import Image
 from rembg import new_session, remove
 
 app = FastAPI()
+# Las rutas de lectura son `def`, no `async def`: todas hacen peticiones
+# bloqueantes a StatsBomb, SkillCorner o Transfermarkt, y dentro de un
+# `async def` bloqueaban el bucle entero. El puente atendía una petición
+# cada vez, así que mientras bajaba una liga sin caché —minutos, la primera
+# vez— Estilo de juego, la ficha o una foto se quedaban esperando sin
+# respuesta. Como `def`, FastAPI las reparte en su grupo de hilos y cada una
+# avanza por su lado.
 
 DEFAULT_MODEL = "birefnet-portrait"
 # Si el recorte principal falla de forma evidente (borra casi todo o casi
@@ -62,7 +69,7 @@ async def preflight(path: str):
 
 
 @app.get("/api/health")
-async def health():
+def health():
     return Response('{"ok": true}', media_type="application/json", headers=cors_headers())
 
 
@@ -191,6 +198,22 @@ _POOL_TTL_SEGUNDOS = 24 * 3600
 _POOL_TTL_CERRADA = 72 * 3600
 
 
+def _escribir_atomico(ruta: Path, texto: str):
+    """Escribe entero o no escribe.
+
+    Las rutas de lectura corren en hilos (ver la nota junto a `app`): dos
+    peticiones de la misma liga pueden guardar la misma caché a la vez, y con
+    `write_text` directo una podía leer el JSON a medio escribir de la otra.
+    Se escribe en un temporal propio del hilo y se renombra, que es atómico.
+    """
+    import threading as _threading
+
+    temporal = ruta.with_name(f"{ruta.name}.{os.getpid()}.{_threading.get_ident()}.tmp")
+    temporal.write_text(texto, encoding="utf-8")
+    os.chmod(temporal, 0o600)
+    os.replace(temporal, ruta)
+
+
 def _pool_cache_leer(clave: str, ttl: int | None = None):
     import json as _json
     ruta = _POOL_CACHE_DIR / f"{clave}.json"
@@ -209,8 +232,7 @@ def _pool_cache_escribir(clave: str, filas):
     try:
         _POOL_CACHE_DIR.mkdir(parents=True, exist_ok=True)
         destino = _POOL_CACHE_DIR / f"{clave}.json"
-        destino.write_text(_json.dumps(filas, ensure_ascii=False), encoding="utf-8")
-        os.chmod(destino, 0o600)
+        _escribir_atomico(destino, _json.dumps(filas, ensure_ascii=False))
     except OSError:
         pass
 
@@ -322,7 +344,7 @@ _SB_METRICS = {
 
 
 @app.get("/api/sources/status")
-async def sources_status():
+def sources_status():
     payload = {
         "statsbomb": _statsbomb_auth() is not None,
         "skillcorner": _skillcorner_auth() is not None,
@@ -358,7 +380,7 @@ def _es_femenina(comp: dict) -> bool:
 
 
 @app.get("/api/transfermarkt")
-async def transfermarkt(url: str):
+def transfermarkt(url: str):
     """Trae una ficha de Transfermarkt desde esta máquina.
 
     Transfermarkt está detrás de un cortafuegos de AWS que bloquea las IPs de
@@ -417,7 +439,7 @@ async def transfermarkt(url: str):
 
 
 @app.get("/api/statsbomb/competitions")
-async def statsbomb_competitions():
+def statsbomb_competitions():
     import json as _json
     auth = _statsbomb_auth()
     if not auth:
@@ -478,8 +500,7 @@ def _paises_guardar(tabla: dict):
     import json as _json
     try:
         _PAISES_FICHERO.parent.mkdir(parents=True, exist_ok=True)
-        _PAISES_FICHERO.write_text(_json.dumps(tabla, ensure_ascii=False, indent=1), encoding="utf-8")
-        os.chmod(_PAISES_FICHERO, 0o600)
+        _escribir_atomico(_PAISES_FICHERO, _json.dumps(tabla, ensure_ascii=False, indent=1))
     except OSError:
         pass
 
@@ -613,7 +634,7 @@ def _temporada_cerrada_sc(edition_id: int, auth) -> bool:
 
 
 @app.get("/api/statsbomb/team-stats")
-async def statsbomb_team_stats(competition_id: int, season_id: int):
+def statsbomb_team_stats(competition_id: int, season_id: int):
     """Estadísticas de temporada por equipo, tal como las da StatsBomb.
 
     Son la base del estilo de juego: 181 campos por equipo, todos por partido.
@@ -719,15 +740,14 @@ def _sb_partido_compacto(match_id: int, auth):
             alineacion[j.get("player_name")] = {"dorsal": j.get("jersey_number"), "equipo": equipo.get("team_name"), "pos": j.get("positions") or []}
     compacto = {"fin": round(fin, 2), "eventos": salida, "alineacion": alineacion}
     try:
-        ruta.write_text(_json.dumps(compacto, ensure_ascii=False), encoding="utf-8")
-        os.chmod(ruta, 0o600)
+        _escribir_atomico(ruta, _json.dumps(compacto, ensure_ascii=False))
     except OSError:
         pass
     return compacto
 
 
 @app.get("/api/statsbomb/player-events")
-async def statsbomb_player_events(liga: str, temporada: str, equipo: str, jugador: str):
+def statsbomb_player_events(liga: str, temporada: str, equipo: str, jugador: str):
     """Los eventos de un jugador en su temporada, y cuántos minutos jugó en cada puesto.
 
     Recorre los partidos de su equipo; cada partido se baja una vez y se guarda
@@ -808,7 +828,7 @@ async def statsbomb_player_events(liga: str, temporada: str, equipo: str, jugado
 
 
 @app.get("/api/statsbomb/player-stats")
-async def statsbomb_player_stats(competition_id: int, season_id: int):
+def statsbomb_player_stats(competition_id: int, season_id: int):
     import json as _json
     auth = _statsbomb_auth()
     if not auth:
@@ -1017,7 +1037,7 @@ def _sc_gi_data(edition: int, auth):
 
 
 @app.get("/api/skillcorner/competitions")
-async def skillcorner_competitions():
+def skillcorner_competitions():
     import json as _json
     auth = _skillcorner_auth()
     if not auth:
@@ -1046,7 +1066,7 @@ async def skillcorner_competitions():
 
 
 @app.get("/api/skillcorner/team-stats")
-async def skillcorner_team_stats(competition_edition_id: int):
+def skillcorner_team_stats(competition_edition_id: int):
     """Game intelligence de SkillCorner agrupado por equipo.
 
     Las cinco rutas (carreras sin balón, pases, opciones de pase, posesiones y
@@ -1097,7 +1117,7 @@ async def skillcorner_team_stats(competition_edition_id: int):
 
 
 @app.get("/api/skillcorner/player-stats")
-async def skillcorner_player_stats(competition_edition_id: int):
+def skillcorner_player_stats(competition_edition_id: int):
     import json as _json
     auth = _skillcorner_auth()
     if not auth:
@@ -1484,7 +1504,7 @@ async def snapshots_save(request: Request):
 
 
 @app.get("/api/snapshots/list")
-async def snapshots_list(liga: str = ""):
+def snapshots_list(liga: str = ""):
     import json as _json
     if not _SNAPSHOTS_DIR.exists():
         return Response("[]", media_type="application/json", headers=cors_headers())
@@ -1497,7 +1517,7 @@ async def snapshots_list(liga: str = ""):
 
 
 @app.get("/api/snapshots/get")
-async def snapshots_get(liga: str, mes: str):
+def snapshots_get(liga: str, mes: str):
     if not _MES_RE.match(str(mes).strip()):
         return Response('{"error": "mes invalido (AAAA-MM)"}', status_code=400,
                         media_type="application/json", headers=cors_headers())
@@ -1623,15 +1643,14 @@ def _match_runs(match_id: int, auth, data_version: int = 3):
         return [], f"http_{response.status_code}"
 
     try:
-        cache.write_text(_json.dumps({"runs": filas, "estado": estado}, ensure_ascii=False), encoding="utf-8")
-        os.chmod(cache, 0o600)
+        _escribir_atomico(cache, _json.dumps({"runs": filas, "estado": estado}, ensure_ascii=False))
     except OSError:
         pass
     return filas, estado
 
 
 @app.get("/api/skillcorner/off-ball-runs")
-async def skillcorner_off_ball_runs(competition_edition_id: int, team: str = "", limit_matches: int = 0):
+def skillcorner_off_ball_runs(competition_edition_id: int, team: str = "", limit_matches: int = 0):
     """Carreras sin balón de una temporada, opcionalmente de un solo equipo.
 
     `team` filtra por los partidos de ese club Y por sus propias carreras: sin
@@ -1716,7 +1735,7 @@ async def skillcorner_off_ball_runs(competition_edition_id: int, team: str = "",
 
 
 @app.get("/api/skillcorner/teams")
-async def skillcorner_teams(competition_edition_id: int):
+def skillcorner_teams(competition_edition_id: int):
     """Los clubes de una edición, para que el nombre se elija y no se teclee.
 
     Salen de los propios partidos: escribir "Cavalry" a mano funcionaba por
@@ -1764,7 +1783,7 @@ def _espejo_ttl(ruta: str) -> int:
 
 
 @app.get("/")
-async def espejo_raiz():
+def espejo_raiz():
     """La app, abierta desde aquí.
 
     Chrome dejó de permitir que una web pública —la copia de GitHub Pages—
@@ -1782,7 +1801,7 @@ async def espejo_raiz():
 
 @app.get("/fos-scout-lab")
 @app.get("/fos-scout-lab/{ruta:path}")
-async def espejo_app(ruta: str = ""):
+def espejo_app(ruta: str = ""):
     import time as _time
 
     if ".." in ruta:

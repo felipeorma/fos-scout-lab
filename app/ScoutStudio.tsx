@@ -2105,7 +2105,8 @@ export default function ScoutStudio() {
                 }} /></div>
               )}
               {report ? visualPages.filter((page) => printRun ? printRun.includes(page) : reportPage === page).map((page) => (
-                <ReportPageDesigner key={page} pageNumber={page} persist={!printRun || reportPage === page} player={report.player} team={profile.club || report.team} position={formatPlayerPositions(profile.position || report.position)} theme={reportTheme} onThemeChange={setReportTheme} recipientName={recipientName} recipientLogoUrl={reportRecipientLogoUrl} aiFacts={aiControlsHidden ? undefined : () => ({ lang, player: aiPlayerFacts(report), metrics: aiMetricFacts(report) })} />
+                <ReportPageDesigner key={page} pageNumber={page} persist={!printRun || reportPage === page} player={report.player} team={profile.club || report.team} position={formatPlayerPositions(profile.position || report.position)} theme={reportTheme} onThemeChange={setReportTheme} recipientName={recipientName} recipientLogoUrl={reportRecipientLogoUrl} aiFacts={aiControlsHidden ? undefined : () => ({ lang, player: aiPlayerFacts(report), metrics: aiMetricFacts(report) })}
+                  ficha={{ rows: reportRows, indice: selectedPlayer, informe: report, perfilTm: profile, minutosMin: minimumMinutes }} />
               )) : !printRun && reportPage >= FIRST_VISUAL_PAGE ? <div className="empty-preview">{t("Selecciona un jugador para diseñar las páginas.")}</div> : null}
 
               {printDialogOpen && <div className="print-dialog-overlay" role="dialog" aria-modal="true" aria-label={t("¿Qué páginas quieres incluir en el PDF?")} onClick={() => setPrintDialogOpen(false)}>

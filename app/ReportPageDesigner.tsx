@@ -7,6 +7,7 @@ import {
   Columns,
   Grip,
   ImageIcon,
+  LayoutDashboard,
   MoveDown,
   MoveUp,
   Plus,
@@ -21,6 +22,8 @@ import { DEFAULT_REPORT_THEME, REPORT_THEMES, reportThemeStyle, type ReportTheme
 import { fetchAiSummary, type AiMetricFact, type AiPlayerFacts } from "@/lib/remoteData";
 import { PieDeReporte } from "./PieDeReporte";
 import { SimilarityReportMain, type SimilarityReportPayload } from "./SimilarityReport";
+import { PIEZAS_FICHA, PiezaSuelta, esPieza, type ContextoFicha } from "./PiezasFicha";
+import { COMPUESTAS } from "@/lib/snapshot";
 import { t, tDefault, tf } from "@/lib/i18n";
 import {
   clampReportBlockHeight,
@@ -31,10 +34,13 @@ import {
   REPORT_GRID_COLUMNS,
   REPORT_SPAN_PRESETS,
   similarityGridRows,
+  type ReportBlockKind,
   type ReportBlockResizeMode,
 } from "@/lib/reportPageLayout";
 
-type BlockType = "image" | "text";
+// "pieza" es un gráfico de la ficha ampliada dibujado con los datos del
+// jugador del informe: se coloca y se estira como una imagen, pero es vector.
+type BlockType = "image" | "text" | "pieza";
 type TextAlign = "left" | "center" | "right";
 type ImageFit = "cover" | "contain";
 
@@ -46,6 +52,10 @@ type PageBlock = {
   image: string;
   html?: string;
   similarity?: SimilarityReportPayload;
+  /** Qué pieza de la ficha ampliada dibuja un bloque "pieza". */
+  pieza?: string;
+  /** El ajuste propio de la pieza: la familia del Top 10. */
+  opcion?: string;
   span: number;
   height: number;
   fit: ImageFit;
@@ -70,7 +80,7 @@ type ResizeSession = {
   id: string;
   pointerId: number;
   mode: ReportBlockResizeMode;
-  kind: BlockType;
+  kind: ReportBlockKind;
   similarityNotes: boolean;
   startX: number;
   startY: number;
@@ -89,6 +99,10 @@ const SHARED_TEXT_COLORS = new Set([
   "#17323a",
   "#2c4249",
 ]);
+
+/** Para los altos mínimos y máximos, una pieza cuenta como una imagen. */
+const altoDe = (type: BlockType): ReportBlockKind => (type === "text" ? "text" : "image");
+const nombreTipo = (type: BlockType) => (type === "image" ? t("Imagen") : type === "pieza" ? t("Pieza") : t("Texto"));
 
 function usesSharedTextColor(color: string, currentInk?: string) {
   const normalized = color.toLowerCase();
@@ -171,7 +185,7 @@ function updateBlock(config: PageConfig, id: string, patch: Partial<PageBlock>) 
 
 
 
-export function ReportPageDesigner({ pageNumber, player, team, position, theme, onThemeChange, recipientName = "", recipientLogoUrl = "", persist = true, aiFacts }: { pageNumber: number; player: string; team: string; position: string; theme: ReportTheme; onThemeChange: (theme: ReportTheme) => void; recipientName?: string; recipientLogoUrl?: string; persist?: boolean; aiFacts?: () => { lang: string; player: AiPlayerFacts; metrics: AiMetricFact[] } }) {
+export function ReportPageDesigner({ pageNumber, player, team, position, theme, onThemeChange, recipientName = "", recipientLogoUrl = "", persist = true, aiFacts, ficha }: { pageNumber: number; player: string; team: string; position: string; theme: ReportTheme; onThemeChange: (theme: ReportTheme) => void; recipientName?: string; recipientLogoUrl?: string; persist?: boolean; aiFacts?: () => { lang: string; player: AiPlayerFacts; metrics: AiMetricFact[] }; ficha?: ContextoFicha }) {
   const [pages, setPages] = useState<DesignerState>(() => defaultPages(pageNumber));
   const [selectedId, setSelectedId] = useState(() => defaultPage(pageNumber).blocks[0].id);
   const [draggedId, setDraggedId] = useState("");
@@ -312,6 +326,17 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
       : { ...textBlock(id, "Nuevo bloque de texto", "Escribe aquí tu análisis…", newSpan, 180), color: theme.ink };
     setConfig((current) => ({ ...current, blocks: [...current.blocks, block] }));
     elegirBloque(id);
+  }
+
+  // Una pieza nace con el tamaño en que se lee sin tocar nada: los mapas de
+  // campo entero, en tercios y altos; el radar y las listas, a media hoja.
+  function addPieza(id: string) {
+    const pieza = PIEZAS_FICHA.find((candidata) => candidata.id === id);
+    if (!pieza || hasSimilarityComparison) return;
+    const blockId = `p${pageNumber}-pieza-${Date.now()}`;
+    const block: PageBlock = { ...imageBlock(blockId, pieza.titulo, clampReportBlockSpan(pieza.ancho, config.columns), pieza.alto), type: "pieza", pieza: pieza.id };
+    setConfig((current) => ({ ...current, blocks: [...current.blocks, block] }));
+    elegirBloque(blockId);
   }
 
   function addImageComment(placement: "below" | "side") {
@@ -461,11 +486,11 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
       id: block.id,
       pointerId: event.pointerId,
       mode,
-      kind: block.type,
+      kind: altoDe(block.type),
       similarityNotes: block.id === SIMILARITY_NOTES_BLOCK_ID,
       startX: event.clientX,
       startY: event.clientY,
-      startHeight: clampReportBlockHeight(block.height, block.type, block.id === SIMILARITY_NOTES_BLOCK_ID),
+      startHeight: clampReportBlockHeight(block.height, altoDe(block.type), block.id === SIMILARITY_NOTES_BLOCK_ID),
       startSpan: clampReportBlockSpan(block.span, config.columns),
       columnStep: columnWidth + config.gap,
       columns: config.columns,
@@ -479,7 +504,7 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
       event.stopPropagation();
       const direction = event.key === "ArrowUp" ? -1 : 1;
       setConfig((current) => updateBlock(current, block.id, {
-        height: clampReportBlockHeight(block.height + direction * step, block.type, block.id === SIMILARITY_NOTES_BLOCK_ID),
+        height: clampReportBlockHeight(block.height + direction * step, altoDe(block.type), block.id === SIMILARITY_NOTES_BLOCK_ID),
       }));
     }
     if (mode === "both" && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
@@ -492,7 +517,7 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
 
   const canvasStyle = reportThemeStyle(theme);
   const selectedHeightBounds = selected
-    ? reportBlockHeightBounds(selected.type, selected.id === SIMILARITY_NOTES_BLOCK_ID)
+    ? reportBlockHeightBounds(altoDe(selected.type), selected.id === SIMILARITY_NOTES_BLOCK_ID)
     : reportBlockHeightBounds("text");
   const spanElegido = selected ? clampReportBlockSpan(selected.span, config.columns) : 0;
   const similarityNotes = hasSimilarityComparison
@@ -562,6 +587,25 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
             </div>
           </section>
 
+          {ficha && !hasSimilarityComparison && <section className="inspector-grupo">
+            <h3 className="inspector-titulo">{t("Piezas de la ficha ampliada")}<small>{tf("{n} disponibles", { n: PIEZAS_FICHA.length })}</small></h3>
+            <div className="inspector-tarjeta">
+              {/* Un menú y no quince filas: la lista cabe en el inspector sin
+                  empujar el resto hacia abajo, y elegir ya la agrega. El menú
+                  cubre la fila entera, así que se abre toque donde se toque. */}
+              <label className="inspector-fila inspector-accion inspector-pieza">
+                <span className="inspector-icono"><LayoutDashboard size={15} /></span>
+                <span className="inspector-accion-texto"><b>{t("Agregar pieza")}</b><small>{t("Radar, mapas, parecidos…")}</small></span>
+                <select className="inspector-selector" aria-label={t("Agregar pieza")} value="" onChange={(event) => addPieza(event.target.value)}>
+                  <option value="" disabled>{t("Elegir…")}</option>
+                  {PIEZAS_FICHA.map((pieza) => <option key={pieza.id} value={pieza.id}>{t(pieza.titulo)}</option>)}
+                </select>
+                <Plus size={16} className="inspector-galon" />
+              </label>
+            </div>
+            <p className="inspector-pie">{t("Se dibujan con los datos del jugador del informe y cambian con él. En el PDF salen como vectores.")}</p>
+          </section>}
+
           <section className="inspector-grupo">
             <div className="inspector-tarjeta">
               <button type="button" className="inspector-fila inspector-restablecer" onClick={() => { const base = defaultPage(pageNumber); const defaults = { ...base, blocks: base.blocks.map((block) => block.type === "text" ? { ...block, color: theme.ink } : block) }; setConfig(() => defaults); setSelectedId(defaults.blocks[0].id); }}><RotateCcw size={14} />{t("Restablecer página")}</button>
@@ -571,7 +615,7 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
           <section className="inspector-grupo">
             <div className="inspector-tarjeta">
               <div className="inspector-fila inspector-bloque">
-                <span className="inspector-bloque-nombre"><b>{displayText(selected.title) || (selected.type === "image" ? t("Imagen") : t("Texto"))}</b><small>{selected.type === "image" ? t("Imagen") : t("Texto")} · {spanElegido}/{config.columns}</small></span>
+                <span className="inspector-bloque-nombre"><b>{displayText(selected.title) || nombreTipo(selected.type)}</b><small>{nombreTipo(selected.type)} · {spanElegido}/{config.columns}</small></span>
                 <span className="inspector-orden">
                   <button type="button" disabled={hasSimilarityComparison} onClick={() => moveSelected(-1)} title={t("Mover antes")} aria-label={t("Mover antes")}><MoveUp size={15} /></button>
                   <button type="button" disabled={hasSimilarityComparison} onClick={() => moveSelected(1)} title={t("Mover después")} aria-label={t("Mover después")}><MoveDown size={15} /></button>
@@ -595,12 +639,29 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
                 {!REPORT_SPAN_PRESETS.some((preset) => preset.span === spanElegido) && <option value={spanElegido}>{spanElegido}/{config.columns}</option>}
                 {REPORT_SPAN_PRESETS.map((preset) => <option key={preset.span} value={preset.span}>{preset.label === "Completo" ? t("Completo") : preset.label}</option>)}
               </select></label>}
-              <label className="inspector-fila inspector-deslizador"><span>{t("Alto del espacio")}</span><b>{selected.height}px</b><input type="range" min={selectedHeightBounds.min} max={selectedHeightBounds.max} step="10" value={clampReportBlockHeight(selected.height, selected.type, selected.id === SIMILARITY_NOTES_BLOCK_ID)} onChange={(event) => patchSelected({ height: Number(event.target.value) })} /></label>
+              <label className="inspector-fila inspector-deslizador"><span>{t("Alto del espacio")}</span><b>{selected.height}px</b><input type="range" min={selectedHeightBounds.min} max={selectedHeightBounds.max} step="10" value={clampReportBlockHeight(selected.height, altoDe(selected.type), selected.id === SIMILARITY_NOTES_BLOCK_ID)} onChange={(event) => patchSelected({ height: Number(event.target.value) })} /></label>
             </div>
             <p className="inspector-pie">{selected.type === "text" ? t("Arrastra el tirador inferior para cambiar solo el alto. La esquina mantiene el ajuste combinado.") : t("Arrastra la esquina del bloque. El ancho encaja en columnas y el alto en una retícula de 10 px.")}</p>
           </section>}
 
-          {selected.type === "image" ? (selected.id === SIMILARITY_BLOCK_ID
+          {selected.type === "pieza" ? <section className="inspector-grupo">
+            <h3 className="inspector-titulo">{t("Pieza")}</h3>
+            <div className="inspector-tarjeta">
+              <label className="inspector-fila"><span>{t("Muestra")}</span><select className="inspector-selector" value={selected.pieza ?? ""} onChange={(event) => {
+                const antes = PIEZAS_FICHA.find((pieza) => pieza.id === selected.pieza);
+                const despues = PIEZAS_FICHA.find((pieza) => pieza.id === event.target.value);
+                if (!despues) return;
+                // La etiqueta sigue a la pieza salvo que se haya escrito a mano.
+                patchSelected({ pieza: despues.id, title: !selected.title || selected.title === antes?.titulo ? despues.titulo : selected.title });
+              }}>
+                {PIEZAS_FICHA.map((pieza) => <option key={pieza.id} value={pieza.id}>{t(pieza.titulo)}</option>)}
+              </select></label>
+              {selected.pieza === "top10" && <label className="inspector-fila"><span>{t("Familia")}</span><select className="inspector-selector" value={selected.opcion ?? "progresion"} onChange={(event) => patchSelected({ opcion: event.target.value })}>
+                {COMPUESTAS.map((familia) => <option key={familia.id} value={familia.id}>{t(familia.etiqueta)}</option>)}
+              </select></label>}
+            </div>
+            <p className="inspector-pie">{t("Se dibuja con los datos del jugador del informe y cambia con él.")}</p>
+          </section> : selected.type === "image" ? (selected.id === SIMILARITY_BLOCK_ID
             ? <section className="inspector-grupo"><div className="inspector-tarjeta"><p className="inspector-nota">
                 <b>{t(selected.similarity || selected.html ? "Calidad nativa activa" : "Comentarios separados")}</b>
                 <span>{t(selected.similarity || selected.html
@@ -656,11 +717,15 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
               const span = clampReportBlockSpan(block.span, config.columns);
               const nativeSimilarity = block.id === SIMILARITY_BLOCK_ID && Boolean(block.similarity || block.html);
               const fixedSimilarityNotes = hasSimilarityComparison && block.id === SIMILARITY_NOTES_BLOCK_ID;
-              const blockHeight = clampReportBlockHeight(block.height, block.type, block.id === SIMILARITY_NOTES_BLOCK_ID);
+              const blockHeight = clampReportBlockHeight(block.height, altoDe(block.type), block.id === SIMILARITY_NOTES_BLOCK_ID);
               const textStyle = { color: usesSharedTextColor(block.color, theme.ink) ? theme.ink : block.color, fontFamily: fontFamily(block.font), fontSize: block.fontSize, fontWeight: block.bold ? 700 : 400, fontStyle: block.italic ? "italic" : "normal", textAlign: block.align } as CSSProperties;
               return <div key={block.id} data-block-id={block.id} draggable={!resizeSession && !nativeSimilarity && !hasSimilarityComparison} className={`visual-block visual-${block.type} ${block.id === SIMILARITY_BLOCK_ID ? "similarity-comparison-block" : ""} ${nativeSimilarity ? "similarity-native-block" : ""} ${fixedSimilarityNotes ? "similarity-notes-block" : ""} ${selected?.id === block.id ? "selected" : ""} ${draggedId === block.id ? "dragging" : ""} ${resizeSession?.id === block.id ? "resizing" : ""}`} style={{ gridColumn: `span ${span}`, height: blockHeight }} onClick={() => elegirBloque(block.id)} onDragStart={() => { if (!nativeSimilarity && !hasSimilarityComparison) { setDraggedId(block.id); elegirBloque(block.id); } }} onDragEnd={() => setDraggedId("")} onDragOver={(event) => event.preventDefault()} onDrop={(event) => onDropBlock(event, block.id)} role="button" tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); elegirBloque(block.id); } }}>
-                <div className="block-chrome"><span><Grip size={13} /> {displayText(block.title) || (block.type === "image" ? t("Imagen") : t("Texto"))}</span><small>{span}/{config.columns}</small></div>
-                {block.type === "image" ? nativeSimilarity
+                <div className="block-chrome"><span><Grip size={13} /> {displayText(block.title) || nombreTipo(block.type)}</span><small>{span}/{config.columns}</small></div>
+                {block.type === "pieza" ? <div className="visual-pieza-content">
+                  {ficha && esPieza(block.pieza)
+                    ? <PiezaSuelta pieza={block.pieza} contexto={ficha} opcion={block.opcion} onOpcion={(opcion) => setConfig((current) => updateBlock(current, block.id, { opcion }))} />
+                    : <p className="snap-vacio">{t("Elige un jugador para dibujar esta pieza.")}</p>}
+                </div> : block.type === "image" ? nativeSimilarity
                   ? block.similarity
                     ? <div className="similarity-native-content similarity-report-sheet" aria-label={t("Reporte de similitud en calidad nativa")}><SimilarityReportMain payload={block.similarity} /></div>
                     : <div className="similarity-native-content similarity-report-sheet" aria-label={t("Reporte de similitud en calidad nativa")} dangerouslySetInnerHTML={{ __html: block.html ?? "" }} />

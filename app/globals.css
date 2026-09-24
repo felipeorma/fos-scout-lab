@@ -5572,14 +5572,18 @@ button.menu-fila:active { transform: scale(.985); }
 .app-shell[data-tema] .rosa-anillo.mediana { stroke: color-mix(in srgb, var(--ink) 40%, transparent); stroke-dasharray: 4 4; }
 .app-shell[data-tema] .rosa-radio { stroke: var(--line); stroke-width: .6; }
 .rosa-cuna { opacity: .9; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-.app-shell[data-tema] .rosa-rival { fill: color-mix(in srgb, var(--ink) 6%, transparent); stroke: var(--ink); stroke-width: 2; stroke-linejoin: round; }
+.app-shell[data-tema] .rosa-rival { fill: none; stroke: var(--ink); stroke-width: 2.5; stroke-linecap: round; }
 .app-shell[data-tema] .rosa-etiqueta { fill: var(--muted); font-size: 11px; }
+/* Con 35 cuñas las etiquetas van a lo largo del radio: entre dos vecinas
+   hay 37 unidades, así que caben más grandes que las horizontales. */
+.app-shell[data-tema] .rosa-etiqueta.radial { font-size: 13px; }
 .app-shell[data-tema] .rosa-centro { fill: var(--paper); stroke: var(--line); }
 .app-shell[data-tema] .rosa-leyenda { fill: var(--muted); font-size: 12px; }
 .app-shell[data-tema] .estilo-rosa > figcaption { margin-top: 4px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; color: var(--ink); font-size: 12.5px; }
 .estilo-rosa > figcaption > span { display: inline-flex; align-items: center; gap: 6px; }
 .estilo-rosa > figcaption i { width: 14px; height: 10px; display: inline-block; border-radius: 2px; }
 .estilo-rosa > figcaption i.relleno { background: linear-gradient(90deg, #3b7dd8 25%, #2f9e62 25% 50%, #e08a2e 50% 75%, #d0503f 75%); }
+.estilo-rosa > figcaption i.relleno.con-sc { width: 18px; background: linear-gradient(90deg, #3b7dd8 16.6%, #2f9e62 16.6% 33.3%, #e08a2e 33.3% 50%, #d0503f 50% 66.6%, #7b61d1 66.6% 83.3%, #1f9aa6 83.3%); }
 .app-shell[data-tema] .estilo-rosa > figcaption i.contorno { border: 2px solid var(--ink); }
 .app-shell[data-tema] .estilo-rosa > figcaption small { margin-left: auto; color: var(--muted); font-size: 11px; }
 
@@ -5685,19 +5689,6 @@ button.menu-fila:active { transform: scale(.985); }
   color: var(--muted); background: var(--paper); box-shadow: 0 0 0 1px var(--line);
   font-size: 12px;
 }
-.app-shell[data-tema] .estilo-fuente {
-  margin: 0 auto 6px; padding: 2px; width: max-content;
-  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr);
-  border-radius: 9px; background: color-mix(in srgb, var(--ink) 7%, transparent);
-}
-.app-shell[data-tema] .estilo-fuente > button {
-  min-width: 110px; min-height: 28px; padding: 0 12px;
-  border: 0; border-radius: 7px; background: none; box-shadow: none;
-  color: var(--ink); font: inherit; font-size: 12.5px; font-weight: 500; cursor: pointer;
-}
-.app-shell[data-tema] .estilo-fuente > button.on { background: var(--segmento); box-shadow: 0 1px 3px rgba(0,0,0,.12); font-weight: 600; }
-.app-shell[data-tema] .estilo-fuente > button:disabled { opacity: .4; cursor: not-allowed; }
-@media print { .estilo-fuente { display: none !important; } }
 
 .app-shell[data-tema] p.estilo-encaje-sc { margin: 4px 0 0; color: var(--muted); font-size: 12px; text-align: right; }
 
@@ -5837,3 +5828,55 @@ button.menu-fila:active { transform: scale(.985); }
    ficha salía sin su estilo y con el desplegable nativo a la vista debajo,
    porque todas sus reglas colgaban de .filtros-barra. */
 .app-shell[data-tema] .snap-top .filtro-chip { margin-bottom: 4px; }
+
+/* =====================================================================
+   Visuales · piezas de la ficha ampliada como bloques
+   ===================================================================== */
+/* "Agregar pieza": el menú nativo tapa la fila entera, invisible, para que
+   se abra toque donde se toque y siga siendo accesible con teclado. */
+.app-shell[data-tema] label.inspector-pieza { position: relative; min-height: 52px; cursor: pointer; }
+.app-shell[data-tema] label.inspector-pieza:hover { background: color-mix(in srgb, var(--ink) 4%, transparent); }
+.app-shell[data-tema] label.inspector-pieza:focus-within { box-shadow: inset 0 0 0 2px var(--acento-borde); }
+.app-shell[data-tema] label.inspector-pieza > select.inspector-selector {
+  position: absolute; inset: 0; width: 100%; max-width: none; height: 100%;
+  opacity: 0; cursor: pointer;
+}
+.app-shell[data-tema] .inspector-pieza .inspector-icono { background: var(--acento); }
+
+/* Dentro de la hoja, la pieza habla con los colores del informe y no con los
+   de la interfaz: el papel puede ser blanco con la app en oscuro. */
+.visual-pieza-content {
+  --ink: var(--report-ink); --paper: var(--report-paper); --muted: var(--report-muted);
+  --line: var(--report-line); --acento: var(--report-accent); --acento-claro: var(--report-accent);
+  --acento-suave: color-mix(in srgb, var(--report-accent) 14%, transparent);
+  --acento-borde: color-mix(in srgb, var(--report-accent) 45%, transparent);
+  --verde: #2f9e62; --azul: #3b7dd8; --naranja: #e08a2e; --rojo: #d0503f;
+  --sube: color-mix(in srgb, #1a7f37 75%, var(--report-ink)); --baja: color-mix(in srgb, #c62828 80%, var(--report-ink));
+  height: calc(100% - 34px); min-height: 0; overflow: hidden;
+  display: flex; flex-direction: column;
+  color: var(--ink); background: var(--report-paper);
+}
+.app-shell[data-tema] .visual-pieza-content > :is(.snap-tarjeta, .snap-ficha, .snap-tabla) {
+  flex: 1; min-height: 0; border-radius: 0; box-shadow: none; background: transparent;
+}
+.app-shell[data-tema] .visual-pieza-content > .snap-tarjeta { display: flex; flex-direction: column; }
+/* Los dibujos llenan lo que quede del bloque y se escalan sin deformarse. */
+.visual-pieza-content > .snap-tarjeta > svg { flex: 1; min-height: 0; width: 100%; height: 100%; }
+.visual-pieza-content .snap-enjambres { gap: 2px; }
+.visual-pieza-content .snap-enjambre-fila { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.visual-pieza-content .snap-enjambre-fila > svg { flex: 1; min-height: 0; width: 100%; height: 100%; }
+.visual-pieza-content .snap-puestos-lista { flex: none; }
+.visual-pieza-content .snap-tabla { overflow: hidden; }
+.app-shell[data-tema] .visual-pieza-content p.snap-aviso { margin: 0 0 6px; font-size: 11.5px; }
+.visual-pieza-content > p.snap-vacio { margin: auto; padding: 0 16px; text-align: center; }
+.visual-pieza-content .snap-top ol, .visual-pieza-content .snap-parecidos ol { overflow: hidden; }
+/* En la hoja, el Top 10 ya dice su familia en el subtítulo: el menú se usa
+   para cambiarla, pero no hace falta repetirla en grande. */
+.visual-pieza-content .snap-top .filtro-chip { align-self: flex-start; }
+
+body.print-layout-check .visual-pieza-content { height: 100%; }
+@media print {
+  .visual-pieza-content { height: 100% !important; }
+  .visual-pieza-content .snap-top .filtro-chip { display: none !important; }
+  .visual-pieza-content :is(.snap-punto, .snap-regate, .snap-ocasion, .snap-tiro, .snap-celda, .snap-calor, .snap-cuna, .snap-puesto) { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+}

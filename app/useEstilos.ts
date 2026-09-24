@@ -39,16 +39,22 @@ export function cargarEstilos(forzar = false): Promise<void> {
         fetchSkillcornerCompetitions().catch(() => []),
       ]);
       const { elegidas } = temporadasUtiles(catalogo);
-      const juntas: FilaEquipo[] = [];
+      // De cuatro en cuatro: el puente ya atiende en paralelo, y una liga sin
+      // caché no deja a las demás esperando detrás. El orden de las filas se
+      // conserva por competición, así que el resultado no depende de cuál
+      // termina antes.
+      const porLiga: FilaEquipo[][] = elegidas.map(() => []);
       let fallidas = 0;
-      for (const [i, competicion] of elegidas.entries()) {
-        publicar({ mensaje: tf("{n} de {total} · {liga}", { n: i + 1, total: elegidas.length, liga: competicion.name }) });
+      let listas = 0;
+      let siguiente = 0;
+      const cargarLiga = async (i: number) => {
+        const competicion = elegidas[i];
         let filas: FilaEquipo[];
         try {
           filas = await fetchStatsbombTeamStats(competicion);
         } catch {
           fallidas += 1;
-          continue;
+          return;
         }
         // La misma liga y temporada en SkillCorner, casada igual que al cargar
         // la base de jugadores: por nombre sin tildes y temporada exacta.
@@ -57,13 +63,23 @@ export function cargarEstilos(forzar = false): Promise<void> {
           && String(edicion.season ?? "") === String(competicion.season ?? "")
         ));
         if (hermana && filas.length) {
-          publicar({ mensaje: tf("{n} de {total} · {liga} · SkillCorner", { n: i + 1, total: elegidas.length, liga: competicion.name }) });
           try {
             filas = fusionarSkillcorner(filas, await fetchSkillcornerTeamStats(hermana));
           } catch { /* sin SkillCorner la liga sigue con StatsBomb */ }
         }
-        juntas.push(...filas);
-      }
+        porLiga[i] = filas;
+      };
+      const trabajador = async () => {
+        while (siguiente < elegidas.length) {
+          const i = siguiente;
+          siguiente += 1;
+          await cargarLiga(i);
+          listas += 1;
+          publicar({ mensaje: tf("{n} de {total} · {liga}", { n: listas, total: elegidas.length, liga: elegidas[i].name }) });
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(4, elegidas.length) }, trabajador));
+      const juntas = porLiga.flat();
       if (!juntas.length) throw new Error(t("StatsBomb no devolvió equipos."));
       publicar({ filas: juntas, mensaje: fallidas ? tf("{n} competiciones sin datos de equipo.", { n: fallidas }) : "" });
     } catch (error) {

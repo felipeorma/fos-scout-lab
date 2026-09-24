@@ -49,7 +49,6 @@ export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", lo
   const [clave, setClave] = useState("");
   const [claveRival, setClaveRival] = useState("");
   const [metricaTop, setMetricaTop] = useState("contragolpe");
-  const [fuenteRosa, setFuenteRosa] = useState<"statsbomb" | "skillcorner">("statsbomb");
 
   const perfiles = useMemo(() => (filas ? perfilesDeEstilo(filas) : []), [filas]);
   // Las listas —parecidos, top 10— salen del grupo profesional: la NCAA se
@@ -65,7 +64,6 @@ export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", lo
   const duelo = useMemo(() => (elegido && rival ? cabezaACabeza(elegido, rival) : []), [elegido, rival]);
   const encaje = elegido && propio && elegido.clave !== propio.clave ? parecidoDeEstilo(elegido, propio) : Number.NaN;
   const encajeSc = elegido && propio && elegido.clave !== propio.clave ? parecidoDeEstilo(elegido, propio, ["statsbomb", "skillcorner"]) : Number.NaN;
-  const rosaDe = fuenteRosa === "skillcorner" && elegido?.conSkillcorner ? "skillcorner" : "statsbomb";
 
   const porCompeticion = useMemo(() => {
     const mapa = new Map<string, PerfilEquipo[]>();
@@ -97,7 +95,7 @@ export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", lo
           <summary><ChevronDown size={13} />{t("Cómo se calcula")}</summary>
           <p>{t("Cada métrica se pasa a desviaciones típicas y percentil contra los equipos profesionales de todas las competiciones cargadas; la NCAA se puede consultar pero no entra en las medias. Las que menos es más —PPDA, tiros concedidos— van invertidas, así que a la derecha siempre está «más» de lo que dice la etiqueta.")}</p>
           <p>{t("El parecido entre equipos es el coseno entre sus perfiles, usando solo las métricas de estilo: dos equipos que presionan arriba y salen en corto se parecen aunque uno meta el doble de goles. 100 es jugar igual, 50 no tener nada que ver.")}</p>
-          <p>{t("SkillCorner por equipo solo cubre la CPL y la MLS Next Pro con nuestra suscripción. Sus métricas se ven en la ficha y en su rosa, pero el parecido que ordena usa solo StatsBomb, para que todos los equipos se comparen en las mismas dimensiones; cuando los dos equipos tienen SkillCorner se da además un segundo parecido que lo incluye.")}</p>
+          <p>{t("SkillCorner por equipo solo cubre la CPL y la MLS Next Pro con nuestra suscripción. Sus métricas se ven en la ficha y en la rosa, junto a las de StatsBomb, pero el parecido que ordena usa solo StatsBomb, para que todos los equipos se comparen en las mismas dimensiones; cuando los dos equipos tienen SkillCorner se da además un segundo parecido que lo incluye.")}</p>
         </details>
       </div>
     </header>
@@ -161,18 +159,16 @@ export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", lo
 
         <div className="estilo-centro">
           <figure className="estilo-rosa">
-            {/* Una rosa por proveedor. Si el equipo no tiene SkillCorner, esa
-                pestaña se apaga en vez de enseñar una rosa vacía. */}
-            <div className="estilo-fuente" role="tablist" aria-label={t("Datos de la rosa")}>
-              <button type="button" role="tab" aria-selected={rosaDe === "statsbomb"} className={rosaDe === "statsbomb" ? "on" : ""} onClick={() => setFuenteRosa("statsbomb")}>StatsBomb</button>
-              <button type="button" role="tab" aria-selected={rosaDe === "skillcorner"} className={rosaDe === "skillcorner" ? "on" : ""} disabled={!elegido.conSkillcorner}
-                title={elegido.conSkillcorner ? undefined : t("Sin datos de equipo de SkillCorner para esta liga.")} onClick={() => setFuenteRosa("skillcorner")}>SkillCorner</button>
-            </div>
-            <RosaDeEstilo perfil={elegido} rival={rival} fuente={rosaDe} />
+            {/* Una sola rosa: StatsBomb y, si el equipo lo tiene, SkillCorner
+                a continuación. Separadas obligaban a ir y venir entre pestañas
+                para leer un mismo equipo. */}
+            <RosaDeEstilo perfil={elegido} rival={rival} />
             <figcaption>
-              <span><i className="relleno" />{elegido.equipo}</span>
+              <span><i className={elegido.conSkillcorner ? "relleno con-sc" : "relleno"} />{elegido.equipo}</span>
               {rival && <span><i className="contorno" />{rival.equipo}</span>}
-              <small>{t("Largo de cada cuña: percentil. Anillo discontinuo: la mediana.")}</small>
+              <small>{elegido.conSkillcorner
+                ? t("StatsBomb y SkillCorner juntos. Largo de cada cuña: percentil. Anillo discontinuo: la mediana.")
+                : t("Largo de cada cuña: percentil. Anillo discontinuo: la mediana.")}</small>
             </figcaption>
           </figure>
 
