@@ -879,9 +879,9 @@ body { color-scheme: dark; background: radial-gradient(circle at 74% 9%, rgba(25
 .similarity-report-footer { min-height: 85px; margin-top: 6px; background: var(--report-paper); }.similarity-report-footer .report-recipient > div > b { max-width: 210px; }
 .similarity-report-sheet + .comparison-actions { margin-top: 14px; }
 
-@media (max-width: 1280px) {
-  .similarity-showdown { grid-template-columns: minmax(130px,.62fr) minmax(340px,1.5fr) minmax(130px,.62fr); gap: 12px; }
-  .comparison-player-portrait { height: 165px; }
+@media screen and (max-width: 1280px) {
+  body:not(.print-layout-check) .similarity-showdown { grid-template-columns: minmax(130px,.62fr) minmax(340px,1.5fr) minmax(130px,.62fr); gap: 12px; }
+  body:not(.print-layout-check) .comparison-player-portrait { height: 165px; }
 }
 
 @keyframes pro-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
@@ -925,9 +925,13 @@ body { color-scheme: dark; background: radial-gradient(circle at 74% 9%, rgba(25
   .similarity-workspace { grid-template-columns: 1fr; }.similarity-filter-panel { position: static; }.similarity-target-bar { grid-template-columns: 1fr 1fr; }
   .similarity-enrichment-grid { grid-template-columns: 1fr; }
   .similarity-color-panel { grid-template-columns: 1fr 1fr; }.similarity-color-heading { grid-column: 1 / -1; }.similarity-palette-picker:first-of-type { padding-left: 0; border-left: 0; }
-  .similarity-showdown { grid-template-columns: 1fr 1fr; }.similarity-radar-column { grid-column: 1 / -1; grid-row: 1; max-width: 610px; width: 100%; margin: 0 auto; }.comparison-player-card:first-child { grid-column: 1; }.comparison-player-card:last-child { grid-column: 2; }
 }
 
+/* La hoja de similitud en pantalla estrecha: fuera del bloque general para
+   que no actúe al exportar (la hoja impresa mide 816 px y cae dentro). */
+@media screen and (max-width: 940px) {
+  body:not(.print-layout-check) .similarity-showdown { grid-template-columns: 1fr 1fr; }body:not(.print-layout-check) .similarity-radar-column { grid-column: 1 / -1; grid-row: 1; max-width: 610px; width: 100%; margin: 0 auto; }body:not(.print-layout-check) .comparison-player-card:first-child { grid-column: 1; }body:not(.print-layout-check) .comparison-player-card:last-child { grid-column: 2; }
+}
 @media (max-width: 680px) {
   .page-content { padding: 26px 15px 45px; }
   .page-heading { align-items: flex-start; flex-direction: column; }
@@ -1051,22 +1055,6 @@ body { color-scheme: dark; background: radial-gradient(circle at 74% 9%, rgba(25
 }
 
 
-/* Medición del alto natural: se libera la altura fija y se desactiva el footer
-   empujado al fondo, para saber cuánto ocupa el contenido de verdad. */
-body.print-measure .legal-page-shell,
-body.print-measure .legal-page-shell > *,
-body.print-measure .similarity-report-sheet,
-body.print-measure .similarity-legal-page,
-body.print-measure .visual-report-page,
-body.print-measure .scout-report { height: auto !important; min-height: 0 !important; overflow: visible !important; }
-body.print-measure .dossier-footer { margin-top: 0 !important; }
-
-/* Carta en vez de Legal cuando el contenido cabe: evita el cuarto de hoja en
-   blanco de una comparación sin comentario. */
-body.print-size-letter .legal-page-shell { height: 279.4mm !important; }
-/* La hoja de similitud no tiene alto fijo: se escala entera para llenar la
-   página elegida, con un único escalado que no altera proporciones. */
-.similarity-report-sheet[data-print-fit] { transform: scale(var(--print-fit, 1)); transform-origin: top center; }
 
 /* Replica el lienzo fisico justo antes de imprimir para detectar desbordes. */
 body.print-layout-check .legal-page-shell { width: 215.9mm; height: 355.6mm; padding: 8mm; display: block; overflow: hidden; box-sizing: border-box; }
@@ -1113,8 +1101,6 @@ body.print-layout-check .similarity-star-visual > svg { transform: none !importa
     transform-origin: top center !important;
     height: calc(100% / var(--print-fit, 1)) !important;
   }
-  body.print-size-letter .legal-page-shell { height: 279.4mm !important; }
-  .similarity-report-sheet[data-print-fit] { transform: scale(var(--print-fit, 1)) !important; transform-origin: top center !important; }
   .print-dialog-overlay, .board-preview-overlay { display: none !important; }
   .designer-workspace { break-inside: avoid; }
   @page { size: legal portrait; margin: 0; }
@@ -2244,7 +2230,7 @@ body.print-layout-check .ai-error { display: none !important; }
 .runs-controls button:disabled { opacity: .45; cursor: default; }
 .runs-estado { flex-basis: 100%; color: var(--brd-dim); font-size: 8.5px; line-height: 1.45; }
 .runs-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; margin-top: 16px; align-items: start; }
-@media (max-width: 780px) { .runs-grid { grid-template-columns: 1fr; } }
+@media screen and (max-width: 780px) { body:not(.print-layout-check) .runs-grid { grid-template-columns: 1fr; } }
 .run-map { margin: 0; }
 .run-map figcaption { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
 .run-map figcaption b { font-family: var(--font-space-grotesk), sans-serif; font-size: 13px; }
@@ -2605,7 +2591,7 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
 .boton-exportar:active:not(:disabled) { transform: none; }
 .boton-exportar:disabled { opacity: .4; cursor: not-allowed; }
 .boton-exportar > span { font-size: 12px; line-height: 1; }
-@media (max-width: 760px) { .rank-barra, .pool-barra { flex-direction: column; } .boton-exportar { margin: -6px 0 16px; } }
+@media screen and (max-width: 760px) { body:not(.print-layout-check) .rank-barra, body:not(.print-layout-check) .pool-barra { flex-direction: column; } body:not(.print-layout-check) .boton-exportar { margin: -6px 0 16px; } }
 @media print { .boton-exportar { display: none !important; } }
 
 /* Carreras: los del plantel que se caen por no tener ficha en la base. No es
@@ -4643,10 +4629,9 @@ button.menu-fila:active { transform: scale(.985); }
 .app-shell[data-tema="claro"] .pool-cifras .pool-baja { color: #b3261e; }
 .app-shell[data-tema] .pool-aviso { margin: 10px 4px 0; padding: 0; border: 0; background: none; color: var(--muted); font-size: 11px; line-height: 1.5; }
 
-@media (max-width: 640px) {
-  .app-shell[data-tema] :is(.rank-list, .pool-lista) > li { grid-template-columns: 24px minmax(0, 1fr) auto; }
-  .app-shell[data-tema] :is(.rank-list, .pool-lista) > li > .rank-chevron,
-  .app-shell[data-tema] :is(.rank-list, .pool-lista) > li > span:last-child:empty { display: none; }
+@media screen and (max-width: 640px) {
+  body:not(.print-layout-check) .app-shell[data-tema] :is(.rank-list, .pool-lista) > li { grid-template-columns: 24px minmax(0, 1fr) auto; }
+  body:not(.print-layout-check) .app-shell[data-tema] :is(.rank-list, .pool-lista) > li > .rank-chevron, body:not(.print-layout-check) .app-shell[data-tema] :is(.rank-list, .pool-lista) > li > span:last-child:empty { display: none; }
 }
 @media print {
   .como-se-calcula, .pool-cambiar, .pool-flanco, .rank-chevron { display: none !important; }
@@ -4770,8 +4755,8 @@ button.menu-fila:active { transform: scale(.985); }
 .app-shell[data-tema] .runs-lista > li.activa::before,
 .app-shell[data-tema] .runs-lista > li.activa + li::before { opacity: 0; }
 
-@media (max-width: 780px) {
-  .runs-intensidad { margin-left: 0; }
+@media screen and (max-width: 780px) {
+  body:not(.print-layout-check) .runs-intensidad { margin-left: 0; }
 }
 @media print {
   .runs-intensidad, .runs-estado { display: none !important; }
@@ -5359,11 +5344,11 @@ button.menu-fila:active { transform: scale(.985); }
 .app-shell[data-tema] .scouting-board small.board-escudo-link-aviso { color: var(--baja); font-size: 11px; }
 .app-shell[data-tema] .scouting-board p.board-opta { margin: 8px 4px 0; color: var(--muted); font-size: 11.5px; letter-spacing: 0; }
 
-@media (max-width: 760px) {
-  .app-shell[data-tema] .scouting-board .once-card { grid-template-columns: minmax(0, 1fr); grid-template-areas: "cabeza" "campo" "lista"; }
-  .app-shell[data-tema] .scouting-board .once-campo { max-width: 360px; justify-self: center; }
-  .app-shell[data-tema] .scouting-board .board-variacion-cols { grid-template-columns: minmax(0, 1fr); }
-  .app-shell[data-tema] .scouting-board .board-vistas { overflow-x: auto; grid-auto-columns: max-content; }
+@media screen and (max-width: 760px) {
+  body:not(.print-layout-check) .app-shell[data-tema] .scouting-board .once-card { grid-template-columns: minmax(0, 1fr); grid-template-areas: "cabeza" "campo" "lista"; }
+  body:not(.print-layout-check) .app-shell[data-tema] .scouting-board .once-campo { max-width: 360px; justify-self: center; }
+  body:not(.print-layout-check) .app-shell[data-tema] .scouting-board .board-variacion-cols { grid-template-columns: minmax(0, 1fr); }
+  body:not(.print-layout-check) .app-shell[data-tema] .scouting-board .board-vistas { overflow-x: auto; grid-auto-columns: max-content; }
 }
 
 /* ---- Imprimir / PDF: una hoja de iOS ---- */
@@ -5505,7 +5490,7 @@ button.menu-fila:active { transform: scale(.985); }
 .app-shell[data-tema] .estilo-reintentar { padding: 2px; border: 0; background: none; color: var(--acento-claro); font: inherit; font-weight: 600; cursor: pointer; }
 
 .estilo-grid { display: grid; grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); gap: 20px; align-items: start; }
-@media (max-width: 900px) { .estilo-grid { grid-template-columns: minmax(0, 1fr); } }
+@media screen and (max-width: 900px) { body:not(.print-layout-check) .estilo-grid { grid-template-columns: minmax(0, 1fr); } }
 
 /* La ficha del equipo */
 .app-shell[data-tema] .estilo-ficha {
@@ -5603,9 +5588,9 @@ button.menu-fila:active { transform: scale(.985); }
 .app-shell[data-tema] small.estilo-dos { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; text-align: right; }
 .app-shell[data-tema] h3.estilo-top-titulo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .app-shell[data-tema] h3.estilo-top-titulo .filtro-chip { font-size: 12.5px; font-weight: 500; letter-spacing: 0; }
-@media (max-width: 640px) {
-  .app-shell[data-tema] ol.estilo-duelo > li { grid-template-columns: minmax(0, 1fr) auto 50px; }
-  .app-shell[data-tema] small.estilo-dos { display: none; }
+@media screen and (max-width: 640px) {
+  body:not(.print-layout-check) .app-shell[data-tema] ol.estilo-duelo > li { grid-template-columns: minmax(0, 1fr) auto 50px; }
+  body:not(.print-layout-check) .app-shell[data-tema] small.estilo-dos { display: none; }
 }
 @media print {
   .estilo-reintentar { display: none !important; }
@@ -5623,8 +5608,8 @@ button.menu-fila:active { transform: scale(.985); }
 .app-shell[data-tema] span.celda-encaje.bajo > b,
 .app-shell[data-tema] span.celda-encaje.vacia > b { color: var(--muted); font-weight: 500; }
 .app-shell[data-tema] small.pool-encaje { margin-top: 3px; display: block; color: var(--acento-claro); font-size: 11.5px; font-weight: 600; }
-@media (max-width: 640px) {
-  .app-shell[data-tema] :is(.rank-list, .pool-lista).con-encaje > li { grid-template-columns: 24px minmax(0, 1fr) 44px auto; }
+@media screen and (max-width: 640px) {
+  body:not(.print-layout-check) .app-shell[data-tema] :is(.rank-list, .pool-lista).con-encaje > li { grid-template-columns: 24px minmax(0, 1fr) 44px auto; }
 }
 
 /* =====================================================================
@@ -5638,8 +5623,8 @@ button.menu-fila:active { transform: scale(.985); }
    nombres con "…" y que hoy no se notan solo porque los nombres de la CPL son
    cortos. Un nombre a medias no se puede leer; en dos líneas, sí. */
 .app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip > b { max-width: 34ch; }
-@media (max-width: 640px) {
-  .app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip > b { max-width: none; white-space: normal; overflow-wrap: break-word; }
+@media screen and (max-width: 640px) {
+  body:not(.print-layout-check) .app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip > b { max-width: none; white-space: normal; overflow-wrap: break-word; }
 }
 .app-shell[data-tema] :is(
   .pool-cuerpo > b, .pool-cuerpo > small,
@@ -5712,8 +5697,8 @@ button.menu-fila:active { transform: scale(.985); }
 .snap-fila-2 { grid-template-columns: minmax(0, 1.15fr) repeat(3, minmax(0, 1fr)); }
 .snap-fila-3 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .snap-fila-4 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-@media (max-width: 1100px) { .snap-fila-1, .snap-fila-2, .snap-fila-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 640px) { .snap-fila-1, .snap-fila-2, .snap-fila-3, .snap-fila-4 { grid-template-columns: minmax(0, 1fr); } }
+@media screen and (max-width: 1100px) { body:not(.print-layout-check) .snap-fila-1, body:not(.print-layout-check) .snap-fila-2, body:not(.print-layout-check) .snap-fila-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media screen and (max-width: 640px) { body:not(.print-layout-check) .snap-fila-1, body:not(.print-layout-check) .snap-fila-2, body:not(.print-layout-check) .snap-fila-3, body:not(.print-layout-check) .snap-fila-4 { grid-template-columns: minmax(0, 1fr); } }
 .snap-columna { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 
 .app-shell[data-tema] :is(.snap-tarjeta, .snap-ficha, .snap-tabla) {
@@ -5907,3 +5892,102 @@ body.print-layout-check .visual-pieza-content { height: 100%; }
 .app-shell[data-tema] .snap-cifras dt { color: var(--muted); font-size: 10.5px; }
 .app-shell[data-tema] .snap-cifras dd { margin: 0; color: var(--ink); font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .app-shell[data-tema] .snap-pasadores li > small { font-variant-numeric: tabular-nums; }
+
+/* =====================================================================
+   PDF · todas las hojas con el marco de Ficha y radar
+   ---------------------------------------------------------------------
+   Legal, 8 mm de margen (lo pone .legal-page-shell) y el marco de la ficha:
+   borde fino y esquinas de 17 px. El marco lo dibuja la hoja, no la página:
+   si el contenido no cabe y el ajuste lo encoge, el marco sigue midiendo lo
+   mismo que el de Ficha y radar.
+
+   Las páginas de análisis se maquetan a su ancho de escritorio (1 / 0,72 de
+   la hoja) y se reducen al 72 % con transform: a los 816 px de la hoja sus
+   filas de cuatro columnas quedaban tan estrechas que los nombres se partían
+   letra a letra. Transform y no zoom: no altera lo que mide el ajuste, que
+   se compone encima (--print-fit) centrado en la hoja.
+
+   Todo va dos veces: con body.print-layout-check es como la app mide antes
+   de imprimir, y con @media print es lo que sale. Si difieren, el ajuste
+   mide una cosa e imprime otra.
+   ===================================================================== */
+body.print-layout-check .legal-page-shell { position: relative; }
+body.print-layout-check .legal-page-shell:has(> :is(.snap-page, .estilo-page, .rank-page, .pool-page, .runs-page, .scouting-board, .context-page, .similarity-report-sheet))::after {
+  content: ""; position: absolute; inset: 8mm; z-index: 2; pointer-events: none;
+  border: 1px solid #e3e3e3; border-radius: 17px;
+}
+body.print-layout-check .legal-page-shell > :is(.snap-page, .estilo-page, .rank-page, .pool-page, .runs-page, .scouting-board, .context-page, .similarity-report-sheet) {
+  width: 100%; max-width: none; min-height: 0; margin: 0;
+  height: calc(100% / var(--print-fit, 1)) !important;
+  box-sizing: border-box; overflow: hidden;
+  display: flex; flex-direction: column;
+  border: 0; border-radius: 17px; background: #fff; box-shadow: none;
+}
+body.print-layout-check .legal-page-shell > :is(.snap-page, .estilo-page, .rank-page, .pool-page, .runs-page, .scouting-board) {
+  width: calc(100% / .72); height: calc(100% / .72 / var(--print-fit, 1)) !important; padding: 30px 34px 18px;
+  transform: translateX(calc((1 - var(--print-fit, 1)) * 36%)) scale(calc(.72 * var(--print-fit, 1))) !important;
+  transform-origin: top left !important;
+}
+body.print-layout-check .legal-page-shell > * > :is(.visual-page-footer, .dossier-footer) { margin-top: auto !important; }
+
+@media print {
+  .legal-page-shell { position: relative; }
+  .legal-page-shell:has(> :is(.snap-page, .estilo-page, .rank-page, .pool-page, .runs-page, .scouting-board, .context-page, .similarity-report-sheet))::after {
+    content: ""; position: absolute; inset: 8mm; z-index: 2; pointer-events: none;
+    border: 1px solid #e3e3e3; border-radius: 17px;
+  }
+  .legal-page-shell > :is(.snap-page, .estilo-page, .rank-page, .pool-page, .runs-page, .scouting-board, .context-page, .similarity-report-sheet) {
+    width: 100% !important; max-width: none !important; min-height: 0 !important; margin: 0 !important;
+    height: calc(100% / var(--print-fit, 1)) !important;
+    box-sizing: border-box; overflow: hidden !important;
+    display: flex !important; flex-direction: column;
+    border: 0 !important; border-radius: 17px !important; background: #fff !important; box-shadow: none !important;
+  }
+  .legal-page-shell > :is(.snap-page, .estilo-page, .rank-page, .pool-page, .runs-page, .scouting-board) {
+    width: calc(100% / .72) !important; height: calc(100% / .72 / var(--print-fit, 1)) !important; padding: 30px 34px 18px !important;
+    transform: translateX(calc((1 - var(--print-fit, 1)) * 36%)) scale(calc(.72 * var(--print-fit, 1))) !important;
+    transform-origin: top left !important;
+  }
+  .legal-page-shell > * > :is(.visual-page-footer, .dossier-footer) { margin-top: auto !important; }
+}
+
+/* Ficha ampliada en dos hojas. En pantalla se leen seguidas: sin el pie de
+   la primera ni la cabecera de la segunda, y sin hueco entre ellas. */
+@media screen {
+  body:not(.print-layout-check) .snap-hoja-1 > .visual-page-footer,
+  body:not(.print-layout-check) .snap-cabecera-continuacion { display: none; }
+  body:not(.print-layout-check) .app-shell[data-tema] .snap-page.snap-hoja-1 { margin-bottom: 0; }
+  body:not(.print-layout-check) .app-shell[data-tema] .snap-page.snap-hoja-2 { margin-top: 0; }
+}
+
+/* La hoja de similitud en Legal tiene más alto que la comparación: el radar
+   crece hasta llenarlo, en vez de dejar un cuarto de hoja en blanco sobre el
+   pie. Si con eso no cabe, el ajuste a la hoja la reduce como a las demás. */
+body.print-layout-check .legal-page-shell > .similarity-report-sheet .similarity-showdown.radar-only .similarity-radar-column { max-width: 640px; }
+@media print {
+  .legal-page-shell > .similarity-report-sheet .similarity-showdown.radar-only .similarity-radar-column { max-width: 640px !important; }
+}
+
+/* Estilo de juego en dos hojas: la segunda, cara a cara y top 10 lado a lado.
+   En pantalla se leen seguidas, sin el pie de la primera ni la cabecera de la
+   segunda. */
+.app-shell[data-tema] .estilo-grid-2 { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+.app-shell[data-tema] .estilo-grid-2 > .estilo-bloque:only-child { grid-column: 1 / -1; }
+@media screen and (max-width: 900px) { body:not(.print-layout-check) .app-shell[data-tema] .estilo-grid-2 { grid-template-columns: minmax(0, 1fr); } }
+@media screen {
+  body:not(.print-layout-check) .estilo-hoja-1 > .visual-page-footer,
+  body:not(.print-layout-check) .estilo-cabecera-continuacion { display: none; }
+  body:not(.print-layout-check) .app-shell[data-tema] .estilo-page.estilo-hoja-1 { margin-bottom: 18px; }
+  body:not(.print-layout-check) .app-shell[data-tema] .estilo-page.estilo-hoja-2 { margin-top: 0; }
+}
+
+/* Ranking y Entre ligas en el PDF: los 15 primeros, cortados por fila entera.
+   La lista entera (40 o más) solo cabía reducida a un tercio; antes se
+   recortaba por la mitad de una fila sin avisar. Si aun así no caben, la
+   lista deja de encogerse y el ajuste reduce la hoja un poco. */
+body.print-layout-check .legal-page-shell > :is(.rank-page, .pool-page) :is(.rank-list, .pool-lista) { flex: none; overflow: visible; }
+body.print-layout-check .legal-page-shell > :is(.rank-page, .pool-page) :is(.rank-list, .pool-lista) > li:nth-child(n+16) { display: none; }
+@media print {
+  .legal-page-shell > :is(.rank-page, .pool-page) :is(.rank-list, .pool-lista) { flex: none !important; overflow: visible !important; }
+  .legal-page-shell > :is(.rank-page, .pool-page) :is(.rank-list, .pool-lista) > li:nth-child(n+16) { display: none !important; }
+}

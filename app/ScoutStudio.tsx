@@ -667,63 +667,21 @@ export default function ScoutStudio() {
         }));
         await siguienteCuadro();
         if (cancelled) return;
-        // Tamaño de hoja automático: Legal es muy alta y una comparación sin
-        // comentario dejaba un cuarto de página en blanco. Se mide el alto
-        // natural del contenido —con la altura liberada y sin el footer
-        // empujado al fondo— y si cabe en Carta se exporta en Carta.
-        const MM = 96 / 25.4;
-        // Contra el alto completo de la Carta menos un par de milímetros de
-        // resguardo: descontar además el margen interno dejaba fuera casos que
-        // sí caben, como una comparación sin comentario del scout.
-        const ALTO_CARTA = (279.4 - 4) * MM;
-        // La página de similitud no vive dentro de .legal-page-shell —fluye en
-        // su propia hoja—, así que hay que medirla aparte o nunca entraría en
-        // la decisión y se exportaría siempre en Legal.
-        const hojas = Array.from(document.querySelectorAll<HTMLElement>(
-          ".legal-page-shell, .similarity-page-host:not(.is-hidden) .similarity-report-sheet",
-        ));
-        document.body.classList.add("print-measure");
-        await siguienteCuadro();
-        if (cancelled) return;
-        const altoNatural = hojas.map((hoja) => hoja.scrollHeight);
-        document.body.classList.remove("print-measure");
-        await siguienteCuadro();
-        if (cancelled) return;
-
-        const ALTO_LEGAL = (355.6 - 4) * MM;
-        // Reducir hasta un 15% es imperceptible al lado de dejar media cuartilla
-        // en gris: si el contenido casi cabe en Carta, se elige Carta y se
-        // encoge lo justo para llenarla en vez de saltar a Legal y desperdiciar
-        // el resto de la hoja.
-        const ENCOGIDO_ACEPTABLE = 0.85;
-        const altoMayor = Math.max(0, ...altoNatural);
-        let cabeEnCarta = false;
-        let escalaHoja = 1;
-        if (altoMayor > 0) {
-          if (altoMayor <= ALTO_CARTA) cabeEnCarta = true;
-          else if (ALTO_CARTA / altoMayor >= ENCOGIDO_ACEPTABLE) { cabeEnCarta = true; escalaHoja = ALTO_CARTA / altoMayor; }
-          else escalaHoja = Math.min(1, ALTO_LEGAL / altoMayor);
-        }
+        // Todas las hojas en Legal, como Ficha y radar: antes una página que
+        // cabía en Carta salía en Carta, y el PDF mezclaba dos tamaños de hoja
+        // y dos marcos distintos. Lo que sobra de alto lo reparte cada hoja.
         const estiloHoja = document.getElementById("fos-page-size") ?? Object.assign(document.createElement("style"), { id: "fos-page-size" });
-        estiloHoja.textContent = `@page { size: ${cabeEnCarta ? "letter" : "legal"} portrait; margin: 0; }`;
+        estiloHoja.textContent = "@page { size: legal portrait; margin: 0; }";
         if (!estiloHoja.parentNode) document.head.appendChild(estiloHoja);
-        document.body.classList.toggle("print-size-letter", cabeEnCarta);
-        // La hoja de similitud fluye libre: se le aplica la escala directamente
-        // para que llene la página elegida y no quede la banda gris al pie.
-        for (const hoja of hojas) {
-          if (hoja.classList.contains("legal-page-shell")) continue;
-          if (escalaHoja < 0.999) { hoja.style.setProperty("--print-fit", String(escalaHoja)); hoja.dataset.printFit = "1"; }
-          else { hoja.style.removeProperty("--print-fit"); delete hoja.dataset.printFit; }
-        }
-        await siguienteCuadro();
-        if (cancelled) return;
 
         // Ajuste automático a la hoja Legal. En vez de rechazar la exportación
         // por unos milímetros de más, cada página se reduce con una escala
         // uniforme: las proporciones y la maquetación se conservan intactas y,
         // al ser un escalado único, nada puede quedar solapado. Se itera porque
         // ensanchar la caja antes de escalarla vuelve a repartir el texto.
-        const FIT_SELECTOR = ".scout-report, .visual-report-page, .context-page, .similarity-native-block, .similarity-native-content, .similarity-report-main, .similarity-metric-section, .visual-text-content";
+        // Las páginas de análisis y la hoja de similitud entran igual que la
+        // ficha: si su contenido pasa del alto de la hoja, se encoge entera.
+        const FIT_SELECTOR = ".scout-report, .visual-report-page, .context-page, .snap-page, .estilo-page, .rank-page, .pool-page, .runs-page, .scouting-board, .similarity-report-sheet, .similarity-native-block, .similarity-native-content, .similarity-report-main, .similarity-metric-section, .visual-text-content";
         const MIN_FIT = 0.55;
         const shells = Array.from(document.querySelectorAll<HTMLElement>(".legal-page-shell"));
 
@@ -781,8 +739,7 @@ export default function ScoutStudio() {
           return;
         }
         const limpiarEscala = () => {
-          for (const shell of [...shells, ...hojas]) { shell.style.removeProperty("--print-fit"); delete shell.dataset.printFit; }
-          document.body.classList.remove("print-size-letter");
+          for (const shell of shells) { shell.style.removeProperty("--print-fit"); delete shell.dataset.printFit; }
         };
         window.addEventListener("afterprint", limpiarEscala, { once: true });
         const previousTitle = document.title;
@@ -2075,7 +2032,7 @@ export default function ScoutStudio() {
                 <div className={claseHoja(POOL_PAGE)}><PoolPage onAbrirJugador={(indice) => { selectPlayer(indice); setReportPage(CARD_PAGE); }} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
               )}
               {paginaMontada(STYLE_PAGE) && (
-                <div className={claseHoja(STYLE_PAGE)}><EstiloPage destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
+                <EstiloPage claseHoja={claseHoja(STYLE_PAGE)} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} />
               )}
               {boardPreviewOpen && (
                 <div className="board-preview-overlay" role="dialog" aria-modal="true" aria-label={t("Vista rápida del reporte")} onClick={() => setBoardPreviewOpen(false)}>
@@ -2094,8 +2051,8 @@ export default function ScoutStudio() {
                 </div>
               )}
               {report && paginaMontada(SNAPSHOT_PAGE) && (
-                <div className={claseHoja(SNAPSHOT_PAGE)}><SnapshotPage rows={reportRows} indice={selectedPlayer} informe={report} perfilTm={profile} minutosMin={minimumMinutes}
-                  destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} onAbrirJugador={(indice) => selectPlayer(indice)} /></div>
+                <SnapshotPage rows={reportRows} indice={selectedPlayer} informe={report} perfilTm={profile} minutosMin={minimumMinutes} claseHoja={claseHoja(SNAPSHOT_PAGE)}
+                  destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} onAbrirJugador={(indice) => selectPlayer(indice)} />
               )}
               {report && paginaMontada(CONTEXT_PAGE) && (
                 <div className={claseHoja(CONTEXT_PAGE)}><ContextPage report={report} rows={reportRows} bases={sourceDatasets} minutosFiltro={minimumMinutes} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} controles={{

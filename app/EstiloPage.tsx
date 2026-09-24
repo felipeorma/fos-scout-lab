@@ -39,11 +39,13 @@ function formatear(metrica: MetricaEstilo, valor: number) {
 const tramo = (percentil: number) => (percentil >= 80 ? "p5" : percentil >= 60 ? "p4" : percentil >= 40 ? "p3" : percentil >= 20 ? "p2" : "p1");
 const conSigno = (z: number) => `${z >= 0 ? "+" : "−"}${Math.abs(z).toFixed(2)}`;
 
-export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", logoDestinatario = "" }: {
+export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", logoDestinatario = "", claseHoja = "legal-page-shell" }: {
   /** El equipo con el que se mide el encaje. En el espacio de Cavalry, Cavalry. */
   equipoPropio?: string;
   destinatario?: string;
   logoDestinatario?: string;
+  /** La clase de cada hoja de impresión: con un equipo elegido, son dos. */
+  claseHoja?: string;
 }) {
   const { filas, cargando, mensaje: estado, recargar } = useEstilos();
   const [clave, setClave] = useState("");
@@ -85,7 +87,17 @@ export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", lo
     </optgroup>
   ));
 
-  return <section className="estilo-page">
+  const pie = elegido
+    ? <PieDeReporte asunto={rival ? `${elegido.equipo} · ${rival.equipo}` : elegido.equipo} destinatario={destinatario} logo={logoDestinatario} />
+    : null;
+
+  // Dos hojas: la ficha del equipo con la rosa en una, el cara a cara y el
+  // top 10 en otra. Todo junto medía más del doble de una Legal. En pantalla
+  // se leen seguidas; la cabecera de la segunda y el pie de la primera solo
+  // salen al imprimir.
+  return <>
+  <div className={claseHoja}>
+  <section className="estilo-page estilo-hoja-1">
     <header>
       <div>
         <span>{t("STATSBOMB · ESTADÍSTICAS DE EQUIPO")}</span>
@@ -189,46 +201,61 @@ export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", lo
             </ol>
           </section>
 
-          {rival && <section className="estilo-bloque">
-            <h3>{tf("Cara a cara: {a} y {b}", { a: elegido.equipo, b: rival.equipo })}</h3>
-            <ol className="estilo-duelo">
-              {duelo.map(({ metrica, za, zb, lider, diferencia }) => (
-                <li key={metrica.id}>
-                  <span className="estilo-metrica"><i style={{ background: COLOR_FAMILIA[metrica.familia] }} />{t(metrica.etiqueta)}</span>
-                  <span className={lider === "a" ? "estilo-lider a" : "estilo-lider b"}>{lider === "a" ? elegido.equipo : rival.equipo}</span>
-                  <span className="estilo-dif">{`+${diferencia.toFixed(2)}`}</span>
-                  <small className="estilo-dos">{`${conSigno(za)} / ${conSigno(zb)}`}</small>
-                </li>
-              ))}
-            </ol>
-          </section>}
-
-          <section className="estilo-bloque">
-            <h3 className="estilo-top-titulo">
-              {t("Top 10 en")}
-              <Desplegable etiqueta={t("Métrica")} valor={t(metricaElegida.etiqueta)} activo={false}>
-                <select aria-label={t("Métrica")} value={metricaElegida.id} onChange={(evento) => setMetricaTop(evento.target.value)}>
-                  {FAMILIAS.map((familia) => <optgroup key={familia.id} label={t(familia.nombre)}>
-                    {METRICAS_ESTILO.filter((metrica) => metrica.familia === familia.id).map((metrica) => <option key={metrica.id} value={metrica.id}>{t(metrica.etiqueta)}</option>)}
-                  </optgroup>)}
-                </select>
-              </Desplegable>
-            </h3>
-            <ol className="rank-list estilo-lista">
-              {top.map((perfil, posicion) => (
-                <li key={perfil.clave} className={perfil.clave === elegido.clave ? "activa" : undefined}>
-                  <span className={posicion < 3 ? "rank-pos podio" : "rank-pos"}>{posicion + 1}</span>
-                  <span className="pool-cuerpo"><b>{perfil.equipo}</b><small>{perfil.competicion}</small></span>
-                  <span className="pool-cifras"><b>{formatear(metricaElegida, perfil.valores[metricaElegida.id].bruto)}</b><small>{`z ${conSigno(perfil.valores[metricaElegida.id].z)}`}</small></span>
-                  <span />
-                </li>
-              ))}
-            </ol>
-          </section>
         </div>
       </div>
-
-      <PieDeReporte asunto={rival ? `${elegido.equipo} · ${rival.equipo}` : elegido.equipo} destinatario={destinatario} logo={logoDestinatario} />
+      {pie}
     </>}
-  </section>;
+  </section>
+  </div>
+
+  {elegido && <div className={claseHoja}>
+  <section className="estilo-page estilo-hoja-2">
+    <header className="estilo-cabecera-continuacion">
+      <div>
+        <span>{t("STATSBOMB · ESTADÍSTICAS DE EQUIPO · 2 DE 2")}</span>
+        <h2>{rival ? `${elegido.equipo} · ${rival.equipo}` : elegido.equipo}</h2>
+      </div>
+    </header>
+    <div className="estilo-grid-2">
+      {rival && <section className="estilo-bloque">
+        <h3>{tf("Cara a cara: {a} y {b}", { a: elegido.equipo, b: rival.equipo })}</h3>
+        <ol className="estilo-duelo">
+          {duelo.map(({ metrica, za, zb, lider, diferencia }) => (
+            <li key={metrica.id}>
+              <span className="estilo-metrica"><i style={{ background: COLOR_FAMILIA[metrica.familia] }} />{t(metrica.etiqueta)}</span>
+              <span className={lider === "a" ? "estilo-lider a" : "estilo-lider b"}>{lider === "a" ? elegido.equipo : rival.equipo}</span>
+              <span className="estilo-dif">{`+${diferencia.toFixed(2)}`}</span>
+              <small className="estilo-dos">{`${conSigno(za)} / ${conSigno(zb)}`}</small>
+            </li>
+          ))}
+        </ol>
+      </section>}
+
+      <section className="estilo-bloque">
+        <h3 className="estilo-top-titulo">
+          {t("Top 10 en")}
+          <Desplegable etiqueta={t("Métrica")} valor={t(metricaElegida.etiqueta)} activo={false}>
+            <select aria-label={t("Métrica")} value={metricaElegida.id} onChange={(evento) => setMetricaTop(evento.target.value)}>
+              {FAMILIAS.map((familia) => <optgroup key={familia.id} label={t(familia.nombre)}>
+                {METRICAS_ESTILO.filter((metrica) => metrica.familia === familia.id).map((metrica) => <option key={metrica.id} value={metrica.id}>{t(metrica.etiqueta)}</option>)}
+              </optgroup>)}
+            </select>
+          </Desplegable>
+        </h3>
+        <ol className="rank-list estilo-lista">
+          {top.map((perfil, posicion) => (
+            <li key={perfil.clave} className={perfil.clave === elegido.clave ? "activa" : undefined}>
+              <span className={posicion < 3 ? "rank-pos podio" : "rank-pos"}>{posicion + 1}</span>
+              <span className="pool-cuerpo"><b>{perfil.equipo}</b><small>{perfil.competicion}</small></span>
+              <span className="pool-cifras"><b>{formatear(metricaElegida, perfil.valores[metricaElegida.id].bruto)}</b><small>{`z ${conSigno(perfil.valores[metricaElegida.id].z)}`}</small></span>
+              <span />
+            </li>
+          ))}
+        </ol>
+      </section>
+    </div>
+    {pie}
+  </section>
+  </div>}
+  </>;
 }

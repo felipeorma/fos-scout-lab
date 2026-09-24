@@ -321,7 +321,9 @@ function RadarFamilias({ valores }: { valores: DatosFicha["propias"] }) {
   const paso = (Math.PI * 2) / n;
   const radio = (p: number) => R0 + (R1 - R0) * Math.max(0, Math.min(100, p)) / 100;
   const punto = (a: number, r: number) => [C + r * Math.sin(a), C - r * Math.cos(a)] as const;
-  return <svg className="snap-radar" viewBox="0 0 400 400" role="img" aria-label={t("Familias del jugador")}>
+  // Lienzo más ancho que el radar: las etiquetas de los lados ("Defensa en
+  // campo propio") salían cortadas por el borde.
+  return <svg className="snap-radar" viewBox="-80 -6 560 412" role="img" aria-label={t("Familias del jugador")}>
     {[25, 50, 75, 100].map((p) => <circle key={p} cx={C} cy={C} r={radio(p)} className={p === 50 ? "snap-anillo mediana" : "snap-anillo"} />)}
     {familias.map((familia, i) => {
       const valor = valores[familia.id];
@@ -357,17 +359,16 @@ function Enjambre({ id, grupo, objetivo, destacados, nombres }: { id: string; gr
   const x = (z: number) => margen + ((z - min) / Math.max(max - min, 1e-6)) * (W - margen * 2);
   const ys = enjambre(puntos.map((p) => x(p.z)), r);
   // Los nombres van encima, en carriles, con una línea hasta su punto: en
-  // una fila de puntos tan juntos no hay sitio para ponerlos al lado. El
-  // jugador y sus parecidos siempre; el resto, empezando por los que más se
-  // alejan de la media —los que destacan en la familia—, mientras quepan en
-  // cuatro carriles.
+  // una fila de puntos tan juntos no hay sitio para ponerlos al lado. Solo
+  // el jugador y sus cinco más parecidos: con más nombres la fila se volvía
+  // ilegible y no era lo que se busca leer en ella.
   const tipo = (i: number) => (i === objetivo ? "objetivo" : destacados.includes(i) ? "parecido" : "resto");
   const tamano = (i: number) => NOMBRE[tipo(i)];
-  const { posiciones, total } = carriles(puntos.map((p) => ({
+  const { posiciones, total } = carriles(puntos.filter((p) => tipo(p.i) !== "resto").map((p) => ({
     id: p.i, x: x(p.z), ancho: anchoDeTexto(apellido(nombres(p.i)), tamano(p.i)),
     // El jugador del informe primero (carril más cercano), luego sus parecidos.
-    prioridad: (tipo(p.i) === "objetivo" ? 1000 : tipo(p.i) === "parecido" ? 100 : 0) + Math.abs(p.z), forzar: tipo(p.i) !== "resto",
-  })), 2, W - 2, { maximo: 4 });
+    prioridad: tipo(p.i) === "objetivo" ? 1 : 0, forzar: true,
+  })), 2, W - 2);
   const conNombre = puntos.map((p, k) => ({ ...p, k })).filter((p) => posiciones.has(p.i));
   const semi = Math.max(18, ...ys.map((y) => Math.abs(y))) + r + 2;
   const arriba = total ? total * 12 + 8 : 4;

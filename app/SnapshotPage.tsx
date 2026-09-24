@@ -20,7 +20,7 @@ import type { TransfermarktProfile } from "@/lib/transfermarkt";
  * Cada gráfico es una pieza de PiezasFicha: los mismos que Visuales ofrece
  * sueltos para montar una hoja a medida.
  */
-export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, destinatario = "", logoDestinatario = "", onAbrirJugador }: {
+export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, destinatario = "", logoDestinatario = "", onAbrirJugador, claseHoja = "legal-page-shell" }: {
   rows: DataRow[];
   indice: number;
   informe: PlayerReport;
@@ -29,6 +29,8 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
   destinatario?: string;
   logoDestinatario?: string;
   onAbrirJugador?: (indice: number) => void;
+  /** La clase de cada hoja de impresión: la ficha ampliada ocupa dos. */
+  claseHoja?: string;
 }) {
   const contexto: ContextoFicha = { rows, indice, informe, perfilTm, minutosMin, onAbrirJugador };
   const datos = useDatosFicha(contexto, true);
@@ -37,51 +39,67 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
   const [agruparRecepciones, setAgruparRecepciones] = useState("tipo");
   const pieza = (id: IdPieza) => <PiezaFicha pieza={id} datos={datos} />;
 
-  return <section className="snap-page">
-    <header>
-      <div>
-        <span>{t("STATSBOMB · FICHA AMPLIADA")}</span>
-        <h2>{datos.jugador}</h2>
-        <p>{tf("Familias contra {n} {grupo} de la base cargada, con al menos {m} minutos.", { n: datos.grupo.indices.length, grupo: datos.nombreGrupo.toLowerCase(), m: minutosMin })}</p>
-      </div>
-    </header>
-    {datos.estado && <p className="snap-estado" role="status">{datos.estado}</p>}
+  const cabecera = (continuacion: boolean) => <header className={continuacion ? "snap-cabecera-continuacion" : undefined}>
+    <div>
+      <span>{continuacion ? t("STATSBOMB · FICHA AMPLIADA · 2 DE 2") : t("STATSBOMB · FICHA AMPLIADA")}</span>
+      <h2>{datos.jugador}</h2>
+      <p>{tf("Familias contra {n} {grupo} de la base cargada, con al menos {m} minutos.", { n: datos.grupo.indices.length, grupo: datos.nombreGrupo.toLowerCase(), m: minutosMin })}</p>
+    </div>
+  </header>;
+  const pie = <PieDeReporte asunto={datos.jugador} destinatario={destinatario} logo={logoDestinatario} />;
 
-    <div className="snap-fila snap-fila-1">
-      <div className="snap-columna">
-        {pieza("ficha")}
-        {pieza("tabla")}
-      </div>
-      <PiezaFicha pieza="top10" datos={datos} opcion={familiaTop} onOpcion={setFamiliaTop} />
-      {pieza("puestos")}
+  // Dos hojas: con las recepciones, todo junto no cabe en una Legal ni
+  // reducido al mínimo legible. En pantalla se leen seguidas —la cabecera de
+  // la segunda y el pie de la primera solo salen al imprimir—; en el PDF, cada
+  // una con su marco y su pie, como Ficha y radar.
+  return <>
+    <div className={claseHoja}>
+      <section className="snap-page snap-hoja-1">
+        {cabecera(false)}
+        {datos.estado && <p className="snap-estado" role="status">{datos.estado}</p>}
+
+        <div className="snap-fila snap-fila-1">
+          <div className="snap-columna">
+            {pieza("ficha")}
+            {pieza("tabla")}
+          </div>
+          <PiezaFicha pieza="top10" datos={datos} opcion={familiaTop} onOpcion={setFamiliaTop} />
+          {pieza("puestos")}
+        </div>
+
+        <div className="snap-fila snap-fila-2">
+          {pieza("parecidos")}
+          {pieza("tiros")}
+          {pieza("ocasiones")}
+          {pieza("regates")}
+        </div>
+        {pie}
+      </section>
     </div>
 
-    <div className="snap-fila snap-fila-2">
-      {pieza("parecidos")}
-      {pieza("tiros")}
-      {pieza("ocasiones")}
-      {pieza("regates")}
-    </div>
+    <div className={claseHoja}>
+      <section className="snap-page snap-hoja-2">
+        {cabecera(true)}
+        <div className="snap-fila snap-fila-3">
+          {pieza("pases_inicio")}
+          {pieza("pases_fin")}
+          {pieza("calor")}
+          {pieza("defensa")}
+        </div>
 
-    <div className="snap-fila snap-fila-3">
-      {pieza("pases_inicio")}
-      {pieza("pases_fin")}
-      {pieza("calor")}
-      {pieza("defensa")}
-    </div>
+        <div className="snap-fila snap-fila-3 snap-fila-recepciones">
+          <PiezaFicha pieza="recepciones" datos={datos} opcion={agruparRecepciones} onOpcion={setAgruparRecepciones} />
+          <PiezaFicha pieza="recepciones_tipo" datos={datos} opcion={agruparRecepciones} onOpcion={setAgruparRecepciones} />
+          {pieza("recepciones_origen")}
+          {pieza("recepciones_pasadores")}
+        </div>
 
-    <div className="snap-fila snap-fila-3 snap-fila-recepciones">
-      <PiezaFicha pieza="recepciones" datos={datos} opcion={agruparRecepciones} onOpcion={setAgruparRecepciones} />
-      <PiezaFicha pieza="recepciones_tipo" datos={datos} opcion={agruparRecepciones} onOpcion={setAgruparRecepciones} />
-      {pieza("recepciones_origen")}
-      {pieza("recepciones_pasadores")}
+        <div className="snap-fila snap-fila-4">
+          {pieza("enjambres")}
+          {pieza("dispersion")}
+        </div>
+        {pie}
+      </section>
     </div>
-
-    <div className="snap-fila snap-fila-4">
-      {pieza("enjambres")}
-      {pieza("dispersion")}
-    </div>
-
-    <PieDeReporte asunto={datos.jugador} destinatario={destinatario} logo={logoDestinatario} />
-  </section>;
+  </>;
 }
