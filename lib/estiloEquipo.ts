@@ -229,6 +229,20 @@ export type PerfilEquipo = {
   valores: Record<string, ValorEstilo>;
 };
 
+/**
+ * El valor de una familia en el radar de seis aristas: la media de los
+ * percentiles de sus métricas (las invertidas ya vienen invertidas). Sin
+ * ninguna métrica con dato —un equipo sin SkillCorner en movimiento y presión
+ * sin balón— no hay valor: la arista no se dibuja en vez de caer a cero.
+ */
+export function valorDeFamilia(perfil: PerfilEquipo, familia: FamiliaEstilo): { percentil: number; metricas: number } | null {
+  const percentiles = METRICAS_ESTILO
+    .filter((metrica) => metrica.familia === familia && perfil.valores[metrica.id])
+    .map((metrica) => perfil.valores[metrica.id].percentil);
+  if (!percentiles.length) return null;
+  return { percentil: Math.round(percentiles.reduce((s, p) => s + p, 0) / percentiles.length), metricas: percentiles.length };
+}
+
 export const claveEquipo = (fila: FilaEquipo) => `${fila.competition_id}:${fila.season_id}:${fila.team_id}`;
 
 const media = (xs: number[]) => xs.reduce((s, x) => s + x, 0) / xs.length;

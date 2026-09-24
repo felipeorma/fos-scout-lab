@@ -231,6 +231,29 @@ export async function fetchStatsbombTeamStats(competition: ApiCompetition): Prom
   return payload.rows ?? [];
 }
 
+export type ExtrasDeEquipo = {
+  partidos: number;
+  conPpda: number;
+  /** Media por partido: las estadísticas por partido no traen los conteos. */
+  ppda: number | null;
+  ppdaContra: number | null;
+  minutosTotales: number;
+  formaciones: Array<{ formacion: string; minutos: number; inicios: number }>;
+};
+
+/**
+ * Formaciones más usadas y PPDA a favor y en contra de un equipo. La clave es
+ * la del perfil de estilo: "competición:temporada:equipo". La primera vez baja
+ * los eventos de sus partidos (un par de minutos); después sale de la caché.
+ */
+export async function fetchExtrasDeEquipo(clave: string): Promise<ExtrasDeEquipo> {
+  const [competicion, temporada, equipo] = clave.split(":");
+  return bridgeJson<ExtrasDeEquipo>(
+    `/api/statsbomb/team-extras?competition_id=${competicion}&season_id=${temporada}&team_id=${equipo}`,
+    300_000,
+  );
+}
+
 /** Game intelligence de SkillCorner por equipo: promedios por jugador y partido. */
 export async function fetchSkillcornerTeamStats(edition: ApiCompetition): Promise<Array<Record<string, unknown>>> {
   const payload = await bridgeJson<{ rows: Array<Record<string, unknown>> }>(

@@ -5516,7 +5516,22 @@ button.menu-fila:active { transform: scale(.985); }
   margin: 0 4px 6px; display: flex; align-items: center; gap: 7px;
   color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
 }
-.estilo-familia > h3 > i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.estilo-familia > h3 i { width: 10px; height: 10px; flex: none; border-radius: 3px; display: inline-block; }
+/* La cabecera de cada caja es el botón que resalta su arista en el radar. */
+.app-shell[data-tema] .estilo-familia-boton {
+  width: 100%; min-height: 24px; margin: 0; padding: 0;
+  display: flex; align-items: center; gap: 7px;
+  border: 0; background: none; box-shadow: none;
+  color: inherit; font: inherit; letter-spacing: inherit; text-align: left; text-transform: inherit; cursor: pointer;
+}
+.app-shell[data-tema] .estilo-familia-boton:disabled { cursor: default; }
+.app-shell[data-tema] .estilo-familia-boton:focus-visible { outline: 2px solid var(--acento-borde); outline-offset: 2px; border-radius: 4px; }
+.app-shell[data-tema] .estilo-familia-media { margin-left: auto; color: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums; letter-spacing: 0; }
+.app-shell[data-tema] .estilo-familia { transition: opacity .18s ease; }
+.app-shell[data-tema] .estilo-familia.atenuada { opacity: .4; }
+.app-shell[data-tema] .estilo-familia.activa > h3 { color: var(--familia); }
+.app-shell[data-tema] .estilo-familia.activa > :is(ol, p) { box-shadow: 0 0 0 2px var(--familia); }
+@media (prefers-reduced-motion: reduce) { .app-shell[data-tema] .estilo-familia { transition: none; } }
 .app-shell[data-tema] .estilo-familia > ol,
 .app-shell[data-tema] ol.estilo-duelo {
   margin: 0; padding: 0; list-style: none;
@@ -5552,23 +5567,32 @@ button.menu-fila:active { transform: scale(.985); }
   margin: 0; padding: 12px 12px 10px;
   border-radius: 16px; background: var(--paper); box-shadow: 0 0 0 1px var(--line);
 }
-.rosa-estilo { display: block; width: 100%; height: auto; }
-.app-shell[data-tema] .rosa-anillo { fill: none; stroke: var(--line); stroke-width: 1; }
-.app-shell[data-tema] .rosa-anillo.mediana { stroke: color-mix(in srgb, var(--ink) 40%, transparent); stroke-dasharray: 4 4; }
-.app-shell[data-tema] .rosa-radio { stroke: var(--line); stroke-width: .6; }
-.rosa-cuna { opacity: .9; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-.app-shell[data-tema] .rosa-rival { fill: none; stroke: var(--ink); stroke-width: 2.5; stroke-linecap: round; }
-.app-shell[data-tema] .rosa-etiqueta { fill: var(--muted); font-size: 11px; }
-/* Con 35 cuñas las etiquetas van a lo largo del radio: entre dos vecinas
-   hay 37 unidades, así que caben más grandes que las horizontales. */
-.app-shell[data-tema] .rosa-etiqueta.radial { font-size: 13px; }
-.app-shell[data-tema] .rosa-centro { fill: var(--paper); stroke: var(--line); }
-.app-shell[data-tema] .rosa-leyenda { fill: var(--muted); font-size: 12px; }
+/* El radar de seis aristas. El equipo, en el acento; el que se compara, una
+   línea continua en la tinta (blanca en el tema oscuro), como antes. */
+.radar-estilo { display: block; width: 100%; height: auto; }
+.app-shell[data-tema] .radar-anillo { fill: none; stroke: var(--line); stroke-width: 1; }
+.app-shell[data-tema] .radar-anillo.mediana { stroke: color-mix(in srgb, var(--ink) 40%, transparent); stroke-dasharray: 4 4; }
+.app-shell[data-tema] .radar-eje { stroke: var(--line); stroke-width: 1; }
+.app-shell[data-tema] .radar-eje.activo { stroke-width: 2.5; }
+.app-shell[data-tema] .radar-equipo {
+  fill: var(--acento); fill-opacity: .22; stroke: var(--acento); stroke-width: 2.5; stroke-linejoin: round;
+  print-color-adjust: exact; -webkit-print-color-adjust: exact;
+}
+.app-shell[data-tema] .radar-rival { fill: color-mix(in srgb, var(--ink) 6%, transparent); stroke: var(--ink); stroke-width: 2.5; stroke-linejoin: round; }
+.app-shell[data-tema] .radar-rival.abierto { fill: none; stroke-linecap: round; }
+.app-shell[data-tema] .radar-rival-vertice { fill: var(--ink); }
+.app-shell[data-tema] .radar-vertice { stroke: var(--paper); stroke-width: 2; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+.radar-familia { cursor: pointer; transition: opacity .18s ease; }
+.radar-familia:focus { outline: none; }
+.app-shell[data-tema] .radar-familia:focus-visible .radar-nombre { text-decoration: underline; }
+.radar-familia.atenuada { opacity: .35; }
+.app-shell[data-tema] .radar-nombre { font-size: 15px; font-weight: 700; letter-spacing: .01em; }
+.app-shell[data-tema] .radar-valor { fill: var(--ink); font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) { .radar-familia { transition: none; } }
 .app-shell[data-tema] .estilo-rosa > figcaption { margin-top: 4px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; color: var(--ink); font-size: 12.5px; }
 .estilo-rosa > figcaption > span { display: inline-flex; align-items: center; gap: 6px; }
 .estilo-rosa > figcaption i { width: 14px; height: 10px; display: inline-block; border-radius: 2px; }
-.estilo-rosa > figcaption i.relleno { background: linear-gradient(90deg, #3b7dd8 25%, #2f9e62 25% 50%, #e08a2e 50% 75%, #d0503f 75%); }
-.estilo-rosa > figcaption i.relleno.con-sc { width: 18px; background: linear-gradient(90deg, #3b7dd8 16.6%, #2f9e62 16.6% 33.3%, #e08a2e 33.3% 50%, #d0503f 50% 66.6%, #7b61d1 66.6% 83.3%, #1f9aa6 83.3%); }
+.app-shell[data-tema] .estilo-rosa > figcaption i.relleno { background: color-mix(in srgb, var(--acento) 30%, transparent); box-shadow: inset 0 0 0 2px var(--acento); }
 .app-shell[data-tema] .estilo-rosa > figcaption i.contorno { border: 2px solid var(--ink); }
 .app-shell[data-tema] .estilo-rosa > figcaption small { margin-left: auto; color: var(--muted); font-size: 11px; }
 
@@ -5659,12 +5683,12 @@ button.menu-fila:active { transform: scale(.985); }
   .estilo-page :is(.estilo-ficha, .estilo-familia, .estilo-rosa, .estilo-bloque) { break-inside: avoid; }
   .estilo-page .estilo-top-titulo .filtro-chip { padding: 0; border: 0; background: none; box-shadow: none; }
   .estilo-page .estilo-top-titulo .filtro-chip > :is(span, svg, select) { display: none !important; }
-  .estilo-page .rosa-estilo { max-height: 150mm; }
+  .estilo-page .radar-estilo { max-height: 150mm; }
   .celda-encaje { cursor: default; }
 }
 
 /* ---- Estilo de juego: SkillCorner ---- */
-.app-shell[data-tema] .estilo-familia > h3 > em {
+.app-shell[data-tema] .estilo-familia-boton > em {
   margin-left: 4px; padding: 1px 6px; border-radius: 4px;
   color: var(--muted); background: color-mix(in srgb, var(--ink) 7%, transparent);
   font-size: 9.5px; font-style: normal; letter-spacing: .02em; text-transform: none;
@@ -5991,3 +6015,28 @@ body.print-layout-check .legal-page-shell > :is(.rank-page, .pool-page) :is(.ran
   .legal-page-shell > :is(.rank-page, .pool-page) :is(.rank-list, .pool-lista) { flex: none !important; overflow: visible !important; }
   .legal-page-shell > :is(.rank-page, .pool-page) :is(.rank-list, .pool-lista) > li:nth-child(n+16) { display: none !important; }
 }
+
+/* ---- Estilo de juego · formación y presión ---- */
+.app-shell[data-tema] .estilo-extras-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.app-shell[data-tema] .estilo-extras-equipo { min-width: 0; padding: 12px 14px; border-radius: 12px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); display: flex; flex-direction: column; gap: 10px; }
+.app-shell[data-tema] .estilo-extras-equipo:only-child { grid-column: 1 / -1; }
+.app-shell[data-tema] .estilo-extras-nombre { display: flex; align-items: center; gap: 7px; color: var(--ink); font-size: 13.5px; font-weight: 600; overflow-wrap: anywhere; }
+.estilo-extras-nombre > i { width: 14px; height: 10px; flex: none; display: inline-block; border-radius: 2px; }
+.app-shell[data-tema] .estilo-extras-equipo:not(.rival) .estilo-extras-nombre > i { background: color-mix(in srgb, var(--acento) 30%, transparent); box-shadow: inset 0 0 0 2px var(--acento); }
+.app-shell[data-tema] .estilo-extras-equipo.rival .estilo-extras-nombre > i { box-shadow: inset 0 0 0 2px var(--ink); }
+.app-shell[data-tema] .estilo-extras-estado { color: var(--muted); font-size: 12px; line-height: 1.4; }
+.app-shell[data-tema] .estilo-formaciones { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 7px; }
+.app-shell[data-tema] .estilo-formaciones > li { display: grid; grid-template-columns: 74px minmax(0, 1fr) 38px; grid-template-rows: auto auto; align-items: center; column-gap: 8px; font-size: 12.5px; }
+.app-shell[data-tema] .estilo-formaciones > li > span { color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+.app-shell[data-tema] .estilo-formaciones > li > i { height: 8px; overflow: hidden; border-radius: 4px; background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.app-shell[data-tema] .estilo-formaciones > li > i > b { height: 100%; display: block; border-radius: 4px; background: var(--acento); print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+.app-shell[data-tema] .estilo-extras-equipo.rival .estilo-formaciones > li > i > b { background: var(--ink); }
+.app-shell[data-tema] .estilo-formaciones > li > em { color: var(--ink); font-style: normal; font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+.app-shell[data-tema] .estilo-formaciones > li > small { grid-column: 2 / -1; color: var(--muted); font-size: 10.5px; }
+.app-shell[data-tema] .estilo-formaciones > li.vacia { display: block; color: var(--muted); font-size: 12px; }
+.app-shell[data-tema] .estilo-ppda { margin: 0; padding-top: 10px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; border-top: 1px solid var(--line); }
+.app-shell[data-tema] .estilo-ppda dt { color: var(--muted); font-size: 10.5px; }
+.app-shell[data-tema] .estilo-ppda dd { margin: 0; color: var(--ink); font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.app-shell[data-tema] .estilo-extras-partidos { color: var(--muted); font-size: 10.5px; }
+.app-shell[data-tema] p.estilo-extras-nota { margin: 8px 2px 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+@media screen and (max-width: 640px) { body:not(.print-layout-check) .app-shell[data-tema] .estilo-extras-grid { grid-template-columns: minmax(0, 1fr); } }

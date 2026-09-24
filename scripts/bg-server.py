@@ -715,6 +715,9 @@ def _sb_partido_compacto(match_id: int, auth):
         alineaciones = rl.json() if rl.status_code == 200 else []
     except Exception:
         return None
+    # Ya bajados los eventos, las formaciones salen gratis: se guardan aparte
+    # para Estilo de juego, que las pide sin necesitar el resto.
+    _sb_guardar_formaciones(match_id, eventos)
     # Cada recepción apunta a su pase por `related_events` (en la prueba, 772
     # de 772): de ahí sale cómo le llega el balón.
     pases = {e.get("id"): e for e in eventos if (e.get("type") or {}).get("name") == "Pass"}
@@ -763,6 +766,140 @@ def _sb_partido_compacto(match_id: int, auth):
     except OSError:
         pass
     return compacto
+
+
+def _sb_extraer_formaciones(eventos):
+    """El dibujo de cada equipo a lo largo del partido: el once inicial y cada cambio táctico."""
+    cambios, fin = [], 0.0
+    for e in eventos:
+        fin = max(fin, (e.get("minute") or 0) + (e.get("second") or 0) / 60)
+        tipo = (e.get("type") or {}).get("name")
+        if tipo not in ("Starting XI", "Tactical Shift"):
+            continue
+        formacion = (e.get("tactics") or {}).get("formation")
+        if formacion is None:
+            continue
+        cambios.append({
+            "equipo": (e.get("team") or {}).get("id"),
+            "minuto": round((e.get("minute") or 0) + (e.get("second") or 0) / 60, 2),
+            "formacion": str(formacion),
+            "inicio": tipo == "Starting XI",
+        })
+    return {"fin": round(fin, 2), "cambios": cambios}
+
+
+def _sb_guardar_formaciones(match_id: int, eventos):
+    import json as _json
+    try:
+        _SB_EVENTS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        _escribir_atomico(_SB_EVENTS_CACHE_DIR / f"f-{int(match_id)}.json", _json.dumps(_sb_extraer_formaciones(eventos)))
+    except OSError:
+        pass
+
+
+def _sb_formaciones_partido(match_id: int, auth):
+    """Las formaciones de un partido; si no están guardadas, se bajan sus eventos una vez."""
+    import json as _json
+    ruta = _SB_EVENTS_CACHE_DIR / f"f-{int(match_id)}.json"
+    if ruta.exists():
+        try:
+            return _json.loads(ruta.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    try:
+        r = _requests.get(f"https://data.statsbomb.com/api/v8/events/{int(match_id)}", auth=auth, timeout=120)
+        if r.status_code != 200:
+            return None
+        eventos = r.json()
+    except Exception:
+        return None
+    _sb_guardar_formaciones(match_id, eventos)
+    return _sb_extraer_formaciones(eventos)
+
+
+def _sb_ppda_partido(match_id: int, auth):
+    """El PPDA de cada equipo en un partido: {team_id: ppda}. Guardado en disco."""
+    import json as _json
+    ruta = _SB_EVENTS_CACHE_DIR / f"ppda-{int(match_id)}.json"
+    if ruta.exists():
+        try:
+            return {int(k): v for k, v in _json.loads(ruta.read_text(encoding="utf-8")).items()}
+        except Exception:
+            pass
+    try:
+        r = _requests.get(f"https://data.statsbomb.com/api/v1/matches/{int(match_id)}/team-stats", auth=auth, timeout=60)
+        if r.status_code != 200:
+            return None
+        filas = r.json()
+    except Exception:
+        return None
+    ppda = {int(f["team_id"]): f.get("team_match_ppda") for f in filas if f.get("team_id") is not None}
+    try:
+        _SB_EVENTS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        _escribir_atomico(ruta, _json.dumps(ppda))
+    except OSError:
+        pass
+    return ppda
+
+
+@app.get("/api/statsbomb/team-extras")
+def statsbomb_team_extras(competition_id: int, season_id: int, team_id: int):
+    """Formaciones más usadas y PPDA a favor y en contra de un equipo en su temporada.
+
+    El PPDA en contra no está en las estadísticas de temporada: sale de las de
+    cada partido, donde vienen los dos equipos. Como no traen los conteos, los
+    dos PPDA de aquí son la media por partido. Las formaciones, del once
+    inicial y de cada cambio táctico, en minutos jugados con cada dibujo.
+    """
+    import json as _json
+    from concurrent.futures import ThreadPoolExecutor
+    auth = _statsbomb_auth()
+    if not auth:
+        return Response('{"error": "sin credenciales"}', status_code=503, media_type="application/json", headers=cors_headers())
+    partidos = _cached_get(f"sb:matches6:{competition_id}:{season_id}",
+                           f"https://data.statsbomb.com/api/v6/competitions/{competition_id}/seasons/{season_id}/matches", auth, ttl_seconds=1800)
+    suyos = [p for p in partidos
+             if team_id in ((p.get("home_team") or {}).get("home_team_id"), (p.get("away_team") or {}).get("away_team_id"))
+             and p.get("home_score") is not None]
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        ppdas = list(pool.map(lambda p: _sb_ppda_partido(p["match_id"], auth), suyos))
+        formaciones = list(pool.map(lambda p: _sb_formaciones_partido(p["match_id"], auth), suyos))
+
+    propios, contra = [], []
+    for ppda in ppdas:
+        if not ppda or team_id not in ppda:
+            continue
+        rival = next((v for k, v in ppda.items() if k != team_id), None)
+        if isinstance(ppda[team_id], (int, float)):
+            propios.append(ppda[team_id])
+        if isinstance(rival, (int, float)):
+            contra.append(rival)
+
+    minutos, inicios, total = {}, {}, 0.0
+    for partido in formaciones:
+        if not partido:
+            continue
+        cambios = sorted((c for c in partido.get("cambios", []) if c.get("equipo") == team_id), key=lambda c: c["minuto"])
+        for i, cambio in enumerate(cambios):
+            hasta = cambios[i + 1]["minuto"] if i + 1 < len(cambios) else partido.get("fin", 90)
+            duracion = max(0.0, hasta - cambio["minuto"])
+            minutos[cambio["formacion"]] = minutos.get(cambio["formacion"], 0.0) + duracion
+            total += duracion
+            if cambio.get("inicio"):
+                inicios[cambio["formacion"]] = inicios.get(cambio["formacion"], 0) + 1
+
+    media = lambda xs: round(sum(xs) / len(xs), 2) if xs else None
+    return Response(_json.dumps({
+        "partidos": len(suyos),
+        "conPpda": len(propios),
+        "ppda": media(propios),
+        "ppdaContra": media(contra),
+        "minutosTotales": round(total, 1),
+        "formaciones": [
+            {"formacion": f, "minutos": round(m, 1), "inicios": inicios.get(f, 0)}
+            for f, m in sorted(minutos.items(), key=lambda x: -x[1])
+        ],
+    }), media_type="application/json", headers=cors_headers())
 
 
 @app.get("/api/statsbomb/player-events")

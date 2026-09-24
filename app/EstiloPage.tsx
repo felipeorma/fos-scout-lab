@@ -1,20 +1,23 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Desplegable } from "./BarraDeFiltros";
 import { ChevronDown } from "./Icons";
 import { PieDeReporte } from "./PieDeReporte";
-import { COLOR_FAMILIA, RosaDeEstilo } from "./RosaDeEstilo";
+import { COLOR_FAMILIA, RadarDeEstilo } from "./RadarDeEstilo";
 import { numberLocale, t, tf } from "@/lib/i18n";
 import { useEstilos } from "./useEstilos";
+import { fetchExtrasDeEquipo, type ExtrasDeEquipo } from "@/lib/remoteData";
 import {
   FAMILIAS,
   METRICAS_ESTILO,
   cabezaACabeza,
+  valorDeFamilia,
   equiposParecidos,
   parecidoDeEstilo,
   perfilesDeEstilo,
   EQUIPO_PROPIO,
+  type FamiliaEstilo,
   type MetricaEstilo,
   type PerfilEquipo,
 } from "@/lib/estiloEquipo";
@@ -39,6 +42,74 @@ function formatear(metrica: MetricaEstilo, valor: number) {
 const tramo = (percentil: number) => (percentil >= 80 ? "p5" : percentil >= 60 ? "p4" : percentil >= 40 ? "p3" : percentil >= 20 ? "p2" : "p1");
 const conSigno = (z: number) => `${z >= 0 ? "+" : "−"}${Math.abs(z).toFixed(2)}`;
 
+// ---- Formación y presión ----------------------------------------------------
+
+// Lo ya pedido en esta sesión, y lo que está en camino: el equipo y su rival
+// no piden dos veces lo mismo.
+const extrasGuardados = new Map<string, ExtrasDeEquipo>();
+const extrasEnCamino = new Map<string, Promise<ExtrasDeEquipo>>();
+
+function useExtras(clave: string) {
+  const [datos, setDatos] = useState<ExtrasDeEquipo | null>(() => extrasGuardados.get(clave) ?? null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    const guardado = extrasGuardados.get(clave);
+    if (guardado) { setDatos(guardado); setError(""); return; }
+    setDatos(null);
+    setError("");
+    let vivo = true;
+    let promesa = extrasEnCamino.get(clave);
+    if (!promesa) {
+      promesa = fetchExtrasDeEquipo(clave)
+        .then((respuesta) => { extrasGuardados.set(clave, respuesta); return respuesta; })
+        .finally(() => extrasEnCamino.delete(clave));
+      extrasEnCamino.set(clave, promesa);
+    }
+    promesa
+      .then((respuesta) => { if (vivo) setDatos(respuesta); })
+      .catch((fallo) => {
+        if (!vivo) return;
+        setError(fallo instanceof TypeError
+          ? t("El servidor local no respondió. Arranca npm run bg:server y reintenta.")
+          : fallo instanceof Error ? fallo.message : String(fallo));
+      });
+    return () => { vivo = false; };
+  }, [clave]);
+  return { datos, error };
+}
+
+/** "4231" → "4-2-3-1": así las escribe StatsBomb, sin guiones. */
+const formacion = (codigo: string) => codigo.split("").join("-");
+
+function ColumnaExtras({ perfil, rival = false }: { perfil: PerfilEquipo; rival?: boolean }) {
+  const { datos, error } = useExtras(perfil.clave);
+  const decimal = (valor: number | null) => (valor === null ? "—" : valor.toLocaleString(numberLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }));
+  return <div className={rival ? "estilo-extras-equipo rival" : "estilo-extras-equipo"}>
+    <b className="estilo-extras-nombre"><i />{perfil.equipo}</b>
+    {!datos ? <small className="estilo-extras-estado" role="status">
+      {error || tf("Leyendo los partidos de {equipo}… la primera vez tarda un par de minutos.", { equipo: perfil.equipo })}
+    </small> : <>
+      <ol className="estilo-formaciones" aria-label={t("Formaciones más usadas")}>
+        {datos.formaciones.slice(0, 3).map((f) => {
+          const parte = datos.minutosTotales ? f.minutos / datos.minutosTotales : 0;
+          return <li key={f.formacion}>
+            <span>{formacion(f.formacion)}</span>
+            <i><b style={{ width: `${Math.round(parte * 100)}%` }} /></i>
+            <em>{`${Math.round(parte * 100)}%`}</em>
+            <small>{tf("{n} de inicio", { n: f.inicios })}</small>
+          </li>;
+        })}
+        {!datos.formaciones.length && <li className="vacia">{t("Sin formaciones en sus eventos.")}</li>}
+      </ol>
+      <dl className="estilo-ppda">
+        <div><dt>PPDA</dt><dd>{decimal(datos.ppda)}</dd></div>
+        <div><dt>{t("PPDA en contra")}</dt><dd>{decimal(datos.ppdaContra)}</dd></div>
+      </dl>
+      <small className="estilo-extras-partidos">{tf("{n} partidos", { n: datos.conPpda || datos.partidos })}</small>
+    </>}
+  </div>;
+}
+
 export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", logoDestinatario = "", claseHoja = "legal-page-shell" }: {
   /** El equipo con el que se mide el encaje. En el espacio de Cavalry, Cavalry. */
   equipoPropio?: string;
@@ -51,6 +122,10 @@ export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", lo
   const [clave, setClave] = useState("");
   const [claveRival, setClaveRival] = useState("");
   const [metricaTop, setMetricaTop] = useState("contragolpe");
+  // La familia resaltada en el radar y en su caja. Se elige en cualquiera de
+  // los dos; un segundo toque la suelta.
+  const [familiaActiva, setFamiliaActiva] = useState<FamiliaEstilo | null>(null);
+  const alternarFamilia = (id: FamiliaEstilo) => setFamiliaActiva((actual) => (actual === id ? null : id));
 
   const perfiles = useMemo(() => (filas ? perfilesDeEstilo(filas) : []), [filas]);
   // Las listas —parecidos, top 10— salen del grupo profesional: la NCAA se
@@ -152,8 +227,16 @@ export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", lo
 
           {FAMILIAS.map((familia) => {
             const deSkillcorner = familia.id === "movimiento" || familia.id === "presion";
-            return <section key={familia.id} className="estilo-familia">
-              <h3><i style={{ background: COLOR_FAMILIA[familia.id] }} />{t(familia.nombre)}{deSkillcorner && <em>SkillCorner</em>}</h3>
+            const media = valorDeFamilia(elegido, familia.id);
+            const clase = familiaActiva === familia.id ? "estilo-familia activa" : familiaActiva ? "estilo-familia atenuada" : "estilo-familia";
+            return <section key={familia.id} className={clase} style={{ "--familia": COLOR_FAMILIA[familia.id] } as CSSProperties}>
+              <h3>
+                <button type="button" className="estilo-familia-boton" aria-pressed={familiaActiva === familia.id} disabled={!media}
+                  onClick={() => alternarFamilia(familia.id)} title={t("Resaltar en el radar")}>
+                  <i style={{ background: COLOR_FAMILIA[familia.id] }} />{t(familia.nombre)}{deSkillcorner && <em>SkillCorner</em>}
+                  {media && <b className="estilo-familia-media">{`P${media.percentil}`}</b>}
+                </button>
+              </h3>
               {deSkillcorner && !elegido.conSkillcorner ? <p className="estilo-sin-fuente">{t("Sin datos de equipo de SkillCorner para esta liga.")}</p> : <ol>
                 {METRICAS_ESTILO.filter((metrica) => metrica.familia === familia.id && elegido.valores[metrica.id]).map((metrica) => {
                   const valor = elegido.valores[metrica.id];
@@ -171,18 +254,27 @@ export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", lo
 
         <div className="estilo-centro">
           <figure className="estilo-rosa">
-            {/* Una sola rosa: StatsBomb y, si el equipo lo tiene, SkillCorner
-                a continuación. Separadas obligaban a ir y venir entre pestañas
-                para leer un mismo equipo. */}
-            <RosaDeEstilo perfil={elegido} rival={rival} />
+            {/* Seis aristas, una por familia: con una cuña por métrica eran 35
+                y no se leía ninguna. El detalle está en las cajas de la
+                izquierda, que se resaltan al tocar su arista. */}
+            <RadarDeEstilo perfil={elegido} rival={rival} activa={familiaActiva} onActiva={setFamiliaActiva} />
             <figcaption>
-              <span><i className={elegido.conSkillcorner ? "relleno con-sc" : "relleno"} />{elegido.equipo}</span>
+              <span><i className="relleno" />{elegido.equipo}</span>
               {rival && <span><i className="contorno" />{rival.equipo}</span>}
               <small>{elegido.conSkillcorner
-                ? t("StatsBomb y SkillCorner juntos. Largo de cada cuña: percentil. Anillo discontinuo: la mediana.")
-                : t("Largo de cada cuña: percentil. Anillo discontinuo: la mediana.")}</small>
+                ? t("Cada arista, la media de los percentiles de su familia; StatsBomb y SkillCorner juntos. Toca una para ver sus métricas.")
+                : t("Cada arista, la media de los percentiles de su familia. Sin SkillCorner en esta liga, movimiento y presión sin balón no salen. Toca una para ver sus métricas.")}</small>
             </figcaption>
           </figure>
+
+          <section className="estilo-bloque estilo-extras">
+            <h3>{t("Formación y presión")}</h3>
+            <div className="estilo-extras-grid">
+              <ColumnaExtras perfil={elegido} />
+              {rival && <ColumnaExtras perfil={rival} rival />}
+            </div>
+            <p className="estilo-extras-nota">{t("Formaciones: % de los minutos jugados con cada dibujo, del once inicial y de cada cambio táctico. PPDA: pases que deja dar al rival por cada acción defensiva; menos es presionar más. En contra: los que le dejan dar a él. Media por partido.")}</p>
+          </section>
 
           <section className="estilo-bloque">
             <h3>{tf("Juegan como {equipo}", { equipo: elegido.equipo })}</h3>

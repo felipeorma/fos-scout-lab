@@ -8,6 +8,7 @@ import {
   parecidoDeEstilo,
   perfilesDeEstilo,
   unaTemporadaPorEquipo,
+  valorDeFamilia,
   crearEncaje,
   mismoEquipo,
   fusionarSkillcorner,
@@ -200,4 +201,15 @@ test("el parecido que ordena usa solo StatsBomb; con SkillCorner es un segundo n
   assert.ok(Number.isFinite(parecidoDeEstilo(perfiles[3], perfiles[10], ["statsbomb", "skillcorner"])));
   assert.ok(Number.isNaN(parecidoDeEstilo(sinSc[3], sinSc[10], ["statsbomb", "skillcorner"])));
   assert.notEqual(parecidoDeEstilo(perfiles[3], perfiles[10]), parecidoDeEstilo(perfiles[3], perfiles[10], ["statsbomb", "skillcorner"]));
+});
+
+test("cada arista del radar es la media de los percentiles de su familia", () => {
+  const perfil = { valores: {
+    salida_corta: { id: "salida_corta", bruto: 0, z: 0, percentil: 80 },
+    posesion: { id: "posesion", bruto: 0, z: 0, percentil: 41 },
+    ppda: { id: "ppda", bruto: 0, z: 0, percentil: 10 },
+  } };
+  assert.deepEqual(valorDeFamilia(perfil, "construccion"), { percentil: 61, metricas: 2 });
+  assert.deepEqual(valorDeFamilia(perfil, "defensa"), { percentil: 10, metricas: 1 });
+  assert.equal(valorDeFamilia(perfil, "movimiento"), null, "sin SkillCorner la arista no existe, no vale cero");
 });
