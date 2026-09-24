@@ -6,6 +6,7 @@ import { numberLocale, t, tf } from "@/lib/i18n";
 import { fetchEventosJugador } from "@/lib/remoteData";
 import { buildSimilaritySearch, type SimilarityFilters, type SimilarityPlayer } from "@/lib/similarity";
 import { PERFILES } from "@/lib/perfiles";
+import { primaryPositionRole } from "@/lib/positions";
 import type { DataRow, PlayerReport } from "@/lib/scouting";
 import type { TransfermarktProfile } from "@/lib/transfermarkt";
 import {
@@ -115,6 +116,7 @@ const enCamino = new Map<string, Promise<EventosJugador>>();
 // Por base cargada: al cambiar de base la clave desaparece con ella.
 const grupos = new WeakMap<DataRow[], Map<string, GrupoCompuesto>>();
 const similares = new WeakMap<DataRow[], Map<string, SimilarityPlayer[]>>();
+const similaresDelPuesto = new WeakMap<DataRow[], Map<string, SimilarityPlayer[]>>();
 
 function deCache<T>(tabla: WeakMap<DataRow[], Map<string, T>>, rows: DataRow[], clave: string, calcular: () => T): T {
   let porClave = tabla.get(rows);
@@ -221,7 +223,23 @@ export function useDatosFicha(contexto: ContextoFicha, conEventos: boolean) {
       return [];
     }
   }), [rows, indice, minutosMin]);
+  // Para los aros de los gráficos de grupo hacen falta parecidos de su mismo
+  // puesto: la lista general admite otros (a Engel, central, le salían
+  // laterales y un extremo), y esos no tienen punto en el gráfico de centrales.
+  const parecidosDelPuesto = useMemo(() => deCache(similaresDelPuesto, rows, `${indice}|${minutosMin}`, () => {
+    // La posición cruda de la fila ("LCB"): la del informe ya viene
+    // formateada ("Defender (LCB)") y el detector no la reconoce.
+    const puesto = primaryPositionRole(fila?.Position ?? informe.position);
+    if (!puesto) return [];
+    const filtros: SimilarityFilters = { query: "", position: puesto, secondaryRole: "", side: "", passport: "", minimumMinutes: minutosMin, ageMin: null, ageMax: null };
+    try {
+      return buildSimilaritySearch(rows, indice, filtros)?.candidates.slice(0, 20) ?? [];
+    } catch {
+      return [];
+    }
+  }), [rows, indice, minutosMin, informe.position, fila]);
   const mapas = useMemo(() => separar(eventos?.eventos ?? []), [eventos]);
+  const enGrupo = useMemo(() => new Set(grupo.indices), [grupo]);
   const minutosPos = Object.entries(eventos?.posiciones ?? {}).filter(([, m]) => m > 0);
 
   return {
@@ -236,7 +254,9 @@ export function useDatosFicha(contexto: ContextoFicha, conEventos: boolean) {
     propias: grupo.valores.get(indice) ?? {},
     nombreGrupo: t(PERFILES.find((perfil) => perfil.id === informe.cohort)?.nombre ?? informe.cohort),
     parecidos,
-    destacados: parecidos.slice(0, 5).map((p) => p.index),
+    // Los aros de los gráficos de grupo: los cinco más parecidos de su puesto
+    // que están en el grupo (con el mínimo de minutos).
+    destacados: parecidosDelPuesto.filter((p) => enGrupo.has(p.index)).slice(0, 5).map((p) => p.index),
     nombres: (i: number) => String(rows[i]?.Player ?? ""),
     minutosPos,
     totalPos: minutosPos.reduce((s, [, m]) => s + m, 0),
@@ -337,10 +357,18 @@ function Enjambre({ id, grupo, objetivo, destacados, nombres }: { id: string; gr
   const x = (z: number) => margen + ((z - min) / Math.max(max - min, 1e-6)) * (W - margen * 2);
   const ys = enjambre(puntos.map((p) => x(p.z)), r);
   // Los nombres van encima, en carriles, con una línea hasta su punto: en
-  // una fila de puntos tan juntos no hay sitio para ponerlos al lado.
-  const tamano = (i: number) => (i === objetivo ? NOMBRE.objetivo : NOMBRE.parecido);
-  const conNombre = puntos.map((p, k) => ({ ...p, k })).filter((p) => p.i === objetivo || destacados.includes(p.i));
-  const { posiciones, total } = carriles(conNombre.map((p) => ({ id: p.i, x: x(p.z), ancho: anchoDeTexto(apellido(nombres(p.i)), tamano(p.i)) })), 2, W - 2);
+  // una fila de puntos tan juntos no hay sitio para ponerlos al lado. El
+  // jugador y sus parecidos siempre; el resto, empezando por los que más se
+  // alejan de la media —los que destacan en la familia—, mientras quepan en
+  // cuatro carriles.
+  const tipo = (i: number) => (i === objetivo ? "objetivo" : destacados.includes(i) ? "parecido" : "resto");
+  const tamano = (i: number) => NOMBRE[tipo(i)];
+  const { posiciones, total } = carriles(puntos.map((p) => ({
+    id: p.i, x: x(p.z), ancho: anchoDeTexto(apellido(nombres(p.i)), tamano(p.i)),
+    // El jugador del informe primero (carril más cercano), luego sus parecidos.
+    prioridad: (tipo(p.i) === "objetivo" ? 1000 : tipo(p.i) === "parecido" ? 100 : 0) + Math.abs(p.z), forzar: tipo(p.i) !== "resto",
+  })), 2, W - 2, { maximo: 4 });
+  const conNombre = puntos.map((p, k) => ({ ...p, k })).filter((p) => posiciones.has(p.i));
   const semi = Math.max(18, ...ys.map((y) => Math.abs(y))) + r + 2;
   const arriba = total ? total * 12 + 8 : 4;
   const cy = arriba + semi;
@@ -362,7 +390,7 @@ function Enjambre({ id, grupo, objetivo, destacados, nombres }: { id: string; gr
       const sitio = posiciones.get(p.i)!;
       const base = arriba - 5 - sitio.carril * 12;
       const radioPunto = p.i === objetivo ? 4.6 : r;
-      return <line key={`g${p.i}`} x1={sitio.x} y1={base + 2} x2={x(p.z)} y2={cy + ys[p.k] - radioPunto - 0.5} className="snap-guia" />;
+      return <line key={`g${p.i}`} x1={sitio.x} y1={base + 2} x2={x(p.z)} y2={cy + ys[p.k] - radioPunto - 0.5} className={`snap-guia ${tipo(p.i)}`} />;
     })}
     {orden.map((k) => {
       const p = puntos[k];
@@ -372,7 +400,7 @@ function Enjambre({ id, grupo, objetivo, destacados, nombres }: { id: string; gr
     {conNombre.map((p) => {
       const sitio = posiciones.get(p.i)!;
       return <text key={`n${p.i}`} x={sitio.x} y={arriba - 5 - sitio.carril * 12} textAnchor="middle" style={{ fontSize: tamano(p.i) }}
-        className={p.i === objetivo ? "snap-punto-nombre objetivo" : "snap-punto-nombre parecido"}>{apellido(nombres(p.i))}</text>;
+        className={`snap-punto-nombre ${tipo(p.i)}`}>{apellido(nombres(p.i))}</text>;
     })}
   </svg>;
 }
@@ -538,7 +566,7 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
       // Suelto, en un bloque de media hoja, van diez: quince pedían un bloque
       // más alto que el resto de la fila.
       const lista = suelta ? parecidos.slice(0, 10) : parecidos;
-      return <Tarjeta titulo={tf("Los que más se parecen a {nombre}", { nombre: apellido(jugador) })} subtitulo={tf("{n} más cercanos · misma posición", { n: lista.length })} clase="snap-parecidos">
+      return <Tarjeta titulo={tf("Los que más se parecen a {nombre}", { nombre: apellido(jugador) })} subtitulo={tf("{n} más cercanos de la base, de cualquier puesto", { n: lista.length })} clase="snap-parecidos">
         <ol>
           {lista.map((p, posicion) => (
             <li key={p.index} onClick={() => onAbrirJugador?.(p.index)}>

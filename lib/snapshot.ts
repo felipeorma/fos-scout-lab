@@ -422,19 +422,35 @@ export function colocarEtiquetas(puntos: PuntoConEtiqueta[], limites: Caja, obst
  * punto (sin salirse de [x0, x1]) en el carril más bajo donde no pisa a otra.
  * Es lo que usa el enjambre, donde los puntos están demasiado juntos para
  * poner el nombre al lado y va encima, con una línea guía.
+ *
+ * Se colocan primero las forzadas y luego por prioridad; una sin forzar que
+ * necesitaría pasar de `maximo` carriles se omite, para que la fila no crezca
+ * sin fin cuando el grupo es grande.
  */
-export function carriles(etiquetas: Array<{ id: number; x: number; ancho: number }>, x0: number, x1: number, hueco = 5) {
-  const fin: number[] = [];
+export function carriles(
+  etiquetas: Array<{ id: number; x: number; ancho: number; prioridad?: number; forzar?: boolean }>,
+  x0: number,
+  x1: number,
+  { hueco = 5, maximo = Number.POSITIVE_INFINITY }: { hueco?: number; maximo?: number } = {},
+) {
+  const ocupados: Array<Array<[number, number]>> = [];
   const salida = new Map<number, { x: number; carril: number }>();
-  for (const e of [...etiquetas].sort((a, b) => a.x - b.x || a.id - b.id)) {
+  const orden = [...etiquetas].sort((a, b) => Number(Boolean(b.forzar)) - Number(Boolean(a.forzar))
+    || (b.prioridad ?? 0) - (a.prioridad ?? 0) || a.x - b.x || a.id - b.id);
+  for (const e of orden) {
     const centro = Math.max(x0 + e.ancho / 2, Math.min(x1 - e.ancho / 2, e.x));
-    const desde = centro - e.ancho / 2;
-    let carril = fin.findIndex((f) => f + hueco <= desde);
-    if (carril < 0) { carril = fin.length; fin.push(0); }
-    fin[carril] = desde + e.ancho;
+    const desde = centro - e.ancho / 2, hasta = centro + e.ancho / 2;
+    const cabe = (tramos: Array<[number, number]>) => tramos.every(([a, b]) => hasta + hueco <= a || desde >= b + hueco);
+    let carril = ocupados.findIndex(cabe);
+    if (carril < 0) {
+      if (ocupados.length >= maximo && !e.forzar) continue;
+      carril = ocupados.length;
+      ocupados.push([]);
+    }
+    ocupados[carril].push([desde, hasta]);
     salida.set(e.id, { x: centro, carril });
   }
-  return { posiciones: salida, total: fin.length };
+  return { posiciones: salida, total: ocupados.length };
 }
 
 /** De la columna "Data sources", la competición y temporada de StatsBomb del jugador. */

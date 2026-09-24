@@ -5818,6 +5818,9 @@ button.menu-fila:active { transform: scale(.985); }
 .app-shell[data-tema] .snap-punto-nombre.parecido { fill: var(--ink); font-weight: 600; }
 .app-shell[data-tema] .snap-punto-nombre.objetivo { fill: var(--acento-claro); font-weight: 700; }
 .app-shell[data-tema] .snap-guia { stroke: color-mix(in srgb, var(--ink) 38%, transparent); stroke-width: .7; }
+/* Las guías del resto, más suaves: en un enjambre grande son muchas y no
+   deben tapar a las del jugador y sus parecidos. */
+.app-shell[data-tema] .snap-guia.resto { stroke: color-mix(in srgb, var(--ink) 20%, transparent); stroke-width: .6; }
 .app-shell[data-tema] p.snap-vacio { margin: 8px 0; color: var(--muted); font-size: 12px; }
 
 @media print {

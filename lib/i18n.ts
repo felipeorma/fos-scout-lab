@@ -1670,6 +1670,7 @@ const EN: Record<string, string> = {
   "{m} minutos en {n} puestos": "{m} minutes in {n} positions",
   "Los que más se parecen a {nombre}": "Most similar to {nombre}",
   "{n} más cercanos · misma posición": "{n} closest · same position",
+  "{n} más cercanos de la base, de cualquier puesto": "{n} closest in the loaded data, any position",
   "{n} tiros · {g} goles · {x} xG": "{n} shots · {g} goals · {x} xG",
   "Gol": "Goal",
   "Sin gol": "No goal",

@@ -198,3 +198,14 @@ test("los carriles del enjambre separan las etiquetas que chocarían", () => {
   assert.equal(posiciones.get(4).x, 20, "no se sale por la izquierda");
   assert.equal(total, 2);
 });
+
+test("en un enjambre grande los carriles tienen techo, salvo para las forzadas", () => {
+  // Treinta nombres en el mismo sitio: sin techo harían treinta carriles.
+  const muchas = Array.from({ length: 30 }, (_, i) => ({ id: i, x: 190, ancho: 40, prioridad: i }));
+  muchas.push({ id: 99, x: 190, ancho: 50, forzar: true });
+  const { posiciones, total } = carriles(muchas, 0, 380, { maximo: 4 });
+  assert.equal(total, 4);
+  assert.ok(posiciones.has(99), "la forzada siempre sale");
+  assert.equal(posiciones.get(99).carril, 0, "y en el carril más cercano a los puntos");
+  assert.ok(posiciones.has(29) && !posiciones.has(0), "entran las de más prioridad");
+});
