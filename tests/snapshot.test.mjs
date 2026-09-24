@@ -229,3 +229,15 @@ test("los roles se miden en parte de sus intervenciones y contra su grupo", () =
   assert.equal(r.perfil, "Progresor");
   assert.equal(rolesFrenteAlGrupo(rows, [0, 1], 1, [jugadores[0]]), null, "sin datos del jugador no se inventa");
 });
+
+test("sin la capa de SkillCorner sus familias no salen, en vez de salir a cero", () => {
+  const filas = Array.from({ length: 10 }, (_, i) => {
+    const fila = jugador(`P${i}`, i);
+    for (const familia of COMPUESTAS) if (familia.fuente === "skillcorner") for (const columna of familia.columnas) delete fila[columna];
+    return fila;
+  });
+  const grupo = familiasCompuestas(filas, "DMF", 0);
+  const suyas = grupo.valores.get(4);
+  assert.ok(suyas.construccion, "las de StatsBomb siguen");
+  for (const familia of COMPUESTAS.filter((c) => c.fuente === "skillcorner")) assert.equal(suyas[familia.id], undefined, familia.id);
+});

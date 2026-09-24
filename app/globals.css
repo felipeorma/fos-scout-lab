@@ -6083,3 +6083,12 @@ body.print-layout-check .legal-page-shell > :is(.rank-page, .pool-page) :is(.ran
   padding: 8px 0; white-space: nowrap;
   color: var(--ink); font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
 }
+
+/* Familias de SkillCorner en la tabla de la ficha ampliada: una etiqueta
+   pequeña en el verde de SkillCorner, el mismo de los radares. */
+.app-shell[data-tema] .snap-fuente-sc {
+  margin-left: 6px; padding: 0 5px; border-radius: 4px;
+  color: #0b7d59; background: color-mix(in srgb, #12c48b 16%, transparent);
+  font-size: 9.5px; font-style: normal; font-weight: 700; letter-spacing: .04em; vertical-align: 1px;
+}
+@media screen { .app-shell[data-tema="oscuro"] .snap-fuente-sc { color: #3fdca6; } }

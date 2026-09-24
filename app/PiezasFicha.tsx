@@ -554,7 +554,7 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
         <li className="snap-tabla-titulo">{conGrupo}</li>
         {COMPUESTAS.filter((c) => propias[c.id]).sort((a, b) => propias[b.id].z - propias[a.id].z).map((c) => (
           <li key={c.id}>
-            <span>{t(c.etiqueta)}</span>
+            <span>{t(c.etiqueta)}{c.fuente === "skillcorner" && <em className="snap-fuente-sc" title="SkillCorner">SC</em>}</span>
             <em className={propias[c.id].z >= 0 ? "sube" : "baja"}>{conSigno(propias[c.id].z)}</em>
             <i className={`estilo-pct ${tramo(propias[c.id].percentil)}`}>{propias[c.id].percentil}</i>
           </li>
@@ -576,7 +576,7 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
       return <Tarjeta titulo={t("Top 10")} subtitulo={suelta ? `${t(familia.etiqueta)} · ${conGrupo}` : undefined} clase="snap-top">
         <Desplegable etiqueta={t("Familia")} valor={t(familia.etiqueta)} activo={false}>
           <select aria-label={t("Familia")} value={familia.id} onChange={(evento) => onOpcion?.(evento.target.value)} onClick={(evento) => evento.stopPropagation()}>
-            {COMPUESTAS.map((c) => <option key={c.id} value={c.id}>{t(c.etiqueta)}</option>)}
+            {COMPUESTAS.map((c) => <option key={c.id} value={c.id}>{c.fuente === "skillcorner" ? `${t(c.etiqueta)} · SkillCorner` : t(c.etiqueta)}</option>)}
           </select>
         </Desplegable>
         <ol>

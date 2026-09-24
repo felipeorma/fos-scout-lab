@@ -14,7 +14,11 @@
 
 import { cohortOf, detectCoreColumns, headersOf, numeric, peerCohort, positionColumnOf, type DataRow } from "./scouting.ts";
 
-export type Compuesta = { id: string; etiqueta: string; corta: string; columnas: string[] };
+export type Compuesta = {
+  id: string; etiqueta: string; corta: string; columnas: string[];
+  /** Las de SkillCorner solo salen si la base tiene su capa enlazada. */
+  fuente?: "statsbomb" | "skillcorner";
+};
 
 // Ninguna columna se repite entre familias: si una misma métrica entrara en
 // dos, las dos familias se moverían juntas y el radar diría dos veces lo mismo.
@@ -32,6 +36,14 @@ export const COMPUESTAS: Compuesta[] = [
   { id: "defensa_propia", etiqueta: "Defensa en campo propio", corta: "Def. campo propio", columnas: ["PAdj tackles interceptions (SB)", "Defensive action regains (SB)", "Tackle dribbled past % (SB)"] },
   { id: "defensa_area", etiqueta: "Defensa del área", corta: "Def. del área", columnas: ["PAdj clearances (SB)", "Blocks per shot (SB)"] },
   { id: "defensa_juego", etiqueta: "Defensa en juego abierto", corta: "Def. juego abierto", columnas: ["Defensive action OBV (SB)", "Pressure regains (SB)", "Counterpressure regains (SB)"] },
+  // SkillCorner: lo que StatsBomb no ve. Solo con su capa enlazada a la base;
+  // un jugador sin ella no tiene estas familias, no un cero.
+  { id: "fisico", etiqueta: "Físico", corta: "Físico", fuente: "skillcorner",
+    columnas: ["PSV-99 (SC)", "Meters per minute (SC)", "HSR distance (SC)", "Sprints (SC)", "Explosive accels to sprint (SC)"] },
+  { id: "movimiento_sc", etiqueta: "Movimiento sin balón", corta: "Mov. sin balón", fuente: "skillcorner",
+    columnas: ["Off ball runs P30 (SC)", "Runs in behind P30 (SC)", "Dangerous runs behind P30 (SC)", "Runs received P30 (SC)", "Support runs P30 (SC)"] },
+  { id: "bajo_presion", etiqueta: "Juego bajo presión", corta: "Bajo presión", fuente: "skillcorner",
+    columnas: ["Retention under pressure % (SC)", "Receptions under pressure P30 (SC)", "Progressive under pressure P30 (SC)", "Escaped pressure P30 (SC)", "Dangerous under pressure P30 (SC)"] },
 ];
 
 export type ValorCompuesto = { z: number; percentil: number };
