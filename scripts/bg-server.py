@@ -669,7 +669,8 @@ _SB_EVENTS_CACHE_DIR = Path.home() / ".fos-scouting" / "sb-events-cache"
 # Sube cuando cambia lo que se guarda de cada partido: los ficheros de una
 # versión anterior se vuelven a bajar en vez de servir campos que faltan.
 # 2: cada recepción lleva el pase que la origina (altura, tipo, quién la da).
-_SB_COMPACTO_VERSION = 2
+# 3: cada evento lleva su posesión y su equipo, para los roles en la secuencia.
+_SB_COMPACTO_VERSION = 3
 # Lo que dibuja la ficha ampliada. Presiones y demás se quedan fuera: una
 # temporada de un equipo son 30 partidos y así cada uno pesa ~250 KB, no 2,7 MB.
 _SB_TIPOS_FICHA = {"Shot", "Pass", "Carry", "Dribble", "Duel", "Ball Recovery", "Interception", "Clearance", "Block", "Ball Receipt*"}
@@ -728,7 +729,8 @@ def _sb_partido_compacto(match_id: int, auth):
         jugador = (e.get("player") or {}).get("name")
         if tipo not in _SB_TIPOS_FICHA or not jugador:
             continue
-        fila = {"t": tipo, "j": jugador, "l": e.get("location"), "pp": (e.get("play_pattern") or {}).get("name")}
+        fila = {"t": tipo, "j": jugador, "l": e.get("location"), "pp": (e.get("play_pattern") or {}).get("name"),
+                "po": e.get("possession"), "eq": (e.get("team") or {}).get("id"), "pq": (e.get("possession_team") or {}).get("id")}
         if tipo == "Shot":
             tiro = e.get("shot") or {}
             fila.update({"xg": tiro.get("statsbomb_xg"), "o": (tiro.get("outcome") or {}).get("name"), "st": (tiro.get("type") or {}).get("name")})
@@ -900,6 +902,151 @@ def statsbomb_team_extras(competition_id: int, season_id: int, team_id: int):
             for f, m in sorted(minutos.items(), key=lambda x: -x[1])
         ],
     }), media_type="application/json", headers=cors_headers())
+
+
+# ---- Roles en la secuencia ---------------------------------------------------
+# Cada vez que un jugador toca el balón dentro de una secuencia de su equipo en
+# juego abierto es una intervención, y se le da un solo rol, el primero que
+# cumple por este orden. Es una estimación a partir de los eventos: StatsBomb
+# no etiqueta roles, así que las reglas están escritas aquí y en la leyenda.
+_ROLES_SECUENCIA = ("remate", "iniciador", "vertical", "progresor", "conductor", "apoyo", "enlace", "control")
+_JUEGO_ABIERTO = {"Regular Play", "From Counter", "From Keeper"}
+_CON_BALON = {"Ball Receipt*", "Carry", "Dribble", "Pass", "Shot", "Ball Recovery", "Interception"}
+_ROLES_VERSION = 2
+
+
+def _a_porteria(p):
+    return ((120 - p[0]) ** 2 + (40 - p[1]) ** 2) ** 0.5
+
+
+def _en_area(p):
+    return p[0] >= 102 and 18 <= p[1] <= 62
+
+
+def _rol_de_intervencion(eventos, primera: bool):
+    """El rol de una intervención: los eventos seguidos de un jugador en una secuencia.
+
+    Remate (tira o recibe en el área) > iniciador (arranca la secuencia) >
+    vertical (pase largo hacia delante) > progresor (pase completado que
+    acerca un 25 % a la portería) > conductor (conducción que gana campo o
+    regate completado) > apoyo (recibe un pase que le llega de lado o de
+    atrás) > enlace (juega hacia delante) > control (la juega de lado o
+    atrás). Si recibe y la pierde sin hacer nada, no cuenta: None.
+    """
+    recibe = next((e for e in eventos if e["t"] == "Ball Receipt*" and e.get("l")), None)
+    if any(e["t"] == "Shot" for e in eventos) or (recibe and _en_area(recibe["l"])):
+        return "remate"
+    if primera:
+        return "iniciador"
+    pase = next((e for e in reversed(eventos) if e["t"] == "Pass" and e.get("l") and e.get("e")), None)
+    if pase:
+        dx = pase["e"][0] - pase["l"][0]
+        largo = ((pase["e"][0] - pase["l"][0]) ** 2 + (pase["e"][1] - pase["l"][1]) ** 2) ** 0.5
+        if largo >= 30 and dx >= 20:
+            return "vertical"
+        if not pase.get("o") and dx >= 8 and _a_porteria(pase["e"]) <= 0.75 * _a_porteria(pase["l"]):
+            return "progresor"
+    for e in eventos:
+        if e["t"] == "Carry" and e.get("l") and e.get("e"):
+            if e["e"][0] - e["l"][0] >= 10 and _a_porteria(e["e"]) <= 0.75 * _a_porteria(e["l"]):
+                return "conductor"
+        if e["t"] == "Dribble" and e.get("o") == "Complete":
+            return "conductor"
+    if not pase:
+        return None
+    if recibe and recibe.get("de") and recibe["l"][0] - recibe["de"][0] <= 2:
+        return "apoyo"
+    if pase["e"][0] - pase["l"][0] > 2:
+        return "enlace"
+    return "control"
+
+
+def _roles_de_partido(compacto):
+    """{jugador: {"equipo": id, "roles": {rol: n}}} de un partido."""
+    salida = {}
+    secuencia, clave = [], None
+
+    def cerrar():
+        intervenciones = []
+        for e in secuencia:
+            if intervenciones and intervenciones[-1][0] == e["j"]:
+                intervenciones[-1][1].append(e)
+            else:
+                intervenciones.append((e["j"], [e]))
+        for i, (jugador, eventos) in enumerate(intervenciones):
+            rol = _rol_de_intervencion(eventos, i == 0)
+            if rol is None:
+                continue
+            ficha = salida.setdefault(jugador, {"equipo": eventos[0].get("eq"), "roles": {}})
+            ficha["roles"][rol] = ficha["roles"].get(rol, 0) + 1
+
+    for e in compacto.get("eventos", []):
+        if e.get("t") not in _CON_BALON or e.get("eq") is None or e.get("eq") != e.get("pq"):
+            continue
+        if e.get("pp") not in _JUEGO_ABIERTO:
+            continue
+        actual = (e.get("po"), e.get("pq"))
+        if actual != clave:
+            if secuencia:
+                cerrar()
+            secuencia, clave = [], actual
+        secuencia.append(e)
+    if secuencia:
+        cerrar()
+    return salida
+
+
+@app.get("/api/statsbomb/sequence-roles")
+def statsbomb_sequence_roles(liga: str, temporada: str):
+    """Los roles en la secuencia de todos los jugadores de una liga y temporada.
+
+    Necesita los eventos de todos sus partidos: la primera vez son unos
+    minutos; el resultado se guarda un día (tres si la temporada está cerrada).
+    """
+    import json as _json
+    from concurrent.futures import ThreadPoolExecutor
+    auth = _statsbomb_auth()
+    if not auth:
+        return Response('{"error": "sin credenciales"}', status_code=503, media_type="application/json", headers=cors_headers())
+    catalogo = _cached_get("sb:comps", "https://data.statsbomb.com/api/v4/competitions", auth, ttl_seconds=3600)
+    comp = next((c for c in catalogo if _sin_tildes(str(c.get("competition_name") or "")) == _sin_tildes(liga)
+                 and str(c.get("season_name") or "") == temporada), None)
+    if not comp:
+        return Response(_json.dumps({"error": f"no encuentro {liga} {temporada} en StatsBomb"}), status_code=404,
+                        media_type="application/json", headers=cors_headers())
+    cid, sid = comp["competition_id"], comp["season_id"]
+    clave_disco = f"roles{_ROLES_VERSION}-{cid}-{sid}"
+    guardado = _pool_cache_leer(clave_disco, _POOL_TTL_CERRADA if _temporada_cerrada_sb(cid, sid, auth) else None)
+    if guardado is not None:
+        return Response(_json.dumps(guardado, ensure_ascii=False), media_type="application/json", headers=cors_headers())
+
+    partidos = _cached_get(f"sb:matches6:{cid}:{sid}", f"https://data.statsbomb.com/api/v6/competitions/{cid}/seasons/{sid}/matches", auth, ttl_seconds=1800)
+    jugados = [p for p in partidos if p.get("home_score") is not None]
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        compactos = list(pool.map(lambda p: _sb_partido_compacto(p["match_id"], auth), jugados))
+
+    total = {}
+    for compacto in compactos:
+        if not compacto:
+            continue
+        for jugador, ficha in _roles_de_partido(compacto).items():
+            acumulado = total.setdefault(jugador, {"jugador": jugador, "equipo": ficha["equipo"], "roles": {}})
+            for rol, n in ficha["roles"].items():
+                acumulado["roles"][rol] = acumulado["roles"].get(rol, 0) + n
+    equipos = {}
+    for p in jugados:
+        for lado in ("home_team", "away_team"):
+            t = p.get(lado) or {}
+            equipos[t.get(f"{lado}_id")] = t.get(f"{lado}_name")
+    resultado = {
+        "liga": liga, "temporada": temporada, "partidos": len(jugados), "roles": list(_ROLES_SECUENCIA),
+        "jugadores": [
+            {**ficha, "equipo": equipos.get(ficha["equipo"], ""), "intervenciones": sum(ficha["roles"].values())}
+            for ficha in total.values()
+        ],
+    }
+    _pool_cache_escribir(clave_disco, resultado)
+    return Response(_json.dumps(resultado, ensure_ascii=False), media_type="application/json", headers=cors_headers())
 
 
 @app.get("/api/statsbomb/player-events")

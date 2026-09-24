@@ -33,7 +33,7 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
   claseHoja?: string;
 }) {
   const contexto: ContextoFicha = { rows, indice, informe, perfilTm, minutosMin, onAbrirJugador };
-  const datos = useDatosFicha(contexto, true);
+  const datos = useDatosFicha(contexto, true, true);
   const [familiaTop, setFamiliaTop] = useState("progresion");
   // El mapa de recepciones y su reparto se agrupan igual: cambiar uno cambia los dos.
   const [agruparRecepciones, setAgruparRecepciones] = useState("tipo");
@@ -72,6 +72,10 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
           {pieza("tiros")}
           {pieza("ocasiones")}
           {pieza("regates")}
+        </div>
+
+        <div className="snap-fila snap-fila-roles">
+          {pieza("roles")}
         </div>
         {pie}
       </section>

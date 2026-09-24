@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Desplegable } from "./BarraDeFiltros";
 import { numberLocale, t, tf } from "@/lib/i18n";
-import { fetchEventosJugador } from "@/lib/remoteData";
+import { fetchEventosJugador, fetchRolesDeSecuencia, type RolesDeLiga } from "@/lib/remoteData";
 import { buildSimilaritySearch, type SimilarityFilters, type SimilarityPlayer } from "@/lib/similarity";
 import { PERFILES } from "@/lib/perfiles";
 import { primaryPositionRole } from "@/lib/positions";
@@ -25,8 +25,11 @@ import {
   familiasCompuestas,
   fuenteStatsbomb,
   grupoDeRecepcion,
+  MIN_INTERVENCIONES,
   rejilla,
   resumenRecepciones,
+  ROLES_SECUENCIA,
+  rolesFrenteAlGrupo,
   type EventoSB,
   type EventosJugador,
   type GrupoCompuesto,
@@ -58,14 +61,15 @@ export type IdPieza =
   | "ficha" | "tabla" | "radar" | "top10" | "puestos" | "parecidos"
   | "tiros" | "ocasiones" | "regates" | "pases_inicio" | "pases_fin"
   | "calor" | "defensa" | "enjambres" | "dispersion"
-  | "recepciones" | "recepciones_tipo" | "recepciones_origen" | "recepciones_pasadores";
+  | "recepciones" | "recepciones_tipo" | "recepciones_origen" | "recepciones_pasadores"
+  | "roles";
 
 /**
  * El catálogo que ofrece Visuales. `ancho` y `alto` son el tamaño con el que
  * nace el bloque —en doceavos y píxeles—, pensado para que la pieza se lea sin
  * tocar nada; `eventos` dice si necesita los partidos de StatsBomb.
  */
-export const PIEZAS_FICHA: Array<{ id: IdPieza; titulo: string; ancho: number; alto: number; eventos: boolean }> = [
+export const PIEZAS_FICHA: Array<{ id: IdPieza; titulo: string; ancho: number; alto: number; eventos: boolean; roles?: boolean }> = [
   { id: "ficha", titulo: "Ficha del jugador", ancho: 6, alto: 280, eventos: false },
   { id: "tabla", titulo: "Familias en tabla", ancho: 6, alto: 460, eventos: false },
   { id: "radar", titulo: "Radar de familias", ancho: 6, alto: 440, eventos: false },
@@ -83,6 +87,7 @@ export const PIEZAS_FICHA: Array<{ id: IdPieza; titulo: string; ancho: number; a
   { id: "recepciones_tipo", titulo: "Cómo recibe", ancho: 4, alto: 500, eventos: true },
   { id: "recepciones_origen", titulo: "De dónde le llega", ancho: 4, alto: 500, eventos: true },
   { id: "recepciones_pasadores", titulo: "Quién se la da", ancho: 4, alto: 420, eventos: true },
+  { id: "roles", titulo: "Rol en la secuencia", ancho: 12, alto: 420, eventos: false, roles: true },
   { id: "enjambres", titulo: "Frente a su grupo", ancho: 12, alto: 380, eventos: false },
   { id: "dispersion", titulo: "Construcción frente a asociación", ancho: 6, alto: 400, eventos: false },
 ];
@@ -176,6 +181,43 @@ function useEventos(clave: string, activo: boolean, club: string) {
   return { eventos, estado };
 }
 
+// Los roles de cada liga ya pedidos, y los que están en camino.
+const rolesGuardados = new Map<string, RolesDeLiga>();
+const rolesEnCamino = new Map<string, Promise<RolesDeLiga>>();
+
+/** Los roles en la secuencia de la liga del jugador. Sin `activo` no se piden. */
+function useRoles(liga: string, temporada: string, activo: boolean) {
+  const clave = liga ? `${liga}|${temporada}` : "";
+  const [roles, setRoles] = useState<RolesDeLiga | null>(() => (clave ? rolesGuardados.get(clave) ?? null : null));
+  const [estado, setEstado] = useState("");
+  useEffect(() => {
+    if (!clave) { setRoles(null); setEstado(""); return; }
+    const guardado = rolesGuardados.get(clave);
+    if (guardado) { setRoles(guardado); setEstado(""); return; }
+    setRoles(null);
+    if (!activo) { setEstado(""); return; }
+    let vivo = true;
+    setEstado(tf("Analizando las secuencias de {liga}… la primera vez tarda unos minutos.", { liga }));
+    let promesa = rolesEnCamino.get(clave);
+    if (!promesa) {
+      promesa = fetchRolesDeSecuencia(liga, temporada)
+        .then((respuesta) => { rolesGuardados.set(clave, respuesta); return respuesta; })
+        .finally(() => rolesEnCamino.delete(clave));
+      rolesEnCamino.set(clave, promesa);
+    }
+    promesa
+      .then((respuesta) => { if (vivo) { setRoles(respuesta); setEstado(""); } })
+      .catch((error) => {
+        if (!vivo) return;
+        setEstado(error instanceof TypeError
+          ? t("El servidor local no respondió. Arranca npm run bg:server y reintenta.")
+          : error instanceof Error ? error.message : String(error));
+      });
+    return () => { vivo = false; };
+  }, [clave, liga, temporada, activo]);
+  return { roles, estado };
+}
+
 /** Los eventos ya separados por mapa. */
 function separar(lista: EventoSB[]) {
   const tiros = lista.filter((e) => e.t === "Shot" && e.l);
@@ -202,7 +244,7 @@ function separar(lista: EventoSB[]) {
  * piden sus partidos: un bloque de radar no tiene por qué esperar dos minutos
  * de descarga que no va a usar.
  */
-export function useDatosFicha(contexto: ContextoFicha, conEventos: boolean) {
+export function useDatosFicha(contexto: ContextoFicha, conEventos: boolean, conRoles = false) {
   const { rows, indice, informe, minutosMin } = contexto;
   const fila = rows[indice];
   const jugador = String(fila?.Player ?? informe.player);
@@ -210,6 +252,7 @@ export function useDatosFicha(contexto: ContextoFicha, conEventos: boolean) {
   const fuente = fuenteStatsbomb(fila?.["Data sources"]);
   const clave = fuente ? `${fuente.liga}|${fuente.temporada}|${equipo}|${jugador}` : "";
   const { eventos, estado } = useEventos(clave, conEventos, equipo);
+  const { roles: rolesLiga, estado: estadoRoles } = useRoles(fuente?.liga ?? "", fuente?.temporada ?? "", conRoles);
 
   const grupo = useMemo(
     () => deCache(grupos, rows, `${informe.cohort}|${minutosMin}|${indice}`, () => familiasCompuestas(rows, informe.cohort, minutosMin, indice)),
@@ -240,6 +283,10 @@ export function useDatosFicha(contexto: ContextoFicha, conEventos: boolean) {
   }), [rows, indice, minutosMin, informe.position, fila]);
   const mapas = useMemo(() => separar(eventos?.eventos ?? []), [eventos]);
   const enGrupo = useMemo(() => new Set(grupo.indices), [grupo]);
+  const roles = useMemo(
+    () => (rolesLiga ? rolesFrenteAlGrupo(rows, grupo.indices, indice, rolesLiga.jugadores) : null),
+    [rolesLiga, rows, grupo, indice],
+  );
   const minutosPos = Object.entries(eventos?.posiciones ?? {}).filter(([, m]) => m > 0);
 
   return {
@@ -260,6 +307,8 @@ export function useDatosFicha(contexto: ContextoFicha, conEventos: boolean) {
     nombres: (i: number) => String(rows[i]?.Player ?? ""),
     minutosPos,
     totalPos: minutosPos.reduce((s, [, m]) => s + m, 0),
+    roles,
+    estadoRoles,
     ...mapas,
   };
 }
@@ -724,6 +773,28 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
       </Tarjeta>;
     }
 
+    case "roles": {
+      const r = datos.roles;
+      const aviso = !fuente
+        ? t("Este jugador no viene de StatsBomb: los roles salen de sus eventos partido a partido.")
+        : !r ? (datos.estadoRoles || t("Sin intervenciones de este jugador en las secuencias de su liga.")) : undefined;
+      return <Tarjeta titulo={tf("Rol en la secuencia frente a su grupo{perfil}", { perfil: r?.perfil ? ` · ${r.perfil}` : "" })}
+        subtitulo={r ? tf("Percentil frente a {n} {grupo} de {liga} · secuencias en juego abierto, mínimo {min} intervenciones · {i} suyas", {
+          n: r.grupo, grupo: nombreGrupo.toLowerCase(), liga: fuente?.liga ?? "", min: MIN_INTERVENCIONES, i: num(r.intervenciones),
+        }) : undefined} aviso={aviso} clase="snap-roles">
+        {r && <ol className="snap-roles-lista">
+          {r.filas.map((f) => (
+            <li key={f.id} title={t(ROLES_SECUENCIA.find((rol) => rol.id === f.id)?.descripcion ?? "")}>
+              <span>{t(f.etiqueta)}</span>
+              <i><b style={{ width: `${Math.max(2, f.percentil)}%`, opacity: 0.35 + (f.percentil / 100) * 0.65 }} /><em>{f.percentil}</em></i>
+              <small>{`${Math.round(f.parte * 100)}%`}</small>
+            </li>
+          ))}
+        </ol>}
+        {r && <p className="snap-roles-nota">{t("Barra: percentil frente a su grupo en la parte de sus intervenciones que es cada rol. Derecha: esa parte. Cada intervención cuenta en un solo rol, el primero que cumple: remate, iniciador, vertical, progresor, conductor, apoyo, enlace, control.")}</p>}
+      </Tarjeta>;
+    }
+
     case "enjambres":
       return <Tarjeta titulo={tf("Frente a su grupo: {grupo}", { grupo: nombreGrupo.toLowerCase() })} subtitulo={t("Cada punto es un jugador; relleno, él; con aro, sus cinco más parecidos")} clase="snap-enjambres">
         {(["progresion", "defensa_propia", "amenaza"] as const).map((id) => (
@@ -748,7 +819,7 @@ export function PiezaSuelta({ pieza, contexto, opcion, onOpcion }: {
   opcion?: string;
   onOpcion?: (valor: string) => void;
 }) {
-  const conEventos = PIEZAS_FICHA.find((p) => p.id === pieza)?.eventos ?? false;
-  const datos = useDatosFicha(contexto, conEventos);
+  const ficha = PIEZAS_FICHA.find((p) => p.id === pieza);
+  const datos = useDatosFicha(contexto, ficha?.eventos ?? false, ficha?.roles ?? false);
   return <PiezaFicha pieza={pieza} datos={datos} opcion={opcion} onOpcion={onOpcion} suelta />;
 }

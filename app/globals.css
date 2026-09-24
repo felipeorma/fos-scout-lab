@@ -6040,3 +6040,14 @@ body.print-layout-check .legal-page-shell > :is(.rank-page, .pool-page) :is(.ran
 .app-shell[data-tema] .estilo-extras-partidos { color: var(--muted); font-size: 10.5px; }
 .app-shell[data-tema] p.estilo-extras-nota { margin: 8px 2px 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
 @media screen and (max-width: 640px) { body:not(.print-layout-check) .app-shell[data-tema] .estilo-extras-grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---- Ficha ampliada · rol en la secuencia ---- */
+.snap-fila-roles { grid-template-columns: minmax(0, 1fr); }
+.app-shell[data-tema] .snap-roles-lista { margin: 6px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.app-shell[data-tema] .snap-roles-lista > li { display: grid; grid-template-columns: 120px minmax(0, 1fr) 46px; align-items: center; gap: 12px; }
+.app-shell[data-tema] .snap-roles-lista > li > span { color: var(--ink); font-size: 13px; font-weight: 600; text-align: right; }
+.app-shell[data-tema] .snap-roles-lista > li > i { height: 26px; display: flex; align-items: center; overflow: hidden; border-radius: 6px; background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.app-shell[data-tema] .snap-roles-lista > li > i > b { height: 100%; flex: none; border-radius: 6px; background: var(--acento); print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+.app-shell[data-tema] .snap-roles-lista > li > i > em { margin-left: 8px; color: var(--ink); font-size: 13px; font-style: normal; font-weight: 700; font-variant-numeric: tabular-nums; }
+.app-shell[data-tema] .snap-roles-lista > li > small { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; }
+.app-shell[data-tema] p.snap-roles-nota { margin: 10px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }

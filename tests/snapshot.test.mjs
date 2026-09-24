@@ -14,6 +14,7 @@ import {
   grupoDeRecepcion,
   rejilla,
   resumenRecepciones,
+  rolesFrenteAlGrupo,
 } from "../lib/snapshot.ts";
 
 /**
@@ -208,4 +209,23 @@ test("en un enjambre grande los carriles tienen techo, salvo para las forzadas",
   assert.ok(posiciones.has(99), "la forzada siempre sale");
   assert.equal(posiciones.get(99).carril, 0, "y en el carril más cercano a los puntos");
   assert.ok(posiciones.has(29) && !posiciones.has(0), "entran las de más prioridad");
+});
+
+test("los roles se miden en parte de sus intervenciones y contra su grupo", () => {
+  const rows = [{ Player: "Uno" }, { Player: "Dos" }, { Player: "Tres" }, { Player: "Poco" }];
+  const jugadores = [
+    { jugador: "Uno", equipo: "A", intervenciones: 100, roles: { progresor: 40, control: 60 } },
+    { jugador: "Dos", equipo: "B", intervenciones: 100, roles: { progresor: 10, control: 90 } },
+    { jugador: "Tres", equipo: "C", intervenciones: 200, roles: { progresor: 20, control: 180 } },
+    // Con menos de 60 intervenciones no entra en el grupo, aunque sea extremo.
+    { jugador: "Poco", equipo: "D", intervenciones: 20, roles: { progresor: 20 } },
+  ];
+  const r = rolesFrenteAlGrupo(rows, [0, 1, 2, 3], 0, jugadores);
+  assert.equal(r.grupo, 3);
+  assert.equal(r.intervenciones, 100);
+  const progresor = r.filas.find((f) => f.id === "progresor");
+  assert.equal(progresor.parte, 0.4);
+  assert.equal(progresor.percentil, 83, "el que más parte tiene, arriba: (2 + 1/2) / 3");
+  assert.equal(r.perfil, "Progresor");
+  assert.equal(rolesFrenteAlGrupo(rows, [0, 1], 1, [jugadores[0]]), null, "sin datos del jugador no se inventa");
 });

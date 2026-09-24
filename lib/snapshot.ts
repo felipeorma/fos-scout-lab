@@ -335,6 +335,81 @@ export function enjambre(xs: number[], radio: number) {
   return ys;
 }
 
+// ---- Roles en la secuencia -------------------------------------------------
+
+/**
+ * Los roles que el puente asigna a cada intervención en una secuencia de juego
+ * abierto (ver _rol_de_intervencion en scripts/bg-server.py), en el orden en
+ * que se leen. `perfil` es cómo se llama al jugador cuando ese rol es el que
+ * más destaca.
+ */
+export const ROLES_SECUENCIA: Array<{ id: string; etiqueta: string; perfil: string; descripcion: string }> = [
+  { id: "iniciador", etiqueta: "Iniciador", perfil: "Iniciador", descripcion: "Arranca la secuencia." },
+  { id: "control", etiqueta: "Control", perfil: "Organizador", descripcion: "Recibe y la juega de lado o atrás." },
+  { id: "enlace", etiqueta: "Enlace", perfil: "Enlace", descripcion: "Juega hacia delante sin llegar a progresar." },
+  { id: "progresor", etiqueta: "Progresor", perfil: "Progresor", descripcion: "Pase completado que acerca un 25 % a la portería." },
+  { id: "conductor", etiqueta: "Conductor", perfil: "Conductor", descripcion: "Conducción que gana campo o regate completado." },
+  { id: "vertical", etiqueta: "Vertical", perfil: "Lanzador", descripcion: "Pase largo hacia delante." },
+  { id: "apoyo", etiqueta: "Apoyo", perfil: "Apoyo", descripcion: "Recibe un pase que le llega de lado o de atrás." },
+  { id: "remate", etiqueta: "Remate", perfil: "Rematador", descripcion: "Tira o recibe en el área." },
+];
+
+/** Mínimo de intervenciones para entrar en el grupo: con menos, los porcentajes bailan. */
+export const MIN_INTERVENCIONES = 60;
+
+const normalizar = (nombre: unknown) => String(nombre ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+
+export type RolFrenteAlGrupo = { id: string; etiqueta: string; parte: number; percentil: number; n: number };
+
+/**
+ * Los roles del jugador frente a su grupo de posición: qué parte de sus
+ * intervenciones es cada rol y en qué percentil queda esa parte entre los
+ * del grupo con al menos MIN_INTERVENCIONES. El perfil es el rol con mayor
+ * percentil entre los que pesan al menos un 5 %; si el segundo está a menos
+ * de 8 puntos, van los dos.
+ */
+export function rolesFrenteAlGrupo(
+  rows: DataRow[],
+  indicesGrupo: number[],
+  objetivo: number,
+  jugadores: Array<{ jugador: string; equipo: string; intervenciones: number; roles: Record<string, number> }>,
+) {
+  const porNombre = new Map<string, (typeof jugadores)[number]>();
+  for (const j of jugadores) {
+    const clave = normalizar(j.jugador);
+    const previo = porNombre.get(clave);
+    // Homónimos o dos equipos en la temporada: se queda el de más intervenciones.
+    if (!previo || previo.intervenciones < j.intervenciones) porNombre.set(clave, j);
+  }
+  const partes = (i: number) => {
+    const j = porNombre.get(normalizar(rows[i]?.Player));
+    if (!j || !j.intervenciones) return null;
+    return { total: j.intervenciones, parte: (id: string) => (j.roles[id] ?? 0) / j.intervenciones };
+  };
+  const delObjetivo = partes(objetivo);
+  if (!delObjetivo) return null;
+  const grupo = [...new Set([...indicesGrupo, objetivo])]
+    .map((i) => ({ i, p: partes(i) }))
+    .filter((x): x is { i: number; p: NonNullable<ReturnType<typeof partes>> } => Boolean(x.p) && (x.i === objetivo || x.p!.total >= MIN_INTERVENCIONES));
+  const filas: RolFrenteAlGrupo[] = ROLES_SECUENCIA.map((rol) => {
+    const suya = delObjetivo.parte(rol.id);
+    const todas = grupo.map((x) => x.p.parte(rol.id));
+    const debajo = todas.filter((v) => v < suya).length;
+    const iguales = todas.filter((v) => v === suya).length;
+    return {
+      id: rol.id, etiqueta: rol.etiqueta, parte: suya,
+      percentil: todas.length ? Math.round(((debajo + iguales / 2) / todas.length) * 100) : 0,
+      n: Math.round(suya * delObjetivo.total),
+    };
+  });
+  const candidatos = filas.filter((f) => f.parte >= 0.05).sort((a, b) => b.percentil - a.percentil);
+  const nombre = (id: string) => ROLES_SECUENCIA.find((r) => r.id === id)!.perfil;
+  const perfil = !candidatos.length ? "" : candidatos[1] && candidatos[0].percentil - candidatos[1].percentil < 8
+    ? `${nombre(candidatos[0].id)} · ${nombre(candidatos[1].id)}`
+    : nombre(candidatos[0].id);
+  return { filas, perfil, intervenciones: delObjetivo.total, grupo: grupo.length };
+}
+
 // ---- Etiquetas de los gráficos de puntos ------------------------------------
 
 /** Un rectángulo en unidades del SVG. */

@@ -231,6 +231,25 @@ export async function fetchStatsbombTeamStats(competition: ApiCompetition): Prom
   return payload.rows ?? [];
 }
 
+export type RolesDeLiga = {
+  liga: string;
+  temporada: string;
+  partidos: number;
+  roles: string[];
+  jugadores: Array<{ jugador: string; equipo: string; intervenciones: number; roles: Record<string, number> }>;
+};
+
+/**
+ * Los roles en la secuencia de todos los jugadores de una liga y temporada.
+ * La primera vez el puente baja los eventos de todos los partidos: minutos.
+ */
+export async function fetchRolesDeSecuencia(liga: string, temporada: string): Promise<RolesDeLiga> {
+  return bridgeJson<RolesDeLiga>(
+    `/api/statsbomb/sequence-roles?liga=${encodeURIComponent(liga)}&temporada=${encodeURIComponent(temporada)}`,
+    900_000,
+  );
+}
+
 export type ExtrasDeEquipo = {
   partidos: number;
   conPpda: number;
