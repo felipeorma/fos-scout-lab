@@ -6171,3 +6171,11 @@ body.print-layout-check .legal-page-shell > :is(.rank-page, .pool-page) :is(.ran
 .app-shell[data-tema] .encaje-mancuernas > li > em { color: var(--muted); font-size: 11.5px; font-style: normal; font-variant-numeric: tabular-nums; text-align: right; }
 @media screen and (max-width: 640px) { body:not(.print-layout-check) .app-shell[data-tema] .encaje-mancuernas > li { grid-template-columns: 110px minmax(0, 1fr); } body:not(.print-layout-check) .app-shell[data-tema] .encaje-mancuernas > li > em { grid-column: 2; text-align: left; } }
 @media print { .snap-encaje .encaje-cabecera .filtro-chip > :is(svg, select) { display: none !important; } }
+
+/* El encaje en un bloque de Visuales: las cuatro partes en fila solo si el
+   bloque es ancho; si no, dos por fila. Se mira el ancho del bloque, no el
+   de la pantalla, porque el bloque puede ser media hoja. */
+.visual-pieza-content:has(.encaje) { container-type: inline-size; }
+@container (max-width: 760px) {
+  .app-shell[data-tema] .visual-pieza-content .encaje-partes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

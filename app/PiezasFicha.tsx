@@ -90,7 +90,7 @@ export const PIEZAS_FICHA: Array<{ id: IdPieza; titulo: string; ancho: number; a
   { id: "recepciones_origen", titulo: "De dónde le llega", ancho: 4, alto: 500, eventos: true },
   { id: "recepciones_pasadores", titulo: "Quién se la da", ancho: 4, alto: 420, eventos: true },
   { id: "roles", titulo: "Rol en la secuencia", ancho: 12, alto: 420, eventos: false, roles: true },
-  { id: "encaje", titulo: "Encaje con un equipo", ancho: 12, alto: 560, eventos: false, roles: true },
+  { id: "encaje", titulo: "Encaje con un equipo", ancho: 12, alto: 720, eventos: false, roles: true },
   { id: "enjambres", titulo: "Frente a su grupo", ancho: 12, alto: 380, eventos: false },
   { id: "dispersion", titulo: "Construcción frente a asociación", ancho: 6, alto: 400, eventos: false },
 ];
