@@ -19,6 +19,7 @@ import { ligasDeBases, origenPorFila } from "@/lib/procedencia";
 import { ProveedorDeBase, useEstadoDeBase } from "./BaseActiva";
 import { BarraDeFiltros } from "./BarraDeFiltros";
 import { MenuDeLigas, MenuDesplegable, type OpcionDeMenu } from "./MenuDesplegable";
+import { contextoDeLectura } from "@/lib/lecturaIA";
 import { Escudo, LogoLiga } from "./Escudo";
 import { DatosPage } from "./DatosPage";
 import { Interruptor } from "./Interruptor";
@@ -1190,6 +1191,8 @@ export default function ScoutStudio() {
       matches: String(row["Matches played"] ?? ""),
       cohortSize: source.cohortSize,
       sources: String(row["Data sources"] ?? reportFileName),
+      league: ligaDeFila(selectedPlayer),
+      season: (base.procedencia?.[selectedPlayer]?.anios ?? []).join(" · "),
     };
   }
 
@@ -1202,7 +1205,15 @@ export default function ScoutStudio() {
     setAiLoading("quick");
     setAiError("");
     try {
-      const text = await fetchAiSummary({ kind: "quick", lang, player: aiPlayerFacts(report), metrics: aiMetricFacts(report) });
+      // El jugador entero, no solo la ficha: sus familias y el resto de sus
+      // métricas. La IA analiza con todo y escribe lo mismo de largo.
+      const contexto = contextoDeLectura(reportRows, selectedPlayer, minimumMinutes, report.cohort,
+        report.metrics.map((metric) => metric.label), availableMetrics.map((definition) => definition.label));
+      const text = await fetchAiSummary({
+        kind: "quick", lang, player: aiPlayerFacts(report), metrics: aiMetricFacts(report),
+        families: contexto.familias.map((familia) => ({ ...familia, familia: t(familia.familia) })),
+        extraMetrics: contexto.resto.map((metric) => ({ ...metric, label: t(metric.label) })),
+      });
       updateReadingOverride(text);
     } catch (error) {
       setAiError(error instanceof Error ? error.message : String(error));

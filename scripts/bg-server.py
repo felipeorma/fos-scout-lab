@@ -1633,14 +1633,22 @@ def _anthropic_key():
     return os.environ.get("ANTHROPIC_API_KEY") or _keychain_secret("anthropic") or None
 
 
-# Los textos cortos se piden a Sonnet (rápido, se regenera a cada cambio de
-# jugador); los largos y la comparación van a Opus, donde la prosa manda.
+# La lectura rápida va a Opus 5.5 y piensa antes de escribir: recibe al
+# jugador entero (familias, todas sus métricas, liga) y tiene que decidir qué
+# lo define, que es lo difícil; escribir 300 caracteres es lo fácil. Los
+# largos y la comparación van a Opus, donde la prosa manda.
 _AI_MODELS = {
-    "quick": os.environ.get("FOS_AI_MODEL_QUICK", "claude-sonnet-5"),
+    "quick": os.environ.get("FOS_AI_MODEL_QUICK", "claude-opus-5-5"),
     "extended": os.environ.get("FOS_AI_MODEL_LONG", "claude-opus-5"),
     "comparison": os.environ.get("FOS_AI_MODEL_LONG", "claude-opus-5"),
 }
 _AI_MAX_TOKENS = {"quick": 300, "extended": 900, "comparison": 600}
+# Cuánto puede pensar antes de escribir (tokens de razonamiento, que no salen en el texto).
+_AI_PENSAR = {"quick": 3000}
+# Si el modelo de la lectura no responde (nombre retirado, sin acceso), este.
+_AI_MODELO_RESPALDO = "claude-sonnet-5"
+# La lectura rápida cabe en su caja de la ficha: el mismo largo que tenía.
+_LECTURA_MIN, _LECTURA_MAX = 290, 360
 
 _AI_VOICE = {
     "es": (
@@ -1678,14 +1686,37 @@ _AI_RULES = {
 
 _AI_TASKS = {
     ("quick", "es"): (
-        "Escribe la LECTURA RÁPIDA de la ficha: 2 o 3 frases, máximo 55 palabras en total. "
-        "Primero lo que mejor hace y en qué se sostiene; después el punto a vigilar; cierra "
-        "con el rol en el que rinde. Un solo párrafo, sin títulos."
+        "Escribe la LECTURA RÁPIDA de la ficha: entre 290 y 360 caracteres con espacios, un solo "
+        "párrafo de 2 o 3 frases, sin títulos.\n\n"
+        "Antes de escribir, piensa el perfil completo: qué dibujan juntas las familias, qué rasgo "
+        "manda y qué otras métricas lo confirman o lo matizan, qué le limita en su posición, si la "
+        "muestra de minutos es corta (menos de 900) y qué pesa la edad y la liga. Escribe solo la "
+        "conclusión, no el razonamiento.\n\n"
+        "Escríbelo como lo diría un scout a su director deportivo al salir del estadio: traduce los "
+        "números a lo que hace en el campo ('ataca el espacio a la espalda del lateral', 'da la "
+        "primera salida bajo presión', 'llega tarde al duelo'), no los recites. Como mucho una "
+        "cifra, y solo si es decisiva. Frases de largo distinto, con sujeto y verbo concretos.\n"
+        "Orden: qué tipo de jugador es y en qué se sostiene; el punto a vigilar y qué supondría; "
+        "el rol o el contexto en el que rinde.\n"
+        "Evita las fórmulas de informe genérico: 'destaca por', 'cabe destacar', 'en resumen', "
+        "'sin duda', 'notable', 'sólido', 'versátil', 'perfil interesante', 'aporta', 'a nivel de', "
+        "guiones largos y exclamaciones."
     ),
     ("quick", "en"): (
-        "Write the QUICK READ for the player card: 2 or 3 sentences, 55 words maximum in total. "
-        "Lead with what he does best and what supports it, then the area to watch, and close with "
-        "the role where he fits. One paragraph, no headings."
+        "Write the QUICK READ for the player card: between 290 and 360 characters including spaces, "
+        "one paragraph of 2 or 3 sentences, no headings.\n\n"
+        "Before writing, think through the whole profile: what the families add up to, which trait "
+        "leads and which other metrics confirm or qualify it, what limits him in his position, "
+        "whether the minutes sample is short (under 900), and how age and league weigh in. Write "
+        "only the conclusion, not the reasoning.\n\n"
+        "Write it the way a scout would tell the sporting director walking out of the stadium: turn "
+        "numbers into what he does on the pitch ('attacks the space behind the full-back', 'gives "
+        "the first pass out under pressure', 'arrives late to the duel'), do not recite them. At most "
+        "one figure, and only if it is decisive. Vary sentence length; concrete subjects and verbs.\n"
+        "Order: what type of player he is and what it rests on; the area to watch and what it would "
+        "mean; the role or setting where he performs.\n"
+        "Avoid stock report phrases: 'stands out', 'it is worth noting', 'in summary', 'undoubtedly', "
+        "'notable', 'solid', 'versatile', 'interesting profile', 'brings', em dashes and exclamations."
     ),
     ("extended", "es"): (
         "Escribe un informe de scouting de unas 200 palabras, en tres bloques separados por un salto "
@@ -1731,10 +1762,12 @@ def _ai_metric_lines(metrics, limit=40):
     return "\n".join(lines)
 
 
-def _ai_player_block(player, metrics):
+def _ai_player_block(player, metrics, families=None, extra=None):
+    liga = " · ".join(x for x in [str(player.get("league") or ""), str(player.get("season") or "")] if x)
     facts = [
         f"Jugador: {player.get('name', '')}",
         f"Equipo: {player.get('team', '')}",
+        f"Liga: {liga}",
         f"Posición: {player.get('position', '')}",
         f"Perfil evaluado: {player.get('cohortLabel', '')}",
         f"Edad: {player.get('age', '')}",
@@ -1742,7 +1775,53 @@ def _ai_player_block(player, metrics):
         f"Comparado con {player.get('cohortSize', '')} jugadores de su posición en la base",
         f"Fuentes de datos: {player.get('sources', '')}",
     ]
-    return "\n".join(f for f in facts if not f.endswith(": ")) + "\n\nMétricas:\n" + _ai_metric_lines(metrics)
+    bloque = "\n".join(f for f in facts if not f.endswith(": ")) + "\n\nMétricas de la ficha:\n" + _ai_metric_lines(metrics)
+    if families:
+        bloque += ("\n\nFamilias (rasgos que juntan varias métricas; percentil frente a su posición):\n"
+                   + "\n".join(f"- {f.get('familia', '')}: percentil {f.get('percentil', '')}" for f in families if f.get("familia")))
+    if extra:
+        bloque += "\n\nOtras métricas de su posición:\n" + _ai_metric_lines(extra, limit=70)
+    return bloque
+
+
+def _anthropic_texto(key, model, system, content, max_tokens, pensar=0):
+    """Una llamada a la API de mensajes. Devuelve (texto, error)."""
+    cuerpo = {"model": model, "max_tokens": max_tokens + pensar, "system": system,
+              "messages": [{"role": "user", "content": content}]}
+    if pensar:
+        cuerpo["thinking"] = {"type": "enabled", "budget_tokens": pensar}
+    try:
+        r = _requests.post("https://api.anthropic.com/v1/messages", timeout=150, json=cuerpo, headers={
+            "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"})
+    except Exception as error:
+        return None, str(error)[:300]
+    if r.status_code != 200:
+        return None, f"Anthropic respondió {r.status_code}: " + r.text[:300].replace('"', "'")
+    texto = "".join(p.get("text", "") for p in r.json().get("content", []) if p.get("type") == "text").strip()
+    return (texto, None) if texto else (None, "respuesta vacía")
+
+
+def _lectura_rapida(key, lang, system, content):
+    """La lectura rápida: Opus pensando; si el modelo o el razonamiento no
+    están disponibles, se baja un escalón. Y si se pasa de largo, se ajusta."""
+    modelo = _AI_MODELS["quick"]
+    texto, error = _anthropic_texto(key, modelo, system, content, _AI_MAX_TOKENS["quick"], _AI_PENSAR["quick"])
+    if error and "thinking" in error.lower():
+        texto, error = _anthropic_texto(key, modelo, system, content, _AI_MAX_TOKENS["quick"])
+    if error and ("404" in error or "model" in error.lower()) and modelo != _AI_MODELO_RESPALDO:
+        modelo = _AI_MODELO_RESPALDO
+        texto, error = _anthropic_texto(key, modelo, system, content, _AI_MAX_TOKENS["quick"])
+    if error:
+        return None, error, modelo
+    if len(texto) > _LECTURA_MAX + 20:
+        pedido = (f"Deja este texto en {_LECTURA_MIN}–{_LECTURA_MAX} caracteres sin perder la idea ni el tono. "
+                  "Devuelve solo el texto.\n\n" if lang == "es" else
+                  f"Cut this text to {_LECTURA_MIN}–{_LECTURA_MAX} characters, keeping the idea and tone. "
+                  "Return only the text.\n\n") + texto
+        corto, _ = _anthropic_texto(key, _AI_MODELO_RESPALDO, _AI_VOICE[lang], pedido, _AI_MAX_TOKENS["quick"])
+        if corto and len(corto) < len(texto):
+            texto = corto
+    return texto, None, modelo
 
 
 @app.post("/api/ai/summary")
@@ -1764,9 +1843,15 @@ async def ai_summary(request: Request):
             + f"\n\nSimilitud calculada: {body.get('similarity', '')}%"
         )
     else:
-        content = _ai_player_block(body.get("player", {}), body.get("metrics", []))
+        content = _ai_player_block(body.get("player", {}), body.get("metrics", []),
+                                   body.get("families"), body.get("extraMetrics"))
 
     system = f"{_AI_VOICE[lang]}\n\n{_AI_RULES[lang]}\n\n{_AI_TASKS[(kind, lang)]}"
+    if kind == "quick":
+        texto, error, modelo = _lectura_rapida(key, lang, system, content)
+        if error:
+            return Response(_json.dumps({"error": error}), status_code=502, media_type="application/json", headers=cors_headers())
+        return Response(_json.dumps({"text": texto, "model": modelo}), media_type="application/json", headers=cors_headers())
     try:
         response = _requests.post(
             "https://api.anthropic.com/v1/messages",

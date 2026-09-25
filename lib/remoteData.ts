@@ -506,9 +506,13 @@ export type AiPlayerFacts = {
   matches: string | number;
   cohortSize: number;
   sources: string;
+  league?: string;
+  season?: string;
 };
 
 export type AiMetricFact = { label: string; value: number; percentile: number; inverse?: boolean };
+/** Una familia (rasgo que junta varias métricas) con su percentil frente a su posición. */
+export type AiFamilyFact = { familia: string; percentil: number };
 
 export async function fetchAiSummary(body: {
   kind: AiSummaryKind;
@@ -518,6 +522,9 @@ export async function fetchAiSummary(body: {
   candidate?: AiPlayerFacts;
   candidateMetrics?: AiMetricFact[];
   similarity?: number;
+  /** Solo la lectura rápida: el jugador entero para analizarlo, no solo la ficha. */
+  families?: AiFamilyFact[];
+  extraMetrics?: AiMetricFact[];
 }): Promise<string> {
   let response: Response;
   try {
