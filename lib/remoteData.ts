@@ -540,6 +540,10 @@ export async function fetchAiSummary(body: {
   const payload = await response.json() as { text?: string; error?: string };
   if (!response.ok || !payload.text) {
     const detail = payload.error ?? "";
+    // Por defecto escribe Claude Code con la cuenta de Claude (el plan, sin créditos).
+    if (/not logged in|\/login/i.test(detail)) throw new Error(t("Claude Code no tiene tu sesión iniciada. Ejecuta una vez claude auth login en la terminal y reintenta."));
+    if (/usage limit|limit reached|rate limit/i.test(detail)) throw new Error(t("Llegaste al límite de uso de tu plan de Claude. Reintenta cuando se renueve."));
+    if (/sin-claude-code/i.test(detail)) throw new Error(t("No encuentro Claude Code en este Mac. Instálalo e inicia sesión con tu cuenta de Claude."));
     if (/credit balance|billing/i.test(detail)) throw new Error(t("La cuenta de Anthropic no tiene saldo. Recarga créditos y reintenta."));
     if (/sin clave/i.test(detail)) throw new Error(t("Falta la clave de Anthropic en el servidor local."));
     throw new Error(detail || t("No se pudo escribir el texto."));

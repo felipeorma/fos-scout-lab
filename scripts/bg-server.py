@@ -1633,6 +1633,7 @@ def _anthropic_key():
     return os.environ.get("ANTHROPIC_API_KEY") or _keychain_secret("anthropic") or None
 
 
+# Con la API (FOS_AI_PROVEEDOR=api; por defecto se usa el plan, más abajo).
 # La lectura rápida va a Opus 5.5 y piensa antes de escribir: recibe al
 # jugador entero (familias, todas sus métricas, liga) y tiene que decidir qué
 # lo define, que es lo difícil; escribir 300 caracteres es lo fácil. Los
@@ -1814,22 +1815,97 @@ def _lectura_rapida(key, lang, system, content):
     if error:
         return None, error, modelo
     if len(texto) > _LECTURA_MAX + 20:
-        pedido = (f"Deja este texto en {_LECTURA_MIN}–{_LECTURA_MAX} caracteres sin perder la idea ni el tono. "
-                  "Devuelve solo el texto.\n\n" if lang == "es" else
-                  f"Cut this text to {_LECTURA_MIN}–{_LECTURA_MAX} characters, keeping the idea and tone. "
-                  "Return only the text.\n\n") + texto
-        corto, _ = _anthropic_texto(key, _AI_MODELO_RESPALDO, _AI_VOICE[lang], pedido, _AI_MAX_TOKENS["quick"])
+        corto, _ = _anthropic_texto(key, _AI_MODELO_RESPALDO, _AI_VOICE[lang], _pedido_de_recorte(lang, texto), _AI_MAX_TOKENS["quick"])
         if corto and len(corto) < len(texto):
             texto = corto
     return texto, None, modelo
 
 
+def _pedido_de_recorte(lang, texto):
+    return (f"Deja este texto en {_LECTURA_MIN}–{_LECTURA_MAX} caracteres sin perder la idea ni el tono. "
+            "Devuelve solo el texto.\n\n" if lang == "es" else
+            f"Cut this text to {_LECTURA_MIN}–{_LECTURA_MAX} characters, keeping the idea and tone. "
+            "Return only the text.\n\n") + texto
+
+
+# ---- Con qué se escriben: el plan de Claude o la API -------------------------
+# "plan": Claude Code en modo no interactivo, con la sesión de la cuenta de
+# Claude del usuario. Entra en su suscripción: no gasta créditos de API.
+# "api": la API de Anthropic con clave, que cobra por uso. Por defecto el
+# plan; los créditos solo si se piden con FOS_AI_PROVEEDOR=api.
+_AI_PROVEEDOR = os.environ.get("FOS_AI_PROVEEDOR", "plan")
+_AI_PLAN_MODELO = {"quick": "opus", "extended": "opus", "comparison": "opus"}
+# La lectura rápida piensa más: decidir qué define al jugador es lo difícil.
+_AI_PLAN_ESFUERZO = {"quick": "high", "extended": "medium", "comparison": "medium"}
+# Una carpeta vacía para que Claude Code no cargue el CLAUDE.md ni la memoria de ningún proyecto.
+_AI_PLAN_CARPETA = Path.home() / ".fos-scouting" / "ia"
+
+
+def _claude_cli():
+    import shutil
+    encontrado = shutil.which("claude")
+    if encontrado:
+        return encontrado
+    for candidato in (Path.home() / ".local" / "bin" / "claude", Path.home() / ".claude" / "local" / "claude"):
+        if candidato.exists():
+            return str(candidato)
+    return None
+
+
+def _plan_texto(system, content, modelo, esfuerzo):
+    """Un texto con Claude Code y la cuenta de Claude del usuario. Devuelve (texto, error)."""
+    import json as _json
+    import subprocess as _sp
+    cli = _claude_cli()
+    if not cli:
+        return None, "sin-claude-code"
+    _AI_PLAN_CARPETA.mkdir(parents=True, exist_ok=True)
+    # Fuera la clave de API (Claude Code la preferiría y cobraría créditos) y
+    # las variables de la sesión de Claude Code desde la que se arrancó el
+    # puente, si la hay: el hijo tiene que ser una sesión nueva y limpia.
+    entorno = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY" and not k.startswith("CLAUDE")}
+    orden = [cli, "-p", "--model", modelo, "--effort", esfuerzo, "--system-prompt", system,
+             "--output-format", "json", "--no-session-persistence", "--tools", ""]
+    try:
+        r = _sp.run(orden, input=content, capture_output=True, text=True, timeout=240,
+                    cwd=str(_AI_PLAN_CARPETA), env=entorno)
+    except _sp.TimeoutExpired:
+        return None, "Claude Code tardó más de 4 minutos"
+    except Exception as error:
+        return None, str(error)[:300]
+    try:
+        salida = _json.loads(r.stdout or "{}")
+    except ValueError:
+        salida = {}
+    texto = str(salida.get("result") or "").strip()
+    if r.returncode != 0 or salida.get("is_error") or not texto:
+        return None, "Claude Code: " + (texto or r.stderr or r.stdout or "sin respuesta").strip()[:300]
+    return texto, None
+
+
+def _generar(kind, lang, system, content):
+    """(texto, error, modelo) con el proveedor configurado."""
+    if _AI_PROVEEDOR == "api":
+        key = _anthropic_key()
+        if not key:
+            return None, "sin clave de Anthropic", None
+        if kind == "quick":
+            return _lectura_rapida(key, lang, system, content)
+        texto, error = _anthropic_texto(key, _AI_MODELS[kind], system, content, _AI_MAX_TOKENS[kind])
+        return texto, error, _AI_MODELS[kind]
+    modelo = _AI_PLAN_MODELO[kind]
+    texto, error = _plan_texto(system, content, modelo, _AI_PLAN_ESFUERZO[kind])
+    if not error and kind == "quick" and len(texto) > _LECTURA_MAX + 20:
+        corto, _ = _plan_texto(_AI_VOICE[lang], _pedido_de_recorte(lang, texto), "sonnet", "low")
+        if corto and len(corto) < len(texto):
+            texto = corto
+    return texto, error, f"Claude Code · {modelo}"
+
+
 @app.post("/api/ai/summary")
 async def ai_summary(request: Request):
     import json as _json
-    key = _anthropic_key()
-    if not key:
-        return Response('{"error": "sin clave de Anthropic"}', status_code=503, media_type="application/json", headers=cors_headers())
+    from starlette.concurrency import run_in_threadpool
     body = await request.json()
     kind = body.get("kind", "quick")
     lang = "en" if body.get("lang") == "en" else "es"
@@ -1847,38 +1923,12 @@ async def ai_summary(request: Request):
                                    body.get("families"), body.get("extraMetrics"))
 
     system = f"{_AI_VOICE[lang]}\n\n{_AI_RULES[lang]}\n\n{_AI_TASKS[(kind, lang)]}"
-    if kind == "quick":
-        texto, error, modelo = _lectura_rapida(key, lang, system, content)
-        if error:
-            return Response(_json.dumps({"error": error}), status_code=502, media_type="application/json", headers=cors_headers())
-        return Response(_json.dumps({"text": texto, "model": modelo}), media_type="application/json", headers=cors_headers())
-    try:
-        response = _requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": key,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            },
-            json={
-                "model": _AI_MODELS[kind],
-                "max_tokens": _AI_MAX_TOKENS[kind],
-                "system": system,
-                "messages": [{"role": "user", "content": content}],
-            },
-            timeout=120,
-        )
-        if response.status_code != 200:
-            detail = response.text[:300].replace('"', "'")
-            return Response(_json.dumps({"error": f"Anthropic respondió {response.status_code}: {detail}"}),
-                            status_code=502, media_type="application/json", headers=cors_headers())
-        payload = response.json()
-        text = "".join(part.get("text", "") for part in payload.get("content", []) if part.get("type") == "text").strip()
-        if not text:
-            return Response('{"error": "respuesta vacía"}', status_code=502, media_type="application/json", headers=cors_headers())
-        return Response(_json.dumps({"text": text, "model": _AI_MODELS[kind]}), media_type="application/json", headers=cors_headers())
-    except Exception as error:
-        return Response(_json.dumps({"error": str(error)[:300]}), status_code=502, media_type="application/json", headers=cors_headers())
+    # Fuera del bucle del servidor: Claude Code tarda sus segundos y el resto
+    # de rutas (escudos, partidos) tienen que seguir contestando mientras.
+    texto, error, modelo = await run_in_threadpool(_generar, kind, lang, system, content)
+    if error:
+        return Response(_json.dumps({"error": error}), status_code=502, media_type="application/json", headers=cors_headers())
+    return Response(_json.dumps({"text": texto, "model": modelo}), media_type="application/json", headers=cors_headers())
 
 
 # ============================================================================
