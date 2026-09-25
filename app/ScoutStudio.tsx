@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
-import { BarChart3, Check, ChevronDown, ChevronRight, Crosshair, Database, FileSpreadsheet, Files, ImageIcon, LockKeyhole, Menu, Merge, MoreHorizontal, Plus, Printer, RadarChart, RotateCcw, Route, Search, Sparkles, Trash, Trophy, Upload, X, ShieldCheck, LayoutDashboard } from "./Icons";
+import { BarChart3, Check, ChevronDown, ChevronRight, Crosshair, Database, FileSpreadsheet, ImageIcon, LockKeyhole, Menu, Merge, MoreHorizontal, Plus, Printer, RadarChart, RotateCcw, Route, Search, Sparkles, Trash, Trophy, Upload, X, ShieldCheck, LayoutDashboard } from "./Icons";
 import { PizzaRadar } from "./PizzaRadar";
 import { ContextPage } from "./ContextPage";
 import { ScoutingBoard } from "./ScoutingBoard";
@@ -18,8 +18,8 @@ import { LOGOS_PLATAFORMA, LogoPlataforma } from "./LogosPlataforma";
 import { ligasDeBases, origenPorFila } from "@/lib/procedencia";
 import { ProveedorDeBase, useEstadoDeBase } from "./BaseActiva";
 import { BarraDeFiltros } from "./BarraDeFiltros";
-import { MenuDesplegable } from "./MenuDesplegable";
-import { LogoLiga } from "./Escudo";
+import { MenuDeLigas, MenuDesplegable, type OpcionDeMenu } from "./MenuDesplegable";
+import { Escudo, LogoLiga } from "./Escudo";
 import { DatosPage } from "./DatosPage";
 import { Interruptor } from "./Interruptor";
 import { FilaDeMenu, GrupoDeMenu, MenuFlotante } from "./MenuFlotante";
@@ -499,6 +499,31 @@ export default function ScoutStudio() {
     () => [...new Set(jugadoresVisibles.map((player) => player.team))].sort(alphabeticCollator.compare),
     [jugadoresVisibles],
   );
+  /*
+   * El menú de clubes. Con todas las ligas eran 250 clubes en una lista:
+   * ahora van agrupados por liga, con su logo. Con una liga elegida quedan
+   * solo los suyos, cada uno con su escudo (con todas serían 250 escudos
+   * que pedir de golpe, y el plan gratis de API-Football no da para eso).
+   */
+  const ligaDeFila = (indice: number) => base.procedencia?.[indice]?.ligas[0] ?? base.competiciones[0]?.liga ?? "";
+  const ligaDeEquipo = useMemo(() => {
+    const mapa = new Map<string, string>();
+    for (const player of jugadoresVisibles) if (!mapa.has(player.team)) mapa.set(player.team, ligaDeFila(player.index));
+    return mapa;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jugadoresVisibles, base.procedencia, base.competiciones]);
+  const opcionesDeClub = useMemo((): OpcionDeMenu[] => {
+    const variasLigas = new Set(ligaDeEquipo.values()).size > 1;
+    return teams
+      .map((team) => ({ team, liga: ligaDeEquipo.get(team) ?? "" }))
+      .sort((a, b) => (variasLigas ? alphabeticCollator.compare(a.liga, b.liga) : 0) || alphabeticCollator.compare(a.team, b.team))
+      .map(({ team, liga }) => ({
+        valor: team,
+        texto: team || t("Equipo no disponible"),
+        grupo: variasLigas ? liga || t("Sin liga") : undefined,
+        icono: variasLigas ? undefined : <Escudo equipo={team} liga={liga} tamano={18} respaldo />,
+      }));
+  }, [teams, ligaDeEquipo]);
   const teamPlayers = useMemo(
     () => jugadoresVisibles.filter((player) => player.team === selectedTeam).sort((a, b) => alphabeticCollator.compare(a.player, b.player)),
     [jugadoresVisibles, selectedTeam],
@@ -1867,13 +1892,36 @@ export default function ScoutStudio() {
                     {/* La red de filtros compartida: acota entre quiénes
                         eliges. El club y el jugador se quedan como selectores
                         porque ahí no filtras, navegas. */}
-                    <BarraDeFiltros campos={["liga", "anio", "puesto", "pasaporte", "minutos", "edad"]} resultado={jugadoresVisibles.length} />
+                    <BarraDeFiltros campos={["puesto", "pasaporte", "minutos", "edad"]} resultado={jugadoresVisibles.length} />
                   </div>
 
                   <div className="panel-seccion">
                   <span className="panel-seccion-titulo">{t("Jugador")}</span>
                   <div className="player-selector-flow">
-                    <label className="field-group selection-step"><span className="selection-step-title"><FieldLabel>{t("Equipo")}</FieldLabel></span><span className="select-wrap"><Files size={16} /><select value={selectedTeam} disabled={backgroundRemoving} onChange={(event) => selectTeam(event.target.value)}>{teams.map((team) => <option key={team || "__sin_equipo__"} value={team}>{team || t("Equipo no disponible")}</option>)}</select><ChevronDown size={16} /></span></label>
+                    {/* Primero la liga y el año, después el club y el jugador:
+                        con todo cargado, el club solo ya no dice dónde buscar.
+                        Son los filtros globales de siempre, así que acotar
+                        aquí acota también Ranking y Entre ligas. */}
+                    {(base.opciones.ligas.length > 1 || base.opciones.anios.length > 1) && <>
+                      <div className="field-group selection-step"><span className="selection-step-title"><FieldLabel>{t("Liga y año")}</FieldLabel></span>
+                        <div className="seleccion-liga-anio">
+                          {base.opciones.ligas.length > 1 && <MenuDeLigas variante="campo" ligas={base.opciones.ligas} elegida={base.filtros.liga}
+                            onElegir={(liga) => base.cambiarFiltros({ liga })} />}
+                          {base.opciones.anios.length > 1 && <MenuDesplegable variante="campo" etiqueta={t("Año")}
+                            valor={base.filtros.anio ? String(base.filtros.anio) : t("Todos")}
+                            opciones={[{ valor: "", texto: t("Todos") }, ...base.opciones.anios.map((anio) => ({ valor: String(anio), texto: String(anio) }))]}
+                            elegida={base.filtros.anio ? String(base.filtros.anio) : ""} onElegir={(anio) => base.cambiarFiltros({ anio: Number(anio) || 0 })} />}
+                        </div>
+                      </div>
+                      <span className="selection-flow-line" aria-hidden="true" />
+                    </>}
+                    <div className="field-group selection-step"><span className="selection-step-title"><FieldLabel>{t("Equipo")}</FieldLabel></span>
+                      <MenuDesplegable variante="campo" etiqueta={t("Equipo")} apagado={backgroundRemoving}
+                        valor={selectedTeam || t("Equipo no disponible")}
+                        icono={<Escudo equipo={selectedTeam} liga={ligaDeEquipo.get(selectedTeam) ?? ""} tamano={18} respaldo />}
+                        opciones={opcionesDeClub} iconoDeGrupo={(liga) => <LogoLiga liga={liga} tamano={20} hueco />}
+                        elegida={selectedTeam} onElegir={selectTeam} />
+                    </div>
                     <span className="selection-flow-line" aria-hidden="true" />
                     <label className="field-group selection-step"><span className="selection-step-title"><FieldLabel>{t("Jugador")}</FieldLabel></span><span className="select-wrap"><Search size={16} /><select value={selectedPlayer} disabled={backgroundRemoving || !teamPlayers.length} onChange={(event) => selectPlayer(Number(event.target.value))}>{teamPlayers.map((player) => <option key={`${player.player}-${player.index}`} value={player.index}>{player.player}</option>)}</select><ChevronDown size={16} /></span></label>
                   </div>

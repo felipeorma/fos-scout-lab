@@ -25,7 +25,7 @@ export type OpcionDeMenu = {
 
 export function MenuDesplegable({
   etiqueta, valor, icono, activo = false, opciones, elegida, onElegir, iconoDeGrupo,
-  variante = "chip", ariaLabel, marcador,
+  variante = "chip", ariaLabel, marcador, apagado = false,
 }: {
   /** El nombre del menú ("Liga"); en la ficha se lee delante del valor. */
   etiqueta: string;
@@ -41,6 +41,7 @@ export function MenuDesplegable({
   ariaLabel?: string;
   /** En la variante campo, el texto cuando no hay nada elegido. */
   marcador?: string;
+  apagado?: boolean;
 }) {
   const [abierto, setAbierto] = useState(false);
   const [activa, setActiva] = useState(0);
@@ -54,6 +55,7 @@ export function MenuDesplegable({
     const i = opciones.findIndex((opcion) => opcion.valor === elegida);
     setActiva(i >= 0 ? i : 0);
     setAlDerecha(false);
+    recienAbierto.current = true;
     setAbierto(true);
   };
   const cerrar = (devolverFoco = true) => {
@@ -74,9 +76,12 @@ export function MenuDesplegable({
     if (caja.right > window.innerWidth - 8) setAlDerecha(true);
   }, [abierto]);
 
+  // Al abrir, la elegida queda en medio de la lista; al moverse con las flechas, solo lo justo.
+  const recienAbierto = useRef(false);
   useEffect(() => {
     if (!abierto) return;
-    lista.current?.querySelector<HTMLElement>(`[data-i="${activa}"]`)?.scrollIntoView({ block: "nearest" });
+    lista.current?.querySelector<HTMLElement>(`[data-i="${activa}"]`)?.scrollIntoView({ block: recienAbierto.current ? "center" : "nearest" });
+    recienAbierto.current = false;
   }, [abierto, activa]);
 
   useEffect(() => {
@@ -119,28 +124,36 @@ export function MenuDesplegable({
     }
   };
 
-  // Las opciones en orden, con una cabecera cada vez que cambia el grupo.
-  const filas: ReactNode[] = [];
-  let grupoAnterior: string | undefined;
-  opciones.forEach((opcion, i) => {
-    if (opcion.grupo && opcion.grupo !== grupoAnterior) {
-      filas.push(<div key={`g-${opcion.grupo}`} className="menu-grupo" role="presentation">
-        {iconoDeGrupo?.(opcion.grupo)}<span>{opcion.grupo}</span>
-      </div>);
-    }
-    grupoAnterior = opcion.grupo;
+  const fila = (opcion: OpcionDeMenu, i: number) => {
     const esElegida = opcion.valor === elegida;
-    filas.push(<div key={opcion.valor} id={`${id}-${i}`} data-i={i} role="option" aria-selected={esElegida}
+    return <div key={opcion.valor} id={`${id}-${i}`} data-i={i} role="option" aria-selected={esElegida}
       className={["menu-opcion", i === activa ? "activa" : "", esElegida ? "elegida" : ""].filter(Boolean).join(" ")}
       onPointerMove={() => { if (i !== activa) setActiva(i); }}
       onClick={() => elegir(i)}>
       {opcion.icono}<span>{opcion.texto}</span>
-    </div>);
+    </div>;
+  };
+  // Cada grupo en su caja: así la cabecera fija de una liga la empuja fuera
+  // la de la siguiente, en vez de quedarse las dos una encima de otra.
+  const filas: ReactNode[] = [];
+  let caja: { grupo: string; filas: ReactNode[] } | null = null;
+  opciones.forEach((opcion, i) => {
+    if (!opcion.grupo) { caja = null; filas.push(fila(opcion, i)); return; }
+    if (!caja || caja.grupo !== opcion.grupo) {
+      caja = { grupo: opcion.grupo, filas: [] };
+      const cabecera = `${id}-g-${filas.length}`;
+      filas.push(<div key={`g-${opcion.grupo}`} role="group" aria-labelledby={cabecera} className="menu-caja">
+        <div id={cabecera} className="menu-grupo">{iconoDeGrupo?.(opcion.grupo)}<span>{opcion.grupo}</span></div>
+        {caja.filas}
+      </div>);
+    }
+    caja.filas.push(fila(opcion, i));
   });
 
-  const vacio = variante === "campo" && !elegida;
+  // Vacío es no tener ninguna de las opciones elegida; "" puede ser una ("Todos").
+  const vacio = variante === "campo" && !opciones.some((opcion) => opcion.valor === elegida);
   return <div ref={raiz} className={variante === "campo" ? "menu-desplegable menu-campo-caja" : "menu-desplegable"}>
-    <button ref={boton} type="button"
+    <button ref={boton} type="button" disabled={apagado}
       className={variante === "campo"
         ? ["menu-campo", vacio ? "vacio" : ""].filter(Boolean).join(" ")
         : ["filtro-chip", "menu-chip", activo ? "activo" : ""].filter(Boolean).join(" ")}

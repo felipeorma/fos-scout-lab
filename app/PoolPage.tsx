@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type KeyboardEvent } from "react";
+import { Fragment, useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
 import { t, tf } from "@/lib/i18n";
 import { encogerHaciaLaMedia } from "@/lib/cobertura";
 import { positionSides } from "@/lib/positions";
@@ -14,7 +14,7 @@ import { ChevronDown, ChevronRight, Search } from "./Icons";
 import { Interruptor } from "./Interruptor";
 import { CeldaEncaje } from "./CeldaEncaje";
 import { CeldaEncajeEquipo } from "./CeldaEncajeEquipo";
-import { Escudo } from "./Escudo";
+import { Escudo, LogoLiga } from "./Escudo";
 import { equiposParaEncaje, useEncajeDeLista } from "./useEncajeDeLista";
 import { useEstilos } from "./useEstilos";
 import { EQUIPO_PROPIO, crearEncaje, perfilesDeEstilo } from "@/lib/estiloEquipo";
@@ -271,7 +271,13 @@ export function PoolPage({ onAbrirJugador, destinatario = "", logoDestinatario =
             <span className={posicionEnLista < 3 ? "rank-pos podio" : "rank-pos"}>{posicionEnLista + 1}</span>
             <span className="pool-cuerpo">
               <b className="pool-name">{candidato.name}</b>
-              <small><Escudo equipo={candidato.team} liga={candidato.origen.ligas[0] ?? ""} tamano={13} />{[candidato.team, candidato.origen.ligas.join(" · "), candidato.age != null ? String(candidato.age) : null, `${Math.round(candidato.minutes)}′`].filter(Boolean).join(" · ")}</small>
+              <small>{conPuntos([
+                candidato.team ? <Fragment key="equipo"><Escudo equipo={candidato.team} liga={candidato.origen.ligas[0] ?? ""} tamano={13} />{candidato.team}</Fragment> : null,
+                // Entre ligas, la liga es lo que distingue una fila de otra: con su logo se ve sin leer.
+                ...candidato.origen.ligas.map((liga) => <Fragment key={`liga-${liga}`}><LogoLiga liga={liga} tamano={14} />{liga}</Fragment>),
+                candidato.age != null ? String(candidato.age) : null,
+                `${Math.round(candidato.minutes)}′`,
+              ])}</small>
             </span>
             <CeldaEncaje encaje={encaje(candidato.team)} cargando={estilos.cargando} />
             {encajeEquipo.activo && <CeldaEncajeEquipo encaje={encajeEquipo.para(candidato.index)} cargandoSitio={encajeEquipo.cargandoSitio} />}
@@ -292,4 +298,10 @@ export function PoolPage({ onAbrirJugador, destinatario = "", logoDestinatario =
     <PieDeReporte asunto={nombreObjetivo || t("Entre ligas")} destinatario={destinatario} logo={logoDestinatario} />
 
   </section>;
+}
+
+/** Une las partes de una línea con " · ", saltándose las vacías. */
+function conPuntos(partes: ReactNode[]): ReactNode[] {
+  return partes.filter((parte) => parte != null && parte !== "")
+    .flatMap((parte, i) => (i ? [<Fragment key={`punto-${i}`}>{" · "}</Fragment>, parte] : [parte]));
 }

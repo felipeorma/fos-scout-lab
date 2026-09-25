@@ -317,6 +317,8 @@ const EN: Record<string, string> = {
   "Página 01 · Ficha de scouting": "Page 01 · Scouting card",
   "Basada en Radar Jordhy Thompson v2": "Based on Radar Jordhy Thompson v2",
   "Competición": "Competition",
+  "Liga y año": "League and year",
+  "Sin liga": "No league",
   "VALOR DE MERCADO": "MARKET VALUE",
   "Cohorte {c} · mín. {m}′": "Cohort {c} · min. {m}′",
   "Partidos": "Matches",

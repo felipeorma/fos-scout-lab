@@ -2175,7 +2175,7 @@ _TOKENS_GENERICOS = {"fc", "cf", "sc", "afc", "club", "cd", "fk", "if", "bk", "i
 # de nombre que uno de los dos aún no ha hecho (Inter Toronto era York
 # United; LA Galaxy II juega como Ventura County). Clave: las palabras
 # significativas del nombre de StatsBomb, ordenadas.
-_AF_RENOMBRADOS = {"inter toronto": "York United", "2 galaxy": "Ventura County"}
+_AF_RENOMBRADOS = {"inter toronto": "York United", "2 galaxy": "Ventura County", "supra": "Supra du Quebec"}
 
 import threading as _threading_logos
 _LOGOS_LOCK = _threading_logos.Lock()
