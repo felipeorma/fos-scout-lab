@@ -250,7 +250,7 @@ export async function fetchPuestosDeEquipo(clave: string): Promise<Alineaciones>
  * de API-Football, `logo` es null y `estado` dice "sin-clave".
  */
 export async function fetchLogo(equipo: string, liga = ""): Promise<{ logo: string | null; estado?: string }> {
-  return bridgeJson(`/api/logos?equipo=${encodeURIComponent(equipo)}&liga=${encodeURIComponent(liga)}`, 60_000);
+  return bridgeJson(`/api/logos?equipo=${encodeURIComponent(equipo)}&liga=${encodeURIComponent(liga)}`, 150_000);
 }
 
 export type RolesDeLiga = {

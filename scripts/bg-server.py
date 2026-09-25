@@ -2169,13 +2169,44 @@ _AF_LIGAS = {
     "eerste divisie": 89, "ligue 3": 63, "national league": 43, "premier division": 357,
 }
 _TOKENS_GENERICOS = {"fc", "cf", "sc", "afc", "club", "cd", "fk", "if", "bk", "ik", "ac", "sk", "sv", "vv",
-                     "the", "de", "del", "du", "la", "le", "el", "football", "futbol", "soccer", "calcio"}
+                     "the", "de", "del", "du", "la", "le", "el", "football", "futbol", "soccer", "calcio",
+                     "ff", "is", "bois"}
+# Clubes que cambiaron de nombre y API-Football aún lista con el viejo.
+# Clave: las palabras significativas del nombre nuevo, ordenadas.
+_AF_RENOMBRADOS = {"inter toronto": "York United"}
+
 import threading as _threading_logos
 _LOGOS_LOCK = _threading_logos.Lock()
 
 
+# Para quien no puede pegar en el aviso oculto de `security`: se pega la clave
+# en este archivo del Escritorio, el puente la pasa al Llavero y deja en su
+# lugar solo un aviso. La clave no se queda en texto plano.
+_AF_FICHERO_CLAVE = Path.home() / "Desktop" / "api-football-clave.txt"
+_AF_AVISO_GUARDADA = "Clave guardada en el Llavero de macOS (fos-scouting / api-football). Ya puedes borrar este archivo.\n"
+
+
+def _af_importar_de_fichero():
+    try:
+        texto = _AF_FICHERO_CLAVE.read_text(encoding="utf-8").strip()
+    except OSError:
+        return
+    clave = texto.split()[0] if texto else ""
+    if not _re.fullmatch(r"[0-9A-Za-z]{20,64}", clave):
+        return
+    import subprocess as _sp
+    # Por la entrada de `security -i` y no como argumento: así no asoma en la lista de procesos.
+    _sp.run(["/usr/bin/security", "-i"], input=f"add-generic-password -U -s fos-scouting -a api-football -w {clave}\n",
+            capture_output=True, text=True, timeout=10)
+    if _keychain_secret("api-football") == clave:
+        _AF_FICHERO_CLAVE.write_text(_AF_AVISO_GUARDADA, encoding="utf-8")
+
+
 def _af_clave():
-    return os.environ.get("API_FOOTBALL_KEY") or _keychain_secret("api-football") or None
+    if os.environ.get("API_FOOTBALL_KEY"):
+        return os.environ["API_FOOTBALL_KEY"]
+    _af_importar_de_fichero()
+    return _keychain_secret("api-football") or None
 
 
 def _logos_leer():
@@ -2199,6 +2230,20 @@ def _logos_guardar(datos):
         pass
 
 
+_AF_POR_MINUTO = 9
+_af_recientes: list = []
+
+
+def _af_esperar_turno():
+    """El plan gratis admite 10 peticiones por minuto; se deja una de margen."""
+    import time as _time
+    ahora = _time.monotonic()
+    _af_recientes[:] = [t for t in _af_recientes if ahora - t < 60]
+    if len(_af_recientes) >= _AF_POR_MINUTO:
+        _time.sleep(max(0.0, 60.5 - (ahora - _af_recientes[0])))
+    _af_recientes.append(_time.monotonic())
+
+
 def _af_get(ruta: str, params: dict, datos):
     """Una petición a API-Football, contando la cuota del día. Devuelve (json, error)."""
     hoy = _dt.date.today().isoformat()
@@ -2206,6 +2251,7 @@ def _af_get(ruta: str, params: dict, datos):
         datos["cuota"] = {"dia": hoy, "usadas": 0}
     if datos["cuota"]["usadas"] >= _AF_TOPE_DIARIO:
         return None, "cuota"
+    _af_esperar_turno()
     try:
         r = _requests.get(_AF_BASE + ruta, headers={"x-apisports-key": _af_clave() or ""}, params=params, timeout=20)
         cuerpo = r.json()
@@ -2218,6 +2264,8 @@ def _af_get(ruta: str, params: dict, datos):
     datos["cuota"]["usadas"] += 1
     if isinstance(errores, dict) and "requests" in errores:
         return None, "cuota"
+    if isinstance(errores, dict) and "rateLimit" in errores:
+        return None, "ritmo"
     if errores:
         return None, str(errores)
     return cuerpo, None
@@ -2226,7 +2274,11 @@ def _af_get(ruta: str, params: dict, datos):
 def _tokens_equipo(nombre: str):
     import re as _re
     limpio = _re.sub(r"[^a-z0-9 ]", " ", _sin_tildes(nombre or "").lower())
-    return frozenset(t for t in limpio.split() if t and t not in _TOKENS_GENERICOS)
+    todas = [t for t in limpio.split() if t]
+    # "Öster" y "Osters IF" son el mismo club: la -s final (genitivo sueco,
+    # plural inglés) no distingue. Si solo quedan genéricas ("AIK"), valen esas.
+    significativas = [t for t in todas if t not in _TOKENS_GENERICOS] or todas
+    return frozenset(t[:-1] if len(t) > 4 and t.endswith("s") else t for t in significativas)
 
 
 def _parecido_equipo(a: str, b: str, estricto: bool = False) -> float:
@@ -2262,7 +2314,7 @@ def _equipos_de_liga(liga: str, datos):
     desde = int(datos.get("temporadaQueFunciona") or ano)
     for temporada in range(desde, 2019, -1):
         cuerpo, error = _af_get("/teams", {"league": id_liga, "season": temporada}, datos)
-        if error in ("cuota", "clave"):
+        if error in ("cuota", "clave", "ritmo"):
             return None, error
         if error or not cuerpo or not cuerpo.get("response"):
             continue
@@ -2285,6 +2337,7 @@ def logos_equipo(equipo: str, liga: str = ""):
             return Response(_json.dumps(guardado), media_type="application/json", headers=cors_headers())
         if not _af_clave():
             return Response('{"logo": null, "estado": "sin-clave"}', media_type="application/json", headers=cors_headers())
+        equipo = _AF_RENOMBRADOS.get(clave_equipo, equipo)
         mejor, puntos = None, 0.0
         de_liga, fallo = _equipos_de_liga(liga, datos)
         if fallo == "clave":
@@ -2295,29 +2348,36 @@ def logos_equipo(equipo: str, liga: str = ""):
             if p > puntos:
                 mejor, puntos = candidato, p
         error = None
-        if puntos < 0.5 and fallo != "cuota":
+        if puntos < 0.5 and fallo not in ("cuota", "ritmo"):
             # Fuera de su liga (o liga sin mapa): búsqueda por nombre.
-            tokens = sorted(_tokens_equipo(equipo), key=len, reverse=True)
-            texto = " ".join(t for t in tokens if len(t) >= 3)[:40] or _sin_tildes(equipo)
-            cuerpo, error = _af_get("/teams", {"search": texto}, datos)
-            if error == "clave":
-                _logos_guardar(datos)
-                return Response('{"logo": null, "estado": "clave-invalida"}', media_type="application/json", headers=cors_headers())
+            # La búsqueda de la API casa el texto seguido dentro del nombre:
+            # "quebec supra" no encuentra "Supra du Québec". Se busca palabra a
+            # palabra, la más larga primero, y como mucho dos intentos.
+            palabras = [t for t in sorted(_tokens_equipo(equipo), key=len, reverse=True) if len(t) >= 3][:2] \
+                or [_sin_tildes(equipo)[:40]]
             mejor, puntos = None, 0.0
-            for e in (cuerpo or {}).get("response", []):
-                candidato = {"id": e["team"]["id"], "nombre": e["team"]["name"], "logo": e["team"]["logo"]}
-                p = _parecido_equipo(equipo, candidato["nombre"], estricto=True)
-                if p > puntos:
-                    mejor, puntos = candidato, p
+            for texto in palabras:
+                cuerpo, error = _af_get("/teams", {"search": texto}, datos)
+                if error == "clave":
+                    _logos_guardar(datos)
+                    return Response('{"logo": null, "estado": "clave-invalida"}', media_type="application/json", headers=cors_headers())
+                for e in (cuerpo or {}).get("response", []):
+                    candidato = {"id": e["team"]["id"], "nombre": e["team"]["name"], "logo": e["team"]["logo"]}
+                    p = _parecido_equipo(equipo, candidato["nombre"], estricto=True)
+                    if p > puntos:
+                        mejor, puntos = candidato, p
+                if error or puntos >= 0.6:
+                    break
             if puntos < 0.6:
                 mejor = None
         encontrado = bool(mejor and puntos >= 0.5)
         agotada = "cuota" in (fallo, error)
+        corte = fallo if fallo in ("cuota", "ritmo") else error
         resultado = ({"logo": mejor["logo"], "id": mejor["id"], "nombre": mejor["nombre"]}
-                     if encontrado else {"logo": None, "estado": "cuota" if agotada else "sin-coincidencia" if not error else "error"})
+                     if encontrado else {"logo": None, "estado": "cuota" if agotada else "sin-coincidencia" if not corte else "error"})
         # Una falta solo se guarda si la búsqueda por nombre contestó de verdad:
-        # por cuota o por un fallo de red, mañana se vuelve a intentar.
-        if encontrado or (puntos < 0.5 and not agotada and not error):
+        # por cuota, ritmo o un fallo de red, se vuelve a intentar más tarde.
+        if encontrado or (puntos < 0.5 and not corte):
             datos["equipos"][clave_equipo] = resultado
         _logos_guardar(datos)
     return Response(_json.dumps(resultado), media_type="application/json", headers=cors_headers())
@@ -2340,6 +2400,7 @@ def logos_estado():
             respuesta = cuerpo.get("response") or {}
             if valida and isinstance(respuesta, dict):
                 plan = (respuesta.get("subscription") or {}).get("plan")
+                usadas = max(usadas, int((respuesta.get("requests") or {}).get("current") or 0))
         except Exception:
             valida = None
     return Response(_json.dumps({"clave": bool(_af_clave()), "valida": valida, "plan": plan, "usadasHoy": usadas,
