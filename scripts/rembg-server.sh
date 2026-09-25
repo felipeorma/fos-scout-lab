@@ -18,5 +18,14 @@ if [ ! -x "$VENV/bin/python" ]; then
   exit 1
 fi
 
+# Normalmente ya lo tiene en marcha el servicio de macOS
+# (~/Library/LaunchAgents/com.felipeormazabal.fos-puente.plist), que lo
+# arranca al iniciar sesión y lo levanta si se cae. Entonces no hay nada que hacer.
+if curl -s -m 2 http://127.0.0.1:7001/api/sources/status >/dev/null 2>&1; then
+  echo "El puente ya está en marcha en el puerto 7001 (servicio com.felipeormazabal.fos-puente)."
+  echo "Para reiniciarlo tras cambiar el código: npm run bg:reiniciar"
+  exit 0
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 exec "$VENV/bin/python" -m uvicorn bg-server:app --app-dir "$SCRIPT_DIR" --port 7001 --log-level warning
