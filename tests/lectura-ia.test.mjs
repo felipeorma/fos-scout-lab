@@ -38,7 +38,7 @@ test("familias de la más alta a la más baja y, aparte, solo las métricas que 
   assert.ok(resto.every((m) => Number.isFinite(m.percentile)));
 });
 
-test("a un portero solo se le pasan las familias de juego con el pie", () => {
+test("a un portero solo se le pasa la familia de construcción", () => {
   const portero = (nombre, k) => {
     const fila = { Player: nombre, Team: "T", Position: "GK", Age: 28, "Minutes played": 2000, "Matches played": 22 };
     for (const familia of COMPUESTAS) for (const columna of familia.columnas) fila[columna] = 5 + k;
@@ -47,5 +47,5 @@ test("a un portero solo se le pasan las familias de juego con el pie", () => {
   const filas = Array.from({ length: 8 }, (_, k) => portero(`P${k}`, k));
   const { familias } = contextoDeLectura(filas, 7, 0, "GK", [], []);
   assert.ok(familias.length > 0);
-  assert.ok(familias.every((f) => ["Construcción", "Asociación"].includes(f.familia)), familias.map((f) => f.familia).join(", "));
+  assert.deepEqual(familias.map((f) => f.familia), ["Construcción"]);
 });

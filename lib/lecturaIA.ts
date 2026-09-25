@@ -23,10 +23,11 @@ const SOLO_DE_PORTERO = (() => {
   return new Set((METRICS.GK ?? []).map((d) => d.label).filter((label) => !deCampo.has(label)));
 })();
 
-// A un portero solo le describen las familias de juego con el pie: "Amenaza"
-// o "Progresión" en percentil 94 frente a otros porteros es ruido, y la IA lo
-// contaría como un rasgo.
-const FAMILIAS_DE_PORTERO = new Set(["construccion", "asociacion"]);
+// A un portero solo le describe la construcción: "Amenaza" o "Progresión" en
+// percentil 94 frente a otros porteros es ruido, y "Asociación" mide pases en
+// el último tercio, que no es su trabajo; la IA leía ahí un "pie corto" que
+// contradecía una construcción en P99.
+const FAMILIAS_DE_PORTERO = new Set(["construccion"]);
 
 /** Del catálogo de la base, las métricas que dicen algo de esta posición. */
 export function etiquetasParaLectura(cohorte: string, catalogo: string[]): string[] {
