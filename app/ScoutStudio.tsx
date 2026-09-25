@@ -18,6 +18,8 @@ import { LOGOS_PLATAFORMA, LogoPlataforma } from "./LogosPlataforma";
 import { ligasDeBases, origenPorFila } from "@/lib/procedencia";
 import { ProveedorDeBase, useEstadoDeBase } from "./BaseActiva";
 import { BarraDeFiltros } from "./BarraDeFiltros";
+import { MenuDesplegable } from "./MenuDesplegable";
+import { LogoLiga } from "./Escudo";
 import { DatosPage } from "./DatosPage";
 import { Interruptor } from "./Interruptor";
 import { FilaDeMenu, GrupoDeMenu, MenuFlotante } from "./MenuFlotante";
@@ -190,6 +192,21 @@ function competicionesAgrupadas(lista: ApiCompetition[]) {
       entradas: [...entradas].sort((a, b) => String(b.competition.season).localeCompare(String(a.competition.season), "en", { numeric: true })),
     }))
     .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+}
+
+/** El menú de competiciones del diálogo: cada liga con su logo y, debajo, sus temporadas. */
+function MenuDeCompeticiones({ lista, elegida, onElegir }: { lista: ApiCompetition[]; elegida: string; onElegir: (indice: string) => void }) {
+  const grupos = competicionesAgrupadas(lista);
+  const ligaDe = new Map(grupos.map((grupo) => [grupo.nombre, grupo.entradas[0]?.competition.name ?? ""]));
+  const actual = elegida ? lista[Number(elegida)] : undefined;
+  return <MenuDesplegable variante="campo" etiqueta={t("Competición")} marcador={`${t("Elegir competición")}…`}
+    valor={actual ? `${actual.name} · ${actual.season}` : ""}
+    icono={actual ? <LogoLiga liga={actual.name} tamano={16} /> : null}
+    opciones={grupos.flatMap((grupo) => grupo.entradas.map(({ competition, indice }) => ({
+      valor: String(indice), texto: String(competition.season), grupo: grupo.nombre,
+    })))}
+    iconoDeGrupo={(grupo) => <LogoLiga liga={ligaDe.get(grupo) ?? ""} tamano={20} hueco />}
+    elegida={elegida} onElegir={onElegir} />;
 }
 
 const COHORT_LABELS: Record<string, string> = {
@@ -1616,16 +1633,8 @@ export default function ScoutStudio() {
                   {apiStatus && apiStatus !== "offline" && (["statsbomb", "skillcorner"] as const).map((platform) => <div key={platform} className="api-platform-row" style={{ "--platform-color": METRIC_SOURCE_COLORS[platform].color } as React.CSSProperties}>
                     <div className="api-platform-head"><LogoPlataforma plataforma={platform} alto={19} conTexto /><b>{METRIC_SOURCE_COLORS[platform].label}</b><small>{apiStatus[platform] ? `${apiCompetitions[platform].length} ${t("competiciones disponibles")}` : t("Sin credenciales")}</small></div>
                     {apiStatus[platform] ? <>
-                      <select value={apiSelection[platform]} onChange={(event) => setApiSelection((current) => ({ ...current, [platform]: event.target.value }))}>
-                        <option value="">{t("Elegir competición")}…</option>
-                        {competicionesAgrupadas(apiCompetitions[platform]).map((grupo) => (
-                          <optgroup key={grupo.nombre} label={grupo.nombre}>
-                            {grupo.entradas.map(({ competition, indice }) => (
-                              <option key={indice} value={indice}>{competition.season}</option>
-                            ))}
-                          </optgroup>
-                        ))}
-                      </select>
+                      <MenuDeCompeticiones lista={apiCompetitions[platform]} elegida={apiSelection[platform]}
+                        onElegir={(indice) => setApiSelection((current) => ({ ...current, [platform]: indice }))} />
                       <div className="api-platform-actions">
                         {platform === "statsbomb" && <button className="button primary" disabled={apiLoading || !apiSelection[platform]} onClick={() => void loadApiDataset(platform, "replace")}>{apiLoading ? t("Cargando datos de la plataforma…") : t("Usar como base")}</button>}
                         {dataReady && <button className={platform === "statsbomb" ? "button secondary" : "button primary"} disabled={apiLoading || !apiSelection[platform]} onClick={() => void loadApiDataset(platform, "append")}>{apiLoading ? t("Cargando datos de la plataforma…") : t("Añadir a la base actual")}</button>}

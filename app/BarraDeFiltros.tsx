@@ -5,6 +5,7 @@ import { PERFILES_FILTRO } from "@/lib/perfiles";
 import { t, tf } from "@/lib/i18n";
 import { useBaseActiva } from "./BaseActiva";
 import { ChevronDown } from "./Icons";
+import { MenuDeLigas } from "./MenuDesplegable";
 
 /**
  * La red de filtros, una sola para toda la plataforma.
@@ -79,15 +80,8 @@ export function BarraDeFiltros({ campos = TODOS, resultado, accesorio }: {
 
   return <div className="filtros-barra" role="group" aria-label={t("Filtros")}>
     <div className="filtros-chips">
-      {muestra("liga") && opciones.ligas.length > 1 && <Desplegable
-        etiqueta={t("Liga")}
-        valor={filtros.liga === "TODAS" ? t("Todas") : filtros.liga}
-        activo={filtros.liga !== "TODAS"}>
-        <select aria-label={t("Liga")} value={filtros.liga} onChange={(e) => cambiarFiltros({ liga: e.target.value })}>
-          <option value="TODAS">{t("Todas")}</option>
-          {opciones.ligas.map((liga) => <option key={liga} value={liga}>{liga}</option>)}
-        </select>
-      </Desplegable>}
+      {muestra("liga") && opciones.ligas.length > 1 && <MenuDeLigas
+        ligas={opciones.ligas} elegida={filtros.liga} onElegir={(liga) => cambiarFiltros({ liga })} />}
 
       {muestra("anio") && opciones.anios.length > 1 && <Desplegable
         etiqueta={t("Año")}

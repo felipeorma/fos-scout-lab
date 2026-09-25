@@ -2,6 +2,7 @@
 import { Interruptor } from "./Interruptor";
 import { Paso } from "./Paso";
 import { Desplegable } from "./BarraDeFiltros";
+import { MenuDeLigas } from "./MenuDesplegable";
 import { colorContrastante } from "@/lib/colores";
 import { PERFILES_FILTRO } from "@/lib/perfiles";
 
@@ -1248,12 +1249,10 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
       <section className="similarity-target-bar">
         <div className="similarity-target-copy"><span>{t("JUGADOR OBJETIVO")}</span><b>{search.target.player}</b><small>{tf("{team} · {pos} · {age} años", { team: search.target.team, pos: posicionMostrada(search.target.position, search.target.cohort), age: search.target.age })}</small></div>
         <div className="similarity-target-selectors">
-          {ligasDelFondo.length > 1 && <label><span>{pasoObjetivo.liga} · {t("Liga")}</span>
-            <select value={ligaObjetivo} onChange={(event) => { setLigaObjetivo(event.target.value); reencuadrarObjetivo(event.target.value, anioObjetivo); }}>
-              <option value="TODAS">{t("Todas")}</option>
-              {ligasDelFondo.map((liga) => <option key={liga} value={liga}>{liga}</option>)}
-            </select>
-          </label>}
+          {ligasDelFondo.length > 1 && <div className="similarity-target-campo"><span>{pasoObjetivo.liga} · {t("Liga")}</span>
+            <MenuDeLigas ligas={ligasDelFondo} elegida={ligaObjetivo} variante="campo"
+              onElegir={(liga) => { setLigaObjetivo(liga); reencuadrarObjetivo(liga, anioObjetivo); }} />
+          </div>}
           {aniosDelFondo.length > 1 && <label><span>{pasoObjetivo.anio} · {t("Año")}</span>
             <select value={anioObjetivo || ""} onChange={(event) => { const a = Number(event.target.value); setAnioObjetivo(a); reencuadrarObjetivo(ligaObjetivo, a); }}>
               <option value="">{t("Todos")}</option>
@@ -1336,12 +1335,8 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
                   <span>{t("Mín. minutos")}</span>
                   <input type="number" min="0" step="100" inputMode="numeric" value={minimumMinutes} onChange={(event) => cambiarMinutos(event.target.value)} aria-label={t("Mínimo de minutos")} />
                 </label>
-                {ligasDelFondo.length > 1 && <Desplegable etiqueta={t("Liga")} valor={ligaCandidato === "TODAS" ? t("Todas") : ligaCandidato} activo={ligaCandidato !== "TODAS"}>
-                  <select aria-label={t("Liga del candidato")} value={ligaCandidato} onChange={(event) => setLigaCandidato(event.target.value)}>
-                    <option value="TODAS">{t("Todas")}</option>
-                    {ligasDelFondo.map((liga) => <option key={liga} value={liga}>{liga}</option>)}
-                  </select>
-                </Desplegable>}
+                {ligasDelFondo.length > 1 && <MenuDeLigas ligas={ligasDelFondo} elegida={ligaCandidato}
+                  onElegir={setLigaCandidato} ariaLabel={t("Liga del candidato")} />}
                 {aniosDelFondo.length > 1 && <Desplegable etiqueta={t("Año")} valor={anioCandidato ? String(anioCandidato) : t("Todos")} activo={Boolean(anioCandidato)}>
                   <select aria-label={t("Año del candidato")} value={anioCandidato || ""} onChange={(event) => setAnioCandidato(Number(event.target.value))}>
                     <option value="">{t("Todos")}</option>

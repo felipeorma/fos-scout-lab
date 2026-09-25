@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { fetchLogo } from "@/lib/remoteData";
+import { logoDeLiga } from "@/lib/ligas";
 
 /**
  * El escudo de un club, de API-Football (ver /api/logos en el puente).
@@ -83,4 +84,21 @@ export function Escudo({ equipo, liga = "", tamano = 18, respaldo = false, class
   if (!respaldo || !equipo) return null;
   const iniciales = equipo.replace(/\b(FC|CF|SC|AFC|CD|FK|IF|BK|IK)\b/gi, "").trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase();
   return <span className={`escudo escudo-vacio ${className}`.trim()} style={{ width: tamano, height: tamano, fontSize: Math.round(tamano * 0.42) }} aria-hidden="true">{iniciales}</span>;
+}
+
+/**
+ * El logo de una liga, o nada. Va sobre una teja clara: varios logos de
+ * API-Football son negros y en el tema oscuro desaparecerían.
+ */
+export function LogoLiga({ liga, tamano = 16, hueco = false, className = "" }: {
+  liga: string;
+  tamano?: number;
+  /** Sin logo, un hueco del mismo tamaño: en una lista, que los nombres queden alineados. */
+  hueco?: boolean;
+  className?: string;
+}) {
+  const url = logoDeLiga(liga);
+  if (!url) return hueco ? <span className="logo-liga-hueco" style={{ width: tamano, height: tamano }} aria-hidden="true" /> : null;
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img className={`logo-liga ${className}`.trim()} src={url} width={tamano} height={tamano} style={{ width: tamano, height: tamano }} alt="" loading="lazy" />;
 }

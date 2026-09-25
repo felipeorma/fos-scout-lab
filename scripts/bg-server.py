@@ -2171,9 +2171,11 @@ _AF_LIGAS = {
 _TOKENS_GENERICOS = {"fc", "cf", "sc", "afc", "club", "cd", "fk", "if", "bk", "ik", "ac", "sk", "sv", "vv",
                      "the", "de", "del", "du", "la", "le", "el", "football", "futbol", "soccer", "calcio",
                      "ff", "is", "bois"}
-# Clubes que cambiaron de nombre y API-Football aún lista con el viejo.
-# Clave: las palabras significativas del nombre nuevo, ordenadas.
-_AF_RENOMBRADOS = {"inter toronto": "York United"}
+# Clubes que se llaman distinto en StatsBomb y en API-Football: un cambio
+# de nombre que uno de los dos aún no ha hecho (Inter Toronto era York
+# United; LA Galaxy II juega como Ventura County). Clave: las palabras
+# significativas del nombre de StatsBomb, ordenadas.
+_AF_RENOMBRADOS = {"inter toronto": "York United", "2 galaxy": "Ventura County"}
 
 import threading as _threading_logos
 _LOGOS_LOCK = _threading_logos.Lock()
@@ -2278,7 +2280,9 @@ def _tokens_equipo(nombre: str):
     # "Öster" y "Osters IF" son el mismo club: la -s final (genitivo sueco,
     # plural inglés) no distingue. Si solo quedan genéricas ("AIK"), valen esas.
     significativas = [t for t in todas if t not in _TOKENS_GENERICOS] or todas
-    return frozenset(t[:-1] if len(t) > 4 and t.endswith("s") else t for t in significativas)
+    # Los filiales: "LA Galaxy II" y "LA Galaxy 2" son el mismo.
+    romanos = {"ii": "2", "iii": "3"}
+    return frozenset(romanos.get(t, t[:-1] if len(t) > 4 and t.endswith("s") else t) for t in significativas)
 
 
 def _parecido_equipo(a: str, b: str, estricto: bool = False) -> float:
@@ -2347,7 +2351,7 @@ def logos_equipo(equipo: str, liga: str = ""):
             p = _parecido_equipo(equipo, candidato["nombre"])
             if p > puntos:
                 mejor, puntos = candidato, p
-        error = None
+        error, vistos = None, {}
         if puntos < 0.5 and fallo not in ("cuota", "ritmo"):
             # Fuera de su liga (o liga sin mapa): búsqueda por nombre.
             # La búsqueda de la API casa el texto seguido dentro del nombre:
@@ -2364,6 +2368,7 @@ def logos_equipo(equipo: str, liga: str = ""):
                 for e in (cuerpo or {}).get("response", []):
                     candidato = {"id": e["team"]["id"], "nombre": e["team"]["name"], "logo": e["team"]["logo"]}
                     p = _parecido_equipo(equipo, candidato["nombre"], estricto=True)
+                    vistos[candidato["nombre"]] = p
                     if p > puntos:
                         mejor, puntos = candidato, p
                 if error or puntos >= 0.6:
@@ -2375,9 +2380,12 @@ def logos_equipo(equipo: str, liga: str = ""):
         corte = fallo if fallo in ("cuota", "ritmo") else error
         resultado = ({"logo": mejor["logo"], "id": mejor["id"], "nombre": mejor["nombre"]}
                      if encontrado else {"logo": None, "estado": "cuota" if agotada else "sin-coincidencia" if not corte else "error"})
+        if not encontrado and vistos:
+            # Para entender una falta sin gastar otra petición.
+            resultado["cerca"] = sorted(vistos, key=vistos.get, reverse=True)[:4]
         # Una falta solo se guarda si la búsqueda por nombre contestó de verdad:
         # por cuota, ritmo o un fallo de red, se vuelve a intentar más tarde.
-        if encontrado or (puntos < 0.5 and not corte):
+        if encontrado or not corte:
             datos["equipos"][clave_equipo] = resultado
         _logos_guardar(datos)
     return Response(_json.dumps(resultado), media_type="application/json", headers=cors_headers())

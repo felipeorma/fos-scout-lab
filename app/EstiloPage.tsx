@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Desplegable } from "./BarraDeFiltros";
 import { ChevronDown } from "./Icons";
 import { PieDeReporte } from "./PieDeReporte";
-import { Escudo } from "./Escudo";
+import { Escudo, LogoLiga } from "./Escudo";
+import { MenuDesplegable, type OpcionDeMenu } from "./MenuDesplegable";
 import { COLOR_FAMILIA, RosaDeEstilo } from "./RosaDeEstilo";
 import { numberLocale, t, tf } from "@/lib/i18n";
 import { useEstilos } from "./useEstilos";
@@ -157,11 +158,11 @@ export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", lo
     .sort((a, b) => b.valores[metricaElegida.id].z - a.valores[metricaElegida.id].z)
     .slice(0, 10), [comparables, metricaElegida]);
 
-  const opcionesDeEquipo = porCompeticion.map(([competicion, lista]) => (
-    <optgroup key={competicion} label={competicion}>
-      {lista.map((perfil) => <option key={perfil.clave} value={perfil.clave}>{perfil.equipo}</option>)}
-    </optgroup>
-  ));
+  // Los equipos agrupados por liga, con el logo de la liga en la cabecera:
+  // con 200 equipos, la liga es lo primero que se busca.
+  const opcionesDeEquipo: OpcionDeMenu[] = porCompeticion.flatMap(([competicion, lista]) =>
+    lista.map((perfil) => ({ valor: perfil.clave, texto: perfil.equipo, grupo: competicion })));
+  const logoDeGrupo = (competicion: string) => <LogoLiga liga={competicion} tamano={20} hueco />;
 
   const pie = elegido
     ? <PieDeReporte asunto={rival ? `${elegido.equipo} · ${rival.equipo}` : elegido.equipo} destinatario={destinatario} logo={logoDestinatario} />
@@ -194,16 +195,14 @@ export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", lo
     </p> : <>
       <div className="filtros-barra estilo-controles" role="group" aria-label={t("Qué equipo y con quién compararlo")}>
         <div className="filtros-chips">
-          <Desplegable etiqueta={t("Equipo")} valor={elegido.equipo} activo={false}>
-            <select aria-label={t("Equipo")} value={elegido.clave} onChange={(evento) => { setClave(evento.target.value); setClaveRival(""); }}>
-              {opcionesDeEquipo}
-            </select>
-          </Desplegable>
-          <Desplegable etiqueta={t("Comparar con")} valor={rival?.equipo ?? t("Nadie")} activo={Boolean(claveRival)}>
-            <select aria-label={t("Comparar con")} value={rival?.clave ?? ""} onChange={(evento) => setClaveRival(evento.target.value)}>
-              {opcionesDeEquipo}
-            </select>
-          </Desplegable>
+          <MenuDesplegable etiqueta={t("Equipo")} valor={elegido.equipo}
+            icono={<Escudo equipo={elegido.equipo} liga={elegido.competicion} tamano={14} />}
+            opciones={opcionesDeEquipo} iconoDeGrupo={logoDeGrupo}
+            elegida={elegido.clave} onElegir={(clave) => { setClave(clave); setClaveRival(""); }} />
+          <MenuDesplegable etiqueta={t("Comparar con")} valor={rival?.equipo ?? t("Nadie")} activo={Boolean(claveRival)}
+            icono={rival ? <Escudo equipo={rival.equipo} liga={rival.competicion} tamano={14} /> : null}
+            opciones={[{ valor: "", texto: t("Nadie") }, ...opcionesDeEquipo]} iconoDeGrupo={logoDeGrupo}
+            elegida={rival?.clave ?? ""} onElegir={setClaveRival} />
         </div>
       </div>
       {estado && <p className="estilo-estado" role="status">{estado}</p>}
