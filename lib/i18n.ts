@@ -318,6 +318,7 @@ const EN: Record<string, string> = {
   "Basada en Radar Jordhy Thompson v2": "Based on Radar Jordhy Thompson v2",
   "Competición": "Competition",
   "Liga y año": "League and year",
+  "Sin datos físicos de SkillCorner (aún no los publica o falló la descarga; vuelve a cargar más tarde): {ligas}.": "No SkillCorner physical data (not published yet or the download failed; reload later): {ligas}.",
   "Claude Code no tiene tu sesión iniciada. Ejecuta una vez claude auth login en la terminal y reintenta.": "Claude Code is not signed in. Run claude auth login once in the terminal and try again.",
   "Llegaste al límite de uso de tu plan de Claude. Reintenta cuando se renueve.": "You reached your Claude plan usage limit. Try again once it resets.",
   "No encuentro Claude Code en este Mac. Instálalo e inicia sesión con tu cuenta de Claude.": "Claude Code was not found on this Mac. Install it and sign in with your Claude account.",

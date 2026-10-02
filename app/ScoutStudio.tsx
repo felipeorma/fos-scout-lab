@@ -1060,6 +1060,10 @@ export default function ScoutStudio() {
       const sinTildes = (valor: string) => valor.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
       const datasets: SourceDataset[] = [];
       const fallidas: string[] = [];
+      // Las que tienen temporada en SkillCorner pero no dieron jugadores (aún
+      // no la publica, o falló la descarga). Antes se saltaban en silencio y
+      // la liga quedaba sin físicos sin que nada lo dijera.
+      const sinFisicos: string[] = [];
       for (let i = 0; i < objetivo.length; i += 1) {
         const competicion = objetivo[i];
         setCargaTotal(tf("{n} de {total} · {liga}", { n: i + 1, total: objetivo.length, liga: competicion.name }));
@@ -1078,7 +1082,9 @@ export default function ScoutStudio() {
         try {
           datasets.push(await fetchSkillcornerDataset(hermana));
         } catch {
-          // Sin la capa física la liga sigue sirviendo: no se aborta por esto.
+          // Sin la capa física la liga sigue sirviendo: no se aborta por esto,
+          // pero se avisa.
+          sinFisicos.push(`${competicion.name} ${competicion.season}`);
         }
       }
       if (!datasets.length) throw new Error(t("Ninguna competición devolvió jugadores."));
@@ -1090,6 +1096,7 @@ export default function ScoutStudio() {
       applyDatasets(finales);
       const avisos = [
         fallidas.length ? tf("No se pudieron cargar: {ligas}.", { ligas: fallidas.join(", ") }) : "",
+        sinFisicos.length ? tf("Sin datos físicos de SkillCorner (aún no los publica o falló la descarga; vuelve a cargar más tarde): {ligas}.", { ligas: sinFisicos.join(", ") }) : "",
         rezagadas.length
           ? tf("Entran con su temporada anterior, porque la de este año aún no tiene partidos publicados: {ligas}.", {
             ligas: rezagadas.map((competicion) => `${competicion.name} ${competicion.season}`).join(", "),
