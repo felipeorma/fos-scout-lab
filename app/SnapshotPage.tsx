@@ -20,7 +20,7 @@ import type { TransfermarktProfile } from "@/lib/transfermarkt";
  * Cada gráfico es una pieza de PiezasFicha: los mismos que Visuales ofrece
  * sueltos para montar una hoja a medida.
  */
-export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, destinatario = "", logoDestinatario = "", onAbrirJugador, claseHoja = "legal-page-shell" }: {
+export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, destinatario = "", logoDestinatario = "", onAbrirJugador, claseHoja = "legal-page-shell", equipoEncaje: equipoDeFuera, onEquipoEncaje, sinHojaDeEncaje = false }: {
   rows: DataRow[];
   indice: number;
   informe: PlayerReport;
@@ -31,6 +31,11 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
   onAbrirJugador?: (indice: number) => void;
   /** La clase de cada hoja de impresión: la ficha ampliada ocupa dos. */
   claseHoja?: string;
+  /** El equipo del encaje, si lo lleva quien monta la página (el diálogo de imprimir lo nombra). */
+  equipoEncaje?: string;
+  onEquipoEncaje?: (equipo: string) => void;
+  /** Sin la tercera hoja: en el PDF el encaje es opcional. En pantalla siempre está. */
+  sinHojaDeEncaje?: boolean;
 }) {
   const contexto: ContextoFicha = { rows, indice, informe, perfilTm, minutosMin, onAbrirJugador };
   const datos = useDatosFicha(contexto, true, true);
@@ -38,12 +43,15 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
   // El mapa de recepciones y su reparto se agrupan igual: cambiar uno cambia los dos.
   const [agruparRecepciones, setAgruparRecepciones] = useState("tipo");
   // El equipo con el que se mide el encaje; vacío, Cavalry.
-  const [equipoEncaje, setEquipoEncaje] = useState("");
+  const [equipoPropio, setEquipoPropio] = useState("");
+  const equipoEncaje = onEquipoEncaje ? equipoDeFuera ?? "" : equipoPropio;
+  const setEquipoEncaje = onEquipoEncaje ?? setEquipoPropio;
+  const totalHojas = sinHojaDeEncaje ? 2 : 3;
   const pieza = (id: IdPieza) => <PiezaFicha pieza={id} datos={datos} />;
 
   const cabecera = (hoja: number) => <header className={hoja > 1 ? "snap-cabecera-continuacion" : undefined}>
     <div>
-      <span>{hoja > 1 ? tf("STATSBOMB · FICHA AMPLIADA · {n} DE {total}", { n: hoja, total: 3 }) : t("STATSBOMB · FICHA AMPLIADA")}</span>
+      <span>{hoja > 1 ? tf("STATSBOMB · FICHA AMPLIADA · {n} DE {total}", { n: hoja, total: totalHojas }) : t("STATSBOMB · FICHA AMPLIADA")}</span>
       <h2>{datos.jugador}</h2>
       <p>{tf("Familias contra {n} {grupo} de la base cargada, con al menos {m} minutos.", { n: datos.grupo.indices.length, grupo: datos.nombreGrupo.toLowerCase(), m: minutosMin })}</p>
     </div>
@@ -109,8 +117,9 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
     </div>
 
     {/* Tercera hoja: si encaja en un equipo. Es la conclusión de las otras
-        dos, así que va al final. */}
-    <div className={claseHoja}>
+        dos, así que va al final. En el PDF es opcional: un informe que sale
+        hacia fuera no siempre debe decir para qué equipo se mira al jugador. */}
+    {!sinHojaDeEncaje && <div className={claseHoja}>
       <section className="snap-page snap-hoja-3">
         {cabecera(3)}
         <div className="snap-fila snap-fila-encaje">
@@ -118,6 +127,6 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
         </div>
         {pie}
       </section>
-    </div>
+    </div>}
   </>;
 }

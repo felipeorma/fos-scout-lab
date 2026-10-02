@@ -20,6 +20,7 @@ import { ProveedorDeBase, useEstadoDeBase } from "./BaseActiva";
 import { BarraDeFiltros } from "./BarraDeFiltros";
 import { MenuDeLigas, MenuDesplegable, type OpcionDeMenu } from "./MenuDesplegable";
 import { contextoDeLectura } from "@/lib/lecturaIA";
+import { EQUIPO_PROPIO, mismoEquipo } from "@/lib/estiloEquipo";
 import { Escudo, LogoLiga } from "./Escudo";
 import { DatosPage } from "./DatosPage";
 import { Interruptor } from "./Interruptor";
@@ -368,6 +369,11 @@ export default function ScoutStudio() {
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const [printPages, setPrintPages] = useState<ReportPage[]>([CARD_PAGE, SIMILARITY_PAGE, FIRST_VISUAL_PAGE]);
   const [printRun, setPrintRun] = useState<ReportPage[] | null>(null);
+  // El encaje de la ficha ampliada: con qué equipo se mide (vacío, Cavalry) y
+  // si su hoja va en el PDF. Fuera por defecto: un informe que sale del club
+  // no siempre debe decir para quién se mira al jugador. Se recuerda.
+  const [equipoEncaje, setEquipoEncaje] = useState("");
+  const [pdfConEncaje, setPdfConEncaje] = useState(false);
   const [sourceDatasets, setSourceDatasets] = useState<SourceDataset[]>([]);
   const [apiDialogOpen, setApiDialogOpen] = useState(false);
   const [apiStatus, setApiStatus] = useState<SourcesStatus | null | "offline">(null);
@@ -696,6 +702,10 @@ export default function ScoutStudio() {
       void (async () => {
         await Promise.race([document.fonts?.ready ?? Promise.resolve(), new Promise((resolve) => window.setTimeout(resolve, 3_000))]);
         const images = Array.from(document.querySelectorAll<HTMLImageElement>(".legal-page-shell img, .scout-report img, .visual-report-page img"));
+        // Los escudos y logos van con carga diferida: fuera de la vista el
+        // navegador no los pide nunca, y esperar su "load" o su decode()
+        // dejaba la exportación colgada. Al imprimir se piden todos ya.
+        for (const image of images) if (image.loading === "lazy") image.loading = "eager";
         await Promise.all(images.map(async (image) => {
           if (!image.complete) {
             await Promise.race([
@@ -706,7 +716,8 @@ export default function ScoutStudio() {
               new Promise<void>((resolve) => window.setTimeout(resolve, 3_000)),
             ]);
           }
-          try { await image.decode(); } catch { /* El navegador puede imprimir el fallback ya renderizado. */ }
+          // Con tope: un decode() que no termina no puede frenar el PDF.
+          try { await Promise.race([image.decode(), new Promise<void>((resolve) => window.setTimeout(resolve, 3_000))]); } catch { /* El navegador puede imprimir el fallback ya renderizado. */ }
         }));
         await siguienteCuadro();
         if (cancelled) return;
@@ -873,12 +884,20 @@ export default function ScoutStudio() {
     setPrintRun([...printPages].sort((a, b) => a - b));
   }
 
+  function alternarEncajeEnPdf() {
+    setPdfConEncaje((actual) => {
+      try { window.localStorage.setItem("fos-pdf-encaje-v1", actual ? "no" : "si"); } catch { /* preferencia opcional */ }
+      return !actual;
+    });
+  }
+
   function togglePrintPage(page: ReportPage) {
     setPrintPages((current) => current.includes(page) ? current.filter((item) => item !== page) : [...current, page]);
   }
 
   useEffect(() => {
     try { setAiControlsHidden(window.localStorage.getItem("fos-scout-ai-controls-v2") !== "shown"); } catch { /* preferencia opcional */ }
+    try { setPdfConEncaje(window.localStorage.getItem("fos-pdf-encaje-v1") === "si"); } catch { /* preferencia opcional */ }
     try {
       const stored = window.localStorage.getItem("fos-scout-metric-picks-v1");
       if (stored) setMetricPicks(JSON.parse(stored) as Record<string, string[]>);
@@ -1560,6 +1579,10 @@ export default function ScoutStudio() {
       ...visualPages.map((page, index) => ({ page, title: tf("Visuales {n}", { n: index + 1 }), hint: t("Mapas, imágenes y texto") })),
     ];
   const todasMarcadas = paginasParaImprimir.every(({ page }) => printPages.includes(page));
+  // El nombre del equipo del encaje, como lo elige la propia hoja: el elegido o, si no, el nuestro.
+  const nombreEquipoEncaje = equipoEncaje
+    || [...new Set(reportRows.map((fila) => String(fila.Team ?? "").trim()))].find((equipo) => mismoEquipo(equipo, EQUIPO_PROPIO))
+    || EQUIPO_PROPIO;
 
   return (
     <ProveedorDeBase valor={base}>
@@ -2131,7 +2154,8 @@ export default function ScoutStudio() {
               )}
               {espacio === "cavalry" && report && paginaMontada(SNAPSHOT_PAGE) && (
                 <SnapshotPage rows={reportRows} indice={selectedPlayer} informe={report} perfilTm={profile} minutosMin={minimumMinutes} claseHoja={claseHoja(SNAPSHOT_PAGE)}
-                  destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} onAbrirJugador={(indice) => selectPlayer(indice)} />
+                  destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} onAbrirJugador={(indice) => selectPlayer(indice)}
+                  equipoEncaje={equipoEncaje} onEquipoEncaje={setEquipoEncaje} sinHojaDeEncaje={Boolean(printRun) && !pdfConEncaje} />
               )}
               {report && paginaMontada(CONTEXT_PAGE) && (
                 <div className={claseHoja(CONTEXT_PAGE)}><ContextPage report={report} rows={reportRows} bases={sourceDatasets} minutosFiltro={minimumMinutes} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} controles={{
@@ -2170,11 +2194,18 @@ export default function ScoutStudio() {
                   <div className="impresion-lista">
                     {paginasParaImprimir.map(({ page, title, hint }) => {
                       const elegida = printPages.includes(page);
-                      return <label key={page} className={elegida ? "impresion-fila elegida" : "impresion-fila"}>
+                      const fila = <label key={page} className={elegida ? "impresion-fila elegida" : "impresion-fila"}>
                         <input type="checkbox" className="impresion-casilla" checked={elegida} onChange={() => togglePrintPage(page)} />
                         <span className="impresion-marca" aria-hidden="true">{elegida && <Check size={14} />}</span>
-                        <span className="impresion-fila-texto"><b>{title}</b><small>{hint}</small></span>
+                        <span className="impresion-fila-texto"><b>{title}</b><small>{page === SNAPSHOT_PAGE ? (pdfConEncaje ? t("3 hojas: familias, mapas y encaje") : t("2 hojas: familias y mapas")) : hint}</small></span>
                       </label>;
+                      // El encaje va colgado de la ficha ampliada: solo se ofrece si ella sale.
+                      if (page !== SNAPSHOT_PAGE || !elegida) return fila;
+                      return [fila, <label key="encaje" className={pdfConEncaje ? "impresion-fila impresion-subfila elegida" : "impresion-fila impresion-subfila"}>
+                        <input type="checkbox" className="impresion-casilla" checked={pdfConEncaje} onChange={alternarEncajeEnPdf} />
+                        <span className="impresion-marca" aria-hidden="true">{pdfConEncaje && <Check size={14} />}</span>
+                        <span className="impresion-fila-texto"><b>{tf("Añadir el encaje con {equipo}", { equipo: nombreEquipoEncaje })}</b><small>{t("Tercera hoja de la ficha ampliada")}</small></span>
+                      </label>];
                     })}
                   </div>
                   <div className="impresion-archivo">

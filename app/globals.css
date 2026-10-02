@@ -5398,6 +5398,12 @@ button.menu-fila:active { transform: scale(.985); }
 .impresion-fila-texto { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .app-shell[data-tema] .print-dialog .impresion-fila-texto > b { display: block; color: var(--ink); font-size: 13.5px; font-weight: 600; }
 .app-shell[data-tema] .print-dialog .impresion-fila-texto > small { display: block; margin: 0; color: var(--muted); font-size: 11.5px; }
+/* El encaje cuelga de la ficha ampliada: sangrado bajo su texto y con la
+   marca algo menor, como un ajuste que depende del de arriba. */
+.app-shell[data-tema] .print-dialog label.impresion-fila.impresion-subfila { min-height: 44px; padding-left: 48px; }
+.app-shell[data-tema] .print-dialog label.impresion-fila + label.impresion-fila.impresion-subfila::before { left: 80px; }
+.app-shell[data-tema] .impresion-subfila .impresion-marca { width: 20px; height: 20px; }
+.app-shell[data-tema] .print-dialog .impresion-subfila .impresion-fila-texto > b { font-size: 12.5px; font-weight: 500; }
 .app-shell[data-tema] .impresion-archivo {
   margin: 16px 0 0; padding: 10px 14px;
   display: flex; flex-direction: column; gap: 2px;
