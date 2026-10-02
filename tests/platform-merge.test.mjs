@@ -347,3 +347,54 @@ test("sin fecha en ninguna base, la columna no se inventa", () => {
   ]);
   assert.equal(result.rows[0]["Birth date"], undefined);
 });
+
+// ---- Filiales y clubes de la misma ciudad (2026-10-01) ----
+// La regla de subconjunto juntaba cada primer equipo de la MLS con su filial
+// de MLS Next Pro, y el agrupamiento en cadena metía al Galaxy II con el
+// filial de LAFC. Con datos reales: LA Galaxy II (Ventura County) desaparecía.
+
+test("un primer equipo y su filial son clubes distintos", () => {
+  assert.equal(clubsMatch("toronto fc", "toronto fc ii"), false);
+  assert.equal(clubsMatch("atlanta united", "atlanta united 2"), false);
+  assert.equal(clubsMatch("orlando city", "orlando city b"), false);
+  assert.equal(clubsMatch("toronto ii", "toronto fc ii"), true, "dos filiales del mismo club sí casan");
+  const result = aggregateDatasets([
+    dataset("StatsBomb · MLS 2026", 2026, "statsbomb", [player({ Player: "A Uno", Team: "Toronto FC" })]),
+    dataset("StatsBomb · MLS Next Pro 2026", 2026, "statsbomb", [player({ Player: "B Dos", Team: "Toronto FC II", "Birth date": "2004-01-01", Age: 22 })]),
+  ]);
+  assert.deepEqual([...new Set(result.rows.map((row) => row.Team))].sort(), ["Toronto FC", "Toronto FC II"]);
+});
+
+test("cada variante de SkillCorner va a su club: el Galaxy II no se mezcla con el filial de LAFC", () => {
+  const result = aggregateDatasets([
+    dataset("StatsBomb · MLS Next Pro 2026", 2026, "statsbomb", [
+      player({ Player: "Gal Uno", Team: "LA Galaxy II", "Birth date": "2004-02-02" }),
+      player({ Player: "Laf Uno", Team: "Los Angeles II", "Birth date": "2004-03-03" }),
+    ]),
+    dataset("SkillCorner · MLS Next Pro 2026", 2026, "skillcorner", [
+      player({ Player: "Gal Uno", Team: "Los Angeles Galaxy II", "Birth date": "2004-02-02" }),
+      player({ Player: "Laf Uno", Team: "Los Angeles Football Club II", "Birth date": "2004-03-03" }),
+    ]),
+  ]);
+  const club = (nombre) => result.rows.find((row) => row.Player === nombre)?.Team;
+  assert.equal(result.rows.length, 2, "cada jugador une sus dos plataformas");
+  assert.equal(club("Gal Uno"), "LA Galaxy II");
+  assert.equal(club("Laf Uno"), "Los Angeles II");
+});
+
+test("clubes de ligas distintas no se juntan por parecerse: Vancouver FC no es el Whitecaps", () => {
+  const result = aggregateDatasets([
+    dataset("StatsBomb · Canadian Premier League 2026", 2026, "statsbomb", [player({ Player: "A Uno", Team: "Vancouver FC" })]),
+    dataset("StatsBomb · MLS 2026", 2026, "statsbomb", [player({ Player: "B Dos", Team: "Vancouver Whitecaps", "Birth date": "1998-05-05" })]),
+  ]);
+  assert.deepEqual([...new Set(result.rows.map((row) => row.Team))].sort(), ["Vancouver FC", "Vancouver Whitecaps"]);
+});
+
+test("la nota entre paréntesis de SkillCorner no convierte al club en otro", () => {
+  const result = aggregateDatasets([
+    dataset("StatsBomb · MLS Next Pro 2026", 2026, "statsbomb", [player({ Player: "A Uno", Team: "Crown Legacy" })]),
+    dataset("SkillCorner · MLS Next Pro 2026", 2026, "skillcorner", [player({ Player: "A Uno", Team: "Crown Legacy FC (Charlotte II)" })]),
+  ]);
+  assert.equal(result.rows.length, 1);
+  assert.equal(result.rows[0].Team, "Crown Legacy");
+});

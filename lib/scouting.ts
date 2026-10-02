@@ -1,6 +1,8 @@
 import { formatPlayerPositions, mergePlayerPositions, primaryPositionRole, roleCohort } from "./positions.ts";
 import { numberLocale, t, tf } from "./i18n.ts";
 import { SIMILARITY_METRIC_GROUPS, similarityMetricGroup } from "./similarityMetricGroups.ts";
+// procedencia.ts solo importa tipos de este archivo: no hay ciclo en ejecución.
+import { ligaYAnioDe } from "./procedencia.ts";
 
 export type CellValue = string | number | boolean | Date | null | undefined;
 export type DataRow = Record<string, CellValue>;
@@ -375,6 +377,34 @@ function mismaSecuenciaConSiglas(a: string[], b: string[]): boolean {
 
 const clubTokens = (value: string) => value.split(" ").filter((token) => token && !CLUB_STOPWORDS.has(token));
 
+/*
+ * Filial o primer equipo. "Toronto FC" y "Toronto FC II" son dos plantillas
+ * en dos ligas (MLS y MLS Next Pro), pero por palabras una está dentro de la
+ * otra y la regla de subconjunto las juntaba: el primer equipo desaparecía
+ * dentro de su filial y los jugadores de las dos ligas se fundían. Si solo
+ * uno de los dos nombres dice que es filial, son clubes distintos.
+ */
+const MARCAS_DE_FILIAL = new Set(["ii", "2", "b", "jong", "u19", "u21", "u23", "reserves"]);
+const esFilial = (tokens: string[]) => tokens.some((token) => MARCAS_DE_FILIAL.has(token));
+
+/**
+ * Cuánto se parecen dos nombres que ya casan, de 0 a 1: 1 si dicen lo mismo
+ * (mismas palabras o una sigla que deletrea las otras: "LA Galaxy II" y "Los
+ * Angeles Galaxy II"); si no, las palabras compartidas sobre las totales. Sirve
+ * para que una variante vaya a su club y no al primero que se le parezca:
+ * "Los Angeles Galaxy II" casa con "LA Galaxy II" y también, por subconjunto,
+ * con "Los Angeles II" (el filial de LAFC); gana el primero.
+ */
+function parecidoDeClubes(a: string, b: string) {
+  const ta = clubTokens(a), tb = clubTokens(b);
+  if (!ta.length || !tb.length) return 0;
+  const sa = new Set(ta), sb = new Set(tb);
+  if (sa.size === sb.size && [...sa].every((token) => sb.has(token))) return 1;
+  if (mismaSecuenciaConSiglas(ta, tb)) return 1;
+  const comunes = [...sa].filter((token) => sb.has(token)).length;
+  return comunes / new Set([...sa, ...sb]).size;
+}
+
 /**
  * ¿Son clubes CLARAMENTE distintos?
  *
@@ -402,6 +432,7 @@ export function clubsMatch(a: string, b: string) {
   if (a === b) return true;
   const listA = clubTokens(a);
   const listB = clubTokens(b);
+  if (esFilial(listA) !== esFilial(listB)) return false;
   const ta = new Set(listA);
   const tb = new Set(listB);
   // El token distintivo va primero ("Inter Toronto" ≠ "Toronto FC"), así que
@@ -427,14 +458,44 @@ export function clubsMatch(a: string, b: string) {
  * longitud, la primera por orden alfabético para que el resultado no dependa
  * del orden en que se cargaron los archivos.
  */
-export function canonicalTeamNames(counts: Map<string, number>): Map<string, string> {
-  const variants = [...counts.keys()].filter(Boolean).sort((a, b) => a.localeCompare(b, "es"));
+export type OrigenDeEquipo = { bases: Set<number>; ligas: Set<string> };
+
+export function canonicalTeamNames(counts: Map<string, number>, origenes?: Map<string, OrigenDeEquipo>): Map<string, string> {
+  // Primero los nombres de la base (Wyscout/StatsBomb), que fundan los
+  // grupos; las variantes de SkillCorner (peso 0) se reparten después.
+  const variants = [...counts.keys()].filter(Boolean).sort((a, b) =>
+    Number((counts.get(b) ?? 0) > 0) - Number((counts.get(a) ?? 0) > 0) || a.localeCompare(b, "es"));
   const clusters: Array<{ identity: string; names: string[] }> = [];
+  /*
+   * Dos nombres distintos pueden ir juntos solo si no vienen de la misma base
+   * (un proveedor que da "LA Galaxy II" y "Los Angeles II" en la misma liga
+   * está diciendo que son dos clubes) y sí de la misma liga ("Vancouver FC"
+   * en la CPL y "Vancouver Whitecaps" en la MLS se parecen por palabras y no
+   * son el mismo). El mismo nombre exacto se une siempre, en cualquier liga.
+   */
+  const compatibles = (a: string, b: string) => {
+    if (normalizeIdentityText(a) === normalizeIdentityText(b)) return true;
+    const oa = origenes?.get(a), ob = origenes?.get(b);
+    if (!oa || !ob) return true;
+    if ([...oa.bases].some((base) => ob.bases.has(base))) return false;
+    return [...oa.ligas].some((liga) => ob.ligas.has(liga));
+  };
   for (const name of variants) {
     const identity = normalizeIdentityText(name);
     if (!identity) continue;
-    const cluster = clusters.find((candidate) => candidate.names.some((other) => clubsMatch(identity, normalizeIdentityText(other))));
-    if (cluster) cluster.names.push(name);
+    // Al grupo que mejor le encaja, no al primero que le encaje: el
+    // agrupamiento en cadena metía el filial de LAFC con el Galaxy II.
+    let mejor: { identity: string; names: string[] } | null = null;
+    let mejorParecido = 0;
+    for (const candidate of clusters) {
+      if (!candidate.names.every((other) => compatibles(name, other))) continue;
+      const parecido = Math.max(0, ...candidate.names.map((other) => {
+        const otra = normalizeIdentityText(other);
+        return clubsMatch(identity, otra) ? parecidoDeClubes(identity, otra) || 0.01 : 0;
+      }));
+      if (parecido > mejorParecido) { mejor = candidate; mejorParecido = parecido; }
+    }
+    if (mejor) mejor.names.push(name);
     else clusters.push({ identity, names: [name] });
   }
   const mapping = new Map<string, string>();
@@ -472,7 +533,9 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
     for (const column of teamColumns) {
       // Los espacios dobles o finales del export no deben abrir una entrada
       // aparte en el desplegable de equipos.
-      const value = String(row[column] ?? "").trim().replace(/\s+/g, " ");
+      // Fuera la nota final entre paréntesis: SkillCorner escribe "Crown
+      // Legacy FC (Charlotte II)" y ese "II" lo convertía en otro club.
+      const value = String(row[column] ?? "").trim().replace(/\s+/g, " ").replace(/\s*\([^)]*\)$/, "");
       if (value && value.toLowerCase() !== "nan") return value;
     }
     return "";
@@ -481,14 +544,23 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
   // sus variantes al grupo pero no las impone, porque puede arrastrar nombres
   // viejos tras un rebranding.
   const teamCounts = new Map<string, number>();
-  for (const dataset of datasets) {
+  const origenes = new Map<string, OrigenDeEquipo>();
+  datasets.forEach((dataset, indice) => {
     const weight = dataset.provider === "skillcorner" ? 0 : 1;
+    const liga = normalizeIdentityText(ligaYAnioDe(dataset.fileName).liga);
     for (const row of dataset.rows) {
       const name = rawTeam(row);
-      if (name) teamCounts.set(name, (teamCounts.get(name) ?? 0) + weight);
+      if (!name) continue;
+      teamCounts.set(name, (teamCounts.get(name) ?? 0) + weight);
+      const origen = origenes.get(name) ?? { bases: new Set<number>(), ligas: new Set<string>() };
+      // Solo las APIs dan un nombre por club: un archivo de Wyscout puede
+      // traer "Cavalry FC" y "Cavalry" en la misma hoja, y son uno.
+      if (dataset.provider === "statsbomb" || dataset.provider === "skillcorner") origen.bases.add(indice);
+      origen.ligas.add(liga);
+      origenes.set(name, origen);
     }
-  }
-  const teamLabels = canonicalTeamNames(teamCounts);
+  });
+  const teamLabels = canonicalTeamNames(teamCounts, origenes);
   const rowTeam = (row: DataRow) => {
     const name = rawTeam(row);
     return teamLabels.get(name) ?? name;
