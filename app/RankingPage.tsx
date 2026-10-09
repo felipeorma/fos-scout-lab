@@ -8,7 +8,10 @@ import { PieDeReporte } from "./PieDeReporte";
 import { BarraDeFiltros, Desplegable } from "./BarraDeFiltros";
 import { ChevronDown, ChevronRight } from "./Icons";
 import { BotonExportar } from "./BotonExportar";
-import { t, tf } from "@/lib/i18n";
+import { numberLocale, t, tf } from "@/lib/i18n";
+import { headersOf } from "@/lib/scouting";
+import { contratoCorto, cortesDeContrato, pasaMercado, valorCorto, type FiltroDeMercado } from "@/lib/mercado";
+import { useMercado, type FilaDeMercado } from "./useMercado";
 import { rankingPorArquetipo } from "@/lib/arquetipos";
 import { EQUIPO_PROPIO, crearEncaje, perfilesDeEstilo } from "@/lib/estiloEquipo";
 import { useEstilos } from "./useEstilos";
@@ -50,6 +53,9 @@ import { nombreDeDimension } from "./EncajeEquipo";
 const COHORTE_FIABLE = 10;
 const COHORTE_MINIMA = 5;
 
+// Los topes de valor que se ofrecen, en euros: del juvenil de la CPL al titular de la MLS.
+const TOPES_DE_VALOR = [50_000, 100_000, 250_000, 500_000, 1_000_000, 2_500_000, 5_000_000];
+
 
 export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatario = "" }: {
   onSelectPlayer?: (indice: number) => void;
@@ -65,7 +71,7 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
    * sigue puesto al cambiar de pestaña. El puesto se queda local porque en
    * esta pantalla no acota: decide QUÉ ranking se calcula.
    */
-  const { rows, filtros, pasaFiltros, procedencia } = useBaseActiva();
+  const { rows, filtros, pasaFiltros, procedencia, competiciones } = useBaseActiva();
   const minutosMin = filtros.minutosMin;
 
   // El informe completo es caro: se calcula una vez por perfil y minutos, y
@@ -76,6 +82,44 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
     () => todos.filter((fila) => pasaFiltros(fila.indice)),
     [todos, pasaFiltros],
   );
+
+  /*
+   * Valor de mercado y fin de contrato, de Transfermarkt. Son de esta
+   * pantalla y no de la barra compartida porque cuestan: la primera vez, cada
+   * liga es un minuto de llamadas. Por eso no se pide nada hasta que se toca
+   * una de las dos fichas ("ver" trae los datos sin poner tope).
+   */
+  const [valorElegido, setValorElegido] = useState("");
+  const [contratoHasta, setContratoHasta] = useState("");
+  const mercadoActivo = valorElegido !== "" || contratoHasta !== "";
+  const filtroMercado: FiltroDeMercado = { valorMax: Number(valorElegido) || 0, contratoHasta };
+  const columnaNacimiento = useMemo(
+    () => headersOf(rows).find((cabecera) => /^(birth ?date|date of birth|birthday|fecha de nacimiento)$/i.test(cabecera.trim())) ?? "",
+    [rows],
+  );
+  const filasDeMercado = useMemo(() => {
+    const mapa = new Map<number, FilaDeMercado>();
+    if (!mercadoActivo) return mapa;
+    const ligaUnica = competiciones.length === 1 ? [competiciones[0].liga] : [];
+    for (const fila of visibles) {
+      mapa.set(fila.indice, {
+        indice: fila.indice, nombre: fila.jugador,
+        nacimiento: columnaNacimiento ? rows[fila.indice]?.[columnaNacimiento] : "",
+        ligas: procedencia?.[fila.indice]?.ligas ?? ligaUnica,
+      });
+    }
+    return mapa;
+  }, [mercadoActivo, visibles, rows, columnaNacimiento, procedencia, competiciones]);
+  const listaDeMercado = useMemo(() => [...filasDeMercado.values()], [filasDeMercado]);
+  const mercado = useMercado(mercadoActivo, listaDeMercado);
+  const mercadoDe = (indice: number) => {
+    const fila = filasDeMercado.get(indice);
+    return fila ? mercado.dato(fila) : null;
+  };
+  const cortes = useMemo(() => cortesDeContrato(new Date()), []);
+  // Lo que se lista: lo que pasa los filtros de siempre y, si los hay, los de mercado.
+  const listados = mercadoActivo ? visibles.filter((fila) => pasaMercado(mercadoDe(fila.indice), filtroMercado)) : visibles;
+  const conDatoDeMercado = mercadoActivo ? visibles.filter((fila) => mercadoDe(fila.indice)).length : 0;
 
   /*
    * Encaje de estilo: cuánto se parece cómo juega el club de cada jugador a
@@ -109,7 +153,7 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
     [vista, rows, perfil, minutosMin],
   );
 
-  const maximo = visibles[0]?.puntuacion ?? 100;
+  const maximo = listados[0]?.puntuacion ?? 100;
   /* El aviso solo cuando la cobertura es desigual de verdad: si toda la base
      viene de la misma plataforma, el ajuste no mueve a nadie y explicarlo
      sería ruido. */
@@ -175,15 +219,33 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
     {/* Exportar va al final de la fila de filtros, junto al recuento: se lee
         como "baja estos N". La lista de pantalla se corta en cuarenta; el CSV
         lleva todas las que pasan los filtros, con sus métricas destacadas. */}
-    <BarraDeFiltros campos={["liga", "anio", "equipo", "pasaporte", "minutos", "edad"]} resultado={visibles.length} accesorio={
+    <BarraDeFiltros campos={["liga", "anio", "equipo", "pasaporte", "minutos", "edad"]} resultado={listados.length} extra={<>
+      <Desplegable etiqueta={t("Valor máx.")} activo={Number(valorElegido) > 0}
+        valor={valorElegido === "" ? t("Cualquiera") : valorElegido === "ver" ? t("Sin tope") : valorCorto(Number(valorElegido), numberLocale())}>
+        <select aria-label={t("Valor de mercado máximo (Transfermarkt)")} value={valorElegido} onChange={(event) => setValorElegido(event.target.value)}>
+          <option value="">{t("Cualquiera")}</option>
+          <option value="ver">{t("Sin tope · ver valores")}</option>
+          {TOPES_DE_VALOR.map((tope) => <option key={tope} value={tope}>{tf("Hasta {valor}", { valor: valorCorto(tope, numberLocale()) })}</option>)}
+        </select>
+      </Desplegable>
+      <Desplegable etiqueta={t("Contrato hasta")} activo={Boolean(contratoHasta)}
+        valor={contratoHasta ? contratoCorto(contratoHasta) : t("Cualquiera")}>
+        <select aria-label={t("Contrato que vence como muy tarde (Transfermarkt)")} value={contratoHasta} onChange={(event) => setContratoHasta(event.target.value)}>
+          <option value="">{t("Cualquiera")}</option>
+          {cortes.map((corte) => <option key={corte} value={corte}>{tf("Vence hasta {fecha}", { fecha: contratoCorto(corte) })}</option>)}
+        </select>
+      </Desplegable>
+    </>} accesorio={
       <BotonExportar
         nombre={[t("ranking"), nombreDelPerfil, filtros.liga !== "TODAS" ? filtros.liga : null, filtros.anio || null]}
         columnas={[t("#"), t("Jugador"), t("Equipo"), t("Liga"), t("Año"), t("Edad"), t("Min"), t("Índice"), t("Índice sin corregir"), t("Métricas"), tf("Encaje de estilo con {equipo}", { equipo: EQUIPO_PROPIO }),
           ...(equipoEncaje ? [tf("Encaje con {equipo}: puesto", { equipo: equipoEncaje }), tf("Encaje con {equipo}: lugar en la plantilla", { equipo: equipoEncaje }), tf("Encaje con {equipo}: % de partidos con su puesto", { equipo: equipoEncaje })] : []),
+          ...(mercadoActivo ? [t("Valor de mercado (€, Transfermarkt)"), t("Contrato hasta (Transfermarkt)"), t("Club actual (Transfermarkt)")] : []),
           t("Pasaportes"), t("Destacadas")]}
-        cuantas={visibles.length}
-        filas={() => visibles.map((fila, posicion) => {
+        cuantas={listados.length}
+        filas={() => listados.map((fila, posicion) => {
           const origen = procedencia?.[fila.indice];
+          const suMercado = mercadoActivo ? mercadoDe(fila.indice) : null;
           return [
             posicion + 1, fila.jugador, fila.equipo,
             origen?.ligas.join(" · ") ?? "", origen?.anios.join(" · ") ?? "",
@@ -194,12 +256,29 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
               const suyo = encajeEquipo.para(fila.indice, perfil);
               return [suyo?.puesto ?? null, suyo?.lugar ? `${suyo.lugar.lugar}/${suyo.lugar.de}` : null, suyo?.sitio ?? null];
             })() : []),
+            ...(mercadoActivo ? [suMercado?.valor ?? null, suMercado?.contrato ?? "", suMercado?.club ?? ""] : []),
             fila.pasaportes.join(" · "),
             fila.destacadas.map((m) => `${t(m.label)} P${m.percentile}`).join(" · "),
           ];
         })}
       />
     } />
+
+    {/* Qué se sabe de Transfermarkt: cuánto falta por bajar, cuántos tienen
+        dato y qué pasa con los que no. Sin esto, una lista que se queda corta
+        al poner un tope parecería un fallo. */}
+    {mercadoActivo && <p className="rank-ajuste rank-mercado" role="status">
+      {mercado.cargando.length > 0
+        ? tf("Transfermarkt: leyendo {liga}… ({n} de {total} ligas listas). La primera vez tarda un minuto por liga.", { liga: mercado.cargando[0], n: mercado.total - mercado.cargando.length, total: mercado.total })
+        : mercado.porBuscar > 0
+          ? tf("Transfermarkt: buscando por nombre a quienes ya no están en la plantilla de su club ({n})…", { n: mercado.porBuscar })
+          : tf("Transfermarkt: {con} de {total} con dato.", { con: conDatoDeMercado, total: visibles.length })}
+      {!mercado.cargando.length && !mercado.porBuscar && conDatoDeMercado < visibles.length && (Number(valorElegido) > 0 || contratoHasta)
+        && ` ${tf("Los {n} sin dato no entran con estos filtros.", { n: visibles.length - conDatoDeMercado })}`}
+      {mercado.sinCobertura.length > 0 && ` ${tf("Sin cobertura en Transfermarkt: {ligas}.", { ligas: mercado.sinCobertura.join(", ") })}`}
+      {mercado.conError.length > 0 && ` ${tf("No se pudo leer: {ligas}.", { ligas: mercado.conError.join(", ") })}`}
+      <button type="button" onClick={() => { setValorElegido(""); setContratoHasta(""); }}>{t("Quitar valor y contrato")}</button>
+    </p>}
 
     {equipoEncaje && ajusteDelPuesto.refuerzos.length > 0 && <p className="rank-ajuste">
       {tf("El encaje con {equipo} aplica lo que marcaste que necesita el puesto: se refuerza {lista}.", {
@@ -220,6 +299,9 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
     {!visibles.length && <p className="rank-empty">
       {t("Ningún jugador de esa posición pasa los filtros. Baja el mínimo de minutos o quita el tope de edad.")}
     </p>}
+    {visibles.length > 0 && !listados.length && !mercado.cargando.length && !mercado.porBuscar && <p className="rank-empty">
+      {t("Ningún jugador pasa el tope de valor o de contrato. Sube el tope o alarga la fecha.")}
+    </p>}
 
     {/* La lista, como una tarjeta agrupada de iOS. Cada fila tenía cinco
         columnas en fila —puesto, nombre, barra, índice y tres métricas— y las
@@ -227,10 +309,11 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
         138 px. Ahora el nombre manda, la barra y las métricas van debajo de
         él, y el índice se lee grande a la derecha, que es donde se busca un
         número. */}
-    {vista === "indice" && visibles.length > 0 && <>
+    {vista === "indice" && listados.length > 0 && <>
       <ol className={encajeEquipo.activo ? "rank-list con-encaje con-encaje-equipo" : "rank-list con-encaje"}>
-        {visibles.slice(0, 40).map((fila, posicion) => (
-          <li
+        {listados.slice(0, 40).map((fila, posicion) => {
+          const suMercado = mercadoActivo ? mercadoDe(fila.indice) : null;
+          return <li
             key={fila.indice}
             className={onSelectPlayer ? "clicable" : ""}
             role={onSelectPlayer ? "button" : undefined}
@@ -242,7 +325,12 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
             <span className="rank-cuerpo">
               <span className="rank-nombre">
                 {fila.jugador}
-                <small><Escudo equipo={fila.equipo} liga={procedencia?.[fila.indice]?.ligas[0] ?? ""} tamano={13} />{fila.equipo}{Number.isFinite(fila.edad) ? ` · ${fila.edad}` : ""}{fila.minutos ? ` · ${Math.round(fila.minutos)}′` : ""}</small>
+                <small><Escudo equipo={fila.equipo} liga={procedencia?.[fila.indice]?.ligas[0] ?? ""} tamano={13} />{fila.equipo}{Number.isFinite(fila.edad) ? ` · ${fila.edad}` : ""}{fila.minutos ? ` · ${Math.round(fila.minutos)}′` : ""}
+                  {suMercado && <span className="rank-mercado-dato" title={suMercado.club ? tf("Transfermarkt · club actual: {club}", { club: suMercado.club }) : t("Transfermarkt")}>
+                    {suMercado.valor != null ? ` · ${valorCorto(suMercado.valor, numberLocale())}` : ""}
+                    {suMercado.contrato ? ` · ${tf("contrato {fecha}", { fecha: contratoCorto(suMercado.contrato) })}` : ""}
+                  </span>}
+                </small>
               </span>
               <i className="rank-progreso" aria-hidden="true"><em style={{ width: `${Math.max(2, (fila.puntuacion / maximo) * 100)}%` }} /></i>
               {fila.destacadas.length > 0 && <span className="rank-flags">
@@ -253,8 +341,8 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
             {encajeEquipo.activo && <CeldaEncajeEquipo encaje={encajeEquipo.para(fila.indice, perfil)} cargandoSitio={encajeEquipo.cargandoSitio} />}
             <b className="rank-indice">{fila.puntuacion}<u title={tf("Índice sin corregir: {c} · calculado con {m} métricas", { c: fila.puntuacionCruda, m: fila.metricas })}>{fila.puntuacionCruda}</u></b>
             {onSelectPlayer ? <ChevronRight size={14} className="rank-chevron" /> : <span />}
-          </li>
-        ))}
+          </li>;
+        })}
       </ol>
       {hayCoberturaDesigual && <p className="rank-pie">{t("Índice corregido por cobertura: el número pequeño es el índice sin corregir.")}</p>}
     </>}
@@ -266,7 +354,7 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
           <p>{t(ranking.arquetipo.resumen)}</p>
           <ol>
             {ranking.jugadores
-              .filter((jugador) => pasaFiltros(jugador.indice))
+              .filter((jugador) => pasaFiltros(jugador.indice) && (!mercadoActivo || pasaMercado(mercadoDe(jugador.indice), filtroMercado)))
               .slice(0, 10)
               .map((jugador, posicion) => (
                 <li key={jugador.indice} onClick={() => onSelectPlayer?.(jugador.indice)}

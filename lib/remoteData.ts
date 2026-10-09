@@ -7,6 +7,7 @@ import {
 } from "./transfermarkt";
 import { activeLang, t, tf } from "./i18n";
 import type { Alineaciones } from "./encaje";
+import type { JugadorDeMercado } from "./mercado";
 
 /**
  * En GitHub Pages no hay servidor: las rutas /api/* no existen. Este flag se
@@ -251,6 +252,25 @@ export async function fetchPuestosDeEquipo(clave: string): Promise<Alineaciones>
  */
 export async function fetchLogo(equipo: string, liga = ""): Promise<{ logo: string | null; estado?: string }> {
   return bridgeJson(`/api/logos?equipo=${encodeURIComponent(equipo)}&liga=${encodeURIComponent(liga)}`, 150_000);
+}
+
+/** Los jugadores de una liga con su valor y su fin de contrato, de Transfermarkt. */
+export async function fetchMercadoDeLiga(liga: string): Promise<{ jugadores: JugadorDeMercado[]; estado?: string; incompleta?: boolean }> {
+  // La primera vez son decenas de llamadas a Transfermarkt (una liga de 30
+  // clubes, un minuto largo); después sale del disco del puente.
+  return bridgeJson(`/api/transfermarkt/liga?liga=${encodeURIComponent(liga)}`, 300_000);
+}
+
+/** Los que no salieron en su liga, buscados por nombre y validados por nacimiento. */
+export async function fetchMercadoPorNombre(jugadores: Array<{ nombre: string; nacimiento: string }>): Promise<Record<string, JugadorDeMercado | null>> {
+  const respuesta = await fetch(`${LOCAL_BRIDGE}/api/transfermarkt/buscar`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ jugadores }),
+    signal: AbortSignal.timeout(300_000),
+  });
+  if (!respuesta.ok) throw new Error(tf("El servidor local respondió {code}.", { code: respuesta.status }));
+  return (await respuesta.json() as { jugadores: Record<string, JugadorDeMercado | null> }).jugadores;
 }
 
 export type RolesDeLiga = {

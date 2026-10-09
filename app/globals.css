@@ -6329,3 +6329,7 @@ body.print-layout-check .legal-page-shell > :is(.rank-page, .pool-page) :is(.ran
 .app-shell .player-selector-flow .menu-campo { min-height: 40px; border: 1px solid var(--linea); border-radius: var(--r-control, 10px); background: var(--material-alto); font-size: 11.5px; }
 .app-shell .player-selector-flow .menu-campo:disabled { color: var(--muted); cursor: not-allowed; }
 .app-shell .player-selector-flow .menu-lista { max-width: min(340px, calc(100vw - 32px)); }
+
+/* Ranking: valor y contrato de Transfermarkt en la línea de cada jugador. Un
+   punto más de tinta que el resto de la línea: es lo que se vino a filtrar. */
+.rank-mercado-dato { color: color-mix(in srgb, var(--ink) 82%, transparent); font-variant-numeric: tabular-nums; }

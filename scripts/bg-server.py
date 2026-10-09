@@ -2674,3 +2674,158 @@ def _ficha_por_api(url: str):
         "shirtNumber": (actual or {}).get("shirtNumber"),
         "joined": (actual or {}).get("start") or (actual or {}).get("debut"),
     }
+
+
+# ---- Valor de mercado y contrato de toda una liga (Transfermarkt) -------------
+# Para filtrar un ranking por valor o por fin de contrato hace falta el dato
+# de todos, no de uno. La misma API da la liga entera en bloque: la tabla trae
+# los clubes, cada club su plantilla, y los jugadores se piden por lotes con
+# valor, fin de contrato y fecha de nacimiento (con la que la app los empareja
+# con los de StatsBomb). Una liga son 1 + 2 por club llamadas; se guarda una
+# semana, porque el valor se revisa un par de veces al año y el contrato menos.
+_TM_LIGAS = {
+    "canadian premier league": "CDN1", "mls": "MLS1", "major league soccer": "MLS1",
+    "mls next pro": "MNP3", "usl championship": "USL",
+    "allsvenskan": "SE1", "superettan": "SE2", "obos-ligaen": "NO2", "veikkausliiga": "FI1",
+    "eerste divisie": "NL2", "ligue 3": "FR3", "national league": "CNAT", "premier division": "IR1",
+}
+_TM_LIGA_TTL = 7 * 24 * 3600
+_TM_LOTE = 40
+
+
+def _tm_jugadores_de_liga(codigo: str):
+    """(jugadores, clubes que fallaron). None si ni la tabla responde."""
+    import time as _time
+
+    tabla = _tmapi(f"/competition/{codigo}/table")
+    if not tabla:
+        return None, 0
+    clubes = list(dict.fromkeys(
+        str(c.get("clubId")) for t in tabla.get("tables") or [] for c in t.get("clubs") or [] if c.get("clubId")))
+    nombres = {}
+    for i in range(0, len(clubes), _TM_LOTE):
+        lote = _tmapi("/clubs?" + "&".join(f"ids[]={c}" for c in clubes[i:i + _TM_LOTE])) or []
+        nombres.update({str(c.get("id")): c.get("name") for c in lote})
+        _time.sleep(0.1)
+
+    jugadores, fallidos = [], 0
+    for club in clubes:
+        plantilla = _tmapi(f"/club/{club}/squad")
+        _time.sleep(0.1)
+        ids = [str(p.get("playerId")) for p in (plantilla or {}).get("squad") or [] if p.get("playerId")]
+        if plantilla is None:
+            fallidos += 1
+            continue
+        for i in range(0, len(ids), _TM_LOTE):
+            lote = _tmapi("/players?" + "&".join(f"ids[]={j}" for j in ids[i:i + _TM_LOTE]))
+            _time.sleep(0.1)
+            if lote is None:
+                fallidos += 1
+                continue
+            for j in lote:
+                valor = ((j.get("marketValueDetails") or {}).get("current") or {}).get("value")
+                vida = j.get("lifeDates") or {}
+                jugadores.append({
+                    "id": str(j.get("id")),
+                    "nombre": j.get("name") or "",
+                    "nacimiento": None if vida.get("isDateOfBirthUnknown") else vida.get("dateOfBirth"),
+                    "club": nombres.get(club) or "",
+                    # 0 en la API es "sin valor publicado", no gratis.
+                    "valor": valor if isinstance(valor, (int, float)) and valor > 0 else None,
+                    "contrato": (j.get("attributes") or {}).get("contractUntil") or None,
+                })
+    return jugadores, fallidos
+
+
+@app.get("/api/transfermarkt/liga")
+def transfermarkt_liga(liga: str):
+    """Los jugadores de una liga con su valor de mercado y su fin de contrato."""
+    import json as _json
+
+    codigo = _TM_LIGAS.get(_sin_tildes(liga or "").lower().strip())
+    if not codigo:
+        # La NCAA, o una liga de Wyscout sin código aquí: no hay de dónde sacarlo.
+        return Response(_json.dumps({"jugadores": [], "estado": "sin-cobertura"}), media_type="application/json", headers=cors_headers())
+    clave = f"tm-{codigo}"
+    guardados = _pool_cache_leer(clave, _TM_LIGA_TTL)
+    if guardados is not None:
+        return Response(_json.dumps({"jugadores": guardados, "cache": "disco"}), media_type="application/json", headers=cors_headers())
+    jugadores, fallidos = _tm_jugadores_de_liga(codigo)
+    if jugadores is None:
+        return Response('{"error": "Transfermarkt no respondió"}', status_code=502, media_type="application/json", headers=cors_headers())
+    # Una liga a medias no se guarda: mañana se vuelve a pedir entera.
+    if jugadores and not fallidos:
+        _pool_cache_escribir(clave, jugadores)
+    return Response(_json.dumps({"jugadores": jugadores, "incompleta": bool(fallidos)}), media_type="application/json", headers=cors_headers())
+
+
+# Los que ya no están en la plantilla de su club (traspasados o cedidos a mitad
+# de temporada, retirados) no salen en la liga: se buscan por nombre y se
+# aceptan solo si la fecha de nacimiento coincide. Se guarda también el "no
+# está", para no repetir la búsqueda en cada visita.
+_TM_BUSQUEDA_FICHERO = "tm-busqueda"
+_TM_BUSQUEDA_MAX = 40
+
+
+def _tm_buscar_uno(nombre: str, nacimiento: str):
+    import time as _time
+    from urllib.parse import quote
+
+    partes = [p for p in _re.split(r"\s+", nombre.strip()) if p]
+    # El nombre completo y, si no da, nombre + apellido: StatsBomb trae los
+    # segundos nombres ("Jay Joshua Herdman") y a veces estorban.
+    terminos = list(dict.fromkeys([nombre.strip()] + ([f"{partes[0]} {partes[-1]}"] if len(partes) > 2 else [])))
+    for termino in terminos:
+        hallado = _tmapi(f"/quick-search?term={quote(termino)}")
+        _time.sleep(0.1)
+        ids = ((hallado or {}).get("result") or {}).get("playerIds") or []
+        if not ids:
+            continue
+        lote = _tmapi("/players?" + "&".join(f"ids[]={i}" for i in ids[:12])) or []
+        _time.sleep(0.1)
+        for j in lote:
+            if (j.get("lifeDates") or {}).get("dateOfBirth") != nacimiento:
+                continue
+            valor = ((j.get("marketValueDetails") or {}).get("current") or {}).get("value")
+            actual = next((a for a in j.get("clubAssignments") or [] if a.get("type") == "current"), None)
+            club = _tmapi(f"/club/{actual['clubId']}") if actual and actual.get("clubId") else None
+            return {
+                "id": str(j.get("id")), "nombre": j.get("name") or "", "nacimiento": nacimiento,
+                "club": (club or {}).get("name") or "",
+                "valor": valor if isinstance(valor, (int, float)) and valor > 0 else None,
+                "contrato": (j.get("attributes") or {}).get("contractUntil") or None,
+            }
+    return None
+
+
+@app.post("/api/transfermarkt/buscar")
+async def transfermarkt_buscar(request: Request):
+    """Resuelve una tanda de jugadores (nombre + nacimiento) que no salieron en su liga."""
+    import json as _json
+    import time as _time
+    from starlette.concurrency import run_in_threadpool
+
+    cuerpo = await request.json()
+    pedidos = [p for p in (cuerpo.get("jugadores") or []) if p.get("nombre") and _re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(p.get("nacimiento") or ""))]
+    pedidos = pedidos[:_TM_BUSQUEDA_MAX]
+
+    def resolver():
+        guardado = _pool_cache_leer(_TM_BUSQUEDA_FICHERO, 10 * 365 * 24 * 3600) or {}
+        ahora = _time.time()
+        salida, cambios = {}, False
+        for p in pedidos:
+            clave = f"{_sin_tildes(p['nombre']).lower().strip()}|{p['nacimiento']}"
+            previo = guardado.get(clave)
+            if previo and ahora - previo.get("t", 0) < _TM_LIGA_TTL:
+                salida[clave] = previo.get("j")
+                continue
+            hallado = _tm_buscar_uno(p["nombre"], p["nacimiento"])
+            guardado[clave] = {"t": ahora, "j": hallado}
+            salida[clave] = hallado
+            cambios = True
+        if cambios:
+            _pool_cache_escribir(_TM_BUSQUEDA_FICHERO, guardado)
+        return salida
+
+    salida = await run_in_threadpool(resolver)
+    return Response(_json.dumps({"jugadores": salida}), media_type="application/json", headers=cors_headers())

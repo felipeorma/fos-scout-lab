@@ -62,7 +62,7 @@ export function Desplegable({ etiqueta, valor, activo, apagado, aviso, children 
   </label>;
 }
 
-export function BarraDeFiltros({ campos = TODOS, resultado, accesorio }: {
+export function BarraDeFiltros({ campos = TODOS, resultado, accesorio, extra }: {
   campos?: CampoDeFiltro[];
   /** Cuántos quedan tras filtrar, para que el número no haya que buscarlo. */
   resultado?: number;
@@ -71,6 +71,12 @@ export function BarraDeFiltros({ campos = TODOS, resultado, accesorio }: {
    * ejemplo. Ahí se lee como "haz esto con estos N", que es lo que hace.
    */
   accesorio?: ReactNode;
+  /**
+   * Fichas de filtro propias de una pantalla (el valor y el contrato en
+   * Ranking), al final de las compartidas: filtran la misma lista y tienen
+   * que leerse en la misma fila.
+   */
+  extra?: ReactNode;
 }) {
   const { filtros, cambiarFiltros, limpiarFiltros, filtrosActivos, opciones, rows } = useBaseActiva();
   if (!rows.length) return null;
@@ -145,6 +151,7 @@ export function BarraDeFiltros({ campos = TODOS, resultado, accesorio }: {
         <input type="number" min="0" max="45" inputMode="numeric" value={filtros.edadMax || ""} placeholder="—"
           onChange={(e) => cambiarFiltros({ edadMax: Number(e.target.value) })} />
       </label>}
+      {extra}
     </div>
 
     <div className="filtros-barra-cola">
