@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
-import { BarChart3, Check, ChevronDown, ChevronRight, Crosshair, Database, FileSpreadsheet, ImageIcon, LockKeyhole, Menu, Merge, MoreHorizontal, Plus, Printer, RadarChart, RotateCcw, Route, Search, Sparkles, Trash, Trophy, Upload, X, ShieldCheck, LayoutDashboard } from "./Icons";
+import { BarChart3, Check, ChevronDown, ChevronRight, Crosshair, Database, FileSpreadsheet, ImageIcon, LockKeyhole, Menu, Merge, MoreHorizontal, Plus, Printer, RadarChart, RotateCcw, Route, Search, Sparkles, Trash, Trophy, Upload, X, ShieldCheck, LayoutDashboard, Wind } from "./Icons";
 import { PizzaRadar } from "./PizzaRadar";
 import { ContextPage } from "./ContextPage";
 import { ScoutingBoard } from "./ScoutingBoard";
@@ -10,6 +10,7 @@ import { RunsPage } from "./RunsPage";
 import { RankingPage } from "./RankingPage";
 import { PoolPage } from "./PoolPage";
 import { EstiloPage } from "./EstiloPage";
+import { FlujoPage } from "./FlujoPage";
 import { SnapshotPage } from "./SnapshotPage";
 import { ReportPageDesigner } from "./ReportPageDesigner";
 import { SimilarityStudio } from "./SimilarityStudio";
@@ -60,6 +61,8 @@ const CONTEXT_PAGE = 90;
 const BOARD_PAGE = 91;
 // Carreras sin balón de SkillCorner: vive fuera del rango visual, como las anteriores.
 const RUNS_PAGE = 92;
+// Flujo de posesión: las rutas del balón de cada equipo, como un mapa de viento.
+const FLOW_PAGE = 93;
 // Ranking de la base por posición: quién es el mejor de cada puesto.
 const RANK_PAGE = 94;
 // Buscador entre ligas de la API: fondo multi-competición.
@@ -90,6 +93,7 @@ const NOMBRE_DE_SECCION: Record<number, string> = {
   [POOL_PAGE]: "Entre ligas",
   [DATA_PAGE]: "Base activa",
   [STYLE_PAGE]: "Estilo de juego",
+  [FLOW_PAGE]: "Flujo de posesión",
   [SNAPSHOT_PAGE]: "Ficha ampliada",
 };
 
@@ -1576,6 +1580,7 @@ export default function ScoutStudio() {
       { page: RANK_PAGE, title: t("Ranking"), hint: t("Los mejores por puesto") },
       { page: POOL_PAGE, title: t("Entre ligas"), hint: t("Buscar parecidos") },
       { page: STYLE_PAGE, title: t("Estilo de juego"), hint: t("Cómo juega cada equipo") },
+      { page: FLOW_PAGE, title: t("Flujo de posesión"), hint: t("Rutas del balón por equipo") },
       ...visualPages.map((page, index) => ({ page, title: tf("Visuales {n}", { n: index + 1 }), hint: t("Mapas, imágenes y texto") })),
     ];
   const todasMarcadas = paginasParaImprimir.every(({ page }) => printPages.includes(page));
@@ -1868,6 +1873,8 @@ export default function ScoutStudio() {
                       icono={<Search size={16} />} titulo={t("Entre ligas")} detalle={t("Buscar parecidos")} api />
                     <FilaSeccion activa={reportPage === STYLE_PAGE} onClick={() => setReportPage(STYLE_PAGE)}
                       icono={<ShieldCheck size={16} />} titulo={t("Estilo de juego")} detalle={t("Cómo juega cada equipo")} api />
+                    <FilaSeccion activa={reportPage === FLOW_PAGE} onClick={() => setReportPage(FLOW_PAGE)}
+                      icono={<Wind size={16} />} titulo={t("Flujo de posesión")} detalle={t("Rutas del balón por equipo")} api />
                   </div>
                 </section>
 
@@ -2123,7 +2130,7 @@ export default function ScoutStudio() {
                   onConectarApi={() => void openApiDialog()}
                 /></div>
               )}
-              {/* Ranking, Entre ligas, Estilo de juego y Ficha ampliada —con el
+              {/* Ranking, Entre ligas, Estilo de juego, Flujo de posesión y Ficha ampliada —con el
                   encaje de equipo— son de Cavalry: en el espacio Maldonado no
                   se montan aunque la página quede recordada o llegue por un
                   enlace. Allí se trabaja con la mesa y nada más. */}
@@ -2132,6 +2139,9 @@ export default function ScoutStudio() {
               )}
               {espacio === "cavalry" && paginaMontada(POOL_PAGE) && (
                 <div className={claseHoja(POOL_PAGE)}><PoolPage onAbrirJugador={(indice) => { selectPlayer(indice); setReportPage(CARD_PAGE); }} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
+              )}
+              {espacio === "cavalry" && paginaMontada(FLOW_PAGE) && (
+                <div className={claseHoja(FLOW_PAGE)}><FlujoPage destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
               )}
               {espacio === "cavalry" && paginaMontada(STYLE_PAGE) && (
                 <EstiloPage claseHoja={claseHoja(STYLE_PAGE)} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} />

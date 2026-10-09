@@ -273,6 +273,39 @@ La hoja se adapta a lo que haya: con Wyscout sola muestra sus métricas, y va
 sumando las de StatsBomb y SkillCorner conforme estén disponibles. Se exporta
 como una página más desde el diálogo de impresión.
 
+## Flujo de posesión
+
+Sección **Explorar → Flujo de posesión** (necesita el puente, `npm run bg:server`).
+Dibuja por dónde mueve el balón cada equipo en su temporada como un mapa de
+viento, dos equipos lado a lado: las rutas que más usa son corrientes gruesas
+y brillantes, las zonas que casi no pisa quedan en calma y las partículas van
+más rápido donde el balón va más rápido. La idea es el blueprint
+[possession flow](https://github.com/opengoalapp/football-blueprints/tree/main/possession-flow)
+de opengoalapp.
+
+- **Datos:** eventos de StatsBomb de todos los partidos de la liga
+  (`/api/statsbomb/possession-flow`). Solo los pases y conducciones del equipo
+  con el balón, sin saques de esquina ni de centro. La primera vez el puente
+  baja los eventos de cada partido (unos minutos para la CPL); quedan en
+  `~/.fos-scouting/sb-events-cache` y el resultado de la liga se guarda un día
+  (tres si la temporada está cerrada).
+- **Rejilla:** cada tramo se reparte por una rejilla de 60 × 40 celdas y 16
+  direcciones a lo largo de su recorrido, así que un pase largo suma un poco
+  en cada celda que cruza y no inunda la de salida.
+- **Sin maraña:** en cada zona se dibuja la dirección dominante, y una segunda
+  solo si el reparto es parejo; las direcciones nunca se promedian. Qué cuenta
+  como ruta se decide contra todos los equipos de la liga, así que el grosor
+  significa lo mismo en las dos canchas.
+- **Velocidad:** distancia entre tiempo del balón en cada zona, pausas
+  incluidas, coloreada por su posición en la liga para que las diferencias se
+  vean.
+- **Controles:** Detalle (cuánto flujo secundario se ve), Ancho del canal y
+  Estela. Al pasar el cursor por la cancha se lee la zona.
+- **El promedio de cada equipo:** debajo de cada cancha y en una tabla de toda
+  la liga —balón por partido, % hacia delante y hacia atrás, reparto por carril
+  y velocidad del balón en salida, medio campo y último tercio—, siempre contra
+  la media de la liga.
+
 ## Métricas del radar a medida
 
 La página 01 trae un panel **Métricas del radar** que lista todo lo que la base

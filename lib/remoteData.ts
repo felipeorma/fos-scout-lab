@@ -8,6 +8,7 @@ import {
 import { activeLang, t, tf } from "./i18n";
 import type { Alineaciones } from "./encaje";
 import type { JugadorDeMercado } from "./mercado";
+import type { LigaFlujo } from "./flujoPosesion";
 
 /**
  * En GitHub Pages no hay servidor: las rutas /api/* no existen. Este flag se
@@ -288,6 +289,18 @@ export type RolesDeLiga = {
 export async function fetchRolesDeSecuencia(liga: string, temporada: string): Promise<RolesDeLiga> {
   return bridgeJson<RolesDeLiga>(
     `/api/statsbomb/sequence-roles?liga=${encodeURIComponent(liga)}&temporada=${encodeURIComponent(temporada)}`,
+    900_000,
+  );
+}
+
+/**
+ * El flujo de posesión de todos los equipos de una liga y temporada: sus
+ * pases y conducciones repartidos por la cancha (lib/flujoPosesion.ts).
+ * La primera vez el puente baja los eventos de todos los partidos: minutos.
+ */
+export function fetchFlujoDePosesion(competicion: ApiCompetition) {
+  return bridgeJson<LigaFlujo>(
+    `/api/statsbomb/possession-flow?competition_id=${competicion.competition_id}&season_id=${competicion.season_id}`,
     900_000,
   );
 }

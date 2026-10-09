@@ -2456,7 +2456,7 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
    quita los fondos al imprimir y el color del club desaparece justo en el
    documento que ve el club. */
 @media print {
-  .context-page, .scouting-board, .runs-page, .rank-page {
+  .context-page, .scouting-board, .runs-page, .flujo-page, .rank-page {
     print-color-adjust: exact; -webkit-print-color-adjust: exact;
   }
 }
@@ -3257,7 +3257,7 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
 }
 
 /* ---- Contenedores: lo que sostiene una sección entera ---- */
-.app-shell :is(.datos-page, .rank-page, .pool-page, .context-page, .runs-page,
+.app-shell :is(.datos-page, .rank-page, .pool-page, .context-page, .runs-page, .flujo-page,
   .landing-hero, .board-page) {
   border-radius: var(--r-contenedor);
   border: 1px solid var(--linea);
@@ -3314,12 +3314,12 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
    apoyo— que es lo que hace que dos pantallas parezcan la misma
    aplicación. El título va con tracking negativo, que es lo que separa un
    titular de un texto grande. */
-.app-shell :is(.datos-page, .rank-page, .pool-page, .context-page, .runs-page) > header {
+.app-shell :is(.datos-page, .rank-page, .pool-page, .context-page, .runs-page, .flujo-page) > header {
   padding: 0 0 var(--sp-4);
   margin-bottom: var(--sp-5);
   border-bottom: 1px solid var(--linea);
 }
-.app-shell :is(.datos-page, .rank-page, .pool-page, .context-page, .runs-page) > header span:first-child {
+.app-shell :is(.datos-page, .rank-page, .pool-page, .context-page, .runs-page, .flujo-page) > header span:first-child {
   display: block;
   margin-bottom: var(--sp-1);
   color: var(--muted);
@@ -3328,7 +3328,7 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
   letter-spacing: .14em;
   text-transform: uppercase;
 }
-.app-shell :is(.datos-page, .rank-page, .pool-page, .context-page, .runs-page) > header :is(h2, b) {
+.app-shell :is(.datos-page, .rank-page, .pool-page, .context-page, .runs-page, .flujo-page) > header :is(h2, b) {
   display: block;
   margin: 0 0 var(--sp-2);
   font-size: var(--ui-hero);
@@ -3336,7 +3336,7 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
   letter-spacing: -.022em;
   line-height: 1.12;
 }
-.app-shell :is(.datos-page, .rank-page, .pool-page, .context-page, .runs-page) > header p {
+.app-shell :is(.datos-page, .rank-page, .pool-page, .context-page, .runs-page, .flujo-page) > header p {
   margin: 0;
   max-width: 68ch;
   color: var(--muted);
@@ -5425,19 +5425,19 @@ button.menu-fila:active { transform: scale(.985); }
 /* Entran en el mismo PDF que las páginas de diseño, así que se firman igual.
    Los colores son los del tema y no los del papel del reporte: esta página se
    imprime con su propio fondo, y el gris del papel se perdería encima. */
-.app-shell[data-tema] :is(.runs-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) .visual-page-footer {
+.app-shell[data-tema] :is(.runs-page, .flujo-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) .visual-page-footer {
   margin: 20px 0 0; padding-top: 14px;
   border-top: 1px solid var(--line);
   color: var(--muted);
 }
-.app-shell[data-tema] :is(.runs-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) .report-signatures { gap: 14px; }
-.app-shell[data-tema] :is(.runs-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) :is(.report-author, .report-recipient > div) > span { color: var(--muted); font-size: 9px; letter-spacing: .12em; }
-.app-shell[data-tema] :is(.runs-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) :is(.report-author, .report-recipient > div) > b { color: var(--ink); font-size: 12.5px; }
-.app-shell[data-tema] :is(.runs-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) .report-author > small { color: var(--muted); font-size: 9px; letter-spacing: .1em; }
-.app-shell[data-tema] :is(.runs-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) .visual-footer-confidential { color: var(--muted); font-size: 9px; }
-.app-shell[data-tema] :is(.runs-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) .report-recipient { border-left: 1px solid var(--line); }
-.app-shell[data-tema] :is(.runs-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) :is(.dossier-footer-club-logo, .dossier-footer-club-fallback) { width: 30px; height: 30px; }
-.app-shell[data-tema] :is(.runs-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) .dossier-footer-club-fallback {
+.app-shell[data-tema] :is(.runs-page, .flujo-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) .report-signatures { gap: 14px; }
+.app-shell[data-tema] :is(.runs-page, .flujo-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) :is(.report-author, .report-recipient > div) > span { color: var(--muted); font-size: 9px; letter-spacing: .12em; }
+.app-shell[data-tema] :is(.runs-page, .flujo-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) :is(.report-author, .report-recipient > div) > b { color: var(--ink); font-size: 12.5px; }
+.app-shell[data-tema] :is(.runs-page, .flujo-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) .report-author > small { color: var(--muted); font-size: 9px; letter-spacing: .1em; }
+.app-shell[data-tema] :is(.runs-page, .flujo-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) .visual-footer-confidential { color: var(--muted); font-size: 9px; }
+.app-shell[data-tema] :is(.runs-page, .flujo-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) .report-recipient { border-left: 1px solid var(--line); }
+.app-shell[data-tema] :is(.runs-page, .flujo-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) :is(.dossier-footer-club-logo, .dossier-footer-club-fallback) { width: 30px; height: 30px; }
+.app-shell[data-tema] :is(.runs-page, .flujo-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) .dossier-footer-club-fallback {
   display: grid; place-items: center;
   border-radius: 8px; color: var(--muted);
   background: color-mix(in srgb, var(--ink) 8%, transparent);
@@ -5454,7 +5454,7 @@ button.menu-fila:active { transform: scale(.985); }
    impresión. El campo del mapa mantiene su fondo oscuro: es un dibujo, no
    texto, y lleva su propio print-color-adjust. */
 @media print {
-  .app-shell[data-tema] :is(.runs-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) {
+  .app-shell[data-tema] :is(.runs-page, .flujo-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) {
     --ink: #1d1d1f;
     --muted: #5b6472;
     --line: rgba(0, 0, 0, .16);
@@ -5955,18 +5955,18 @@ body.print-layout-check .visual-pieza-content { height: 100%; }
    mide una cosa e imprime otra.
    ===================================================================== */
 body.print-layout-check .legal-page-shell { position: relative; }
-body.print-layout-check .legal-page-shell:has(> :is(.snap-page, .estilo-page, .rank-page, .pool-page, .runs-page, .scouting-board, .context-page, .similarity-report-sheet))::after {
+body.print-layout-check .legal-page-shell:has(> :is(.snap-page, .estilo-page, .rank-page, .pool-page, .runs-page, .flujo-page, .scouting-board, .context-page, .similarity-report-sheet))::after {
   content: ""; position: absolute; inset: 8mm; z-index: 2; pointer-events: none;
   border: 1px solid #e3e3e3; border-radius: 17px;
 }
-body.print-layout-check .legal-page-shell > :is(.snap-page, .estilo-page, .rank-page, .pool-page, .runs-page, .scouting-board, .context-page, .similarity-report-sheet) {
+body.print-layout-check .legal-page-shell > :is(.snap-page, .estilo-page, .rank-page, .pool-page, .runs-page, .flujo-page, .scouting-board, .context-page, .similarity-report-sheet) {
   width: 100%; max-width: none; min-height: 0; margin: 0;
   height: calc(100% / var(--print-fit, 1)) !important;
   box-sizing: border-box; overflow: hidden;
   display: flex; flex-direction: column;
   border: 0; border-radius: 17px; background: #fff; box-shadow: none;
 }
-body.print-layout-check .legal-page-shell > :is(.snap-page, .estilo-page, .rank-page, .pool-page, .runs-page, .scouting-board) {
+body.print-layout-check .legal-page-shell > :is(.snap-page, .estilo-page, .rank-page, .pool-page, .runs-page, .flujo-page, .scouting-board) {
   width: calc(100% / .72); height: calc(100% / .72 / var(--print-fit, 1)) !important; padding: 30px 34px 18px;
   transform: translateX(calc((1 - var(--print-fit, 1)) * 36%)) scale(calc(.72 * var(--print-fit, 1))) !important;
   transform-origin: top left !important;
@@ -5975,18 +5975,18 @@ body.print-layout-check .legal-page-shell > * > :is(.visual-page-footer, .dossie
 
 @media print {
   .legal-page-shell { position: relative; }
-  .legal-page-shell:has(> :is(.snap-page, .estilo-page, .rank-page, .pool-page, .runs-page, .scouting-board, .context-page, .similarity-report-sheet))::after {
+  .legal-page-shell:has(> :is(.snap-page, .estilo-page, .rank-page, .pool-page, .runs-page, .flujo-page, .scouting-board, .context-page, .similarity-report-sheet))::after {
     content: ""; position: absolute; inset: 8mm; z-index: 2; pointer-events: none;
     border: 1px solid #e3e3e3; border-radius: 17px;
   }
-  .legal-page-shell > :is(.snap-page, .estilo-page, .rank-page, .pool-page, .runs-page, .scouting-board, .context-page, .similarity-report-sheet) {
+  .legal-page-shell > :is(.snap-page, .estilo-page, .rank-page, .pool-page, .runs-page, .flujo-page, .scouting-board, .context-page, .similarity-report-sheet) {
     width: 100% !important; max-width: none !important; min-height: 0 !important; margin: 0 !important;
     height: calc(100% / var(--print-fit, 1)) !important;
     box-sizing: border-box; overflow: hidden !important;
     display: flex !important; flex-direction: column;
     border: 0 !important; border-radius: 17px !important; background: #fff !important; box-shadow: none !important;
   }
-  .legal-page-shell > :is(.snap-page, .estilo-page, .rank-page, .pool-page, .runs-page, .scouting-board) {
+  .legal-page-shell > :is(.snap-page, .estilo-page, .rank-page, .pool-page, .runs-page, .flujo-page, .scouting-board) {
     width: calc(100% / .72) !important; height: calc(100% / .72 / var(--print-fit, 1)) !important; padding: 30px 34px 18px !important;
     transform: translateX(calc((1 - var(--print-fit, 1)) * 36%)) scale(calc(.72 * var(--print-fit, 1))) !important;
     transform-origin: top left !important;
@@ -6333,3 +6333,93 @@ body.print-layout-check .legal-page-shell > :is(.rank-page, .pool-page) :is(.ran
 /* Ranking: valor y contrato de Transfermarkt en la línea de cada jugador. Un
    punto más de tinta que el resto de la línea: es lo que se vino a filtrar. */
 .rank-mercado-dato { color: color-mix(in srgb, var(--ink) 82%, transparent); font-variant-numeric: tabular-nums; }
+
+/* =====================================================================
+   Flujo de posesión
+   =====================================================================
+   Las rutas del balón de cada equipo como un mapa de viento: dos canchas
+   lado a lado, con los números del equipo debajo y la liga en una tabla.
+   El campo va oscuro en los dos temas, como el de Carreras: las partículas
+   son claras y sobre papel no se verían. */
+.flujo-page { --campo: #0e1512; width: 100%; max-width: 990px; margin: 18px auto 24px; padding: 24px 28px; box-sizing: border-box; color: var(--ink); font-family: var(--font-barlow), Arial, sans-serif; }
+.app-shell[data-tema] .flujo-controles { margin: 0 0 12px; }
+.app-shell[data-tema] .flujo-controles .filtro-chip > b { max-width: 30ch; }
+.app-shell[data-tema] p.flujo-estado { margin: -4px 4px 14px; color: var(--muted); font-size: 11.5px; line-height: 1.5; }
+
+.flujo-ajustes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 18px; margin: 0 0 14px; padding: 12px 14px; border-radius: 14px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); }
+.flujo-ajustes label { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.flujo-ajustes label > span { display: flex; justify-content: space-between; gap: 8px; color: var(--ink); font-size: 12px; font-weight: 600; }
+.flujo-ajustes label > span > b { color: var(--muted); font-weight: 500; font-variant-numeric: tabular-nums; }
+.flujo-ajustes input[type="range"] { width: 100%; height: 16px; margin: 0; accent-color: var(--acento-claro, #12c48b); cursor: pointer; }
+.flujo-ajustes label > small { color: var(--muted); font-size: 10.5px; }
+
+.flujo-canchas { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.flujo-ficha { margin: 0; padding: 14px; min-width: 0; border-radius: 14px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); }
+.flujo-ficha > figcaption { display: flex; flex-direction: column; gap: 1px; margin-bottom: 10px; }
+.flujo-ficha > figcaption > b { display: flex; align-items: center; gap: 8px; color: var(--ink); font-size: 14px; font-weight: 650; letter-spacing: -0.01em; }
+.flujo-ficha > figcaption > small { color: var(--muted); font-size: 11px; }
+.flujo-cancha { position: relative; width: 100%; }
+.flujo-cancha canvas { display: block; width: 100%; border-radius: 10px; background: var(--campo); print-color-adjust: exact; -webkit-print-color-adjust: exact; cursor: crosshair; }
+.flujo-lectura { position: absolute; z-index: 2; transform: translate(-50%, calc(-100% - 12px)); padding: 4px 8px; border-radius: 7px; background: rgba(8, 14, 12, .92); box-shadow: 0 0 0 1px rgba(255,255,255,.12); color: #eaf2f0; font-size: 11px; white-space: nowrap; pointer-events: none; }
+
+.flujo-cifras { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 12px 0 10px; }
+.flujo-cifras > div { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.flujo-cifras dt { color: var(--muted); font-size: 10.5px; }
+.flujo-cifras dd { margin: 0; color: var(--ink); font-family: var(--font-space-grotesk), sans-serif; font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.flujo-dif { color: var(--muted); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+/* Más o menos que la liga no es mejor ni peor: la flecha dice el sentido, sin color. */
+.flujo-dif.sube::before { content: "▲ "; font-size: 8px; }
+.flujo-dif.baja::before { content: "▼ "; font-size: 8px; }
+
+/* El reparto por carril: una barra con tres tramos separados por un hueco. */
+.flujo-carriles { display: flex; gap: 2px; margin: 0 0 10px; }
+.flujo-carriles > span { flex-basis: 0; min-width: 0; display: flex; flex-direction: column; gap: 3px; padding-top: 9px; background: linear-gradient(var(--tramo), var(--tramo)) top / 100% 6px no-repeat; }
+.flujo-carriles > span:nth-child(1) { --tramo: color-mix(in srgb, var(--acento-claro, #12c48b) 55%, transparent); border-radius: 3px 0 0 3px; }
+.flujo-carriles > span:nth-child(2) { --tramo: color-mix(in srgb, var(--acento-claro, #12c48b) 85%, transparent); }
+.flujo-carriles > span:nth-child(3) { --tramo: color-mix(in srgb, var(--acento-claro, #12c48b) 55%, transparent); border-radius: 0 3px 3px 0; }
+.flujo-carriles b { color: var(--ink); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.flujo-carriles small { overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+
+.flujo-tercios { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; padding: 10px 0 0; border-top: 1px solid var(--line); list-style: none; }
+.flujo-tercios li { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.flujo-tercios span { color: var(--muted); font-size: 10.5px; }
+.flujo-tercios b { color: var(--ink); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.flujo-leyenda { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 22px; margin: 12px 0 18px; padding: 10px 14px; border-radius: 12px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); }
+.flujo-leyenda > div { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.flujo-leyenda > div > span { color: var(--ink); font-size: 11.5px; font-weight: 600; }
+.flujo-leyenda small { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 11px; }
+.flujo-leyenda > p { flex-basis: 100%; margin: 0; color: var(--muted); font-size: 10.5px; line-height: 1.45; }
+.flujo-rampa { display: inline-flex; gap: 2px; padding: 3px; border-radius: 5px; background: var(--campo); }
+.flujo-rampa u { width: 14px; height: 8px; border-radius: 2px; }
+.flujo-grosor svg { padding: 2px 3px; border-radius: 4px; background: var(--campo); }
+
+.flujo-liga > h3 { margin: 0 0 4px; color: var(--ink); font-size: 15px; font-weight: 650; }
+.flujo-liga > p { margin: 0 0 10px; color: var(--muted); font-size: 11.5px; line-height: 1.5; }
+.flujo-tabla-marco { overflow-x: auto; border-radius: 12px; box-shadow: 0 0 0 1px var(--line); }
+.flujo-tabla { width: 100%; border-collapse: collapse; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.flujo-tabla :is(th, td) { padding: 7px 8px; border-bottom: 1px solid var(--line); color: var(--ink); background: none; font-size: 11.5px; letter-spacing: 0; text-align: right; text-transform: none; white-space: nowrap; }
+.flujo-tabla :is(thead th, tbody th, tfoot th) { text-align: left; }
+.flujo-tabla thead th { color: var(--muted); font-size: 10.5px; font-weight: 600; text-align: right; }
+.flujo-tabla thead th:first-child { text-align: left; }
+.flujo-tabla thead button { padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
+.flujo-tabla thead button.activo { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.flujo-tabla thead button.activo::after { content: " ↓"; }
+.flujo-tabla tbody tr { cursor: pointer; }
+.flujo-tabla tbody tr:hover, .flujo-tabla tbody tr:focus-visible { background: color-mix(in srgb, var(--acento-claro, #12c48b) 8%, transparent); outline: none; }
+.flujo-tabla tbody tr.activa { background: color-mix(in srgb, var(--acento-claro, #12c48b) 14%, transparent); }
+.flujo-tabla tbody th { font-weight: 600; }
+.flujo-tabla .con-escudo { display: inline-flex; align-items: center; gap: 7px; }
+.flujo-tabla tfoot :is(th, td) { border-bottom: 0; color: var(--muted); font-weight: 600; }
+.flujo-nota { display: block; margin-top: 8px; color: var(--muted); font-size: 10.5px; line-height: 1.45; }
+.flujo-page .flujo-firma { margin-top: 18px; }
+
+@media screen and (max-width: 780px) {
+  body:not(.print-layout-check) .flujo-canchas { grid-template-columns: 1fr; }
+  body:not(.print-layout-check) .flujo-ajustes { grid-template-columns: 1fr; }
+  .flujo-page { padding: 18px 16px; }
+}
+@media print {
+  .flujo-ajustes, .flujo-lectura { display: none !important; }
+  .flujo-tabla-marco { overflow: visible; }
+}
