@@ -717,8 +717,10 @@ def _sb_partido_compacto(match_id: int, auth):
     except Exception:
         return None
     # Ya bajados los eventos, las formaciones salen gratis: se guardan aparte
-    # para Estilo de juego, que las pide sin necesitar el resto.
+    # para Estilo de juego, que las pide sin necesitar el resto. Lo mismo los
+    # tramos del flujo de posesión.
     _sb_guardar_formaciones(match_id, eventos)
+    _sb_guardar_flujo(match_id, eventos)
     # Cada recepción apunta a su pase por `related_events` (en la prueba, 772
     # de 772): de ahí sale cómo le llega el balón.
     pases = {e.get("id"): e for e in eventos if (e.get("type") or {}).get("name") == "Pass"}
@@ -816,6 +818,7 @@ def _sb_formaciones_partido(match_id: int, auth):
     except Exception:
         return None
     _sb_guardar_formaciones(match_id, eventos)
+    _sb_guardar_flujo(match_id, eventos)
     return _sb_extraer_formaciones(eventos)
 
 
@@ -1205,6 +1208,213 @@ def statsbomb_player_events(liga: str, temporada: str, equipo: str, jugador: str
         "posiciones": {codigo: round(minutos, 1) for codigo, minutos in sorted(posiciones.items(), key=lambda x: -x[1])},
         "eventos": eventos,
     }, ensure_ascii=False), media_type="application/json", headers=cors_headers())
+
+
+# ---- Flujo de posesión --------------------------------------------------------
+# Las rutas habituales de cada equipo, dibujadas como un mapa de viento (la
+# idea es el blueprint "possession flow" de opengoalapp/football-blueprints).
+# Cada pase y cada conducción del equipo con el balón se reparte por una
+# rejilla de la cancha, celda a celda y por dirección; en cada celda se guarda
+# además cuánto recorrió el balón y en cuánto tiempo. Con eso la página
+# construye las corrientes y su velocidad (lib/flujoPosesion.ts).
+# 1: tramos [equipo, x, y, xf, yf, segundos] de pases y conducciones.
+_FLUJO_VERSION = 1
+_FLUJO_CELDA = 2.0  # en unidades de StatsBomb: 120 × 80 → 60 × 40 celdas
+_FLUJO_COLS, _FLUJO_FILAS = 60, 40
+_FLUJO_DIRECCIONES = 16
+# Cada cuánto se mide el balón a lo largo de su recorrido: la mitad de una
+# celda, para que ninguna que cruce quede sin contar.
+_FLUJO_PASO = 1.0
+# Los saques de esquina y de centro salen siempre del mismo sitio y hacia
+# donde manda el reglamento: dibujarían corrientes que el equipo no elige.
+_FLUJO_SIN_PASE = {"Corner", "Kick Off"}
+
+
+def _flujo_extraer(eventos):
+    """Pases y conducciones del equipo que tiene el balón: [[equipo, x, y, xf, yf, segundos], ...].
+
+    Las coordenadas de StatsBomb ya vienen con cada equipo atacando hacia
+    x = 120, así que todos los equipos se dibujan de izquierda a derecha sin
+    voltear nada.
+    """
+    tramos = []
+    for e in eventos:
+        tipo = (e.get("type") or {}).get("name")
+        if tipo not in ("Pass", "Carry"):
+            continue
+        equipo = (e.get("team") or {}).get("id")
+        if equipo is None or equipo != (e.get("possession_team") or {}).get("id"):
+            continue
+        if tipo == "Pass":
+            pase = e.get("pass") or {}
+            if (pase.get("type") or {}).get("name") in _FLUJO_SIN_PASE:
+                continue
+            fin = pase.get("end_location")
+        else:
+            fin = (e.get("carry") or {}).get("end_location")
+        inicio = e.get("location")
+        if not inicio or not fin or len(inicio) < 2 or len(fin) < 2:
+            continue
+        duracion = e.get("duration")
+        tramos.append([equipo, round(inicio[0], 1), round(inicio[1], 1), round(fin[0], 1), round(fin[1], 1),
+                       round(duracion, 2) if isinstance(duracion, (int, float)) else None])
+    return tramos
+
+
+def _sb_guardar_flujo(match_id: int, eventos):
+    import json as _json
+    try:
+        _SB_EVENTS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        _escribir_atomico(_SB_EVENTS_CACHE_DIR / f"pf-{int(match_id)}.json",
+                          _json.dumps({"v": _FLUJO_VERSION, "tramos": _flujo_extraer(eventos)}))
+    except OSError:
+        pass
+
+
+def _sb_flujo_partido(match_id: int, auth):
+    """Los tramos de un partido; si no están guardados, se bajan sus eventos una vez."""
+    import json as _json
+    ruta = _SB_EVENTS_CACHE_DIR / f"pf-{int(match_id)}.json"
+    if ruta.exists():
+        try:
+            guardado = _json.loads(ruta.read_text(encoding="utf-8"))
+            if guardado.get("v") == _FLUJO_VERSION:
+                return guardado.get("tramos") or []
+        except Exception:
+            pass
+    try:
+        r = _requests.get(f"https://data.statsbomb.com/api/v8/events/{int(match_id)}", auth=auth, timeout=120)
+        if r.status_code != 200:
+            return None
+        eventos = r.json()
+    except Exception:
+        return None
+    _sb_guardar_formaciones(match_id, eventos)
+    _sb_guardar_flujo(match_id, eventos)
+    return _flujo_extraer(eventos)
+
+
+def _flujo_rasterizar(tramos):
+    """Una temporada de un equipo, repartida por la rejilla.
+
+    flujo: por celda y dirección, cuánto recorrió el balón por ella. Se mide a
+    lo largo del recorrido —un pase largo suma un poco en cada celda que
+    cruza, no todo en la de salida—, que es lo que dice por dónde pasa de
+    verdad el balón y evita que un envío largo inunde una zona por ser largo.
+
+    recorrido y tiempo: por celda, distancia y segundos del balón en ella, de
+    los tramos con duración. La velocidad de la zona es su cociente. Una
+    conducción casi parada suma segundos y ninguna distancia: la zona donde el
+    equipo pausa la jugada sale lenta, que es lo que tiene que decir.
+    """
+    import math as _math
+    cols, filas, dirs = _FLUJO_COLS, _FLUJO_FILAS, _FLUJO_DIRECCIONES
+    flujo = [0.0] * (cols * filas * dirs)
+    recorrido = [0.0] * (cols * filas)
+    tiempo = [0.0] * (cols * filas)
+    sector = 2 * _math.pi / dirs
+
+    def celda(x, y):
+        c = min(cols - 1, max(0, int(x / _FLUJO_CELDA)))
+        f = min(filas - 1, max(0, int(y / _FLUJO_CELDA)))
+        return f * cols + c
+
+    for _, x, y, xf, yf, segundos in tramos:
+        dx, dy = xf - x, yf - y
+        largo = _math.hypot(dx, dy)
+        # Una duración absurda —cero, más de 20 s, o un balón a más de 45
+        # unidades por segundo— no entra en la velocidad, pero el tramo sí
+        # cuenta como ruta.
+        con_tiempo = isinstance(segundos, (int, float)) and 0 < segundos <= 20 and largo / segundos <= 45
+        if largo < 0.5:
+            if con_tiempo:
+                tiempo[celda(x, y)] += segundos
+            continue
+        d = int(round(_math.atan2(dy, dx) / sector)) % dirs
+        n = max(1, _math.ceil(largo / _FLUJO_PASO))
+        paso = largo / n
+        dt = segundos / n if con_tiempo else 0.0
+        for k in range(n):
+            avance = (k + 0.5) / n
+            c = celda(x + dx * avance, y + dy * avance)
+            flujo[c * dirs + d] += paso
+            if con_tiempo:
+                recorrido[c] += paso
+                tiempo[c] += dt
+    return {
+        "flujo": [round(v) for v in flujo],
+        "recorrido": [round(v, 1) for v in recorrido],
+        "tiempo": [round(v, 1) for v in tiempo],
+    }
+
+
+def _flujo_de_liga(jugados, por_partido):
+    """Los equipos de la liga con su rejilla, a partir de los partidos y sus tramos."""
+    nombres, tramos, partidos = {}, {}, {}
+    for partido, lista in zip(jugados, por_partido):
+        if lista is None:
+            continue
+        for lado in ("home_team", "away_team"):
+            equipo = partido.get(lado) or {}
+            ident = equipo.get(f"{lado}_id")
+            if ident is None:
+                continue
+            nombres[ident] = equipo.get(f"{lado}_name") or str(ident)
+            partidos[ident] = partidos.get(ident, 0) + 1
+        for tramo in lista:
+            tramos.setdefault(tramo[0], []).append(tramo)
+    equipos = [
+        {"equipo": ident, "nombre": nombres.get(ident, str(ident)), "partidos": partidos[ident],
+         "tramos": len(tramos.get(ident, [])), **_flujo_rasterizar(tramos.get(ident, []))}
+        for ident in partidos
+    ]
+    return sorted(equipos, key=lambda e: _sin_tildes(e["nombre"]))
+
+
+@app.get("/api/statsbomb/possession-flow")
+def statsbomb_possession_flow(competition_id: int, season_id: int):
+    """El flujo de posesión de todos los equipos de una liga y temporada.
+
+    Van todos juntos porque la escala es de la liga: qué cuenta como ruta
+    concurrida se decide contra todos los equipos, y así una línea gruesa
+    significa lo mismo en las dos canchas. La primera vez hay que bajar los
+    eventos de cada partido (unos minutos); después salen del disco, y el
+    resultado se guarda un día (tres si la temporada está cerrada).
+    """
+    import json as _json
+    from concurrent.futures import ThreadPoolExecutor
+    auth = _statsbomb_auth()
+    if not auth:
+        return Response('{"error": "sin credenciales"}', status_code=503, media_type="application/json", headers=cors_headers())
+    clave_disco = f"flujo{_FLUJO_VERSION}-{competition_id}-{season_id}"
+    guardado = _pool_cache_leer(clave_disco, _POOL_TTL_CERRADA if _temporada_cerrada_sb(competition_id, season_id, auth) else None)
+    if guardado is not None:
+        return Response(_json.dumps(guardado, ensure_ascii=False), media_type="application/json", headers=cors_headers())
+
+    partidos = _cached_get(f"sb:matches6:{competition_id}:{season_id}",
+                           f"https://data.statsbomb.com/api/v6/competitions/{competition_id}/seasons/{season_id}/matches", auth, ttl_seconds=1800)
+    jugados = [p for p in partidos if p.get("home_score") is not None]
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        por_partido = list(pool.map(lambda p: _sb_flujo_partido(p["match_id"], auth), jugados))
+
+    liga, temporada = "", ""
+    try:
+        catalogo = _cached_get("sb:comps", "https://data.statsbomb.com/api/v4/competitions", auth, ttl_seconds=3600)
+        comp = next((c for c in catalogo if c.get("competition_id") == competition_id and c.get("season_id") == season_id), {})
+        liga, temporada = str(comp.get("competition_name") or ""), str(comp.get("season_name") or "")
+    except Exception:
+        pass
+    fallidos = sum(1 for lista in por_partido if lista is None)
+    resultado = {
+        "liga": liga, "temporada": temporada,
+        "partidos": len(jugados) - fallidos, "fallidos": fallidos,
+        "celda": _FLUJO_CELDA, "cols": _FLUJO_COLS, "filas": _FLUJO_FILAS, "direcciones": _FLUJO_DIRECCIONES,
+        "equipos": _flujo_de_liga(jugados, por_partido),
+    }
+    # Con partidos que no bajaron no se guarda: mañana saldría igual de cojo.
+    if resultado["equipos"] and not fallidos:
+        _pool_cache_escribir(clave_disco, resultado)
+    return Response(_json.dumps(resultado, ensure_ascii=False), media_type="application/json", headers=cors_headers())
 
 
 @app.get("/api/statsbomb/player-stats")
