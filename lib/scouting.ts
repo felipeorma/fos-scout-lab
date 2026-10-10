@@ -278,6 +278,23 @@ function maxPerProvider(entries: Array<{ row: DataRow; provider: MetricSource }>
   return Math.max(0, ...perProvider.values());
 }
 
+/**
+ * Minutos, partidos y goles de varias temporadas: el máximo entre
+ * proveedores dentro de cada temporada, y la suma entre temporadas.
+ *
+ * El máximo entre proveedores existe porque Wyscout y StatsBomb describen los
+ * mismos minutos de la misma temporada. Aplicado a todo junto fallaba al
+ * mezclar proveedores entre temporadas: un Excel de Wyscout de 2025 con 1.500
+ * minutos y StatsBomb 2026 con 476 daban 1.500, no 1.976.
+ */
+function sumaPorTemporadas(entries: Array<{ row: DataRow; provider: MetricSource; season: number }>, pick: (row: DataRow) => number) {
+  const porTemporada = new Map<number, typeof entries>();
+  for (const entry of entries) porTemporada.set(entry.season, [...(porTemporada.get(entry.season) ?? []), entry]);
+  let total = 0;
+  for (const suyas of porTemporada.values()) total += maxPerProvider(suyas, pick);
+  return total;
+}
+
 // ---- Equivalencia y canonización de nombres de club ----
 // Los exports escriben el mismo club de formas distintas ("Cavalry FC",
 // "Cavalry", "Vancouver Football Club"). Se agrupan para que el desplegable
@@ -516,6 +533,40 @@ export function canonicalTeamNames(counts: Map<string, number>, origenes?: Map<s
   return mapping;
 }
 
+/**
+ * Lo que jugó un jugador en una temporada, dentro de su fila ya fusionada.
+ *
+ * Al cruzar dos temporadas, la fila del jugador las junta —minutos sumados,
+ * métricas por 90 ponderadas por minutos— y así el radar las cuenta a las
+ * dos. Pero la ficha tiene que poder decir cuánto jugó en cada una: catorce
+ * partidos este año no se leen igual con treinta el anterior que sin nada.
+ */
+export type TemporadaDeJugador = {
+  /** "2026", "2025/2026" o, si el archivo no lo dice, su nombre. */
+  etiqueta: string;
+  /** El año con el que se ordena; 0 si el archivo no lo dice (cuenta como el más reciente). */
+  anio: number;
+  ligas: string[];
+  equipo: string;
+  partidos: number;
+  minutos: number;
+  /** NaN si la base no trae la columna. */
+  goles: number;
+  asistencias: number;
+};
+
+/*
+ * Fuera de la fila, para no colar una columna nueva en tablas, exportaciones
+ * y catálogos de métricas. Las filas que salen del cruce son objetos nuevos
+ * y la plataforma las usa tal cual, así que la referencia basta como clave.
+ */
+const temporadasPorFila = new WeakMap<DataRow, TemporadaDeJugador[]>();
+
+/** Las temporadas de un jugador, de la más reciente a la más antigua. */
+export function temporadasDeFila(fila: DataRow | undefined): TemporadaDeJugador[] {
+  return (fila && temporadasPorFila.get(fila)) || [];
+}
+
 export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult {
   if (datasets.length < 1) throw new Error(t("Selecciona al menos un archivo de datos."));
   const allHeaders = [...new Set(datasets.flatMap((dataset) => dataset.headers))];
@@ -642,8 +693,21 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
        * sitio.
        */
       const groupClubs = [...new Set(group.map((entry) => entry.clubIdentity).filter(Boolean))];
+      const groupBirths = new Set(group.map((entry) => entry.birthIdentity).filter(Boolean));
       const target = clusters.find((cluster) => {
         if (cluster.some((entry) => groupSources.has(entry.sourceIndex))) return false;
+        /*
+         * Con dos temporadas cargadas, el mismo nombre en la misma liga un año
+         * y el siguiente ya no es siempre la misma persona. Si un mismo
+         * proveedor da fecha de nacimiento a los dos y no coinciden, son dos
+         * jugadores. Solo dentro de un proveedor: entre plataformas la fecha
+         * puede venir vacía o escrita distinto, y ahí no se usa para separar.
+         */
+        const otraPersona = group.some((a) => a.birthIdentity && cluster.some((b) => (
+          b.provider === a.provider && b.birthIdentity && b.birthIdentity !== a.birthIdentity
+          && !cluster.some((c) => c.birthIdentity === a.birthIdentity)
+        )));
+        if (otraPersona) return false;
         const clusterClubs = [...new Set(cluster.map((entry) => entry.clubIdentity).filter(Boolean))];
         /*
          * No se exige que los clubes CASEN —eso partía ochocientas fusiones
@@ -677,7 +741,16 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
         const competicionConocida = (entrada: typeof group[number]) => entrada.provider !== "wyscout";
         const sePuedeComparar = group.every(competicionConocida) && cluster.every(competicionConocida);
         const mismaCompeticion = group.some((a) => cluster.some((b) => a.competencia === b.competencia));
-        if (sePuedeComparar && !mismaCompeticion && groupClubs.length && clusterClubs.length
+        /*
+         * Salvo que compartan fecha de nacimiento exacta. Mismo nombre y mismo
+         * día de nacimiento es la misma persona aunque haya cambiado de liga y
+         * de club: es el fichaje de una temporada a otra —de la USL a la CPL—,
+         * justo el que la ficha necesita ver con sus dos temporadas. Sin esto
+         * quedaba partido en dos filas, una por liga. Los homónimos que la
+         * regla del club separa no tienen la misma fecha.
+         */
+        const mismaFecha = cluster.some((entry) => entry.birthIdentity && groupBirths.has(entry.birthIdentity));
+        if (sePuedeComparar && !mismaCompeticion && !mismaFecha && groupClubs.length && clusterClubs.length
           && groupClubs.every((a) => clusterClubs.every((b) => clubesSinNadaEnComun(a, b)))) return false;
         const clusterAges = cluster.map((entry) => edadComparable(entry.ageIdentity)).filter(Number.isFinite);
         if (!groupAges.length || !clusterAges.length) return true;
@@ -883,6 +956,9 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
   const contractColumn = findColumn(allHeaders, ["contract expires", "vencimiento contrato"]);
   const idColumn = findColumn(allHeaders, ["id", "player id", "wyid"]);
 
+  const goalsColumn = findColumn(allHeaders, ["goals", "goles"]);
+  const assistsColumn = findColumn(allHeaders, ["assists", "asistencias"]);
+
   const excluded = new Set([core.minutes, core.matches]);
   if (ageColumn) excluded.add(ageColumn);
   // Las columnas de metadatos (contrato, club, posición, id…) nunca deben
@@ -951,11 +1027,16 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
     const seasons = uniqueText(sorted.map(({ season }) => season || ""));
     const output: DataRow = {
       Player: latest.player,
-      "Data sources": uniqueText(sorted.map(({ source }) => source)),
-      // Dentro de un proveedor las temporadas se suman; entre proveedores se
-      // toma el máximo (Wyscout y StatsBomb describen los mismos minutos).
-      [core.matches]: maxPerProvider(sorted, (row) => numeric(row[core.matches]) || 0),
-      [core.minutes]: maxPerProvider(sorted, (row) => numeric(row[core.minutes]) || 0),
+      // De la temporada más reciente a la más antigua: quien toma la primera
+      // fuente —la ficha ampliada para pedir eventos, la mesa para la liga—
+      // quiere la de ahora, no la del año pasado.
+      "Data sources": uniqueText([...sorted]
+        .sort((a, b) => (seasonOrder(b.season) - seasonOrder(a.season)) || (a.sourceIndex - b.sourceIndex))
+        .map(({ source }) => source)),
+      // Dentro de una temporada, el máximo entre proveedores (Wyscout y
+      // StatsBomb describen los mismos minutos); entre temporadas, la suma.
+      [core.matches]: sumaPorTemporadas(sorted, (row) => numeric(row[core.matches]) || 0),
+      [core.minutes]: sumaPorTemporadas(sorted, (row) => numeric(row[core.minutes]) || 0),
     };
     if (seasons) output.Seasons = seasons;
 
@@ -988,10 +1069,10 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
 
     for (const header of cumulativeHeaders) {
       const values = sorted.map(({ row }) => numeric(row[header])).filter(Number.isFinite);
-      // Igual que minutos y partidos: se suman las temporadas dentro de un
-      // proveedor, pero entre proveedores se toma el máximo — Wyscout y
-      // StatsBomb describen los mismos goles de la misma temporada.
-      output[header] = values.length ? maxPerProvider(sorted, (row) => numeric(row[header]) || 0) : Number.NaN;
+      // Igual que minutos y partidos: el máximo entre proveedores dentro de
+      // una temporada —Wyscout y StatsBomb describen los mismos goles— y la
+      // suma entre temporadas.
+      output[header] = values.length ? sumaPorTemporadas(sorted, (row) => numeric(row[header]) || 0) : Number.NaN;
     }
     for (const header of averagedHeaders) output[header] = average(sorted.map(({ row }) => numeric(row[header])));
     for (const header of per90Headers) {
@@ -1007,6 +1088,39 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
         weight: denominator ? denominatorWeight(row, denominator, core.minutes) : numeric(row[core.minutes]),
       })));
     }
+
+    /*
+     * Cuánto jugó en cada temporada. Las entradas de una misma temporada se
+     * juntan con la misma regla que la fila entera —se suman dentro de un
+     * proveedor, y entre proveedores manda el máximo—, así que StatsBomb y su
+     * capa de SkillCorner del mismo año no cuentan doble, y dos ligas del
+     * mismo año (un traspaso de invierno) sí se suman. Los archivos sin año
+     * en el nombre no se pueden fechar: van juntos, como una sola temporada
+     * —la del export, que el cruce ya trata como la más reciente—, con su
+     * nombre por etiqueta. Dos Excel sin año no son dos temporadas.
+     */
+    const porTemporada = new Map<number, typeof sorted>();
+    for (const entry of sorted) porTemporada.set(entry.season, [...(porTemporada.get(entry.season) ?? []), entry]);
+    temporadasPorFila.set(output, [...porTemporada.values()].map((entradas) => {
+      const base = entradas.filter((entry) => entry.provider !== "skillcorner");
+      const identidad = [...(base.length ? base : entradas)].sort((a, b) => minutosDe(b.row) - minutosDe(a.row))[0];
+      const ligas = [...new Set((base.length ? base : entradas).map((entry) => ligaYAnioDe(entry.source).liga))];
+      // Goles y asistencias, solo si alguna base de esa temporada los trae:
+      // si no, un cero sería inventado.
+      const total = (columna: string) => (columna && entradas.some(({ row }) => Number.isFinite(numeric(row[columna])))
+        ? maxPerProvider(entradas, (row) => numeric(row[columna]) || 0)
+        : Number.NaN);
+      return {
+        etiqueta: ligaYAnioDe(identidad.source).temporada || (identidad.season ? String(identidad.season) : ligas.join(" + ")),
+        anio: identidad.season,
+        ligas,
+        equipo: rowTeam(identidad.row),
+        partidos: maxPerProvider(entradas, (row) => numeric(row[core.matches]) || 0),
+        minutos: maxPerProvider(entradas, (row) => numeric(row[core.minutes]) || 0),
+        goles: total(goalsColumn),
+        asistencias: total(assistsColumn),
+      };
+    }).sort((a, b) => (seasonOrder(b.anio) - seasonOrder(a.anio)) || (b.minutos - a.minutos)));
     return output;
   }).sort((a, b) => numeric(b[core.minutes]) - numeric(a[core.minutes]));
 

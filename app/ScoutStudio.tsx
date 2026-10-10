@@ -35,10 +35,13 @@ import {
   detectCoreColumns,
   extractSeason,
   formatCell,
+  temporadasDeFila,
   type DataRow,
   type PlayerReport,
   type SourceDataset,
 } from "@/lib/scouting";
+import { dosTemporadas, temporadaAnterior, temporadasDelAnio } from "@/lib/temporadas";
+import { fuenteStatsbomb } from "@/lib/snapshot";
 import { profileStorageKey, readStoredJson, type TransfermarktProfile } from "@/lib/transfermarkt";
 import { formatPlayerPositions, selectedCohortPosition } from "@/lib/positions";
 import { removePlayerImageBackground } from "@/lib/playerImageBackground";
@@ -378,7 +381,25 @@ export default function ScoutStudio() {
   // no siempre debe decir para quién se mira al jugador. Se recuerda.
   const [equipoEncaje, setEquipoEncaje] = useState("");
   const [pdfConEncaje, setPdfConEncaje] = useState(false);
+  // Con la temporada anterior por defecto: la ficha mide al jugador con sus dos
+  // últimas temporadas cuando existen. Se recuerda; se apaga en Base activa.
+  const [conTemporadaAnterior, setConTemporadaAnterior] = useState(true);
+  function cambiarTemporadaAnterior(encendida: boolean) {
+    setConTemporadaAnterior(encendida);
+    try { window.localStorage.setItem("fos-temporada-anterior-v1", encendida ? "si" : "no"); } catch { /* preferencia opcional */ }
+  }
   const [sourceDatasets, setSourceDatasets] = useState<SourceDataset[]>([]);
+  /**
+   * Competiciones apagadas: siguen descargadas pero fuera del cruce.
+   *
+   * Es distinto de quitarlas. Apagar la MLS para mirar un rato sin ella y
+   * volver a encenderla no debería costar otra descarga de la API; quitarla
+   * sí la saca del todo. Se guarda por nombre de archivo porque es lo que
+   * identifica a una base dentro de la sesión.
+   */
+  const [ligasApagadas, setLigasApagadas] = useState<string[]>([]);
+  /** El catálogo de StatsBomb: de aquí sale la temporada anterior que se recomienda en la ficha. */
+  const [catalogoSb, setCatalogoSb] = useState<ApiCompetition[]>([]);
   const [apiDialogOpen, setApiDialogOpen] = useState(false);
   const [apiStatus, setApiStatus] = useState<SourcesStatus | null | "offline">(null);
   const [cargaTotal, setCargaTotal] = useState("");
@@ -539,19 +560,79 @@ export default function ScoutStudio() {
     () => jugadoresVisibles.filter((player) => player.team === selectedTeam).sort((a, b) => alphabeticCollator.compare(a.player, b.player)),
     [jugadoresVisibles, selectedTeam],
   );
+  /*
+   * La temporada anterior, desde el panel. Por defecto el jugador se mide con
+   * todas las temporadas cargadas (la fila fusionada). Con «solo la temporada
+   * actual», el informe se rehace sobre las bases de esa temporada y nada más:
+   * el jugador Y su cohorte, para que la comparación siga siendo entre
+   * iguales. Ese cruce aparte solo se calcula cuando se pide.
+   */
+  const [soloTemporadaActual, setSoloTemporadaActual] = useState(false);
+  const filaElegida = reportRows[selectedPlayer];
+  const temporadasDeLaFila = temporadasDeFila(filaElegida);
+  const anioActualDelJugador = temporadasDeLaFila.length > 1 ? temporadasDeLaFila[0].anio : null;
+  const cruceDeUnaTemporada = useMemo(() => {
+    if (!soloTemporadaActual || anioActualDelJugador === null) return null;
+    const bases = sourceDatasets.filter((dataset) => dataset.season === anioActualDelJugador && !ligasApagadas.includes(dataset.fileName));
+    if (!bases.length) return null;
+    try { return aggregateDatasets(bases).rows; } catch { return null; }
+  }, [soloTemporadaActual, anioActualDelJugador, sourceDatasets, ligasApagadas]);
+  const indiceEnUnaTemporada = useMemo(() => {
+    if (!cruceDeUnaTemporada || !filaElegida) return -1;
+    const nombre = String(filaElegida.Player ?? "");
+    const nacimiento = String(filaElegida["Birth date"] ?? "");
+    return cruceDeUnaTemporada.findIndex((fila) => String(fila.Player ?? "") === nombre
+      && (!nacimiento || !fila["Birth date"] || String(fila["Birth date"]) === nacimiento));
+  }, [cruceDeUnaTemporada, filaElegida]);
+  const filasDelInforme = cruceDeUnaTemporada && indiceEnUnaTemporada >= 0 ? cruceDeUnaTemporada : reportRows;
+  const indiceDelInforme = cruceDeUnaTemporada && indiceEnUnaTemporada >= 0 ? indiceEnUnaTemporada : selectedPlayer;
   const report = useMemo(
     () => {
       // El perfil solo se conoce tras construir el informe, y la selección se
       // guarda por perfil: se resuelve primero el perfil y se rehace únicamente
       // si ese perfil tiene métricas elegidas a mano.
-      const base = buildPlayerReport(reportRows, selectedPlayer, minimumMinutes, cohort);
+      const base = buildPlayerReport(filasDelInforme, indiceDelInforme, minimumMinutes, cohort);
       const picks = base ? metricPicks[base.cohort] : undefined;
       if (!base || !picks) return base;
-      return buildPlayerReport(reportRows, selectedPlayer, minimumMinutes, cohort, picks) ?? base;
+      return buildPlayerReport(filasDelInforme, indiceDelInforme, minimumMinutes, cohort, picks) ?? base;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [reportRows, selectedPlayer, minimumMinutes, cohort, lang, metricPicks],
+    [filasDelInforme, indiceDelInforme, minimumMinutes, cohort, lang, metricPicks],
   );
+  /*
+   * Qué recomendar cuando el jugador no tiene temporada anterior en la base:
+   * la de su liga en StatsBomb, si existe. Si ya está cargada y él no sale,
+   * jugó en otra parte, y se dice.
+   */
+  const temporadaRecomendada = useMemo(() => {
+    if (temporadasDeLaFila.length !== 1 || !catalogoSb.length) return null;
+    const fuente = fuenteStatsbomb(filaElegida?.["Data sources"]);
+    if (!fuente) return null;
+    const actual = catalogoSb.find((competicion) => competicion.name === fuente.liga && String(competicion.season) === fuente.temporada);
+    const previa = actual ? temporadaAnterior(catalogoSb, actual) : undefined;
+    if (!previa) return null;
+    return { competicion: previa, cargada: sourceDatasets.some((dataset) => dataset.fileName === `StatsBomb · ${previa.name} ${previa.season}`) };
+  }, [temporadasDeLaFila.length, catalogoSb, filaElegida, sourceDatasets]);
+
+  /** Añade una temporada de StatsBomb a la base sin perder al jugador que se está mirando. */
+  async function sumarTemporada(competicion: ApiCompetition) {
+    const nombre = String(filaElegida?.Player ?? "");
+    const nacimiento = String(filaElegida?.["Birth date"] ?? "");
+    setReportLoading(true);
+    setReportError("");
+    try {
+      const nueva = await fetchStatsbombDataset(competicion);
+      applyDatasets([...sourceDatasets, nueva], (filas) => {
+        const indice = filas.findIndex((fila) => String(fila.Player ?? "") === nombre
+          && (!nacimiento || !fila["Birth date"] || String(fila["Birth date"]) === nacimiento));
+        return indice >= 0 ? indice : selectedPlayer;
+      });
+    } catch (error) {
+      setReportError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setReportLoading(false);
+    }
+  }
   // Bloques de métricas del desglose: solo las categorías con datos. El número
   // de columnas se ajusta al total para no dejar una categoría suelta al final
   // (5 bloques → 3 arriba y 2 centradas abajo, 6 → 3 y 3).
@@ -902,6 +983,7 @@ export default function ScoutStudio() {
   useEffect(() => {
     try { setAiControlsHidden(window.localStorage.getItem("fos-scout-ai-controls-v2") !== "shown"); } catch { /* preferencia opcional */ }
     try { setPdfConEncaje(window.localStorage.getItem("fos-pdf-encaje-v1") === "si"); } catch { /* preferencia opcional */ }
+    try { setConTemporadaAnterior(window.localStorage.getItem("fos-temporada-anterior-v1") !== "no"); } catch { /* preferencia opcional */ }
     try {
       const stored = window.localStorage.getItem("fos-scout-metric-picks-v1");
       if (stored) setMetricPicks(JSON.parse(stored) as Record<string, string[]>);
@@ -937,15 +1019,6 @@ export default function ScoutStudio() {
    * de su clausura, que todavía tiene la base anterior, y acaba tomando el
    * club y el perfil del jugador equivocado.
    */
-  /**
-   * Competiciones apagadas: siguen descargadas pero fuera del cruce.
-   *
-   * Es distinto de quitarlas. Apagar la MLS para mirar un rato sin ella y
-   * volver a encenderla no debería costar otra descarga de la API; quitarla
-   * sí la saca del todo. Se guarda por nombre de archivo porque es lo que
-   * identifica a una base dentro de la sesión.
-   */
-  const [ligasApagadas, setLigasApagadas] = useState<string[]>([]);
 
   /**
    * Los años que se pueden pedir enteros.
@@ -963,6 +1036,7 @@ export default function ScoutStudio() {
     let vivo = true;
     void fetchStatsbombCompetitions().then((comps) => {
       if (!vivo) return;
+      setCatalogoSb(comps);
       const anios = [...new Set(comps
         .filter((c) => c.hasMatches !== false)
         .map((c) => String(c.season ?? "").match(/\d{4}/)?.[0])
@@ -1012,14 +1086,21 @@ export default function ScoutStudio() {
     applyDatasets(quedan);
   }
 
-  function applyDatasets(datasets: SourceDataset[], seleccion?: number) {
+  /**
+   * @param nombre el nombre de la base nueva, cuando la acción que la monta lo
+   *   sabe. Leerlo del estado no servía: dentro de una carga asíncrona el
+   *   estado es el de antes, y el nombre nuevo se pisaba con el viejo.
+   */
+  function applyDatasets(datasets: SourceDataset[], seleccionPedida?: number | ((filas: DataRow[]) => number), nombre?: string) {
     const result = aggregateDatasets(datasets);
+    // Una búsqueda, para seguir en el mismo jugador cuando el cruce cambia los índices.
+    const seleccion = typeof seleccionPedida === "function" ? seleccionPedida(result.rows) : seleccionPedida;
     // Toda base sin datos físicos dispara la oferta de enlace con SkillCorner;
     // corre en segundo plano y no bloquea la carga del reporte.
     if (datasets.every((dataset) => dataset.provider !== "skillcorner")) void offerSkillcornerLink(datasets);
     else setScLink(null);
     const sourceTitle = datasets.map((dataset) => dataset.fileName.replace(/\.(xlsx|xls|csv)$/i, "")).join(" + ");
-    const displayName = datasets.length > 1 ? combinedBaseName.trim() || "Combinación temporal" : sourceTitle;
+    const displayName = datasets.length > 1 ? (nombre ?? combinedBaseName).trim() || "Combinación temporal" : sourceTitle;
     setSourceDatasets(datasets);
     setReportRows(result.rows);
     setReportFileName(displayName);
@@ -1076,51 +1157,77 @@ export default function ScoutStudio() {
       // viene y aún no se ha jugado. Y de las de este año, solo las que ya
       // tienen partidos publicados: la NCAA arranca en agosto y su curso 2026
       // entraba con cero jugadores sin decirlo, que es peor que no entrar.
-      const anio = anioPedido ?? String(new Date().getFullYear());
-      const { elegidas: objetivo, rezagadas } = temporadasUtiles(sb);
-      if (!objetivo.length) throw new Error(t("No hay competiciones para la temporada en curso."));
+      /*
+       * Qué temporadas. Con un año pedido, las de ese año: antes se pedía el
+       * año pero se cargaba igual la temporada en curso, y al sumarla a la
+       * base la misma temporada entraba dos veces y los minutos se doblaban.
+       * Sin año, la temporada en curso y, salvo que se haya apagado, la
+       * anterior: la ficha mide al jugador con las dos.
+       */
+      const { elegidas: enCurso, rezagadas } = conTemporadaAnterior ? dosTemporadas(sb) : temporadasUtiles(sb);
+      const yaCargadas = new Set(sumar ? sourceDatasets.map((dataset) => dataset.fileName) : []);
+      const objetivo = (anioPedido ? temporadasDelAnio(sb, anioPedido) : enCurso)
+        .filter((competicion) => !yaCargadas.has(`StatsBomb · ${competicion.name} ${competicion.season}`));
+      if (!objetivo.length) throw new Error(anioPedido
+        ? tf("No hay competiciones nuevas de {anio} para cargar.", { anio: anioPedido })
+        : t("No hay competiciones para la temporada en curso."));
 
       const sinTildes = (valor: string) => valor.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
-      const datasets: SourceDataset[] = [];
       const fallidas: string[] = [];
       // Las que tienen temporada en SkillCorner pero no dieron jugadores (aún
       // no la publica, o falló la descarga). Antes se saltaban en silencio y
       // la liga quedaba sin físicos sin que nada lo dijera.
       const sinFisicos: string[] = [];
-      for (let i = 0; i < objetivo.length; i += 1) {
+      /*
+       * De cuatro en cuatro. Con la temporada anterior las descargas se
+       * doblan, y una detrás de otra la primera carga tardaba el doble. El
+       * puente atiende en paralelo; el orden de las bases se conserva por
+       * competición, así que el cruce no depende de cuál termina antes.
+       */
+      const porCompeticion: SourceDataset[][] = objetivo.map(() => []);
+      let listas = 0;
+      let siguiente = 0;
+      const cargarUna = async (i: number) => {
         const competicion = objetivo[i];
-        setCargaTotal(tf("{n} de {total} · {liga}", { n: i + 1, total: objetivo.length, liga: competicion.name }));
         try {
-          datasets.push(await fetchStatsbombDataset(competicion));
+          porCompeticion[i].push(await fetchStatsbombDataset(competicion));
         } catch {
-          fallidas.push(competicion.name);
-          continue;
+          fallidas.push(`${competicion.name} ${competicion.season}`);
+          return;
         }
         const hermana = sc.find((edicion) => (
           sinTildes(edicion.name ?? "") === sinTildes(competicion.name ?? "")
           && String(edicion.season ?? "") === String(competicion.season ?? "")
         ));
-        if (!hermana) continue;
-        setCargaTotal(tf("{n} de {total} · {liga} · físicos de SkillCorner", { n: i + 1, total: objetivo.length, liga: competicion.name }));
+        if (!hermana) return;
         try {
-          datasets.push(await fetchSkillcornerDataset(hermana));
+          porCompeticion[i].push(await fetchSkillcornerDataset(hermana));
         } catch {
           // Sin la capa física la liga sigue sirviendo: no se aborta por esto,
           // pero se avisa.
           sinFisicos.push(`${competicion.name} ${competicion.season}`);
         }
-      }
+      };
+      const trabajador = async () => {
+        while (siguiente < objetivo.length) {
+          const i = siguiente;
+          siguiente += 1;
+          await cargarUna(i);
+          listas += 1;
+          setCargaTotal(tf("{n} de {total} · {liga}", { n: listas, total: objetivo.length, liga: `${objetivo[i].name} ${objetivo[i].season}` }));
+        }
+      };
+      setCargaTotal(tf("{n} de {total} · {liga}", { n: 0, total: objetivo.length, liga: objetivo[0].name }));
+      await Promise.all(Array.from({ length: Math.min(4, objetivo.length) }, trabajador));
+      const datasets = porCompeticion.flat();
       if (!datasets.length) throw new Error(t("Ninguna competición devolvió jugadores."));
       setCargaTotal(t("Cruzando las bases…"));
       const finales = sumar ? [...sourceDatasets, ...datasets] : datasets;
-      setCombinedBaseName(sumar
-        ? tf("Todas las ligas · {anio}", { anio: [...new Set(finales.map((d) => d.season))].sort().join(" + ") })
-        : tf("Todas las ligas · {anio}", { anio }));
-      applyDatasets(finales);
+      applyDatasets(finales, undefined, tf("Todas las ligas · {anio}", { anio: [...new Set(finales.map((d) => d.season).filter(Boolean))].sort().join(" + ") }));
       const avisos = [
         fallidas.length ? tf("No se pudieron cargar: {ligas}.", { ligas: fallidas.join(", ") }) : "",
         sinFisicos.length ? tf("Sin datos físicos de SkillCorner (aún no los publica o falló la descarga; vuelve a cargar más tarde): {ligas}.", { ligas: sinFisicos.join(", ") }) : "",
-        rezagadas.length
+        rezagadas.length && !anioPedido
           ? tf("Entran con su temporada anterior, porque la de este año aún no tiene partidos publicados: {ligas}.", {
             ligas: rezagadas.map((competicion) => `${competicion.name} ${competicion.season}`).join(", "),
           })
@@ -1163,10 +1270,28 @@ export default function ScoutStudio() {
     setApiError("");
     try {
       const competition = apiCompetitions[platform][Number(selection)];
+      const presentes = new Set((mode === "append" ? sourceDatasets : []).map((base) => base.fileName));
+      // Con StatsBomb entra también la temporada anterior de esa liga, si la
+      // hay y no está ya en la base. Se pide a la vez que la elegida, que no
+      // depende de ella; si falla, se sigue con la elegida.
+      const anterior = platform === "statsbomb" && conTemporadaAnterior
+        ? temporadaAnterior(apiCompetitions.statsbomb, competition)
+        : undefined;
+      const previaPendiente = anterior && !presentes.has(`StatsBomb · ${anterior.name} ${anterior.season}`)
+        ? fetchStatsbombDataset(anterior).catch(() => null)
+        : Promise.resolve(null);
       const dataset = platform === "statsbomb"
         ? await fetchStatsbombDataset(competition)
         : await fetchSkillcornerDataset(competition);
-      applyDatasets(mode === "append" ? [...sourceDatasets, dataset] : [dataset]);
+      const previa = await previaPendiente;
+      const nuevos = previa ? [dataset, previa] : [dataset];
+      applyDatasets(mode === "append"
+        ? [...sourceDatasets, ...nuevos.filter((base) => !presentes.has(base.fileName))]
+        : nuevos,
+      undefined,
+      // Una base nueva con sus dos temporadas se llama por su liga, no con
+      // el nombre de la combinación que hubiera antes.
+      mode === "replace" && previa ? `${competition.name} · ${anterior?.season} + ${competition.season}` : undefined);
       setApiDialogOpen(false);
     } catch (error) {
       setApiError(error instanceof Error ? error.message : String(error));
@@ -1493,6 +1618,17 @@ export default function ScoutStudio() {
    * comparten el mismo estado (report, profile, readingOverride…), así que
    * editar la lectura rápida en una vale también en la otra.
    */
+  /*
+   * Las temporadas del jugador, de la más reciente a la más antigua. Con dos o
+   * más, la franja enseña cada una por separado y el radar —que sale de la
+   * fila fusionada— las cuenta a todas, ponderadas por minutos. Con «solo la
+   * temporada actual» elegida en el panel, solo queda la actual.
+   */
+  const temporadasDelJugador = report ? temporadasDeFila(filasDelInforme[indiceDelInforme]) : [];
+  const variasTemporadas = temporadasDelJugador.length > 1;
+  const temporadaActual = variasTemporadas ? temporadasDelJugador[0] : null;
+  const baseConVariasTemporadas = new Set(sourceDatasets.map((dataset) => dataset.season || dataset.fileName)).size > 1;
+  const cifra = (valor: number) => (Number.isFinite(valor) ? numberFormat(valor) : "—");
   const reportArticleNode = report ? (
     <article className="scout-report jordhy-report" style={reportThemeStyle(reportTheme)}>
       <header className="dossier-header">
@@ -1526,13 +1662,33 @@ export default function ScoutStudio() {
       </header>
 
       <section className="dossier-season-strip">
-        <div className="season-source"><span><InlineText editKey={`label-${report.player}`} value={tDefault(analysisLabel)} fallback={reportSourceCount > 1 ? t("BASES ANALIZADAS") : t("BASE ANALIZADA")} onCommit={setAnalysisLabel} /></span><b><InlineText editKey={`source-${report.player}`} value={tDefault(analysisSourceTitle)} fallback={base.descripcion || tDefault(reportFileName)} onCommit={updateAnalysisSourceName} /></b><small>{tf("Cohorte {c} · mín. {m}′", { c: cohortLabel(report.cohort), m: minimumMinutes })}</small></div>
-        <div className="dossier-stat"><strong>{numberFormat(report.matches)}</strong><span>{t("Partidos")}</span></div>
-        <div className="dossier-stat"><strong>{numberFormat(report.minutes)}</strong><span>{t("Minutos")}</span></div>
-        <div className="dossier-stat goals"><strong>{numberFormat(report.goals)}</strong><span>{t("Goles")}</span></div>
-        <div className="dossier-stat assists"><strong>{numberFormat(report.assists)}</strong><span>{t("Asist.")}</span></div>
+        <div className="season-source"><span><InlineText editKey={`label-${report.player}`} value={tDefault(analysisLabel)} fallback={reportSourceCount > 1 ? t("BASES ANALIZADAS") : t("BASE ANALIZADA")} onCommit={setAnalysisLabel} /></span><b><InlineText editKey={`source-${report.player}`} value={tDefault(analysisSourceTitle)} fallback={base.descripcion || tDefault(reportFileName)} onCommit={updateAnalysisSourceName} /></b><small>{temporadasDelJugador.length && (variasTemporadas || baseConVariasTemporadas)
+          ? tf("Temporada {s} · cohorte {c} · mín. {m}′", { s: temporadasDelJugador[0].etiqueta, c: cohortLabel(report.cohort), m: minimumMinutes })
+          : tf("Cohorte {c} · mín. {m}′", { c: cohortLabel(report.cohort), m: minimumMinutes })}</small></div>
+        {/* Con varias temporadas, esta fila es la más reciente y las anteriores
+            van debajo; el índice es el de todas juntas. */}
+        <div className="dossier-stat"><strong>{numberFormat(temporadaActual?.partidos ?? report.matches)}</strong><span>{t("Partidos")}</span></div>
+        <div className="dossier-stat"><strong>{numberFormat(temporadaActual?.minutos ?? report.minutes)}</strong><span>{t("Minutos")}</span></div>
+        <div className="dossier-stat goals"><strong>{cifra(temporadaActual?.goles ?? report.goals)}</strong><span>{t("Goles")}</span></div>
+        <div className="dossier-stat assists"><strong>{cifra(temporadaActual?.asistencias ?? report.assists)}</strong><span>{t("Asist.")}</span></div>
         <div className="score-ring" style={{ "--score": `${report.score * 3.6}deg` } as React.CSSProperties}><b>{report.score}</b><span>{t("Índice")}</span></div>
       </section>
+      {temporadasDelJugador.slice(1, 3).map((temporada, posicion, anteriores) => (
+        <section className="dossier-season-strip dossier-season-previa" key={temporada.etiqueta}>
+          <div className="season-source">
+            <span>{posicion === 0 ? t("TEMPORADA ANTERIOR") : tf("TEMPORADA {s}", { s: temporada.etiqueta })}</span>
+            <b>{[temporada.etiqueta, temporada.ligas.join(" + ")].filter(Boolean).join(" · ")}</b>
+            <small>{temporada.equipo}</small>
+          </div>
+          <div className="dossier-stat"><strong>{numberFormat(temporada.partidos)}</strong><span>{t("Partidos")}</span></div>
+          <div className="dossier-stat"><strong>{numberFormat(temporada.minutos)}</strong><span>{t("Minutos")}</span></div>
+          <div className="dossier-stat goals"><strong>{cifra(temporada.goles)}</strong><span>{t("Goles")}</span></div>
+          <div className="dossier-stat assists"><strong>{cifra(temporada.asistencias)}</strong><span>{t("Asist.")}</span></div>
+          {posicion === anteriores.length - 1
+            ? <div className="season-radar-note"><span>{t("Radar")}</span><b>{tf("{n} temporadas", { n: temporadasDelJugador.length })}</b><small>{`${numberFormat(report.minutes)}′`}</small></div>
+            : <span />}
+        </section>
+      ))}
 
       <section className="dossier-radar-row">
         <div className="dossier-radar">{report.metrics.length ? <PizzaRadar metrics={report.metrics} score={report.score} cohort={report.cohort} lang={lang} colorMode={radarColorMode} /> : <div className="empty-radar"><BarChart3 size={34} /><b>{t("No encontramos métricas para esta cohorte")}</b></div>}</div>
@@ -1555,6 +1711,11 @@ export default function ScoutStudio() {
       </section>
       <footer className="dossier-footer">
         <p>{tf("Percentiles por posición · mínimo {m}′ · {n} jugadores en la cohorte · datos por 90 minutos.", { m: minimumMinutes, n: report.cohortSize })}
+          {variasTemporadas && ` ${tf("Radar e índice con {n} temporadas juntas ({s}), ponderadas por minutos: {m}′ en total.", {
+            n: temporadasDelJugador.length,
+            s: temporadasDelJugador.map((temporada) => temporada.etiqueta).join(" + "),
+            m: numberFormat(report.minutes),
+          })}`}
           {report.metrics.some((metric) => metric.source === "skillcorner") && ` ${t("Los volúmenes de SkillCorner (SC) van por 30 minutos con balón del equipo.")}`}</p>
         <div className="report-signatures">
           <div className="report-author"><span>{t("ELABORADO POR")}</span><b>{firma.nombre || FIRMAS_POR_DEFECTO[claveFirma].nombre}</b><small>{firma.cargo}</small></div>
@@ -1790,7 +1951,9 @@ export default function ScoutStudio() {
                       <span className="portada-opcion-icono"><Sparkles size={18} /></span>
                       <span className="portada-opcion-texto">
                         <b>{t("Trabajar con todas las ligas")} <em>{t("Recomendado")}</em></b>
-                        <small>{t("Todas las competiciones de la temporada en curso, con los datos físicos de SkillCorner encima donde existan.")}</small>
+                        <small>{conTemporadaAnterior
+                          ? t("Todas las competiciones de la temporada en curso y de la anterior, con los datos físicos de SkillCorner encima donde existan.")
+                          : t("Todas las competiciones de la temporada en curso, con los datos físicos de SkillCorner encima donde existan.")}</small>
                       </span>
                       {reportLoading ? <span className="portada-opcion-estado">{t("Cargando…")}</span> : <ChevronRight size={16} className="portada-opcion-galon" />}
                     </button>
@@ -1977,6 +2140,28 @@ export default function ScoutStudio() {
                   <div className="panel-seccion">
                     <span className="panel-seccion-titulo">{t("Cómo se mide")}</span>
                     <label className="field-group"><FieldLabel>{t("Cohorte")}</FieldLabel><span className="select-wrap simple"><select value={cohort} onChange={(event) => setCohort(event.target.value)}><option value="AUTO">{t("Automática")}</option><option value="GK">{t("Porteros")}</option><option value="CB">{t("Centrales")}</option><option value="FB">{t("Laterales")}</option><option value="DMF">{t("Pivotes / mediocentros")}</option><option value="B2B">{t("Interiores (box-to-box)")}</option><option value="WING">{t("Extremos")}</option><option value="DWING">{t("Extremos directos")}</option><option value="AM">{t("Mediapuntas")}</option><option value="CF">{t("Delanteros")}</option></select><ChevronDown size={16} /></span></label>
+                  {report && <div className="field-group temporada-previa">
+                    <FieldLabel>{t("Temporada anterior")}</FieldLabel>
+                    {temporadasDeLaFila.length > 1 ? <>
+                      <span className="select-wrap simple"><select value={soloTemporadaActual ? "sin" : "con"} onChange={(event) => setSoloTemporadaActual(event.target.value === "sin")}>
+                        <option value="con">{tf("{s} · {liga} · {equipo} · {m}′ (recomendada)", {
+                          s: temporadasDeLaFila[1].etiqueta, liga: temporadasDeLaFila[1].ligas.join(" + "), equipo: temporadasDeLaFila[1].equipo, m: numberFormat(temporadasDeLaFila[1].minutos),
+                        })}</option>
+                        <option value="sin">{tf("Ninguna: solo la temporada {s}", { s: temporadasDeLaFila[0].etiqueta })}</option>
+                      </select><ChevronDown size={16} /></span>
+                      <small className="temporada-previa-nota">{soloTemporadaActual
+                        ? t("El radar, el índice y la cohorte usan solo la temporada actual.")
+                        : tf("El radar y el índice suman las {n} temporadas: {m}′ en total.", { n: temporadasDeLaFila.length, m: numberFormat(Number(filaElegida?.["Minutes played"] ?? filaElegida?.["Minutos jugados"] ?? 0) || temporadasDeLaFila.reduce((suma, temporada) => suma + temporada.minutos, 0)) })}</small>
+                    </> : temporadaRecomendada && !temporadaRecomendada.cargada ? <>
+                      <small className="temporada-previa-nota">{tf("No hay temporada anterior en la base. Recomendada: {liga} {s}.", { liga: temporadaRecomendada.competicion.name, s: temporadaRecomendada.competicion.season })}</small>
+                      <button type="button" className="button secondary compact" disabled={reportLoading} onClick={() => void sumarTemporada(temporadaRecomendada.competicion)}>
+                        <Plus size={13} />{tf("Añadir {liga} {s}", { liga: temporadaRecomendada.competicion.name, s: temporadaRecomendada.competicion.season })}
+                      </button>
+                    </> : temporadaRecomendada?.cargada ? <small className="temporada-previa-nota">{tf("No aparece en {liga} {s}: si jugó en otra liga, añádela desde Base activa.", { liga: temporadaRecomendada.competicion.name, s: temporadaRecomendada.competicion.season })}</small>
+                    : <small className="temporada-previa-nota">{(filaElegida && String(filaElegida["Data sources"] ?? "").includes("StatsBomb ·"))
+                      ? t("No hay temporada anterior de este jugador en la base. Puedes añadirla desde Base activa.")
+                      : t("No hay temporada anterior en la base. Con Wyscout, sube también el Excel del año anterior, con el año en el nombre.")}</small>}
+                  </div>}
                   {report && availableMetrics.length > 0 && <details className="profile-details metric-picker">
                     <summary>{t("Añadir o quitar métricas")} <b>{report.metrics.length}</b></summary>
                     <p className="metric-picker-hint">{t("Marca las que quieres ver. El percentil siempre se calcula contra los jugadores de su posición en la base cargada.")}</p>
@@ -2128,6 +2313,8 @@ export default function ScoutStudio() {
                   aniosDisponibles={aniosParaCargar}
                   onSubirArchivo={() => reportInputRef.current?.click()}
                   onConectarApi={() => void openApiDialog()}
+                  conTemporadaAnterior={conTemporadaAnterior}
+                  onTemporadaAnterior={cambiarTemporadaAnterior}
                 /></div>
               )}
               {/* Ranking, Entre ligas, Estilo de juego, Flujo de posesión y Ficha ampliada —con el

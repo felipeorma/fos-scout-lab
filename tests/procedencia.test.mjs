@@ -5,9 +5,9 @@ import { ligaYAnioDe, ligasDeBases, origenPorFila } from "../lib/procedencia.ts"
 const base = (fileName) => ({ fileName, season: 2026, headers: [], rows: [] });
 
 test("separa proveedor, liga y año de arranque", () => {
-  assert.deepEqual(ligaYAnioDe("StatsBomb · Canadian Premier League 2026"), { liga: "Canadian Premier League", anio: 2026 });
-  assert.deepEqual(ligaYAnioDe("SkillCorner · Eerste Divisie 2025/2026"), { liga: "Eerste Divisie", anio: 2025 });
-  assert.deepEqual(ligaYAnioDe("StatsBomb · NCAA D1 Big Ten 2025"), { liga: "NCAA D1 Big Ten", anio: 2025 });
+  assert.deepEqual(ligaYAnioDe("StatsBomb · Canadian Premier League 2026"), { liga: "Canadian Premier League", anio: 2026, temporada: "2026" });
+  assert.deepEqual(ligaYAnioDe("SkillCorner · Eerste Divisie 2025/2026"), { liga: "Eerste Divisie", anio: 2025, temporada: "2025/2026" });
+  assert.deepEqual(ligaYAnioDe("StatsBomb · NCAA D1 Big Ten 2025"), { liga: "NCAA D1 Big Ten", anio: 2025, temporada: "2025" });
 });
 
 test("un Excel de Wyscout conserva su nombre", () => {

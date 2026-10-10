@@ -39,6 +39,8 @@ export function ligaYAnioDe(nombreArchivo: string) {
   return {
     liga: (temporada ? sinProveedor.slice(0, temporada.index).trim() : sinProveedor) || nombreArchivo,
     anio: temporada ? Number(temporada[1]) : 0,
+    /** La temporada tal como la escribe el archivo: "2026" o "2025/2026"; vacía si no la dice. */
+    temporada: temporada ? temporada[0].replace(/\s+/g, "") : "",
   };
 }
 
