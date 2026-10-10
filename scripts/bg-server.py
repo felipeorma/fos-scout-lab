@@ -68,6 +68,27 @@ async def preflight(path: str):
     return PlainTextResponse("", headers=cors_headers())
 
 
+# Los errores también salen con CORS. Sin las cabeceras, el navegador
+# esconde la respuesta y la app solo ve "no respondió": una ruta que no
+# existe (un puente sin actualizar) o un fallo interno se confundían con
+# el puente apagado.
+from starlette.exceptions import HTTPException as _HTTPException  # noqa: E402
+
+
+@app.exception_handler(_HTTPException)
+async def _error_http(request: Request, exc: _HTTPException):
+    import json as _json
+    return Response(_json.dumps({"error": str(exc.detail), "ruta": request.url.path}), status_code=exc.status_code,
+                    media_type="application/json", headers=cors_headers())
+
+
+@app.exception_handler(Exception)
+async def _error_interno(request: Request, exc: Exception):
+    import json as _json
+    return Response(_json.dumps({"error": f"{type(exc).__name__}: {exc}", "ruta": request.url.path}), status_code=500,
+                    media_type="application/json", headers=cors_headers())
+
+
 @app.get("/api/health")
 def health():
     return Response('{"ok": true}', media_type="application/json", headers=cors_headers())
@@ -1378,8 +1399,70 @@ def _flujo_de_liga(jugados, por_partido):
     return sorted(equipos, key=lambda e: _sin_tildes(e["nombre"]))
 
 
+import threading as _threading_flujo  # noqa: E402
+import time as _time_flujo  # noqa: E402
+
+# Lo que se está calculando, por liga y temporada. La primera vez una liga
+# tarda minutos —en la MLS, unos quinientos partidos de eventos—, más de lo
+# que conviene tener una petición abierta: el navegador puede cortarla y el
+# usuario no ve nada. Se calcula en un hilo y la página pregunta cada pocos
+# segundos cuánto falta. Si cierra la pestaña, el cálculo sigue y queda en el
+# disco para la próxima vez.
+_FLUJO_TRABAJOS: dict = {}
+_FLUJO_CANDADO = _threading_flujo.Lock()
+# Un resultado con partidos que no bajaron no se guarda en el disco; se
+# queda aquí un rato para que lo reciba quien lo esperaba.
+_FLUJO_RESULTADO_VIGENCIA = 600
+
+
+def _flujo_calcular(trabajo, competition_id: int, season_id: int, auth):
+    import json as _json
+    from concurrent.futures import ThreadPoolExecutor
+    try:
+        try:
+            partidos = _cached_get(f"sb:matches6:{competition_id}:{season_id}",
+                                   f"https://data.statsbomb.com/api/v6/competitions/{competition_id}/seasons/{season_id}/matches", auth, ttl_seconds=1800)
+        except Exception as error:
+            raise RuntimeError(f"StatsBomb no devolvió los partidos de esta temporada ({error}).") from error
+        jugados = [p for p in partidos if p.get("home_score") is not None]
+        trabajo["total"] = len(jugados)
+
+        def uno(partido):
+            tramos = _sb_flujo_partido(partido["match_id"], auth)
+            with _FLUJO_CANDADO:
+                trabajo["hechos"] += 1
+            return tramos
+
+        with ThreadPoolExecutor(max_workers=6) as pool:
+            por_partido = list(pool.map(uno, jugados))
+
+        liga, temporada = "", ""
+        try:
+            catalogo = _cached_get("sb:comps", "https://data.statsbomb.com/api/v4/competitions", auth, ttl_seconds=3600)
+            comp = next((c for c in catalogo if c.get("competition_id") == competition_id and c.get("season_id") == season_id), {})
+            liga, temporada = str(comp.get("competition_name") or ""), str(comp.get("season_name") or "")
+        except Exception:
+            pass
+        fallidos = sum(1 for lista in por_partido if lista is None)
+        resultado = {
+            "liga": liga, "temporada": temporada,
+            "partidos": len(jugados) - fallidos, "fallidos": fallidos,
+            "celda": _FLUJO_CELDA, "cols": _FLUJO_COLS, "filas": _FLUJO_FILAS, "direcciones": _FLUJO_DIRECCIONES,
+            "equipos": _flujo_de_liga(jugados, por_partido),
+        }
+        # Con partidos que no bajaron no se guarda: mañana saldría igual de cojo.
+        if resultado["equipos"] and not fallidos:
+            _pool_cache_escribir(trabajo["clave"], resultado)
+        trabajo["resultado"] = _json.dumps(resultado, ensure_ascii=False)
+    except Exception as error:
+        trabajo["error"] = str(error) if isinstance(error, RuntimeError) else f"No se pudo calcular el flujo ({error})."
+    finally:
+        trabajo["fin"] = _time_flujo.time()
+        trabajo["listo"].set()
+
+
 @app.get("/api/statsbomb/possession-flow")
-def statsbomb_possession_flow(competition_id: int, season_id: int):
+def statsbomb_possession_flow(competition_id: int, season_id: int, avance: int = 0):
     """El flujo de posesión de todos los equipos de una liga y temporada.
 
     Van todos juntos porque la escala es de la liga: qué cuenta como ruta
@@ -1387,9 +1470,13 @@ def statsbomb_possession_flow(competition_id: int, season_id: int):
     significa lo mismo en las dos canchas. La primera vez hay que bajar los
     eventos de cada partido (unos minutos); después salen del disco, y el
     resultado se guarda un día (tres si la temporada está cerrada).
+
+    Con avance=1, si no está guardado responde 202 con el avance —{"hechos",
+    "total"}— y lo calcula aparte; la página vuelve a preguntar hasta recibir
+    el 200. Sin él espera al resultado, como hacía antes: así una página
+    publicada anterior al 202 no recibe algo que no entiende.
     """
     import json as _json
-    from concurrent.futures import ThreadPoolExecutor
     auth = _statsbomb_auth()
     if not auth:
         return Response('{"error": "sin credenciales"}', status_code=503, media_type="application/json", headers=cors_headers())
@@ -1398,30 +1485,30 @@ def statsbomb_possession_flow(competition_id: int, season_id: int):
     if guardado is not None:
         return Response(_json.dumps(guardado, ensure_ascii=False), media_type="application/json", headers=cors_headers())
 
-    partidos = _cached_get(f"sb:matches6:{competition_id}:{season_id}",
-                           f"https://data.statsbomb.com/api/v6/competitions/{competition_id}/seasons/{season_id}/matches", auth, ttl_seconds=1800)
-    jugados = [p for p in partidos if p.get("home_score") is not None]
-    with ThreadPoolExecutor(max_workers=6) as pool:
-        por_partido = list(pool.map(lambda p: _sb_flujo_partido(p["match_id"], auth), jugados))
+    with _FLUJO_CANDADO:
+        trabajo = _FLUJO_TRABAJOS.get(clave_disco)
+        if trabajo and trabajo.get("fin") and _time_flujo.time() - trabajo["fin"] > _FLUJO_RESULTADO_VIGENCIA:
+            trabajo = None
+        if trabajo is None:
+            trabajo = {"clave": clave_disco, "hechos": 0, "total": None, "inicio": _time_flujo.time(), "listo": _threading_flujo.Event()}
+            _FLUJO_TRABAJOS[clave_disco] = trabajo
+            _threading_flujo.Thread(target=_flujo_calcular, args=(trabajo, competition_id, season_id, auth),
+                             name=f"flujo-{competition_id}-{season_id}", daemon=True).start()
+        hechos, total = trabajo["hechos"], trabajo["total"]
 
-    liga, temporada = "", ""
-    try:
-        catalogo = _cached_get("sb:comps", "https://data.statsbomb.com/api/v4/competitions", auth, ttl_seconds=3600)
-        comp = next((c for c in catalogo if c.get("competition_id") == competition_id and c.get("season_id") == season_id), {})
-        liga, temporada = str(comp.get("competition_name") or ""), str(comp.get("season_name") or "")
-    except Exception:
-        pass
-    fallidos = sum(1 for lista in por_partido if lista is None)
-    resultado = {
-        "liga": liga, "temporada": temporada,
-        "partidos": len(jugados) - fallidos, "fallidos": fallidos,
-        "celda": _FLUJO_CELDA, "cols": _FLUJO_COLS, "filas": _FLUJO_FILAS, "direcciones": _FLUJO_DIRECCIONES,
-        "equipos": _flujo_de_liga(jugados, por_partido),
-    }
-    # Con partidos que no bajaron no se guarda: mañana saldría igual de cojo.
-    if resultado["equipos"] and not fallidos:
-        _pool_cache_escribir(clave_disco, resultado)
-    return Response(_json.dumps(resultado, ensure_ascii=False), media_type="application/json", headers=cors_headers())
+    if not avance:
+        trabajo["listo"].wait()
+    if trabajo.get("resultado"):
+        return Response(trabajo["resultado"], media_type="application/json", headers=cors_headers())
+    if trabajo.get("error"):
+        # Se entrega una vez; el siguiente intento empieza de nuevo.
+        with _FLUJO_CANDADO:
+            if _FLUJO_TRABAJOS.get(clave_disco) is trabajo:
+                del _FLUJO_TRABAJOS[clave_disco]
+        return Response(_json.dumps({"error": trabajo["error"]}, ensure_ascii=False),
+                        status_code=502, media_type="application/json", headers=cors_headers())
+    return Response(_json.dumps({"hechos": hechos, "total": total, "segundos": round(_time_flujo.time() - trabajo["inicio"])}),
+                    status_code=202, media_type="application/json", headers=cors_headers())
 
 
 @app.get("/api/statsbomb/player-stats")
