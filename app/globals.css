@@ -782,6 +782,21 @@ body { color-scheme: dark; background: radial-gradient(circle at 74% 9%, rgba(25
 .dossier-stat.goals strong { color: #e5202f; }.dossier-stat.assists strong { color: #9e07ae; }
 .score-ring { --score: 0deg; width: 62px; height: 62px; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 50%; background: radial-gradient(circle closest-side,var(--report-surface) 77%,transparent 79% 99%),conic-gradient(var(--report-accent) var(--score),var(--report-line) 0); }
 .score-ring b { color: var(--report-ink); font-family: var(--font-oswald),var(--font-barlow-condensed),sans-serif; font-size: 17px; line-height: 1; }.score-ring span { margin-top: 3px; color: var(--report-muted); font-size: 6.5px; font-weight: 700; text-transform: uppercase; }
+/* La temporada anterior, debajo de la actual y alineada con sus cifras: más
+   baja y sin rótulos, que ya están arriba. A la derecha, bajo el índice, lo
+   que cuenta el radar. */
+.dossier-season-strip.dossier-season-previa { min-height: 0; padding-top: 9px; padding-bottom: 9px; }
+.dossier-season-previa .season-source b { font-size: 12px; }
+.dossier-season-previa .season-source small { margin-top: 2px; }
+.dossier-season-previa .dossier-stat { min-height: 28px; }
+.dossier-season-previa .dossier-stat strong { font-size: 17px; opacity: .78; }
+/* Los rótulos sobran bajo los de arriba; en pantalla estrecha, donde la fila
+   se parte en dos columnas, vuelven. */
+.dossier-season-previa .dossier-stat > span { display: none; }
+.season-radar-note { display: flex; flex-direction: column; align-items: center; gap: 1px; text-align: center; }
+.season-radar-note span { color: var(--report-accent); font-size: 6.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.season-radar-note b { color: var(--report-ink); font-size: 8.5px; font-weight: 700; white-space: nowrap; }
+.season-radar-note small { color: var(--report-muted); font-size: 7.5px; }
 .dossier-radar-row { min-height: 500px; padding: 16px 30px 8px; display: grid; grid-template-columns: minmax(0,1.55fr) minmax(220px,.72fr); align-items: center; gap: 10px; }
 .dossier-radar { min-width: 0; }
 .dossier-radar .pizza-radar { width: min(100%, 495px); margin: 0 auto; }
@@ -1033,6 +1048,8 @@ body { color-scheme: dark; background: radial-gradient(circle at 74% 9%, rgba(25
   .dossier-meta-grid { grid-template-columns: repeat(2,1fr); }
   .dossier-season-strip { padding: 16px 18px; grid-template-columns: repeat(2,1fr); gap: 14px; }
   .season-source { grid-column: 1 / -1; }.score-ring { display: none; }
+  .season-radar-note { display: none; }
+  .dossier-season-previa .dossier-stat > span { display: block; }
   .dossier-stat { padding-left: 8px; }
   .dossier-radar-row { padding: 18px; grid-template-columns: 1fr; }
   .dossier-reading { padding: 0 2px 16px; }
@@ -4862,6 +4879,10 @@ button.menu-fila:active { transform: scale(.985); }
 .app-shell[data-tema] .datos-accion-texto > b { color: var(--ink); font-size: 13.5px; font-weight: 600; }
 .app-shell[data-tema] .datos-accion-texto > small { color: var(--muted); font-size: 11.5px; line-height: 1.45; }
 .app-shell[data-tema] .datos-accion-galon { flex: none; color: var(--muted); opacity: .6; }
+.datos-preferencia { display: flex; align-items: center; gap: 14px; margin-top: 10px; padding: 12px 14px; border-radius: 14px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); }
+.datos-preferencia > span { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.datos-preferencia b { color: var(--ink); font-size: 13px; font-weight: 600; }
+.datos-preferencia small { color: var(--muted); font-size: 11.5px; line-height: 1.45; }
 .app-shell[data-tema] p.datos-cargando { margin: 0 4px; color: var(--muted); font-size: 12px; }
 .app-shell[data-tema] p.datos-vacio { margin: 0 0 22px; padding: 14px 16px; border: 1px dashed var(--line); border-radius: 12px; color: var(--muted); font-size: 12px; }
 
@@ -6423,3 +6444,10 @@ body.print-layout-check .legal-page-shell > :is(.rank-page, .pool-page) :is(.ran
   .flujo-ajustes, .flujo-lectura { display: none !important; }
   .flujo-tabla-marco { overflow: visible; }
 }
+
+/* Temporada anterior, en el panel de la ficha: qué temporada entra en el
+   radar, o qué cargar si no hay ninguna. */
+.temporada-previa { display: flex; flex-direction: column; gap: 6px; }
+.temporada-previa .select-wrap select { text-overflow: ellipsis; }
+.temporada-previa-nota { color: var(--muted); font-size: 11px; line-height: 1.45; }
+.temporada-previa .button.compact { align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; }

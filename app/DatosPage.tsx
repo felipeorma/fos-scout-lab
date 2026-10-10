@@ -22,6 +22,7 @@ export function DatosPage({
   cargando, onCargarTodo, onSubirArchivo, onConectarApi,
   onQuitarCompeticion, apagadas = [], onAlternarCompeticion,
   onCargarAnio, aniosDisponibles = [],
+  conTemporadaAnterior = true, onTemporadaAnterior,
 }: {
   cargando?: boolean;
   onCargarTodo: () => void;
@@ -36,6 +37,9 @@ export function DatosPage({
   /** Traer una temporada entera y sumarla a lo que ya hay. */
   onCargarAnio?: (anio: string) => void;
   aniosDisponibles?: string[];
+  /** Si al cargar entra también la temporada anterior de cada liga. */
+  conTemporadaAnterior?: boolean;
+  onTemporadaAnterior?: (encendida: boolean) => void;
 }) {
   const { rows, competiciones, datasets, nombre } = useBaseActiva();
 
@@ -145,7 +149,9 @@ export function DatosPage({
           <span className="datos-accion-icono"><Sparkles size={17} /></span>
           <span className="datos-accion-texto">
             <b>{t("Cargar todas las ligas")}</b>
-            <small>{t("Todas las competiciones de la temporada en curso, con los datos físicos de SkillCorner encima donde existan. Reemplaza lo que haya.")}</small>
+            <small>{conTemporadaAnterior
+              ? t("Todas las competiciones de la temporada en curso y de la anterior, con los datos físicos de SkillCorner encima donde existan. Reemplaza lo que haya.")
+              : t("Todas las competiciones de la temporada en curso, con los datos físicos de SkillCorner encima donde existan. Reemplaza lo que haya.")}</small>
           </span>
           <ChevronRight size={14} className="datos-accion-galon" />
         </button>
@@ -166,6 +172,16 @@ export function DatosPage({
           <ChevronRight size={14} className="datos-accion-galon" />
         </button>
       </div>
+      {/* La ficha mide al jugador con sus dos últimas temporadas: en abril, con
+          cinco jornadas, la temporada en curso sola dice muy poco. Se puede
+          apagar para trabajar solo con la actual. */}
+      {onTemporadaAnterior && <div className="datos-preferencia">
+        <span>
+          <b>{t("Incluir la temporada anterior")}</b>
+          <small>{t("Al cargar ligas de la API entra también la temporada anterior, y la ficha mide a cada jugador con las dos. Con Wyscout, sube los dos archivos a la vez con el año en el nombre (CPL 2025.xlsx, CPL 2026.xlsx).")}</small>
+        </span>
+        <Interruptor activo={conTemporadaAnterior} onCambio={onTemporadaAnterior} titulo={t("Incluir la temporada anterior")} />
+      </div>}
     </section>
 
     {cargando && <p className="datos-cargando" role="status"><Upload size={13} /> {t("Cargando…")}</p>}

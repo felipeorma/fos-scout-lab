@@ -273,6 +273,30 @@ La hoja se adapta a lo que haya: con Wyscout sola muestra sus métricas, y va
 sumando las de StatsBomb y SkillCorner conforme estén disponibles. Se exporta
 como una página más desde el diálogo de impresión.
 
+## Dos temporadas en la ficha
+
+Por defecto cada jugador se mide con su **temporada actual y la anterior**, si
+existen: en abril, con cinco jornadas jugadas, la temporada en curso sola dice
+muy poco.
+
+- **Carga:** "Cargar todas las ligas" y "Añadir una competición" traen también
+  la temporada anterior de cada liga. Se apaga con el interruptor *Incluir la
+  temporada anterior* de Base activa. Con Wyscout, sube los dos Excel a la vez
+  con el año en el nombre (`CPL 2025.xlsx`, `CPL 2026.xlsx`).
+- **Ficha y radar:** la franja enseña la temporada actual y, debajo, la anterior
+  (partidos, minutos, goles y asistencias de cada una, con su liga y club). El
+  radar y el índice salen de las dos juntas, ponderadas por minutos, y la
+  cohorte también junta las dos temporadas de cada par.
+- **Panel lateral → Temporada anterior:** dice qué temporada entra en el radar y
+  permite medir solo con la actual (jugador y cohorte se recalculan con esa
+  temporada). Si el jugador no tiene temporada anterior en la base, recomienda
+  la de su liga y la añade con un clic.
+- **Fichajes entre ligas:** el mismo nombre con la misma fecha de nacimiento se
+  junta aunque cambie de liga y de club (USL 2025 → CPL 2026). El mismo nombre
+  con distinta fecha en un mismo proveedor son dos personas.
+- Los minutos, partidos y goles toman el máximo entre proveedores dentro de una
+  temporada y se suman entre temporadas.
+
 ## Flujo de posesión
 
 Sección **Explorar → Flujo de posesión** (necesita el puente, `npm run bg:server`).

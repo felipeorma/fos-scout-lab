@@ -71,3 +71,47 @@ test("no mezcla dos competiciones que comparten nombre en países distintos", ()
   const porPais = elegidas.map((c) => `${c.country} ${c.season}`).sort();
   assert.deepEqual(porPais, ["Republic of Ireland " + enCurso, "Scotland " + pasado]);
 });
+
+test("dos temporadas: la que sirve hoy y la anterior con partidos", async () => {
+  const { dosTemporadas } = await import("../lib/temporadas.ts");
+  const anterior = String(anio - 2);
+  const { elegidas } = dosTemporadas([
+    liga("CPL", anterior, true),
+    liga("CPL", pasado, true),
+    liga("CPL", enCurso, true),
+    liga("NCAA", String(anio - 2), true),
+    liga("NCAA", pasado, true),
+    liga("NCAA", enCurso, false),
+    liga("Solo una", enCurso, true),
+  ]);
+  const de = (nombre) => elegidas.filter((c) => c.name === nombre).map((c) => c.season).sort();
+  assert.deepEqual(de("CPL"), [pasado, enCurso]);
+  assert.deepEqual(de("NCAA"), [anterior, pasado], "si la de este año no empezó, las dos últimas con partidos");
+  assert.deepEqual(de("Solo una"), [enCurso], "sin temporada anterior, la que hay");
+});
+
+test("dos temporadas: una liga de año cruzado que ya entra con dos no suma una tercera", async () => {
+  const { dosTemporadas } = await import("../lib/temporadas.ts");
+  const cruzada = (inicio) => liga("Eerste Divisie", `${inicio}/${inicio + 1}`, true);
+  const { elegidas } = dosTemporadas([cruzada(anio - 2), cruzada(anio - 1), cruzada(anio)]);
+  assert.deepEqual(elegidas.map((c) => c.season).sort(), [`${anio - 1}/${anio}`, `${anio}/${anio + 1}`]);
+});
+
+test("cargar un año trae las temporadas que arrancan ese año, no la en curso", async () => {
+  const { temporadasDelAnio } = await import("../lib/temporadas.ts");
+  const elegidas = temporadasDelAnio([
+    liga("CPL", pasado, true),
+    liga("CPL", enCurso, true),
+    liga("Eerste Divisie", `${pasado}/${anio}`, true),
+    liga("Eerste Divisie", `${anio - 2}/${pasado}`, true),
+    liga("NCAA", pasado, false),
+  ], pasado);
+  assert.deepEqual(elegidas.map((c) => `${c.name} ${c.season}`), [`CPL ${pasado}`, `Eerste Divisie ${pasado}/${anio}`]);
+});
+
+test("la temporada anterior de una competición concreta", async () => {
+  const { temporadaAnterior } = await import("../lib/temporadas.ts");
+  const lista = [liga("CPL", String(anio - 2), true), liga("CPL", pasado, false), liga("CPL", enCurso, true), liga("MLS", pasado, true)];
+  assert.equal(temporadaAnterior(lista, lista[2])?.season, String(anio - 2), "salta la que no tiene partidos");
+  assert.equal(temporadaAnterior(lista, lista[0]), undefined);
+});
