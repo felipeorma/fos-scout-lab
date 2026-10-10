@@ -1,6 +1,6 @@
 "use client";
 
-import { useDeferredValue, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useDeferredValue, useEffect, useMemo, useState, useSyncExternalStore, type CSSProperties } from "react";
 import { Desplegable } from "./BarraDeFiltros";
 import { useBaseActiva } from "./BaseActiva";
 import { CanchaFlujo, GROSORES, RAMPA_RAPIDEZ } from "./CanchaFlujo";
@@ -10,7 +10,7 @@ import { MenuDesplegable, type OpcionDeMenu } from "./MenuDesplegable";
 import { PieDeReporte } from "./PieDeReporte";
 import { numberLocale, t, tf } from "@/lib/i18n";
 import { EQUIPO_PROPIO, mismoEquipo } from "@/lib/estiloEquipo";
-import { fetchFlujoDePosesion, fetchStatsbombCompetitions, motivoDeFallo, type ApiCompetition } from "@/lib/remoteData";
+import { fetchFlujoDePosesion, fetchStatsbombCompetitions, motivoDeFallo, type ApiCompetition, type AvanceFlujo } from "@/lib/remoteData";
 import {
   AJUSTES_INICIALES,
   camposDeLiga,
@@ -40,18 +40,54 @@ const ligasGuardadas = new Map<string, LigaFlujo>();
 const ligasEnCamino = new Map<string, Promise<LigaFlujo>>();
 export const claveDe = (competicion: ApiCompetition) => `${competicion.competition_id}:${competicion.season_id}`;
 
+// Cuánto lleva leído el puente de cada liga en camino, para enseñarlo.
+const avances = new Map<string, AvanceFlujo>();
+const oyentes = new Set<() => void>();
+const avisar = () => oyentes.forEach((oyente) => oyente());
+const escuchar = (oyente: () => void) => { oyentes.add(oyente); return () => { oyentes.delete(oyente); }; };
+
 export function pedirLiga(competicion: ApiCompetition) {
   const clave = claveDe(competicion);
   const guardada = ligasGuardadas.get(clave);
   if (guardada) return Promise.resolve(guardada);
   let promesa = ligasEnCamino.get(clave);
   if (!promesa) {
-    promesa = fetchFlujoDePosesion(competicion)
+    promesa = fetchFlujoDePosesion(competicion, (avance) => { avances.set(clave, avance); avisar(); })
       .then((liga) => { if (!liga.fallidos) ligasGuardadas.set(clave, liga); return liga; })
-      .finally(() => ligasEnCamino.delete(clave));
+      .finally(() => { ligasEnCamino.delete(clave); avances.delete(clave); avisar(); });
     ligasEnCamino.set(clave, promesa);
   }
   return promesa;
+}
+
+/** El avance de la liga que se está leyendo, o null si no hay nada que contar. */
+export function useAvanceDeLiga(clave: string) {
+  return useSyncExternalStore(escuchar, () => avances.get(clave) ?? null, () => null);
+}
+
+/** Lo que se dice mientras llega la liga: cuántos partidos van, si el puente ya lo sabe. */
+export function textoDeCarga(competicion: ApiCompetition, avance: AvanceFlujo | null) {
+  if (avance?.total) {
+    return tf("{liga} {temporada}: leyendo los eventos de {hechos} de {total} partidos. Solo la primera vez tarda; después sale guardado.", {
+      liga: competicion.name, temporada: competicion.season, hechos: avance.hechos, total: avance.total,
+    });
+  }
+  return tf("Leyendo los partidos de {liga} {temporada}… la primera vez tarda unos minutos.", { liga: competicion.name, temporada: competicion.season });
+}
+
+/** La línea de estado de la carga, con su barra cuando hay avance. */
+export function EstadoDeCarga({ texto, avance, fallo, alReintentar }: {
+  texto: string;
+  avance: AvanceFlujo | null;
+  fallo: boolean;
+  alReintentar: () => void;
+}) {
+  if (!texto) return null;
+  return <p className="flujo-estado" role="status">
+    {texto}
+    {!fallo && avance?.total ? <progress className="flujo-avance" value={avance.hechos} max={avance.total} aria-hidden="true" /> : null}
+    {fallo && <> <button type="button" className="estilo-reintentar" onClick={alReintentar}>{t("Reintentar")}</button></>}
+  </p>;
 }
 
 const decimal = (valor: number, digitos = 1) => (Number.isFinite(valor)
@@ -175,8 +211,9 @@ export function FlujoPage({ destinatario = "", logoDestinatario = "" }: {
         // Un reintento no pisa la liga que ya se eligió a mano.
         if (elegida) setClaveLiga((actual) => actual || claveDe(elegida));
       })
-      .catch(() => {
-        if (vivo) setErrorCatalogo(t("El servidor local no respondió. Arranca npm run bg:server y reintenta."));
+      .catch(async (fallo) => {
+        const motivo = await motivoDeFallo(fallo);
+        if (vivo) setErrorCatalogo(motivo);
       });
     return () => { vivo = false; };
     // Solo al montar: si siguiera a la base, cambiaría la liga bajo los pies
@@ -209,10 +246,11 @@ export function FlujoPage({ destinatario = "", logoDestinatario = "" }: {
 
   const vigente = resultado?.clave === claveLiga ? resultado : null;
   const liga = vigente?.liga ?? null;
+  const avance = useAvanceDeLiga(claveLiga);
   const fallo = errorCatalogo || vigente?.error || "";
   const estado = fallo
     || (!catalogo.length ? t("Leyendo el catálogo de StatsBomb…") : "")
-    || (competicion && !vigente ? tf("Leyendo los partidos de {liga} {temporada}… la primera vez tarda unos minutos.", { liga: competicion.name, temporada: competicion.season }) : "")
+    || (competicion && !vigente ? textoDeCarga(competicion, avance) : "")
     || (liga && !liga.equipos.length ? t("StatsBomb no devolvió partidos jugados de esta temporada.") : "");
   const reintentar = () => {
     setErrorCatalogo("");
@@ -285,10 +323,7 @@ export function FlujoPage({ destinatario = "", logoDestinatario = "" }: {
         </>}
       </div>
     </div>
-    {estado && <p className="flujo-estado" role="status">
-      {estado}
-      {fallo && <> <button type="button" className="estilo-reintentar" onClick={reintentar}>{t("Reintentar")}</button></>}
-    </p>}
+    <EstadoDeCarga texto={estado} avance={avance} fallo={Boolean(fallo)} alReintentar={reintentar} />
     {liga && liga.fallidos > 0 && <p className="flujo-estado" role="status">
       {tf("{n} partidos no se pudieron leer y quedan fuera; se reintentan la próxima vez.", { n: liga.fallidos })}
     </p>}

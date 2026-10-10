@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Desplegable } from "./BarraDeFiltros";
 import { CanchaFlujo } from "./CanchaFlujo";
 import { Escudo } from "./Escudo";
-import { FichaEquipo, claveDe, pedirLiga } from "./FlujoPage";
+import { EstadoDeCarga, FichaEquipo, claveDe, pedirLiga, textoDeCarga, useAvanceDeLiga } from "./FlujoPage";
 import { ChevronDown } from "./Icons";
 import { MenuDesplegable, type OpcionDeMenu } from "./MenuDesplegable";
 import { PieDeReporte } from "./PieDeReporte";
@@ -88,9 +88,12 @@ export function BlueprintsPage({ destinatario = "", logoDestinatario = "" }: { d
           ?? jugables[0];
         if (elegida) setClaveLiga((actual) => actual || claveDe(elegida));
       })
-      .catch(() => { if (vivo) setErrorCatalogo(t("El servidor local no respondió. Arranca npm run bg:server y reintenta.")); });
+      .catch(async (fallo) => {
+        const motivo = await motivoDeFallo(fallo);
+        if (vivo) setErrorCatalogo(motivo);
+      });
     return () => { vivo = false; };
-  }, []);
+  }, [intento]);
 
   const competicion = catalogo.find((candidata) => claveDe(candidata) === claveLiga) ?? null;
   useEffect(() => {
@@ -110,6 +113,7 @@ export function BlueprintsPage({ destinatario = "", logoDestinatario = "" }: { d
 
   const vigente = resultado?.clave === claveLiga ? resultado : null;
   const liga = vigente?.liga ?? null;
+  const avance = useAvanceDeLiga(claveLiga);
   const campos = useMemo(() => (liga ? camposDeLiga(liga, AJUSTES_INICIALES) : null), [liga]);
   const resumenes = useMemo(() => (liga ? resumenesDeLiga(liga) : []), [liga]);
   const media = useMemo(() => mediaDeLiga(resumenes), [resumenes]);
@@ -130,9 +134,16 @@ export function BlueprintsPage({ destinatario = "", logoDestinatario = "" }: { d
     : tf("¿Cómo mueve el balón cada equipo de la {liga}?", { liga: nombreLiga });
   const subtituloPorDefecto = tf("Temporada {t} · todos los pases y conducciones de cada equipo · StatsBomb", { t: temporada });
 
-  const estado = errorCatalogo || vigente?.error
+  const fallo = errorCatalogo || vigente?.error || "";
+  const estado = fallo
     || (!catalogo.length ? t("Leyendo el catálogo de StatsBomb…") : "")
-    || (competicion && !vigente ? tf("Leyendo los partidos de {liga} {temporada}… la primera vez tarda unos minutos.", { liga: competicion.name, temporada: competicion.season }) : "");
+    || (competicion && !vigente ? textoDeCarga(competicion, avance) : "")
+    || (liga && !liga.equipos.length ? t("StatsBomb no devolvió partidos jugados de esta temporada.") : "");
+  const reintentar = () => {
+    setErrorCatalogo("");
+    setResultado(null);
+    setIntento((n) => n + 1);
+  };
 
   /** Monta el reel con los escudos ya cargados. */
   async function prepararReel() {
@@ -281,10 +292,7 @@ export function BlueprintsPage({ destinatario = "", logoDestinatario = "" }: { d
           opciones={opcionesDeEquipo} elegida={String(destacado ?? "")} onElegir={(valor) => setElegido(Number(valor))} />}
       </div>
     </div>
-    {estado && <p className="flujo-estado" role="status">
-      {estado}
-      {vigente?.error && <> <button type="button" className="estilo-reintentar" onClick={() => { setResultado(null); setIntento((n) => n + 1); }}>{t("Reintentar")}</button></>}
-    </p>}
+    <EstadoDeCarga texto={estado} avance={avance} fallo={Boolean(fallo)} alReintentar={reintentar} />
 
     {liga && campos && grupos.length > 0 && <>
       {/* El mapa conceptual: la liga, sus conferencias y sus equipos. */}

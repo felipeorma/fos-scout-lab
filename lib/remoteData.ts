@@ -184,6 +184,11 @@ export type ApiCompetition = {
 
 
 async function bridgeJson<T>(path: string, timeoutMs = 60_000): Promise<T> {
+  return (await bridgeFetch(path, timeoutMs)).json() as Promise<T>;
+}
+
+/** La respuesta del puente, ya comprobada: un error sale como excepción con su motivo. */
+async function bridgeFetch(path: string, timeoutMs: number): Promise<Response> {
   const response = await fetch(`${LOCAL_BRIDGE}${path}`, { signal: AbortSignal.timeout(timeoutMs) });
   if (!response.ok) {
     const cuerpo = await response.json().catch(() => null) as { error?: string; detail?: string } | null;
@@ -194,11 +199,11 @@ async function bridgeJson<T>(path: string, timeoutMs = 60_000): Promise<T> {
     }
     throw new Error([tf("El servidor local respondió {code}.", { code: response.status }), cuerpo?.error].filter(Boolean).join(" "));
   }
-  return response.json() as Promise<T>;
+  return response;
 }
 
 /** El aviso de un puente que corre pero no tiene lo que la app le pide. */
-export const PUENTE_DESACTUALIZADO = () => t("El servidor local está corriendo pero es una versión anterior. Actualízalo: git pull y npm run bg:reiniciar.");
+export const PUENTE_DESACTUALIZADO = () => t("El servidor local está corriendo pero es una versión anterior. Actualízalo en la carpeta del proyecto: git checkout main && git pull && npm run bg:reiniciar");
 
 /**
  * Por qué falló una petición al puente, en palabras.
@@ -321,16 +326,28 @@ export async function fetchRolesDeSecuencia(liga: string, temporada: string): Pr
   );
 }
 
+/** Cuántos partidos de la liga lleva leídos el puente; `total` es null mientras pide la lista. */
+export type AvanceFlujo = { hechos: number; total: number | null };
+
 /**
  * El flujo de posesión de todos los equipos de una liga y temporada: sus
  * pases y conducciones repartidos por la cancha (lib/flujoPosesion.ts).
- * La primera vez el puente baja los eventos de todos los partidos: minutos.
+ *
+ * La primera vez el puente baja los eventos de todos los partidos —minutos—
+ * y lo hace aparte: responde 202 con el avance y aquí se vuelve a preguntar
+ * hasta que llega la liga. Ninguna petición queda abierta minutos, que es lo
+ * que el navegador corta. Un puente de antes del 202 responde la liga en una
+ * sola petición larga, y por eso el plazo de cada una sigue siendo amplio.
  */
-export function fetchFlujoDePosesion(competicion: ApiCompetition) {
-  return bridgeJson<LigaFlujo>(
-    `/api/statsbomb/possession-flow?competition_id=${competicion.competition_id}&season_id=${competicion.season_id}`,
-    900_000,
-  );
+export async function fetchFlujoDePosesion(competicion: ApiCompetition, alAvanzar?: (avance: AvanceFlujo) => void): Promise<LigaFlujo> {
+  const ruta = `/api/statsbomb/possession-flow?competition_id=${competicion.competition_id}&season_id=${competicion.season_id}`;
+  for (;;) {
+    const respuesta = await bridgeFetch(ruta, 900_000);
+    if (respuesta.status !== 202) return respuesta.json() as Promise<LigaFlujo>;
+    const avance = await respuesta.json().catch(() => null) as Partial<AvanceFlujo> | null;
+    alAvanzar?.({ hechos: Number(avance?.hechos) || 0, total: typeof avance?.total === "number" ? avance.total : null });
+    await new Promise((resolver) => setTimeout(resolver, 2_000));
+  }
 }
 
 export type ExtrasDeEquipo = {

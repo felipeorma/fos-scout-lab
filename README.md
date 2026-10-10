@@ -333,9 +333,15 @@ de opengoalapp.
 - **Datos:** eventos de StatsBomb de todos los partidos de la liga
   (`/api/statsbomb/possession-flow`). Solo los pases y conducciones del equipo
   con el balón, sin saques de esquina ni de centro. La primera vez el puente
-  baja los eventos de cada partido (unos minutos para la CPL); quedan en
+  baja los eventos de cada partido (unos minutos para la CPL, más para la MLS);
+  lo hace en segundo plano y la página enseña cuántos partidos lleva, así que
+  ninguna petición queda abierta minutos. Los eventos quedan en
   `~/.fos-scouting/sb-events-cache` y el resultado de la liga se guarda un día
   (tres si la temporada está cerrada).
+- **Puente al día:** la página publicada usa el puente de tu Mac. Si dice que
+  el servidor local es una versión anterior, actualízalo con
+  `npm run bg:actualizar` (se pone en `main`, baja lo último y reinicia el
+  servicio).
 - **Rejilla:** cada tramo se reparte por una rejilla de 60 × 40 celdas y 16
   direcciones a lo largo de su recorrido, así que un pase largo suma un poco
   en cada celda que cruza y no inunda la de salida.
