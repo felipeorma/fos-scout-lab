@@ -334,13 +334,14 @@ export type AvanceFlujo = { hechos: number; total: number | null };
  * pases y conducciones repartidos por la cancha (lib/flujoPosesion.ts).
  *
  * La primera vez el puente baja los eventos de todos los partidos —minutos—
- * y lo hace aparte: responde 202 con el avance y aquí se vuelve a preguntar
- * hasta que llega la liga. Ninguna petición queda abierta minutos, que es lo
- * que el navegador corta. Un puente de antes del 202 responde la liga en una
- * sola petición larga, y por eso el plazo de cada una sigue siendo amplio.
+ * y, con avance=1, lo hace aparte: responde 202 con el avance y aquí se
+ * vuelve a preguntar hasta que llega la liga. Ninguna petición queda abierta
+ * minutos, que es lo que el navegador corta. Un puente de antes del 202 no
+ * conoce avance=1 y responde la liga en una sola petición larga, y por eso el
+ * plazo de cada una sigue siendo amplio.
  */
 export async function fetchFlujoDePosesion(competicion: ApiCompetition, alAvanzar?: (avance: AvanceFlujo) => void): Promise<LigaFlujo> {
-  const ruta = `/api/statsbomb/possession-flow?competition_id=${competicion.competition_id}&season_id=${competicion.season_id}`;
+  const ruta = `/api/statsbomb/possession-flow?competition_id=${competicion.competition_id}&season_id=${competicion.season_id}&avance=1`;
   for (;;) {
     const respuesta = await bridgeFetch(ruta, 900_000);
     if (respuesta.status !== 202) return respuesta.json() as Promise<LigaFlujo>;

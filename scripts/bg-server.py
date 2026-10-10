@@ -1458,10 +1458,11 @@ def _flujo_calcular(trabajo, competition_id: int, season_id: int, auth):
         trabajo["error"] = str(error) if isinstance(error, RuntimeError) else f"No se pudo calcular el flujo ({error})."
     finally:
         trabajo["fin"] = _time_flujo.time()
+        trabajo["listo"].set()
 
 
 @app.get("/api/statsbomb/possession-flow")
-def statsbomb_possession_flow(competition_id: int, season_id: int):
+def statsbomb_possession_flow(competition_id: int, season_id: int, avance: int = 0):
     """El flujo de posesión de todos los equipos de una liga y temporada.
 
     Van todos juntos porque la escala es de la liga: qué cuenta como ruta
@@ -1470,8 +1471,10 @@ def statsbomb_possession_flow(competition_id: int, season_id: int):
     eventos de cada partido (unos minutos); después salen del disco, y el
     resultado se guarda un día (tres si la temporada está cerrada).
 
-    Si no está guardado responde 202 con el avance —{"hechos", "total"}— y lo
-    calcula aparte; la página vuelve a preguntar hasta recibir el 200.
+    Con avance=1, si no está guardado responde 202 con el avance —{"hechos",
+    "total"}— y lo calcula aparte; la página vuelve a preguntar hasta recibir
+    el 200. Sin él espera al resultado, como hacía antes: así una página
+    publicada anterior al 202 no recibe algo que no entiende.
     """
     import json as _json
     auth = _statsbomb_auth()
@@ -1487,12 +1490,14 @@ def statsbomb_possession_flow(competition_id: int, season_id: int):
         if trabajo and trabajo.get("fin") and _time_flujo.time() - trabajo["fin"] > _FLUJO_RESULTADO_VIGENCIA:
             trabajo = None
         if trabajo is None:
-            trabajo = {"clave": clave_disco, "hechos": 0, "total": None, "inicio": _time_flujo.time()}
+            trabajo = {"clave": clave_disco, "hechos": 0, "total": None, "inicio": _time_flujo.time(), "listo": _threading_flujo.Event()}
             _FLUJO_TRABAJOS[clave_disco] = trabajo
             _threading_flujo.Thread(target=_flujo_calcular, args=(trabajo, competition_id, season_id, auth),
                              name=f"flujo-{competition_id}-{season_id}", daemon=True).start()
         hechos, total = trabajo["hechos"], trabajo["total"]
 
+    if not avance:
+        trabajo["listo"].wait()
     if trabajo.get("resultado"):
         return Response(trabajo["resultado"], media_type="application/json", headers=cors_headers())
     if trabajo.get("error"):
