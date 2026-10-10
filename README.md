@@ -273,6 +273,29 @@ La hoja se adapta a lo que haya: con Wyscout sola muestra sus métricas, y va
 sumando las de StatsBomb y SkillCorner conforme estén disponibles. Se exporta
 como una página más desde el diálogo de impresión.
 
+## Football Blueprints
+
+Sección **Explorar → Football Blueprints** (necesita el puente). Muestra los
+blueprints de [opengoalapp/football-blueprints](https://github.com/opengoalapp/football-blueprints)
+—ideas de análisis escritas como prompts— construidos con nuestros datos. El
+primero es el flujo de posesión.
+
+- **Mapa conceptual de la liga:** la liga, sus conferencias (la MLS en Este y
+  Oeste, 15 y 15; las demás ligas en un solo grupo) y debajo una cancha animada
+  por equipo. Al tocar un equipo pasa a ser el **equipo destacado**, en grande y
+  con sus números frente a la media de la liga.
+- **Reel para LinkedIn:** un video vertical de 24 s (1080 × 1920, 30 fps) con
+  título, el mapa de la liga, el equipo destacado a mitad de video y los
+  créditos. Termina como empieza, así se repite en bucle. Título y subtítulo se
+  editan en la página; también hay portada en PNG y vista previa en vivo.
+- **Formato:** MP4 en H.264 (Chrome y Safari en el Mac), codificado cuadro a
+  cuadro con WebCodecs y `mp4-muxer`, así que sale a 30 fps exactos aunque
+  dibujar treinta canchas lleve más de un treintavo de segundo. Si el navegador
+  no tiene H.264 sale en VP9 dentro del MP4, y sin WebCodecs (Firefox) se graba
+  en tiempo real en WebM.
+- La primera vez que se abre la MLS, el puente baja los eventos de todos sus
+  partidos (unos minutos); después sale de la caché.
+
 ## Dos temporadas en la ficha
 
 Por defecto cada jugador se mide con su **temporada actual y la anterior**, si

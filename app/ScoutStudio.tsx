@@ -11,6 +11,7 @@ import { RankingPage } from "./RankingPage";
 import { PoolPage } from "./PoolPage";
 import { EstiloPage } from "./EstiloPage";
 import { FlujoPage } from "./FlujoPage";
+import { BlueprintsPage } from "./BlueprintsPage";
 import { SnapshotPage } from "./SnapshotPage";
 import { ReportPageDesigner } from "./ReportPageDesigner";
 import { SimilarityStudio } from "./SimilarityStudio";
@@ -66,6 +67,8 @@ const BOARD_PAGE = 91;
 const RUNS_PAGE = 92;
 // Flujo de posesión: las rutas del balón de cada equipo, como un mapa de viento.
 const FLOW_PAGE = 93;
+// Football Blueprints: la liga entera como mapa conceptual y el reel para LinkedIn.
+const BLUEPRINTS_PAGE = 99;
 // Ranking de la base por posición: quién es el mejor de cada puesto.
 const RANK_PAGE = 94;
 // Buscador entre ligas de la API: fondo multi-competición.
@@ -97,6 +100,7 @@ const NOMBRE_DE_SECCION: Record<number, string> = {
   [DATA_PAGE]: "Base activa",
   [STYLE_PAGE]: "Estilo de juego",
   [FLOW_PAGE]: "Flujo de posesión",
+  [BLUEPRINTS_PAGE]: "Football Blueprints",
   [SNAPSHOT_PAGE]: "Ficha ampliada",
 };
 
@@ -2038,6 +2042,8 @@ export default function ScoutStudio() {
                       icono={<ShieldCheck size={16} />} titulo={t("Estilo de juego")} detalle={t("Cómo juega cada equipo")} api />
                     <FilaSeccion activa={reportPage === FLOW_PAGE} onClick={() => setReportPage(FLOW_PAGE)}
                       icono={<Wind size={16} />} titulo={t("Flujo de posesión")} detalle={t("Rutas del balón por equipo")} api />
+                    <FilaSeccion activa={reportPage === BLUEPRINTS_PAGE} onClick={() => setReportPage(BLUEPRINTS_PAGE)}
+                      icono={<LayoutDashboard size={16} />} titulo={t("Football Blueprints")} detalle={t("La liga como mapa y reel")} api />
                   </div>
                 </section>
 
@@ -2326,6 +2332,9 @@ export default function ScoutStudio() {
               )}
               {espacio === "cavalry" && paginaMontada(POOL_PAGE) && (
                 <div className={claseHoja(POOL_PAGE)}><PoolPage onAbrirJugador={(indice) => { selectPlayer(indice); setReportPage(CARD_PAGE); }} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
+              )}
+              {espacio === "cavalry" && paginaMontada(BLUEPRINTS_PAGE) && (
+                <div className={claseHoja(BLUEPRINTS_PAGE)}><BlueprintsPage destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
               )}
               {espacio === "cavalry" && paginaMontada(FLOW_PAGE) && (
                 <div className={claseHoja(FLOW_PAGE)}><FlujoPage destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>

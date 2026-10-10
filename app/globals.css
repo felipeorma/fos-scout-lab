@@ -3274,7 +3274,7 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
 }
 
 /* ---- Contenedores: lo que sostiene una sección entera ---- */
-.app-shell :is(.datos-page, .rank-page, .pool-page, .context-page, .runs-page, .flujo-page,
+.app-shell :is(.datos-page, .rank-page, .pool-page, .context-page, .runs-page, .flujo-page, .blueprints-page,
   .landing-hero, .board-page) {
   border-radius: var(--r-contenedor);
   border: 1px solid var(--linea);
@@ -3331,12 +3331,12 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
    apoyo— que es lo que hace que dos pantallas parezcan la misma
    aplicación. El título va con tracking negativo, que es lo que separa un
    titular de un texto grande. */
-.app-shell :is(.datos-page, .rank-page, .pool-page, .context-page, .runs-page, .flujo-page) > header {
+.app-shell :is(.datos-page, .rank-page, .pool-page, .context-page, .runs-page, .flujo-page, .blueprints-page) > header {
   padding: 0 0 var(--sp-4);
   margin-bottom: var(--sp-5);
   border-bottom: 1px solid var(--linea);
 }
-.app-shell :is(.datos-page, .rank-page, .pool-page, .context-page, .runs-page, .flujo-page) > header span:first-child {
+.app-shell :is(.datos-page, .rank-page, .pool-page, .context-page, .runs-page, .flujo-page, .blueprints-page) > header span:first-child {
   display: block;
   margin-bottom: var(--sp-1);
   color: var(--muted);
@@ -3345,7 +3345,7 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
   letter-spacing: .14em;
   text-transform: uppercase;
 }
-.app-shell :is(.datos-page, .rank-page, .pool-page, .context-page, .runs-page, .flujo-page) > header :is(h2, b) {
+.app-shell :is(.datos-page, .rank-page, .pool-page, .context-page, .runs-page, .flujo-page, .blueprints-page) > header :is(h2, b) {
   display: block;
   margin: 0 0 var(--sp-2);
   font-size: var(--ui-hero);
@@ -3353,7 +3353,7 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
   letter-spacing: -.022em;
   line-height: 1.12;
 }
-.app-shell :is(.datos-page, .rank-page, .pool-page, .context-page, .runs-page, .flujo-page) > header p {
+.app-shell :is(.datos-page, .rank-page, .pool-page, .context-page, .runs-page, .flujo-page, .blueprints-page) > header p {
   margin: 0;
   max-width: 68ch;
   color: var(--muted);
@@ -5446,19 +5446,19 @@ button.menu-fila:active { transform: scale(.985); }
 /* Entran en el mismo PDF que las páginas de diseño, así que se firman igual.
    Los colores son los del tema y no los del papel del reporte: esta página se
    imprime con su propio fondo, y el gris del papel se perdería encima. */
-.app-shell[data-tema] :is(.runs-page, .flujo-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) .visual-page-footer {
+.app-shell[data-tema] :is(.runs-page, .flujo-page, .blueprints-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) .visual-page-footer {
   margin: 20px 0 0; padding-top: 14px;
   border-top: 1px solid var(--line);
   color: var(--muted);
 }
-.app-shell[data-tema] :is(.runs-page, .flujo-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) .report-signatures { gap: 14px; }
-.app-shell[data-tema] :is(.runs-page, .flujo-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) :is(.report-author, .report-recipient > div) > span { color: var(--muted); font-size: 9px; letter-spacing: .12em; }
-.app-shell[data-tema] :is(.runs-page, .flujo-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) :is(.report-author, .report-recipient > div) > b { color: var(--ink); font-size: 12.5px; }
-.app-shell[data-tema] :is(.runs-page, .flujo-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) .report-author > small { color: var(--muted); font-size: 9px; letter-spacing: .1em; }
-.app-shell[data-tema] :is(.runs-page, .flujo-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) .visual-footer-confidential { color: var(--muted); font-size: 9px; }
-.app-shell[data-tema] :is(.runs-page, .flujo-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) .report-recipient { border-left: 1px solid var(--line); }
-.app-shell[data-tema] :is(.runs-page, .flujo-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) :is(.dossier-footer-club-logo, .dossier-footer-club-fallback) { width: 30px; height: 30px; }
-.app-shell[data-tema] :is(.runs-page, .flujo-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) .dossier-footer-club-fallback {
+.app-shell[data-tema] :is(.runs-page, .flujo-page, .blueprints-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) .report-signatures { gap: 14px; }
+.app-shell[data-tema] :is(.runs-page, .flujo-page, .blueprints-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) :is(.report-author, .report-recipient > div) > span { color: var(--muted); font-size: 9px; letter-spacing: .12em; }
+.app-shell[data-tema] :is(.runs-page, .flujo-page, .blueprints-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) :is(.report-author, .report-recipient > div) > b { color: var(--ink); font-size: 12.5px; }
+.app-shell[data-tema] :is(.runs-page, .flujo-page, .blueprints-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) .report-author > small { color: var(--muted); font-size: 9px; letter-spacing: .1em; }
+.app-shell[data-tema] :is(.runs-page, .flujo-page, .blueprints-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) .visual-footer-confidential { color: var(--muted); font-size: 9px; }
+.app-shell[data-tema] :is(.runs-page, .flujo-page, .blueprints-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) .report-recipient { border-left: 1px solid var(--line); }
+.app-shell[data-tema] :is(.runs-page, .flujo-page, .blueprints-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) :is(.dossier-footer-club-logo, .dossier-footer-club-fallback) { width: 30px; height: 30px; }
+.app-shell[data-tema] :is(.runs-page, .flujo-page, .blueprints-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) .dossier-footer-club-fallback {
   display: grid; place-items: center;
   border-radius: 8px; color: var(--muted);
   background: color-mix(in srgb, var(--ink) 8%, transparent);
@@ -5475,7 +5475,7 @@ button.menu-fila:active { transform: scale(.985); }
    impresión. El campo del mapa mantiene su fondo oscuro: es un dibujo, no
    texto, y lleva su propio print-color-adjust. */
 @media print {
-  .app-shell[data-tema] :is(.runs-page, .flujo-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) {
+  .app-shell[data-tema] :is(.runs-page, .flujo-page, .blueprints-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) {
     --ink: #1d1d1f;
     --muted: #5b6472;
     --line: rgba(0, 0, 0, .16);
@@ -6451,3 +6451,57 @@ body.print-layout-check .legal-page-shell > :is(.rank-page, .pool-page) :is(.ran
 .temporada-previa .select-wrap select { text-overflow: ellipsis; }
 .temporada-previa-nota { color: var(--muted); font-size: 11px; line-height: 1.45; }
 .temporada-previa .button.compact { align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; }
+
+
+/* =====================================================================
+   Football Blueprints
+   =====================================================================
+   La liga como mapa conceptual —raíz, conferencias, equipos— con una
+   cancha animada por equipo, el equipo destacado en grande y el reel. */
+.blueprints-page { width: 100%; max-width: 990px; margin: 18px auto 24px; padding: 24px 28px; box-sizing: border-box; color: var(--ink); font-family: var(--font-barlow), Arial, sans-serif; }
+.blueprint-ficha { display: grid; grid-template-columns: minmax(180px, .8fr) 2fr; gap: 10px 22px; margin: 0 0 14px; padding: 14px 16px; border-radius: 14px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); }
+.blueprint-ficha > div { display: flex; flex-direction: column; gap: 2px; }
+.blueprint-ficha b { color: var(--ink); font-size: 16px; font-weight: 650; }
+.blueprint-ficha small { color: var(--muted); font-size: 11px; }
+.blueprint-ficha ul { margin: 0; padding-left: 16px; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.app-shell[data-tema] .blueprint-controles { margin: 0 0 12px; }
+.blueprint-destacado { margin: 0 0 18px; scroll-margin-top: 72px; }
+.blueprint-destacado > h3 { margin: 0 0 8px; color: var(--ink); font-size: 14px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+
+.blueprint-mapa { position: relative; margin: 0 0 18px; padding-left: 26px; }
+/* La espina del mapa: de la raíz baja una línea que se abre hacia cada rama. */
+.blueprint-mapa::before { content: ""; position: absolute; top: 34px; bottom: 40px; left: 10px; width: 2px; border-radius: 2px; background: color-mix(in srgb, var(--acento-claro, #12c48b) 60%, transparent); }
+.blueprint-raiz { position: relative; display: inline-flex; align-items: baseline; gap: 10px; margin: 0 0 14px -26px; padding: 8px 16px; border-radius: 999px; background: var(--acento-claro, #12c48b); color: #06110d; }
+.blueprint-raiz span { font-family: var(--font-space-grotesk), sans-serif; font-size: 18px; font-weight: 800; }
+.blueprint-raiz small { font-size: 11px; font-weight: 600; opacity: .75; }
+.blueprint-rama { position: relative; margin: 0 0 16px; }
+.blueprint-rama > h3 { position: relative; display: flex; align-items: baseline; gap: 8px; margin: 0 0 10px; color: var(--ink); font-size: 14px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.blueprint-rama > h3::before { content: ""; position: absolute; top: 50%; left: -16px; width: 12px; height: 2px; background: color-mix(in srgb, var(--acento-claro, #12c48b) 60%, transparent); }
+.blueprint-rama > h3 small { color: var(--muted); font-size: 11px; font-weight: 500; letter-spacing: 0; text-transform: none; }
+.blueprint-cuadricula { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; }
+.blueprint-cuadricula > li > button { width: 100%; display: flex; flex-direction: column; gap: 6px; padding: 6px; border: 0; border-radius: 12px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.blueprint-cuadricula > li > button:hover { box-shadow: 0 0 0 1px color-mix(in srgb, var(--acento-claro, #12c48b) 55%, transparent); }
+.blueprint-cuadricula > li.activo > button { box-shadow: 0 0 0 2px var(--acento-claro, #12c48b); }
+.blueprint-cuadricula .flujo-cancha canvas { border-radius: 7px; cursor: pointer; }
+.blueprint-cuadricula .con-escudo { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; font-size: 11.5px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+
+.blueprint-reel { margin: 0 0 8px; padding: 14px 16px; border-radius: 14px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); }
+.blueprint-reel > h3 { margin: 0 0 4px; color: var(--ink); font-size: 15px; font-weight: 650; }
+.blueprint-reel > p { margin: 0 0 12px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.blueprint-reel-campos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; margin: 0 0 12px; }
+.blueprint-reel-campos label { display: flex; flex-direction: column; gap: 4px; }
+.blueprint-reel-campos span { color: var(--muted); font-size: 11px; font-weight: 600; }
+.blueprint-reel-campos input { padding: 7px 10px; border: 1px solid var(--line); border-radius: 9px; background: transparent; color: var(--ink); font: inherit; font-size: 12.5px; }
+.blueprint-reel-acciones { display: flex; flex-wrap: wrap; gap: 8px; }
+.blueprint-reel-salidas { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 14px; }
+.blueprint-reel-lienzo, .blueprint-reel-video video { width: 270px; height: 480px; border-radius: 12px; background: #0b1519; box-shadow: 0 0 0 1px var(--line); }
+.blueprint-reel-video { display: flex; flex-direction: column; gap: 8px; margin: 0; }
+
+@media screen and (max-width: 780px) {
+  .blueprint-cuadricula { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .blueprint-ficha, .blueprint-reel-campos { grid-template-columns: 1fr; }
+  .blueprints-page { padding: 18px 16px; }
+}
+@media print {
+  .blueprint-reel, .blueprint-controles { display: none !important; }
+}

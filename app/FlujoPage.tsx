@@ -38,9 +38,9 @@ import {
 // tarda minutos, y volver a la página no debe pedirla otra vez.
 const ligasGuardadas = new Map<string, LigaFlujo>();
 const ligasEnCamino = new Map<string, Promise<LigaFlujo>>();
-const claveDe = (competicion: ApiCompetition) => `${competicion.competition_id}:${competicion.season_id}`;
+export const claveDe = (competicion: ApiCompetition) => `${competicion.competition_id}:${competicion.season_id}`;
 
-function pedirLiga(competicion: ApiCompetition) {
+export function pedirLiga(competicion: ApiCompetition) {
   const clave = claveDe(competicion);
   const guardada = ligasGuardadas.get(clave);
   if (guardada) return Promise.resolve(guardada);
@@ -87,7 +87,7 @@ function Carriles({ carriles }: { carriles: [number, number, number] }) {
   </div>;
 }
 
-function FichaEquipo({ campo, resumen, media, liga, estela, ancho }: {
+export function FichaEquipo({ campo, resumen, media, liga, estela, ancho }: {
   campo: CampoFlujo | null;
   resumen: ResumenFlujo | undefined;
   media: ReturnType<typeof mediaDeLiga>;
