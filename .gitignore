@@ -53,3 +53,6 @@ __pycache__/
 # Skills instaladas con `npx skills add` — se reinstalan, no se versionan.
 .agents/skills/
 .claude/skills/
+
+# Salidas del notebook de flujo de posesión (tablas, imágenes y caché local).
+notebooks/flujo_posesion/

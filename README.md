@@ -305,6 +305,12 @@ de opengoalapp.
   la liga —balón por partido, % hacia delante y hacia atrás, reparto por carril
   y velocidad del balón en salida, medio campo y último tercio—, siempre contra
   la media de la liga.
+- **Notebook:** `notebooks/flujo_posesion.ipynb` hace el mismo cálculo fuera de
+  la app, en Jupyter o VS Code: la tabla de promedios (también en CSV), el mapa
+  de todos los equipos en una imagen y una animación GIF de dos equipos. Lee las
+  credenciales del Llavero (o de las variables de entorno) y, si no las
+  encuentra, las pide con un campo oculto; nunca se escriben en el notebook.
+  Comparte la caché de eventos con el puente.
 
 ## Métricas del radar a medida
 

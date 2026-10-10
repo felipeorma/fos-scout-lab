@@ -1341,10 +1341,17 @@ def _flujo_rasterizar(tramos):
             if con_tiempo:
                 recorrido[c] += paso
                 tiempo[c] += dt
+    # Con un decimal: redondear a enteros inflaba el total ~1 %, porque la
+    # mayoría de casillas suman fracciones de unidad. Los ceros van sin
+    # decimales para que el JSON no crezca por nada.
+    def compacto(v):
+        r = round(v, 1)
+        return int(r) if r == int(r) else r
+
     return {
-        "flujo": [round(v) for v in flujo],
-        "recorrido": [round(v, 1) for v in recorrido],
-        "tiempo": [round(v, 1) for v in tiempo],
+        "flujo": [compacto(v) for v in flujo],
+        "recorrido": [compacto(v) for v in recorrido],
+        "tiempo": [compacto(v) for v in tiempo],
     }
 
 
