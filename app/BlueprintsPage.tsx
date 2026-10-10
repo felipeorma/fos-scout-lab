@@ -13,7 +13,7 @@ import { esMls, gruposDeLiga } from "@/lib/conferencias";
 import { EQUIPO_PROPIO, mismoEquipo } from "@/lib/estiloEquipo";
 import { AJUSTES_INICIALES, camposDeLiga, mediaDeLiga, resumenesDeLiga, type LigaFlujo } from "@/lib/flujoPosesion";
 import { REEL, crearReel, type EquipoDelReel } from "@/lib/reelFlujo";
-import { fetchLogo, fetchStatsbombCompetitions, proxiedImageUrl, type ApiCompetition } from "@/lib/remoteData";
+import { fetchLogo, fetchStatsbombCompetitions, motivoDeFallo, proxiedImageUrl, type ApiCompetition } from "@/lib/remoteData";
 import { grabarVideo } from "@/lib/videoReel";
 
 /**
@@ -60,6 +60,7 @@ export function BlueprintsPage({ destinatario = "", logoDestinatario = "" }: { d
   const [grabando, setGrabando] = useState<number | null>(null);
   const [video, setVideo] = useState<{ url: string; tipo: string; nombre: string } | null>(null);
   const [aviso, setAviso] = useState("");
+  const [intento, setIntento] = useState(0);
   const cancelar = useRef(false);
   const fichaDestacada = useRef<HTMLDivElement>(null);
   const destacar = (id: number) => {
@@ -98,16 +99,14 @@ export function BlueprintsPage({ destinatario = "", logoDestinatario = "" }: { d
     const clave = claveDe(competicion);
     pedirLiga(competicion)
       .then((respuesta) => { if (vivo) setResultado({ clave, liga: respuesta }); })
-      .catch((fallo) => {
-        if (!vivo) return;
-        setResultado({ clave, error: fallo instanceof TypeError
-          ? t("El servidor local no respondió. Arranca npm run bg:server y reintenta.")
-          : fallo instanceof Error ? fallo.message : String(fallo) });
+      .catch(async (fallo) => {
+        const motivo = await motivoDeFallo(fallo);
+        if (vivo) setResultado({ clave, error: motivo });
       });
     return () => { vivo = false; };
     // La competición se identifica por su clave; el objeto cambia con cada catálogo.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [claveLiga, catalogo.length]);
+  }, [claveLiga, catalogo.length, intento]);
 
   const vigente = resultado?.clave === claveLiga ? resultado : null;
   const liga = vigente?.liga ?? null;
@@ -282,7 +281,10 @@ export function BlueprintsPage({ destinatario = "", logoDestinatario = "" }: { d
           opciones={opcionesDeEquipo} elegida={String(destacado ?? "")} onElegir={(valor) => setElegido(Number(valor))} />}
       </div>
     </div>
-    {estado && <p className="flujo-estado" role="status">{estado}</p>}
+    {estado && <p className="flujo-estado" role="status">
+      {estado}
+      {vigente?.error && <> <button type="button" className="estilo-reintentar" onClick={() => { setResultado(null); setIntento((n) => n + 1); }}>{t("Reintentar")}</button></>}
+    </p>}
 
     {liga && campos && grupos.length > 0 && <>
       {/* El mapa conceptual: la liga, sus conferencias y sus equipos. */}

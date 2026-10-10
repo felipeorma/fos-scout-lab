@@ -68,6 +68,27 @@ async def preflight(path: str):
     return PlainTextResponse("", headers=cors_headers())
 
 
+# Los errores también salen con CORS. Sin las cabeceras, el navegador
+# esconde la respuesta y la app solo ve "no respondió": una ruta que no
+# existe (un puente sin actualizar) o un fallo interno se confundían con
+# el puente apagado.
+from starlette.exceptions import HTTPException as _HTTPException  # noqa: E402
+
+
+@app.exception_handler(_HTTPException)
+async def _error_http(request: Request, exc: _HTTPException):
+    import json as _json
+    return Response(_json.dumps({"error": str(exc.detail), "ruta": request.url.path}), status_code=exc.status_code,
+                    media_type="application/json", headers=cors_headers())
+
+
+@app.exception_handler(Exception)
+async def _error_interno(request: Request, exc: Exception):
+    import json as _json
+    return Response(_json.dumps({"error": f"{type(exc).__name__}: {exc}", "ruta": request.url.path}), status_code=500,
+                    media_type="application/json", headers=cors_headers())
+
+
 @app.get("/api/health")
 def health():
     return Response('{"ok": true}', media_type="application/json", headers=cors_headers())
@@ -1398,8 +1419,12 @@ def statsbomb_possession_flow(competition_id: int, season_id: int):
     if guardado is not None:
         return Response(_json.dumps(guardado, ensure_ascii=False), media_type="application/json", headers=cors_headers())
 
-    partidos = _cached_get(f"sb:matches6:{competition_id}:{season_id}",
-                           f"https://data.statsbomb.com/api/v6/competitions/{competition_id}/seasons/{season_id}/matches", auth, ttl_seconds=1800)
+    try:
+        partidos = _cached_get(f"sb:matches6:{competition_id}:{season_id}",
+                               f"https://data.statsbomb.com/api/v6/competitions/{competition_id}/seasons/{season_id}/matches", auth, ttl_seconds=1800)
+    except Exception as error:
+        return Response(_json.dumps({"error": f"StatsBomb no devolvió los partidos de esta temporada ({error})."}, ensure_ascii=False),
+                        status_code=502, media_type="application/json", headers=cors_headers())
     jugados = [p for p in partidos if p.get("home_score") is not None]
     with ThreadPoolExecutor(max_workers=6) as pool:
         por_partido = list(pool.map(lambda p: _sb_flujo_partido(p["match_id"], auth), jugados))

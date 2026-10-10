@@ -10,7 +10,7 @@ import { MenuDesplegable, type OpcionDeMenu } from "./MenuDesplegable";
 import { PieDeReporte } from "./PieDeReporte";
 import { numberLocale, t, tf } from "@/lib/i18n";
 import { EQUIPO_PROPIO, mismoEquipo } from "@/lib/estiloEquipo";
-import { fetchFlujoDePosesion, fetchStatsbombCompetitions, type ApiCompetition } from "@/lib/remoteData";
+import { fetchFlujoDePosesion, fetchStatsbombCompetitions, motivoDeFallo, type ApiCompetition } from "@/lib/remoteData";
 import {
   AJUSTES_INICIALES,
   camposDeLiga,
@@ -198,11 +198,9 @@ export function FlujoPage({ destinatario = "", logoDestinatario = "" }: {
         setEquipoA(propio?.equipo ?? null);
         setEquipoB(respuesta.equipos.find((equipo) => equipo.equipo !== propio?.equipo)?.equipo ?? null);
       })
-      .catch((fallo) => {
-        if (!vivo) return;
-        setResultado({ clave, error: fallo instanceof TypeError
-          ? t("El servidor local no respondió. Arranca npm run bg:server y reintenta.")
-          : fallo instanceof Error ? fallo.message : String(fallo) });
+      .catch(async (fallo) => {
+        const motivo = await motivoDeFallo(fallo);
+        if (vivo) setResultado({ clave, error: motivo });
       });
     return () => { vivo = false; };
     // La competición se identifica por su clave; el objeto cambia con cada catálogo.

@@ -185,8 +185,36 @@ export type ApiCompetition = {
 
 async function bridgeJson<T>(path: string, timeoutMs = 60_000): Promise<T> {
   const response = await fetch(`${LOCAL_BRIDGE}${path}`, { signal: AbortSignal.timeout(timeoutMs) });
-  if (!response.ok) throw new Error(tf("El servidor local respondió {code}.", { code: response.status }));
+  if (!response.ok) {
+    const cuerpo = await response.json().catch(() => null) as { error?: string; detail?: string } | null;
+    // Una ruta que el puente no conoce —404, o 405 porque solo la atiende el
+    // preflight— y sin error propio: el puente está sin actualizar.
+    if ((response.status === 404 || response.status === 405) && (!cuerpo?.error || /^(Not Found|Method Not Allowed)$/.test(cuerpo.error))) {
+      throw new Error(PUENTE_DESACTUALIZADO());
+    }
+    throw new Error([tf("El servidor local respondió {code}.", { code: response.status }), cuerpo?.error].filter(Boolean).join(" "));
+  }
   return response.json() as Promise<T>;
+}
+
+/** El aviso de un puente que corre pero no tiene lo que la app le pide. */
+export const PUENTE_DESACTUALIZADO = () => t("El servidor local está corriendo pero es una versión anterior. Actualízalo: git pull y npm run bg:reiniciar.");
+
+/**
+ * Por qué falló una petición al puente, en palabras.
+ *
+ * Un fallo de red (TypeError) no distingue un puente apagado de uno viejo
+ * que responde sin CORS a una ruta que no conoce: se pregunta por el estado,
+ * que existe en todas las versiones. Si contesta, está encendido y lo que
+ * falta es actualizarlo.
+ */
+export async function motivoDeFallo(fallo: unknown): Promise<string> {
+  if (fallo instanceof TypeError) {
+    return (await fetchSourcesStatus())
+      ? PUENTE_DESACTUALIZADO()
+      : t("El servidor local no respondió. Arranca npm run bg:server y reintenta.");
+  }
+  return fallo instanceof Error ? fallo.message : String(fallo);
 }
 
 export async function fetchSourcesStatus(): Promise<SourcesStatus | null> {

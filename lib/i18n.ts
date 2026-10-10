@@ -1639,6 +1639,7 @@ const EN: Record<string, string> = {
   "Conferencia Oeste": "Western Conference",
   "Sin conferencia": "No conference",
   "Este navegador no codifica H.264: el MP4 sale en VP9. Si LinkedIn no lo acepta, créalo desde Chrome o Safari en el Mac.": "This browser cannot encode H.264, so the MP4 uses VP9. If LinkedIn rejects it, create it from Chrome or Safari on the Mac.",
+  "El servidor local está corriendo pero es una versión anterior. Actualízalo: git pull y npm run bg:reiniciar.": "The local server is running but it is an older version. Update it: git pull and npm run bg:reiniciar.",
   "Estilo de juego": "Playing style",
   "Cómo juega cada equipo": "How each team plays",
   "STATSBOMB · ESTADÍSTICAS DE EQUIPO": "STATSBOMB · TEAM STATISTICS",
