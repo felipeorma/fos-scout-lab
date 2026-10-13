@@ -87,3 +87,65 @@ export function origenPorFila(rows: DataRow[], procedencias: Procedencia[]) {
     return { ligas, anios, claves };
   });
 }
+
+const NOMBRE_DE_PLATAFORMA: Record<string, string> = { statsbomb: "StatsBomb", skillcorner: "SkillCorner", wyscout: "Wyscout" };
+const sinExtension = (archivo: string) => archivo.replace(/\.(xlsx|xls|csv|tsv|txt)$/i, "");
+
+/** De qué plataforma es un archivo, por cómo se llama. Un Excel subido es Wyscout. */
+export function plataformaDe(nombreArchivo: string) {
+  const prefijo = nombreArchivo.match(PROVEEDOR)?.[1]?.toLowerCase();
+  return prefijo === "statsbomb" || prefijo === "skillcorner" ? prefijo : "wyscout";
+}
+
+/**
+ * Las bases que alimentan el radar de UN jugador, dichas en una línea.
+ *
+ * La ficha rotulaba "bases analizadas" con todo lo que había cargado: con las
+ * dieciséis ligas dentro, un extremo de la CPL salía firmado como "16
+ * competiciones · 2025–2026", que describe el fondo contra el que se le mide,
+ * no de dónde salen sus números. Aquí se nombran solo los archivos de los que
+ * procede su fila, y de esos solo los de las plataformas que el radar está
+ * dibujando: si la capa de SkillCorner está enlazada pero el perfil no enseña
+ * ninguna métrica física, no se la cuenta como base analizada.
+ *
+ * @param fuentes la columna "Data sources" de la fila.
+ * @param plataformasDelRadar las `source` de las métricas dibujadas. Vacío =
+ *   no hay radar: se nombran todas las bases de la fila.
+ */
+export function basesDelRadar(fuentes: string, bases: SourceDataset[], plataformasDelRadar: Iterable<string> = []) {
+  const dibujadas = new Set(plataformasDelRadar);
+  const suyas = bases
+    .map((base) => base.fileName)
+    .filter((archivo, indice, todos) => todos.indexOf(archivo) === indice)
+    .filter((archivo) => fuentes.includes(sinExtension(archivo)));
+  const delRadar = suyas.filter((archivo) => !dibujadas.size || dibujadas.has(plataformaDe(archivo)));
+  const archivos = delRadar.length ? delRadar : suyas;
+
+  // Liga → temporadas, en el orden en que aparecen. La capa física cae en la
+  // misma liga que su base, así que no abre una entrada aparte. La temporada
+  // se escribe como la escribe la liga: "2026", o "2025/26" si cruza de año.
+  const porLiga = new Map<string, Array<{ anio: number; texto: string }>>();
+  for (const archivo of archivos) {
+    const nombre = sinExtension(archivo);
+    const { liga, anio } = ligaYAnioDe(nombre);
+    const cruzada = nombre.match(/(\d{4})\s*\/\s*(\d{2,4})$/);
+    const texto = cruzada ? `${cruzada[1]}/${cruzada[2].slice(-2)}` : (anio ? String(anio) : "");
+    const temporadas = porLiga.get(liga) ?? [];
+    if (texto && !temporadas.some((t) => t.texto === texto)) temporadas.push({ anio, texto });
+    porLiga.set(liga, temporadas);
+  }
+  const rango = (temporadas: Array<{ anio: number; texto: string }>) => (
+    [...temporadas].sort((a, b) => a.anio - b.anio).map((t) => t.texto).join(" + ")
+  );
+  const ligas = [...porLiga.entries()];
+  const plataformas = [...new Set(archivos.map(plataformaDe))]
+    .sort((a, b) => Object.keys(NOMBRE_DE_PLATAFORMA).indexOf(a) - Object.keys(NOMBRE_DE_PLATAFORMA).indexOf(b))
+    .map((plataforma) => NOMBRE_DE_PLATAFORMA[plataforma]);
+  return {
+    /** Los archivos, tal como se cargaron. */
+    archivos,
+    /** Liga y temporada de cada una, ya agrupadas: lo que la ficha escribe. */
+    ligas: ligas.map(([liga, temporadas]) => ({ liga, temporada: rango(temporadas) })),
+    plataformas,
+  };
+}

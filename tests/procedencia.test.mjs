@@ -75,3 +75,34 @@ test("sin año, la clave es la liga a secas", () => {
   const [fila] = origenPorFila([{ "Data sources": "Maldonado enero.xlsx" }], procedencias);
   assert.deepEqual(fila.claves, ["Maldonado enero.xlsx"]);
 });
+
+/**
+ * Las bases que firma la ficha: las del jugador y de lo que su radar dibuja.
+ */
+test("la ficha nombra las bases del jugador, no todo lo cargado", async () => {
+  const { basesDelRadar } = await import("../lib/procedencia.ts");
+  const cargadas = [
+    "StatsBomb · Ligue 3 2025/2026", "SkillCorner · Ligue 3 2025/2026", "StatsBomb · Ligue 3 2026/2027",
+    "StatsBomb · MLS 2026", "StatsBomb · Canadian Premier League 2026", "SkillCorner · Canadian Premier League 2026",
+  ].map((fileName) => ({ fileName, season: 2026, headers: [], rows: [] }));
+  const suyas = basesDelRadar("StatsBomb · Canadian Premier League 2026, SkillCorner · Canadian Premier League 2026", cargadas, ["statsbomb", "skillcorner"]);
+  assert.deepEqual(suyas.ligas, [{ liga: "Canadian Premier League", temporada: "2026" }]);
+  assert.deepEqual(suyas.plataformas, ["StatsBomb", "SkillCorner"]);
+  assert.equal(suyas.archivos.length, 2);
+});
+
+test("una capa enlazada que el radar no dibuja no cuenta como base analizada", async () => {
+  const { basesDelRadar } = await import("../lib/procedencia.ts");
+  const cargadas = ["StatsBomb · Ligue 3 2025/2026", "SkillCorner · Ligue 3 2025/2026", "StatsBomb · Ligue 3 2026/2027"]
+    .map((fileName) => ({ fileName, season: 2026, headers: [], rows: [] }));
+  const suyas = basesDelRadar(cargadas.map((c) => c.fileName).join(", "), cargadas, ["statsbomb"]);
+  assert.deepEqual(suyas.plataformas, ["StatsBomb"]);
+  assert.deepEqual(suyas.ligas, [{ liga: "Ligue 3", temporada: "2025/26 + 2026/27" }]);
+});
+
+test("un Excel subido se reconoce aunque la fila guarde su nombre sin extensión", async () => {
+  const { basesDelRadar } = await import("../lib/procedencia.ts");
+  const suyas = basesDelRadar("cpl 2024", [{ fileName: "cpl 2024.xlsx", season: 2024, headers: [], rows: [] }], ["wyscout"]);
+  assert.deepEqual(suyas.plataformas, ["Wyscout"]);
+  assert.equal(suyas.archivos.length, 1);
+});

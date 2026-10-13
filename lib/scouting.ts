@@ -70,6 +70,21 @@ export type PlayerReport = {
   metricasDelIndice: number;
   metrics: RadarMetric[];
   reading: string;
+  /**
+   * Cómo se consiguió el radar cuando el perfil normal lo dejaba vacío. Solo
+   * aparece si se pidió `rescate` y el jugador tiene minutos:
+   *  - "sin-minimo": nadie de su posición llega al mínimo de minutos; se mide
+   *    contra todos los de su posición.
+   *  - "sin-posicion": la base no le registra posición; se mide contra todos
+   *    los jugadores de campo.
+   *  - "solo-disponibles": no tiene ninguna métrica de su perfil (suele ser una
+   *    fila con solo físicos); se enseñan las que sí tiene.
+   */
+  rescate?: "sin-minimo" | "sin-posicion" | "solo-disponibles";
+  /** La cohorte forzada no tenía métricas para él y se volvió a la automática. */
+  cohorteDescartada?: string;
+  /** Las métricas elegidas a mano no existen en esta base y se usó el set del perfil. */
+  seleccionDescartada?: boolean;
 };
 
 const PLAYER_ALIASES = ["player", "jugador", "player name", "nombre jugador"];
@@ -403,6 +418,19 @@ const clubTokens = (value: string) => value.split(" ").filter((token) => token &
  */
 const MARCAS_DE_FILIAL = new Set(["ii", "2", "b", "jong", "u19", "u21", "u23", "reserves"]);
 const esFilial = (tokens: string[]) => tokens.some((token) => MARCAS_DE_FILIAL.has(token));
+
+/*
+ * Palabras de un nombre de club que no lo distinguen de otro de su liga: las
+ * marcas de filial, los prefijos de asociación ("US Concarneau", "IF Gnistan")
+ * y los apellidos de club ingleses, que comparten media división ("Sutton
+ * United" y "Boston United" no tienen nada en común). Solo las usa el enlace
+ * de la capa física dentro de una misma competición.
+ */
+const PALABRAS_GENERICAS_DE_CLUB = new Set([
+  ...MARCAS_DE_FILIAL,
+  "us", "as", "ss", "cs", "is", "if", "ik", "bk", "ff", "sv", "ks", "nk", "sp", "ca", "rc", "ud",
+  "united", "city", "town", "athletic", "rovers", "wanderers", "county", "albion", "real", "sporting", "olympique",
+]);
 
 /**
  * Cuánto se parecen dos nombres que ya casan, de 0 a 1: 1 si dicen lo mismo
@@ -946,6 +974,99 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
     });
     if (candidates.length === 1) {
       candidates[0].push(...group);
+      mergedGroups.splice(index, 1);
+    }
+  }
+
+  /*
+   * Enlace de la capa física con su base, dentro de la misma competición.
+   *
+   * SkillCorner nunca es base: es una capa sobre la liga de StatsBomb o de
+   * Wyscout que se cargó con ella. Aun así quedaban filas sueltas solo de
+   * SkillCorner —209 con las dieciséis ligas, en octubre de 2026— porque los
+   * dos proveedores escriben el club distinto ("US Concarneau" y "Concarneau",
+   * "Jong Ajax Amsterdam" y "Ajax II", "IF Gnistan" y "Gnistan") y las etapas
+   * de arriba exigen que el club case. Cada una era un jugador fantasma: salía
+   * en el desplegable con sus tres mil minutos y sin una sola métrica de
+   * juego —"no encontramos métricas para esta cohorte"—, mientras su fila de
+   * verdad se quedaba sin físicos.
+   *
+   * Dentro de una misma competición se le puede pedir menos al club, porque el
+   * universo es una sola liga y la persona se identifica de otra forma:
+   *   - con la misma fecha de nacimiento en los dos lados, basta el apellido y
+   *     la inicial, un nombre contenido en el otro, o una palabra larga en
+   *     común si además el club es afín: así entran las grafías que cada
+   *     proveedor escribe a su manera ("Turner-Cooke" y "Turner-Cook",
+   *     "Bezzekhami" y "Berrezkami") sin abrir la puerta a nadie más;
+   *   - sin fecha en alguno, un nombre contenido en el otro —o el mismo
+   *     apellido con un nombre de pila equivalente— y un club afín.
+   * Dos fechas distintas vetan siempre. Solo con candidato único, nunca contra
+   * una fila del mismo archivo y nunca entre competiciones: eso sigue siendo
+   * cosa de las etapas de arriba, que sí miran el club entero.
+   *
+   * Dos cuidados con la fecha. El 1 de enero no cuenta como día: es lo que los
+   * proveedores escriben cuando solo saben el año, así que no confirma ni veta
+   * por sí solo; pero el año sí dice algo, y más de uno de diferencia separa
+   * ("Tre Wright", 2004, no es "Trevor Wright", 2002). Y el día y el mes
+   * cruzados valen como la misma fecha ("2007-05-07" y "2007-07-05"), que es
+   * el error de formato de siempre y no dos personas.
+   */
+  const soloCapaFisica = (grupo: typeof combined) => grupo.every((entrada) => entrada.provider === "skillcorner");
+  const distintivasDeClub = (club: string) => clubTokens(club).filter((token) => !PALABRAS_GENERICAS_DE_CLUB.has(token));
+  const clubesAfines = (unos: string[], otros: string[]) => unos.some((uno) => otros.some((otro) => {
+    const a = distintivasDeClub(uno);
+    const b = distintivasDeClub(otro);
+    return a.some((token) => b.includes(token));
+  }));
+  const fechasUtiles = (grupo: typeof combined) => new Set(
+    grupo.map((entrada) => entrada.birthIdentity).filter((fecha) => fecha && !fecha.endsWith("-01-01")),
+  );
+  const diaYMesCruzados = (fecha: string) => {
+    const [anio, mes, dia] = fecha.split("-");
+    return `${anio}-${dia}-${mes}`;
+  };
+  const aniosDeNacimiento = (grupo: typeof combined) => [...new Set(
+    grupo.map((entrada) => Number(entrada.birthIdentity.slice(0, 4))).filter((anio) => anio > 1900),
+  )];
+  for (let index = mergedGroups.length - 1; index >= 0; index -= 1) {
+    const grupo = mergedGroups[index];
+    if (!soloCapaFisica(grupo)) continue;
+    const tokens = nameTokens(grupo[0].player);
+    // Un nombre de una sola palabra no identifica a nadie por sí solo.
+    if (tokens.length < 2) continue;
+    const apellido = tokens[tokens.length - 1];
+    const fuentes = new Set(grupo.map((entrada) => entrada.sourceIndex));
+    const competencias = new Set(grupo.map((entrada) => entrada.competencia));
+    const nacimientos = fechasUtiles(grupo);
+    const anios = aniosDeNacimiento(grupo);
+    const clubes = [...new Set(grupo.map((entrada) => entrada.clubIdentity).filter(Boolean))];
+    const candidatos = mergedGroups.filter((otro) => {
+      if (otro === grupo || soloCapaFisica(otro)) return false;
+      if (otro.some((entrada) => fuentes.has(entrada.sourceIndex))) return false;
+      if (!otro.some((entrada) => competencias.has(entrada.competencia))) return false;
+      const otros = nameTokens(otro[0].player);
+      if (otros.length < 2) return false;
+      const nacimientosDelOtro = fechasUtiles(otro);
+      const mismaFecha = [...nacimientos].some((fecha) => nacimientosDelOtro.has(fecha) || nacimientosDelOtro.has(diaYMesCruzados(fecha)));
+      if (nacimientos.size && nacimientosDelOtro.size && !mismaFecha) return false;
+      const aniosDelOtro = aniosDeNacimiento(otro);
+      if (!mismaFecha && anios.length && aniosDelOtro.length
+        && !anios.some((a) => aniosDelOtro.some((b) => Math.abs(a - b) <= 1))) return false;
+      const contenido = tokens.every((token) => otros.includes(token)) || otros.every((token) => tokens.includes(token));
+      const apellidoDelOtro = otros[otros.length - 1];
+      const mismoApellido = apellido === apellidoDelOtro
+        || (Math.min(apellido.length, apellidoDelOtro.length) >= 6 && difiereEnUnaLetra(apellido, apellidoDelOtro));
+      const clubesDelOtro = [...new Set(otro.map((entrada) => entrada.clubIdentity).filter(Boolean))];
+      const clubAfin = clubesAfines(clubes, clubesDelOtro);
+      if (mismaFecha) {
+        const palabraLargaEnComun = tokens.some((token) => token.length >= 4 && otros.includes(token));
+        return contenido || (mismoApellido && tokens[0][0] === otros[0][0]) || (palabraLargaEnComun && clubAfin);
+      }
+      const pilaEquivalente = tokens.slice(0, -1).some((uno) => otros.slice(0, -1).some((otro2) => nombresDePilaEquivalentes(uno, otro2)));
+      return (contenido || (mismoApellido && pilaEquivalente)) && clubAfin;
+    });
+    if (candidatos.length === 1) {
+      candidatos[0].push(...grupo);
       mergedGroups.splice(index, 1);
     }
   }
@@ -1768,6 +1889,28 @@ function paresDeCohorte(rows: DataRow[], peerGroup: string, positionColumn: stri
  */
 const _poblacionesPorPares = new WeakMap<DataRow[], Map<string, number[]>>();
 
+/**
+ * Todos los jugadores de campo de la base, recordados igual que los pares.
+ * Es el grupo de referencia de quien no tiene posición registrada.
+ */
+function jugadoresDeCampo(rows: DataRow[], positionColumn: string, columnaMinutos: string, minimumMinutes: number) {
+  let entrada = _paresPorBase.get(rows);
+  if (!entrada || entrada.largo !== rows.length) {
+    entrada = { largo: rows.length, grupos: new Map() };
+    _paresPorBase.set(rows, entrada);
+  }
+  const clave = `__DE_CAMPO__|${minimumMinutes}`;
+  const recordado = entrada.grupos.get(clave);
+  if (recordado) return recordado;
+  const pares = rows.filter((candidate) => (
+    cohortOf(positionColumn ? candidate[positionColumn] : "") !== "GK"
+    && numeric(candidate[columnaMinutos]) > 0
+    && (minimumMinutes <= 0 || numeric(candidate[columnaMinutos]) >= minimumMinutes)
+  ));
+  entrada.grupos.set(clave, pares);
+  return pares;
+}
+
 function poblacionDeMetrica(peers: DataRow[], key: string) {
   let cache = _poblacionesPorPares.get(peers);
   if (!cache) {
@@ -1788,7 +1931,13 @@ export function buildPlayerReport(
    * del perfil. Lo usa la mesa de Maldonado, que compara fotos mes a mes y no
    * puede cambiar de fórmula a mitad de la serie.
    */
-  opciones: { indiceSinRecorte?: boolean } = {},
+  /**
+   * `rescate`: que un jugador con minutos no se quede sin radar. Lo pide la
+   * ficha, donde se mira a UNA persona y un hueco en blanco no dice nada. El
+   * ranking, la similitud y la mesa no lo piden: allí un jugador sin métricas
+   * de su perfil no debe entrar en la lista con un índice hecho de otra cosa.
+   */
+  opciones: { indiceSinRecorte?: boolean; rescate?: boolean } = {},
 ): PlayerReport | null {
   const row = rows[selectedIndex];
   if (!row) return null;
@@ -1809,18 +1958,60 @@ export function buildPlayerReport(
   // la vez la lente de métricas y los pares: mirar a un portero "como delantero"
   // solo significa algo si se le compara contra delanteros.
   const peerGroup = peerCohort(cohort);
-  const peers = paresDeCohorte(rows, peerGroup, positionColumn, core.minutes, minimumMinutes);
-  const metrics = !peers.length ? [] : definitions.flatMap((definition) => {
+  let peers = paresDeCohorte(rows, peerGroup, positionColumn, core.minutes, minimumMinutes);
+  const medir = (definiciones: MetricDefinition[], pares: DataRow[]): RadarMetric[] => (!pares.length ? [] : definiciones.flatMap((definition) => {
     const key = findColumn(headers, definition.aliases);
     if (!key) return [];
     const value = numeric(row[key]);
     if (!Number.isFinite(value)) return [];
     // Sin muestra real en la cohorte, el percentil no significa nada: la
     // métrica se omite en lugar de dibujarse contra un grupo vacío.
-    const peerValues = poblacionDeMetrica(peers, key);
+    const peerValues = poblacionDeMetrica(pares, key);
     if (!peerValues.length) return [];
     return [{ key, label: definition.label, value, percentile: percentile(value, peerValues, definition.inverse), group: definition.group, colorGroup: definition.colorGroup, inverse: definition.inverse, source: definition.source ?? "wyscout", sample: peerValues.length, sinIndice: definition.sinIndice, familia: definition.familia, familiaPrincipal: definition.familiaPrincipal }];
-  });
+  }));
+  let metrics = medir(definitions, peers);
+
+  /*
+   * Rescate: un jugador con minutos no debería quedarse en blanco.
+   *
+   * Medido sobre las dieciséis ligas en octubre de 2026, el radar salía vacío
+   * por tres motivos que no tienen que ver con el jugador: StatsBomb no le da
+   * posición a quien ha jugado un rato (170 casos, todos por debajo de 100
+   * minutos), nadie de su puesto llega al mínimo en una base pequeña, o la
+   * fila solo trae físicos. En los tres se puede enseñar algo honesto si se
+   * dice contra quién se mide, y eso es lo que devuelve `rescate`. Cada paso
+   * solo corre si el anterior no dio nada, y ninguno toca un informe que ya
+   * tenía métricas.
+   */
+  let rescate: PlayerReport["rescate"];
+  const minutosDelJugador = numeric(row[core.minutes]);
+  if (opciones.rescate && !metrics.length && minutosDelJugador > 0) {
+    const sinPosicion = forcedCohort === "AUTO" && sourceCohort === "OTHER";
+    // Sin posición no hay "los de su puesto": su cohorte son los otros a los
+    // que también les falta, que suelen ser él y nadie más. Se le mide contra
+    // todos los de campo, primero con el mínimo de minutos y, si no, sin él.
+    if (sinPosicion) {
+      for (const minimo of [...new Set([minimumMinutes, 0])]) {
+        const deCampo = jugadoresDeCampo(rows, positionColumn, core.minutes, minimo);
+        const medidas = medir(definitions, deCampo);
+        if (medidas.length) { peers = deCampo; metrics = medidas; rescate = "sin-posicion"; break; }
+      }
+    }
+    if (!metrics.length && !peers.length && minimumMinutes > 0) {
+      const sinMinimo = paresDeCohorte(rows, peerGroup, positionColumn, core.minutes, 0);
+      const medidas = medir(definitions, sinMinimo);
+      if (medidas.length) { peers = sinMinimo; metrics = medidas; rescate = "sin-minimo"; }
+    }
+    // Lo último es solo para la cohorte automática: forzar "porteros" sobre un
+    // delantero y que salga vacío es una respuesta, no un hueco que rellenar.
+    if (!metrics.length && forcedCohort === "AUTO") {
+      const registradas = [...new Map(Object.values(METRICS).flat().map((definition) => [definition.label, definition] as const)).values()];
+      const referencia = peers.length ? peers : paresDeCohorte(rows, peerGroup, positionColumn, core.minutes, 0);
+      const medidas = medir(registradas, referencia);
+      if (medidas.length) { peers = referencia; metrics = medidas; rescate = "solo-disponibles"; }
+    }
+  }
   // Una destreza, una métrica: con dos plataformas enlazadas entraban las dos
   // versiones y esa destreza pesaba el doble en el índice. La elección manual
   // del scout manda: si pidió las dos, salen las dos.
@@ -1878,6 +2069,7 @@ export function buildPlayerReport(
     metricasDelIndice: paraIndice.length,
     metrics: metricsUnicas,
     reading: roleReading(cohort, metricsUnicas),
+    ...(rescate ? { rescate } : {}),
   };
 }
 

@@ -16,7 +16,7 @@ import { ReportPageDesigner } from "./ReportPageDesigner";
 import { SimilarityStudio } from "./SimilarityStudio";
 import { CLIENT_THEMES, DEFAULT_REPORT_THEME, reportThemeStyle, type ReportTheme } from "./reportTheme";
 import { LOGOS_PLATAFORMA, LogoPlataforma } from "./LogosPlataforma";
-import { ligasDeBases, origenPorFila } from "@/lib/procedencia";
+import { ligasDeBases, origenPorFila, basesDelRadar } from "@/lib/procedencia";
 import { ProveedorDeBase, useEstadoDeBase } from "./BaseActiva";
 import { BarraDeFiltros } from "./BarraDeFiltros";
 import { MenuDeLigas, MenuDesplegable, type OpcionDeMenu } from "./MenuDesplegable";
@@ -260,6 +260,9 @@ function playerOptionsFor(rows: DataRow[]): PlayerOption[] {
     team: String(row[teamColumn] ?? "").trim(),
   })).sort((a, b) => alphabeticCollator.compare(a.team, b.team) || alphabeticCollator.compare(a.player, b.player));
 }
+
+/** Los rótulos que la ficha pone sola; cualquier otro lo escribió el usuario y se respeta. */
+const ETIQUETAS_DE_BASE = ["BASE ANALIZADA", "BASES ANALIZADAS"];
 
 function firstPlayerSelection(rows: DataRow[]) {
   return playerOptionsFor(rows)[0] ?? { index: 0, team: "" };
@@ -591,10 +594,33 @@ export default function ScoutStudio() {
       // El perfil solo se conoce tras construir el informe, y la selección se
       // guarda por perfil: se resuelve primero el perfil y se rehace únicamente
       // si ese perfil tiene métricas elegidas a mano.
-      const base = buildPlayerReport(filasDelInforme, indiceDelInforme, minimumMinutes, cohort);
+      /*
+       * Con `rescate`: en la ficha se mira a una persona, y un jugador con
+       * minutos no debe quedarse en blanco por algo que no es suyo —que la
+       * base no le registre posición, que nadie de su puesto llegue al
+       * mínimo, o que su fila solo traiga físicos—. El informe dice cómo se
+       * consiguió el radar y la ficha lo escribe al pie.
+       */
+      const medir = (lente: string, elegidas?: string[]) => (
+        buildPlayerReport(filasDelInforme, indiceDelInforme, minimumMinutes, lente, elegidas, { rescate: true })
+      );
+      let base = medir(cohort);
+      let lente = cohort;
+      // Una cohorte forzada que no tiene nada que decir de este jugador —se
+      // quedó puesta "Porteros" y ahora se mira a un extremo— no debe dejarlo
+      // vacío: se vuelve a la automática y se avisa.
+      if (base && !base.metrics.length && cohort !== "AUTO") {
+        const automatica = medir("AUTO");
+        if (automatica?.metrics.length) { base = { ...automatica, cohorteDescartada: cohort }; lente = "AUTO"; }
+      }
       const picks = base ? metricPicks[base.cohort] : undefined;
       if (!base || !picks) return base;
-      return buildPlayerReport(filasDelInforme, indiceDelInforme, minimumMinutes, cohort, picks) ?? base;
+      // Lo mismo con las métricas elegidas a mano: se guardan por perfil y
+      // sobreviven al cambio de base, así que pueden no existir en la que hay
+      // cargada ahora. Si no casa ninguna, manda el set del perfil.
+      const conElegidas = medir(lente, picks);
+      if (!conElegidas?.metrics.length) return { ...base, seleccionDescartada: true };
+      return base.cohorteDescartada ? { ...conElegidas, cohorteDescartada: base.cohorteDescartada } : conElegidas;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [filasDelInforme, indiceDelInforme, minimumMinutes, cohort, lang, metricPicks],
@@ -643,6 +669,38 @@ export default function ScoutStudio() {
       .filter((entry) => entry.metrics.length > 0);
   }, [report]);
   const metricBreakdownColumns = metricBreakdown.length <= 4 ? Math.max(1, metricBreakdown.length) : 3;
+  /*
+   * Las bases que la ficha firma como "analizadas": las del jugador que se
+   * está mirando y solo de las plataformas que su radar dibuja, no todo lo
+   * cargado. Con las dieciséis ligas dentro, lo otro rotulaba a un extremo de
+   * la CPL como "16 competiciones", que es el fondo contra el que se le mide
+   * —eso ya lo dice el pie— y no de dónde salen sus números.
+   */
+  const basesDeLaFicha = useMemo(() => {
+    // La fila que de verdad se mide: con "solo la temporada actual" es la del
+    // cruce de una temporada, y la etiqueta debe nombrar esa y no las dos.
+    const fuentes = String(filasDelInforme[indiceDelInforme]?.["Data sources"] ?? "");
+    if (!report || !fuentes) return null;
+    const suyas = basesDelRadar(fuentes, sourceDatasets, report.metrics.map((metric) => metric.source ?? "wyscout"));
+    if (!suyas.archivos.length) return null;
+    const titulo = suyas.ligas.length <= 2
+      ? suyas.ligas.map(({ liga, temporada }) => [liga, temporada].filter(Boolean).join(suyas.ligas.length > 1 ? " " : " · ")).join(" + ")
+      : tf("{n} competiciones", { n: suyas.ligas.length });
+    return { titulo, plataformas: suyas.plataformas.join(" + "), cuantas: suyas.archivos.length };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [report, filasDelInforme, indiceDelInforme, sourceDatasets, lang]);
+  /** Por qué el radar está vacío, dicho con la causa y no con una fórmula. */
+  const motivoSinRadar = !report || report.metrics.length ? "" : (
+    report.minutes <= 0
+      ? t("Sin minutos jugados en esta base")
+      : t("La base cargada no trae métricas de este jugador")
+  );
+  /** Lo que el pie de la ficha añade cuando el radar se consiguió por otra vía. */
+  const notaDeRescate = !report?.rescate ? "" : ({
+    "sin-posicion": t("Sin posición registrada en la base: percentiles frente a todos los jugadores de campo."),
+    "sin-minimo": tf("Nadie de su posición llega al mínimo de {m}′: percentiles frente a todos los de su posición.", { m: minimumMinutes }),
+    "solo-disponibles": t("La base solo trae estas métricas para este jugador."),
+  })[report.rescate];
   const dataReady = reportRows.length > 0;
   const profileReady = Boolean(profile.sourceUrl || profile.playerImage || profile.clubLogo || profile.leagueLogo);
   const recipientName = reportRecipientName.trim() || t("Club destinatario");
@@ -1091,7 +1149,11 @@ export default function ScoutStudio() {
    *   sabe. Leerlo del estado no servía: dentro de una carga asíncrona el
    *   estado es el de antes, y el nombre nuevo se pisaba con el viejo.
    */
-  function applyDatasets(datasets: SourceDataset[], seleccionPedida?: number | ((filas: DataRow[]) => number), nombre?: string) {
+  function applyDatasets(entrantes: SourceDataset[], seleccionPedida?: number | ((filas: DataRow[]) => number), nombre?: string) {
+    // Una base, una vez. Dos copias del mismo archivo no son dos temporadas:
+    // el cruce las sumaba como si lo fueran y todos los minutos salían dobles.
+    // Si llega repetida, manda la última, que es la más reciente.
+    const datasets = [...new Map(entrantes.map((dataset) => [dataset.fileName, dataset] as const)).values()];
     const result = aggregateDatasets(datasets);
     // Una búsqueda, para seguir en el mismo jugador cuando el cruce cambia los índices.
     const seleccion = typeof seleccionPedida === "function" ? seleccionPedida(result.rows) : seleccionPedida;
@@ -1662,7 +1724,7 @@ export default function ScoutStudio() {
       </header>
 
       <section className="dossier-season-strip">
-        <div className="season-source"><span><InlineText editKey={`label-${report.player}`} value={tDefault(analysisLabel)} fallback={reportSourceCount > 1 ? t("BASES ANALIZADAS") : t("BASE ANALIZADA")} onCommit={setAnalysisLabel} /></span><b><InlineText editKey={`source-${report.player}`} value={tDefault(analysisSourceTitle)} fallback={base.descripcion || tDefault(reportFileName)} onCommit={updateAnalysisSourceName} /></b><small>{temporadasDelJugador.length && (variasTemporadas || baseConVariasTemporadas)
+        <div className="season-source"><span><InlineText editKey={`label-${report.player}`} value={ETIQUETAS_DE_BASE.includes(analysisLabel) ? "" : tDefault(analysisLabel)} fallback={(basesDeLaFicha?.cuantas ?? reportSourceCount) > 1 ? t("BASES ANALIZADAS") : t("BASE ANALIZADA")} onCommit={setAnalysisLabel} /></span><b><InlineText editKey={`source-${report.player}`} value={tDefault(analysisSourceTitle)} fallback={basesDeLaFicha?.titulo || base.descripcion || tDefault(reportFileName)} onCommit={updateAnalysisSourceName} /></b><small>{basesDeLaFicha?.plataformas ? `${basesDeLaFicha.plataformas} · ` : ""}{temporadasDelJugador.length && (variasTemporadas || baseConVariasTemporadas)
           ? tf("Temporada {s} · cohorte {c} · mín. {m}′", { s: temporadasDelJugador[0].etiqueta, c: cohortLabel(report.cohort), m: minimumMinutes })
           : tf("Cohorte {c} · mín. {m}′", { c: cohortLabel(report.cohort), m: minimumMinutes })}</small></div>
         {/* Con varias temporadas, esta fila es la más reciente y las anteriores
@@ -1691,7 +1753,7 @@ export default function ScoutStudio() {
       ))}
 
       <section className="dossier-radar-row">
-        <div className="dossier-radar">{report.metrics.length ? <PizzaRadar metrics={report.metrics} score={report.score} cohort={report.cohort} lang={lang} colorMode={radarColorMode} /> : <div className="empty-radar"><BarChart3 size={34} /><b>{t("No encontramos métricas para esta cohorte")}</b></div>}</div>
+        <div className="dossier-radar">{report.metrics.length ? <PizzaRadar metrics={report.metrics} score={report.score} cohort={report.cohort} lang={lang} colorMode={radarColorMode} /> : <div className="empty-radar"><BarChart3 size={34} /><b>{motivoSinRadar}</b>{report.minutes > 0 && <span>{t("Prueba con otra cohorte o revisa qué bases están cargadas.")}</span>}</div>}</div>
         <aside className="dossier-reading">
           <div className="average-percentile"><strong>{report.score}</strong><small>{t("percentil")}<br />{t("medio")}</small></div>
           <div className="dossier-legend">{radarColorMode === "platform"
@@ -1710,12 +1772,15 @@ export default function ScoutStudio() {
         ))}
       </section>
       <footer className="dossier-footer">
-        <p>{tf("Percentiles por posición · mínimo {m}′ · {n} jugadores en la cohorte · datos por 90 minutos.", { m: minimumMinutes, n: report.cohortSize })}
+        <p>{new Set(base.competiciones.map((c) => c.liga)).size > 1
+          ? tf("Percentiles por posición · mínimo {m}′ · {n} jugadores en la cohorte, de {k} competiciones cargadas · datos por 90 minutos.", { m: minimumMinutes, n: report.cohortSize, k: new Set(base.competiciones.map((c) => c.liga)).size })
+          : tf("Percentiles por posición · mínimo {m}′ · {n} jugadores en la cohorte · datos por 90 minutos.", { m: minimumMinutes, n: report.cohortSize })}
           {variasTemporadas && ` ${tf("Radar e índice con {n} temporadas juntas ({s}), ponderadas por minutos: {m}′ en total.", {
             n: temporadasDelJugador.length,
             s: temporadasDelJugador.map((temporada) => temporada.etiqueta).join(" + "),
             m: numberFormat(report.minutes),
           })}`}
+          {notaDeRescate && ` ${notaDeRescate}`}
           {report.metrics.some((metric) => metric.source === "skillcorner") && ` ${t("Los volúmenes de SkillCorner (SC) van por 30 minutos con balón del equipo.")}`}</p>
         <div className="report-signatures">
           <div className="report-author"><span>{t("ELABORADO POR")}</span><b>{firma.nombre || FIRMAS_POR_DEFECTO[claveFirma].nombre}</b><small>{firma.cargo}</small></div>
@@ -2180,6 +2245,8 @@ export default function ScoutStudio() {
                     {metricPicks[report.cohort] && <button type="button" className="button secondary compact" onClick={restoreCohortMetrics}>{t("Volver al set del perfil")}</button>}
                   </details>}
                   <div className="data-summary"><div><span>{t("Bases")}</span><b>{reportSourceCount}</b></div><div><span>{t("Jugadores")}</span><b>{numberFormat(reportRows.length)}</b></div><div><span>{t("Cohorte")}</span><b>{report?.cohortSize ?? 0}</b></div></div>
+                  {report?.cohorteDescartada && <div className="inline-error">{tf("La cohorte elegida ({c}) no tiene métricas para este jugador: se muestra con su cohorte automática.", { c: cohortLabel(report.cohorteDescartada) })}</div>}
+                  {report?.seleccionDescartada && <div className="inline-error">{t("Las métricas elegidas a mano para este perfil no existen en la base cargada: se muestra el set del perfil.")}</div>}
                   {report && report.cohortSize < 5 && <div className="inline-error">{report.cohortSize === 0 ? t("No hay jugadores de esta posición con el mínimo de minutos: baja el mínimo o carga más datos.") : (report.cohortSize === 1 ? t("Cohorte de 1 jugador: percentiles poco fiables. Baja el mínimo de minutos o carga más datos.") : tf("Cohorte de {n} jugadores: percentiles poco fiables. Baja el mínimo de minutos o carga más datos.", { n: report.cohortSize }))}</div>}
                   </div>
                   <div className="panel-seccion">
