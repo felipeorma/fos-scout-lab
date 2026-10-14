@@ -1128,7 +1128,17 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
     const values = combined.map(({ row }) => numeric(row[header])).filter(Number.isFinite);
     return values.length > 0;
   });
-  const per90Headers = numericHeaders.filter(isPer90);
+  /*
+   * Las columnas de StatsBomb y SkillCorner son tasas —por 90, por 30 minutos
+   * de posesión, medias de distancia o de velocidad— aunque su nombre no lo
+   * diga ("Deep progressions (SB)", "Runs in behind P30 (SC)"). Sin esto caían
+   * en los totales y, al juntar dos temporadas, se promediaban sin ponderar:
+   * 300′ de una pesaban lo mismo que 2.700′ de la otra, en la vista de dos
+   * temporadas que la ficha usa por defecto y cuyo pie dice "ponderadas por
+   * minutos". Las de porcentaje siguen su propio camino, más abajo.
+   */
+  const esTasaDePlataforma = (header: string) => /\((sb|sc)\)\s*$/i.test(header) && !header.includes("%");
+  const per90Headers = numericHeaders.filter((header) => isPer90(header) || esTasaDePlataforma(header));
   const percentHeaders = numericHeaders.filter((header) => !per90Headers.includes(header) && isPercentage(header));
   const totalHeaders = numericHeaders.filter((header) => !per90Headers.includes(header) && !percentHeaders.includes(header));
   // Conteos acumulativos (goles, asistencias, tarjetas…) se SUMAN entre
@@ -1141,7 +1151,16 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
     "second assists", "third assists",
   ]);
   const cumulativeHeaders = totalHeaders.filter((header) => CUMULATIVE_HEADERS.has(normalizeHeader(header)));
-  const averagedHeaders = totalHeaders.filter((header) => !cumulativeHeaders.includes(header));
+  /*
+   * Lo que describe al jugador en un momento —valor de mercado, altura,
+   * peso, si está cedido— no se promedia entre temporadas: se toma de la más
+   * reciente. Promediado, un jugador que pasó de €200K a €600K salía en €400K,
+   * un valor que no tuvo nunca.
+   */
+  const PUNTUALES = ["market value", "valor de mercado", "height", "altura", "weight", "peso", "on loan", "en prestamo"];
+  const pointInTimeHeaders = totalHeaders.filter((header) => !cumulativeHeaders.includes(header)
+    && PUNTUALES.some((alias) => normalizeHeader(header).startsWith(alias)));
+  const averagedHeaders = totalHeaders.filter((header) => !cumulativeHeaders.includes(header) && !pointInTimeHeaders.includes(header));
 
   const rows = mergedGroups.map((entries) => {
     // Un archivo sin año en el nombre (season 0) es un export actual, no el
@@ -1228,6 +1247,11 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
       output[header] = values.length ? sumaPorTemporadas(sorted, (row) => numeric(row[header]) || 0) : Number.NaN;
     }
     for (const header of averagedHeaders) output[header] = average(sorted.map(({ row }) => numeric(row[header])));
+    for (const header of pointInTimeHeaders) {
+      // El orden de la identidad: temporada más reciente y, dentro, donde más jugó.
+      const reciente = [...identidadOrdenada, ...[...sorted].reverse()].find(({ row }) => Number.isFinite(numeric(row[header])));
+      output[header] = reciente ? numeric(reciente.row[header]) : Number.NaN;
+    }
     for (const header of per90Headers) {
       output[header] = weightedAverage(sorted.map(({ row }) => ({
         value: numeric(row[header]),
