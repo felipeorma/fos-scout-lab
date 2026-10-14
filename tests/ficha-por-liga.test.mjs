@@ -68,3 +68,30 @@ test("el nivel de liga es aditivo, con la regla calibrada y con tope", () => {
   const feed = [{ leagueName: "Canadian Premier League", countryName: "Canada", seasonAverageRating: 66.5, globalRank: 130 }];
   assert.deepEqual(nivelDeLiga(feed, "Canadian Premier League"), { liga: "Canadian Premier League", corto: "CPL", rating: 66.5, puesto: 130, enVivo: true });
 });
+
+test("el margen del índice depende de los minutos", async () => {
+  const { MINUTOS_FIABLES, margenDelIndice } = await import("../lib/fiabilidad.ts");
+  assert.equal(MINUTOS_FIABLES, 900);
+  assert.equal(margenDelIndice(450), 13);
+  assert.equal(margenDelIndice(700), 12);
+  assert.equal(margenDelIndice(900), 9);
+  assert.equal(margenDelIndice(1999), 9);
+  assert.equal(margenDelIndice(2600), 8);
+  assert.equal(margenDelIndice(300), 13);
+  assert.equal(margenDelIndice(299), null, "por debajo de 300′ no se midió");
+  assert.equal(margenDelIndice(Number.NaN), null);
+});
+
+test("la lectura no hace de una sola métrica el fuerte de su juego", () => {
+  // Un pivote con un único dato defensivo altísimo y varios de pase medianos.
+  const pivote = (nombre, i, extra = {}) => ({
+    Player: nombre, Team: "T", Position: "DMF", Age: 25, "Minutes played": 1500, "Matches played": 18,
+    "Accurate passes, %": 70 + i, "Passes per 90": 40 + i, "Received passes per 90": 30 + i, "Accurate long passes, %": 50 + i,
+    "Duels won, %": 40 + i, ...extra,
+  });
+  const filas = Array.from({ length: 12 }, (_, i) => pivote(`P${i}`, i));
+  filas[11] = pivote("Objetivo", 7, { "Duels won, %": 99 });
+  const informe = buildPlayerReport(filas, 11, 0, "DMF");
+  assert.ok(!/trabajo defensivo/.test(informe.reading), informe.reading);
+  assert.match(informe.reading, /el pase/);
+});

@@ -810,6 +810,10 @@ body { color-scheme: dark; background: radial-gradient(circle at 74% 9%, rgba(25
 .nivel-de-liga span { color: var(--report-accent); font-size: 10px; font-weight: 700; }
 /* En el ranking ordenado a nivel de la liga de referencia: los de ligas sin rating de Opta van en gris, sin llevar. */
 .rank-indice.sin-nivel { opacity: .55; }
+/* Fiabilidad del índice: el margen típico bajo "percentil medio" y el aviso de pocos minutos. */
+.margen-del-indice { color: var(--report-ink, inherit); font-weight: 700; cursor: help; }
+.aviso-pocos-minutos { margin: -8px 0 14px; padding: 5px 8px; border-left: 2px solid var(--report-accent); color: var(--report-muted); font-size: 9.5px; line-height: 1.35; }
+.rank-pocos-minutos { color: #e0a33a; cursor: help; }
 .dossier-legend { display: flex; flex-direction: column; gap: 9px; }
 .dossier-legend span { display: flex; align-items: center; gap: 8px; color: var(--report-ink); font-family: var(--font-barlow-condensed),sans-serif; font-size: 11px; font-weight: 650; text-transform: uppercase; }
 .dossier-legend i { width: 10px; height: 10px; display: block; border-radius: 3px; }

@@ -3,6 +3,7 @@
 import { useMemo, useState, type KeyboardEvent } from "react";
 import { rankingDeCohorte, type OpcionesDeRanking } from "@/lib/ranking";
 import { PUNTOS_POR_RATING_INDICE, nivelDeLiga, type EntradaOpta } from "@/lib/nivelDeLiga";
+import { MINUTOS_FIABLES, margenDelIndice } from "@/lib/fiabilidad";
 import { PERFILES } from "@/lib/perfiles";
 import { useBaseActiva } from "./BaseActiva";
 import { PieDeReporte } from "./PieDeReporte";
@@ -348,7 +349,7 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
             <span className="rank-cuerpo">
               <span className="rank-nombre">
                 {fila.jugador}
-                <small><Escudo equipo={fila.equipo} liga={procedencia?.[fila.indice]?.ligas[0] ?? ""} tamano={13} />{fila.equipo}{Number.isFinite(fila.edad) ? ` · ${fila.edad}` : ""}{fila.minutos ? ` · ${Math.round(fila.minutos)}′` : ""}
+                <small><Escudo equipo={fila.equipo} liga={procedencia?.[fila.indice]?.ligas[0] ?? ""} tamano={13} />{fila.equipo}{Number.isFinite(fila.edad) ? ` · ${fila.edad}` : ""}{fila.minutos ? <span className={fila.minutos < MINUTOS_FIABLES ? "rank-pocos-minutos" : undefined} title={fila.minutos < MINUTOS_FIABLES ? (margenDelIndice(fila.minutos) !== null ? tf("Pocos minutos: su número puede moverse ±{n} de una temporada a otra.", { n: margenDelIndice(fila.minutos) ?? "" }) : t("Muy pocos minutos para un número fiable.")) : undefined}>{` · ${Math.round(fila.minutos)}′`}</span> : ""}
                   {suMercado && <span className="rank-mercado-dato" title={suMercado.club ? tf("Transfermarkt · club actual: {club}", { club: suMercado.club }) : t("Transfermarkt")}>
                     {suMercado.valor != null ? ` · ${valorCorto(suMercado.valor, numberLocale())}` : ""}
                     {suMercado.contrato ? ` · ${tf("contrato {fecha}", { fecha: contratoCorto(suMercado.contrato) })}` : ""}

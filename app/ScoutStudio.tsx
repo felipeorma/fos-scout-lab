@@ -50,6 +50,7 @@ import { fetchAiSummary, type AiMetricFact, type AiPlayerFacts, fetchOptaLeagueM
 import { reportExportBaseName } from "@/lib/reportExportName";
 import { canonicalizeRow } from "@/lib/wyscoutHeaders";
 import { leerFilasDeArchivo } from "@/lib/lecturaDeArchivos";
+import { MINUTOS_FIABLES, margenDelIndice } from "@/lib/fiabilidad";
 import { FECHA_NIVEL_RESPALDO, LIGA_DE_REFERENCIA, PUNTOS_POR_RATING, indiceANivel, nivelDeLiga, ratingDeTramos, type EntradaOpta } from "@/lib/nivelDeLiga";
 import { METRIC_SOURCE_COLORS, SIMILARITY_METRIC_GROUPS, similarityMetricGroup } from "@/lib/similarityMetricGroups";
 import { numberLocale, setActiveLang, t, tDefault, tf, type Lang } from "@/lib/i18n";
@@ -1881,7 +1882,11 @@ export default function ScoutStudio() {
       <section className="dossier-radar-row">
         <div className="dossier-radar">{report.metrics.length ? <PizzaRadar metrics={report.metrics} score={report.score} cohort={report.cohort} lang={lang} colorMode={radarColorMode} /> : <div className="empty-radar"><BarChart3 size={34} /><b>{motivoSinRadar}</b>{report.minutes > 0 && <span>{t("Prueba con otra cohorte o revisa qué bases están cargadas.")}</span>}</div>}</div>
         <aside className="dossier-reading">
-          <div className="average-percentile"><strong>{report.score}</strong><small>{t("percentil")}<br />{t("medio")}</small></div>
+          <div className="average-percentile"><strong>{report.score}</strong><small>{t("percentil")}<br />{t("medio")}{margenDelIndice(report.minutes) !== null && <><br />
+            <span className="margen-del-indice" title={tf("Lo que se mueve de una temporada a otra el número de un jugador con {m}′, medido en doce ligas. Dos jugadores a menos de {n} puntos no se distinguen con estos datos.", { m: numberFormat(report.minutes), n: margenDelIndice(report.minutes) ?? "" })}>± {margenDelIndice(report.minutes)}</span></>}</small></div>
+          {report.minutes < MINUTOS_FIABLES && <p className="aviso-pocos-minutos">{margenDelIndice(report.minutes) !== null
+            ? tf("Pocos minutos ({m}′): su número puede moverse ±{n} de una temporada a otra.", { m: numberFormat(report.minutes), n: margenDelIndice(report.minutes) ?? "" })
+            : tf("Con {m}′ no hay minutos para un número fiable: léelo como una pista, no como una medida.", { m: numberFormat(report.minutes) })}</p>}
           {nivelDeLaFicha && <div className="nivel-de-liga" title={tf("Opta Power Rankings{c}. La equivalencia suma {p} puntos de índice por cada punto de rating de diferencia, calibrado con 112 jugadores que cambiaron de liga entre 2025 y 2026.", { c: nivelDeLaFicha.enVivo ? "" : ` · ${tf("copia del {f}", { f: FECHA_NIVEL_RESPALDO })}`, p: String(PUNTOS_POR_RATING).replace(".", ",") })}>
             <small>{t("NIVEL DE LIGA")}</small>
             <b>{nivelDeLaFicha.niveles.map((nivel) => `${nivel.corto} ${nivel.rating.toFixed(1).replace(".", ",")}${nivel.puesto ? ` · #${nivel.puesto}` : ""}`).join(" + ")}</b>

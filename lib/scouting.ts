@@ -1712,13 +1712,22 @@ function roleReading(cohort: string, metrics: RadarMetric[]) {
   if (!metrics.length) return "";
   // Informe corto en lenguaje llano: en qué se apoya su juego, qué muestra el
   // dato, en qué rol encajaría, dónde destaca y qué vigilar. Sin jerga.
-  const facets = SIMILARITY_METRIC_GROUPS.map((group) => ({
-    group,
-    score: average(metrics.filter((metric) => similarityMetricGroup(metric, cohort).id === group.id).map((metric) => metric.percentile)),
-  })).filter((facet) => Number.isFinite(facet.score)).sort((a, b) => b.score - a.score);
-  const dominant = facets[0];
-  const top = [...metrics].sort((a, b) => b.percentile - a.percentile).slice(0, 3);
-  const weak = [...metrics].sort((a, b) => a.percentile - b.percentile)[0];
+  //
+  // La lectura se apoya en lo que se repite: las métricas fuera del índice
+  // por ruido no deciden ni su fuerte ni su punto débil (un delantero no es
+  // "flojo en conversión" por un año de mala suerte). Y una faceta de una
+  // sola métrica no puede ser "en lo que se apoya su juego": con un pivote
+  // con un único dato de presión al 98 %, la ficha decía que su juego era
+  // defensivo. Solo si ninguna faceta tiene dos, vale la de una.
+  const fiables = metrics.some((metric) => !metric.sinIndice) ? metrics.filter((metric) => !metric.sinIndice) : metrics;
+  const facets = SIMILARITY_METRIC_GROUPS.map((group) => {
+    const suyas = fiables.filter((metric) => similarityMetricGroup(metric, cohort).id === group.id);
+    return { group, score: average(suyas.map((metric) => metric.percentile)), cuantas: suyas.length };
+  }).filter((facet) => Number.isFinite(facet.score)).sort((a, b) => b.score - a.score);
+  const conVarias = facets.filter((facet) => facet.cuantas >= 2);
+  const dominant = (conVarias.length ? conVarias : facets)[0];
+  const top = [...fiables].sort((a, b) => b.percentile - a.percentile).slice(0, 3);
+  const weak = [...fiables].sort((a, b) => a.percentile - b.percentile)[0];
   const readable = (label: string) => t(label).replace(/\s*\/90/g, "").replace(/,\s*%$/, "").toLowerCase();
   const strengths = top.filter((metric) => metric.percentile >= 60).map((metric) => readable(metric.label));
   let text = dominant
