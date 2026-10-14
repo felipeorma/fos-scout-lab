@@ -146,7 +146,10 @@ export function ContextPage({
   minutosFiltro = 0,
   destinatario = "",
   logoDestinatario = "",
+  claseHoja = "legal-page-shell",
 }: {
+  /** La clase de cada hoja Legal: la página sale en dos, como la ficha ampliada. */
+  claseHoja?: string;
   report: PlayerReport;
   rows: DataRow[];
   /** Las bases que se cruzaron para armar `rows`, para poder filtrar por liga. */
@@ -445,7 +448,35 @@ export function ContextPage({
   const idsDelMenu = [...BLOQUES.map((bloque) => bloque.id as BloqueId), ...fichasDelMenu.map(({ ficha }) => ficha.id as BloqueId)];
   const bloquesEncendidos = idsDelMenu.filter((id) => muestra(id)).length;
 
-  return <article className="context-page">
+  // Solo las métricas que el scout tiene delante: un glosario completo
+  // sería ruido, y uno ausente obliga a saberse la nomenclatura.
+  const glosario = (() => {
+    const enPantalla = new Set<string>();
+    for (const metrica of [...destacadas, ...flojas]) enPantalla.add(metrica.key);
+    if (muestra("distribucion")) for (const { metrica } of swarms) enPantalla.add(metrica.key);
+    for (const { ficha } of fichas) {
+      if (!muestra(ficha.id as BloqueId)) continue;
+      for (const columna of [ficha.ejeX, ficha.ejeY, ficha.campo, ...(ficha.campos ?? []).map((campo) => campo.columna)]) {
+        if (columna) enPantalla.add(columna);
+      }
+    }
+    return [...enPantalla].filter((columna) => DEFINICIONES[columna]).sort();
+  })();
+  const conFichas = fichas.some(({ ficha }) => muestra(ficha.id as BloqueId) && fichaEncaja(ficha));
+  /*
+   * Dos hojas. En una sola, con los bloques que trae por defecto, el PDF la
+   * encogía al 55 % y los gráficos quedaban ilegibles. La primera es la del
+   * jugador —dónde destaca y su lugar en la distribución—; la segunda, la de
+   * la comparación —ranking, arquetipos, fichas, presión, embudo y glosario—,
+   * y solo sale si alguno de esos bloques tiene algo que enseñar.
+   */
+  const hayHojaDos = (muestra("ranking") && ranking.length >= 4) || muestra("arquetipos") || conFichas
+    || (muestra("presion") && Boolean(presion)) || (muestra("embudo") && Boolean(embudo && embudo.length >= 3)) || glosario.length > 0;
+  const notaDelPie = <footer>{t("Percentiles contra jugadores de la misma posición en la base cargada. El puesto del equipo compara la mediana de cada club de la base.")}</footer>;
+
+  return <>
+  <div className={claseHoja}>
+  <article className="context-page">
     {/* El orden, de lo que es la página a cómo se lee.
 
         Primero el jugador: es el tema de la pantalla, y sus tres selectores
@@ -574,6 +605,21 @@ export function ContextPage({
       </div>
     </section>}
 
+    {!hayHojaDos && notaDelPie}
+    <PieDeReporte asunto={informeCompleto.player} destinatario={destinatario} logo={logoDestinatario} />
+  </article>
+  </div>
+
+  {hayHojaDos && <div className={claseHoja}>
+  <article className="context-page context-page-segunda">
+    <header>
+      <div>
+        <span>{t("CONTEXTO · COMPARACIÓN")}</span>
+        <b>{report.player}</b>
+        <small>{report.team} · {report.position} · {tf("frente a {n} jugadores de su posición", { n: report.cohortSize })}</small>
+      </div>
+    </header>
+
     {muestra("ranking") && ranking.length >= 4 && <section className="ctx-ranking-block">
       <h3>{tf("Los mejores de {perfil} en la base", { perfil: t(cohortLabelCorto(report.cohort)) })}</h3>
       <p>{t("Ordenados por índice global: la media de sus percentiles contra los jugadores de su misma posición. Es el número del centro del radar.")}</p>
@@ -588,7 +634,7 @@ export function ContextPage({
       onSelectPlayer={controles?.onJugador}
     />}
 
-    {fichas.some(({ ficha }) => muestra(ficha.id as BloqueId) && fichaEncaja(ficha)) && <section className="ctx-catalog-block">
+    {conFichas && <section className="ctx-catalog-block">
       <h3>{t("Análisis de los artículos de SkillCorner")}</h3>
       <div className="ctx-catalog">
         {fichas.filter(({ ficha }) => muestra(ficha.id as BloqueId) && fichaEncaja(ficha)).map(({ ficha, datos }) => (
@@ -615,35 +661,21 @@ export function ContextPage({
       <Embudo pasos={embudo} />
     </section>}
 
-    {(() => {
-      // Solo las métricas que el scout tiene delante: un glosario completo
-      // sería ruido, y uno ausente obliga a saberse la nomenclatura.
-      const enPantalla = new Set<string>();
-      for (const metrica of [...destacadas, ...flojas]) enPantalla.add(metrica.key);
-      if (muestra("distribucion")) for (const { metrica } of swarms) enPantalla.add(metrica.key);
-      for (const { ficha } of fichas) {
-        if (!muestra(ficha.id as BloqueId)) continue;
-        for (const columna of [ficha.ejeX, ficha.ejeY, ficha.campo, ...(ficha.campos ?? []).map((campo) => campo.columna)]) {
-          if (columna) enPantalla.add(columna);
-        }
-      }
-      const glosario = [...enPantalla].filter((columna) => DEFINICIONES[columna]).sort();
-      if (!glosario.length) return null;
-      return <section className="ctx-glossary">
-        <h3>{t("Qué mide cada métrica")}</h3>
-        <dl>
-          {glosario.map((columna) => <div key={columna}>
-            <dt>{t(columna)}</dt>
-            <dd>{t(DEFINICIONES[columna])}</dd>
-          </div>)}
-        </dl>
-      </section>;
-    })()}
+    {glosario.length > 0 && <section className="ctx-glossary">
+      <h3>{t("Qué mide cada métrica")}</h3>
+      <dl>
+        {glosario.map((columna) => <div key={columna}>
+          <dt>{t(columna)}</dt>
+          <dd>{t(DEFINICIONES[columna])}</dd>
+        </div>)}
+      </dl>
+    </section>}
 
-    <footer>{t("Percentiles contra jugadores de la misma posición en la base cargada. El puesto del equipo compara la mediana de cada club de la base.")}</footer>
+    {notaDelPie}
     {/* La misma firma que las hojas de diseño: en el PDF conviven páginas de
         las dos clases y no debería notarse cuál viene de dónde. */}
     <PieDeReporte asunto={informeCompleto.player} destinatario={destinatario} logo={logoDestinatario} />
-
-  </article>;
+  </article>
+  </div>}
+  </>;
 }

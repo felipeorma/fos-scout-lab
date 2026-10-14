@@ -6501,3 +6501,13 @@ body.print-layout-check .legal-page-shell > :is(.rank-page, .pool-page) :is(.ran
 .nombre-base-acciones button:disabled { opacity: .5; cursor: not-allowed; }
 .nombre-base-form > small { flex-basis: 100%; color: #d64545; font-size: 11px; }
 @media print { .nombre-base-lapiz, .nombre-base-form { display: none !important; } }
+
+/* Hojas vacías (Entre ligas sin referencia, Carreras sin cargar…): no salen en
+   el PDF ni cuentan en la medida previa. El diálogo ya no las manda; esto es
+   la red por si llegan igual. */
+@media print { .legal-page-shell:has([data-hoja-vacia]) { display: none !important; } }
+body.print-layout-check .legal-page-shell:has([data-hoja-vacia]) { display: none !important; }
+.impresion-fila.vacia { opacity: .55; cursor: not-allowed; }
+
+/* De qué datos sale cada hoja y cuándo se generó, bajo la firma. */
+.pie-datos { margin: 4px 0 0; color: var(--report-muted, #8493ab); font-size: 7.5px; letter-spacing: .02em; text-align: center; }

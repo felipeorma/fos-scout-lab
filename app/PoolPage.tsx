@@ -145,7 +145,7 @@ export function PoolPage({ onAbrirJugador, destinatario = "", logoDestinatario =
   };
 
   if (!rows.length) {
-    return <section className="pool-page">
+    return <section className="pool-page" data-hoja-vacia="">
       <header>
         <h2>{t("Buscador entre ligas")}</h2>
         <p>{t("Carga primero una base y vuelve: esta pantalla busca dentro de lo que tengas cargado.")}</p>
@@ -153,7 +153,8 @@ export function PoolPage({ onAbrirJugador, destinatario = "", logoDestinatario =
     </section>;
   }
 
-  return <section className="pool-page">
+  // Sin jugador de referencia no hay nada que imprimir: la hoja se salta.
+  return <section className="pool-page" data-hoja-vacia={objetivo < 0 ? "" : undefined}>
     <header>
       <h2>{t("Buscador entre ligas")}</h2>
       <p>{t("Quién se parece a un jugador dentro de la base activa. Toca a cualquiera para abrir su ficha.")}</p>

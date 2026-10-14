@@ -51,6 +51,8 @@ import { reportExportBaseName } from "@/lib/reportExportName";
 import { canonicalizeRow } from "@/lib/wyscoutHeaders";
 import { leerFilasDeArchivo } from "@/lib/lecturaDeArchivos";
 import { MINUTOS_FIABLES, margenDelIndice } from "@/lib/fiabilidad";
+import { MomentoDeImpresion, ocultarComoAlImprimir } from "./medidaDeImpresion";
+import { lineaDeDatos } from "@/lib/fechasDelInforme";
 import { FECHA_NIVEL_RESPALDO, LIGA_DE_REFERENCIA, PUNTOS_POR_RATING, indiceANivel, nivelDeLiga, ratingDeTramos, type EntradaOpta } from "@/lib/nivelDeLiga";
 import { METRIC_SOURCE_COLORS, SIMILARITY_METRIC_GROUPS, similarityMetricGroup } from "@/lib/similarityMetricGroups";
 import { numberLocale, setActiveLang, t, tDefault, tf, type Lang } from "@/lib/i18n";
@@ -167,8 +169,17 @@ function readWorkbook(file: File): Promise<SourceDataset> {
     const rows = filas.map((row) => canonicalizeRow(row) as DataRow);
     const headers = rows.length ? Object.keys(rows[0]) : [];
     if (!rows.length || !headers.length) throw new Error(tf("El archivo {name} está vacío.", { name: file.name }));
-    return { fileName: file.name, season: extractSeason(file.name), headers, rows };
+    return { fileName: file.name, season: extractSeason(file.name), headers, rows, cargadoEl: Date.now() };
   });
+}
+
+/**
+ * La hora, fuera del componente. Solo la llama `startPrint`, desde el clic de
+ * Imprimir; el compilador de React no puede demostrarlo en un componente de
+ * este tamaño y marcaría el `Date.now()` como si corriera en el render.
+ */
+function horaActual() {
+  return Date.now();
 }
 
 function numberFormat(value: number) {
@@ -361,7 +372,8 @@ export default function ScoutStudio() {
   const paginaVisible = (pagina: ReportPage) => (printRun ? printRun.includes(pagina) : reportPage === pagina);
   /** Si debe existir en el DOM: ya se visitó, o entra en la impresión. */
   const paginaMontada = (pagina: ReportPage) => paginasAbiertas.includes(pagina) || Boolean(printRun?.includes(pagina));
-  const claseHoja = (pagina: ReportPage) => `legal-page-shell${paginaVisible(pagina) ? "" : " is-hidden"}`;
+  // `hoja-N` dice de qué página es cada hoja, para saber al imprimir cuáles están vacías.
+  const claseHoja = (pagina: ReportPage) => `legal-page-shell hoja-${pagina}${paginaVisible(pagina) ? "" : " is-hidden"}`;
   // Cavalry y Maldonado son encargos distintos: comparten los datos cargados
   // pero no el flujo. El espacio elegido decide qué pestañas existen.
   const [espacio, setEspacio] = useState<"cavalry" | "maldonado">("cavalry");
@@ -377,6 +389,15 @@ export default function ScoutStudio() {
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const [printPages, setPrintPages] = useState<ReportPage[]>([CARD_PAGE, SIMILARITY_PAGE, FIRST_VISUAL_PAGE]);
   const [printRun, setPrintRun] = useState<ReportPage[] | null>(null);
+  /*
+   * Las hojas que hoy saldrían en blanco: Entre ligas sin jugador de
+   * referencia, Carreras sin carreras cargadas, Flujo sin liga, Estilo sin
+   * equipo, un Ranking en el que nadie pasa los filtros. Antes se imprimían
+   * igual, como una hoja con la cabecera y nada más. Se miran al abrir el
+   * diálogo: cada página marca su raíz con `data-hoja-vacia`, y las que piden
+   * elegir algo y nunca se abrieron están vacías por fuerza.
+   */
+  const [paginasVacias, setPaginasVacias] = useState<ReportPage[]>([]);
   // El encaje de la ficha ampliada: con qué equipo se mide (vacío, Cavalry) y
   // si su hoja va en el PDF. Fuera por defecto: un informe que sale del club
   // no siempre debe decir para quién se mira al jugador. Se recuerda.
@@ -390,6 +411,8 @@ export default function ScoutStudio() {
     try { window.localStorage.setItem("fos-temporada-anterior-v1", encendida ? "si" : "no"); } catch { /* preferencia opcional */ }
   }
   const [sourceDatasets, setSourceDatasets] = useState<SourceDataset[]>([]);
+  /** Cuándo se pulsó Imprimir: el pie de cada hoja dice cuándo se generó el PDF. */
+  const [impresoEl, setImpresoEl] = useState<number | null>(null);
   /**
    * Competiciones apagadas: siguen descargadas pero fuera del cruce.
    *
@@ -885,6 +908,8 @@ export default function ScoutStudio() {
     if (!printRun) return;
     let cancelled = false;
     document.body.classList.add("print-layout-check");
+    const mostrarLoOculto = ocultarComoAlImprimir();
+    const salirDeLaMedida = () => { document.body.classList.remove("print-layout-check"); mostrarLoOculto(); };
     // En una pestaña en segundo plano requestAnimationFrame no dispara nunca y
     // la exportación se quedaría esperando para siempre: se corre contra un
     // temporizador para que el flujo siempre avance.
@@ -984,7 +1009,7 @@ export default function ScoutStudio() {
         const irreducible = shells.some((shell) => (escalas.get(shell) ?? 1) <= MIN_FIT && overflowRatio(shell) < 1);
         if (irreducible) {
           for (const shell of shells) { shell.style.removeProperty("--print-fit"); delete shell.dataset.printFit; }
-          document.body.classList.remove("print-layout-check");
+          salirDeLaMedida();
           setPrintLayoutError(t("Una página tiene demasiado contenido para la hoja Legal, incluso reduciéndola. Quita algún bloque o acorta el texto."));
           setPrintRun(null);
           setPrintDialogOpen(true);
@@ -1011,13 +1036,13 @@ export default function ScoutStudio() {
           // conserva el nombre el tiempo suficiente en navegadores no bloqueantes.
           window.setTimeout(restoreTitle, 60_000);
         }
-        document.body.classList.remove("print-layout-check");
+        salirDeLaMedida();
         setPrintRun(null);
       })();
     }, 100);
     return () => {
       cancelled = true;
-      document.body.classList.remove("print-layout-check");
+      salirDeLaMedida();
       window.clearTimeout(timer);
     };
   }, [printRun]);
@@ -1071,7 +1096,8 @@ export default function ScoutStudio() {
   }
 
   function startPrint() {
-    if (!printPages.length) return;
+    const imprimibles = printPages.filter((page) => !paginasVacias.includes(page));
+    if (!imprimibles.length) return;
     printFileNameRef.current = reportExportBaseName({
       recipient: recipientName,
       player: report?.player ?? "",
@@ -1079,7 +1105,8 @@ export default function ScoutStudio() {
     });
     setPrintLayoutError("");
     setPrintDialogOpen(false);
-    setPrintRun([...printPages].sort((a, b) => a - b));
+    setImpresoEl(horaActual());
+    setPrintRun([...imprimibles].sort((a, b) => a - b));
   }
 
   function alternarEncajeEnPdf() {
@@ -1920,6 +1947,7 @@ export default function ScoutStudio() {
             m: numberFormat(report.minutes),
           })}`}
           {notaDeRescate && ` ${notaDeRescate}`}
+          {` ${lineaDeDatos({ descripcion: base.descripcion, cargadaEl: base.cargadaEl, generadoEl: impresoEl })}.`}
           {report.metrics.some((metric) => metric.source === "skillcorner") && ` ${t("Los volúmenes de SkillCorner (SC) van por 30 minutos con balón del equipo.")}`}</p>
         <div className="report-signatures">
           <div className="report-author"><span>{t("ELABORADO POR")}</span><b>{firma.nombre || FIRMAS_POR_DEFECTO[claveFirma].nombre}</b><small>{firma.cargo}</small></div>
@@ -1949,6 +1977,16 @@ export default function ScoutStudio() {
       ...visualPages.map((page, index) => ({ page, title: tf("Visuales {n}", { n: index + 1 }), hint: t("Mapas, imágenes y texto") })),
     ];
   const todasMarcadas = paginasParaImprimir.every(({ page }) => printPages.includes(page));
+  const paginasQuePidenElegir: ReportPage[] = [POOL_PAGE, RUNS_PAGE, FLOW_PAGE, STYLE_PAGE];
+  useEffect(() => {
+    if (!printDialogOpen) return;
+    setPaginasVacias([POOL_PAGE, RUNS_PAGE, FLOW_PAGE, STYLE_PAGE, RANK_PAGE].filter((page) => (
+      (paginasQuePidenElegir.includes(page) && !paginasAbiertas.includes(page))
+      || Boolean(document.querySelector(`.hoja-${page} [data-hoja-vacia]`))
+    )));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [printDialogOpen]);
+  const cuantasImprimibles = printPages.filter((page) => !paginasVacias.includes(page)).length;
   // El nombre del equipo del encaje, como lo elige la propia hoja: el elegido o, si no, el nuestro.
   const nombreEquipoEncaje = equipoEncaje
     || [...new Set(reportRows.map((fila) => String(fila.Team ?? "").trim()))].find((equipo) => mismoEquipo(equipo, EQUIPO_PROPIO))
@@ -1956,6 +1994,7 @@ export default function ScoutStudio() {
 
   return (
     <ProveedorDeBase valor={base}>
+    <MomentoDeImpresion.Provider value={impresoEl}>
     <div className="app-shell no-sidebar" data-paleta={paleta} data-tema={tema}>
       <main className="main-area">
         {/* La barra de navegación, al modo de iOS: una guía a la izquierda,
@@ -2511,11 +2550,49 @@ export default function ScoutStudio() {
                 />
               </div>
 
-              {report && paginaMontada(BOARD_PAGE) && (
-                <div className={claseHoja(BOARD_PAGE)}><ScoutingBoard rows={reportRows} minimumMinutes={minimumMinutes} onSelectPlayer={(indice) => { selectPlayer(indice); setBoardPreviewOpen(true); }} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
+              {/* Las hojas van en el mismo orden que la lista del diálogo de
+                  imprimir: el PDF sale en el orden del DOM, no en el de la
+                  lista, y antes Contexto y la Ficha ampliada salían al final
+                  aunque el diálogo los pusiera terceros. Lo vigila
+                  tests/orden-del-pdf.test.mjs. */}
+              {espacio === "cavalry" && report && paginaMontada(SNAPSHOT_PAGE) && (
+                <SnapshotPage rows={reportRows} indice={selectedPlayer} informe={report} perfilTm={profile} minutosMin={minimumMinutes} claseHoja={claseHoja(SNAPSHOT_PAGE)}
+                  destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} onAbrirJugador={(indice) => selectPlayer(indice)}
+                  equipoEncaje={equipoEncaje} onEquipoEncaje={setEquipoEncaje} sinHojaDeEncaje={Boolean(printRun) && !pdfConEncaje} />
+              )}
+              {report && paginaMontada(CONTEXT_PAGE) && (
+                <ContextPage claseHoja={claseHoja(CONTEXT_PAGE)} report={report} rows={reportRows} bases={sourceDatasets} minutosFiltro={minimumMinutes} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} controles={{
+                  equipos: teams, jugadores: teamPlayers, equipo: selectedTeam, jugador: selectedPlayer,
+                  cohorte: cohort,
+                  onEquipo: selectTeam, onJugador: selectPlayer, onCohorte: setCohort,
+                }} />
               )}
               {paginaMontada(RUNS_PAGE) && (
                 <div className={claseHoja(RUNS_PAGE)}><RunsPage destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
+              )}
+              {/* Ranking, Entre ligas, Estilo de juego, Flujo de posesión y Ficha ampliada —con el
+                  encaje de equipo— son de Cavalry: en el espacio Maldonado no
+                  se montan aunque la página quede recordada o llegue por un
+                  enlace. Allí se trabaja con la mesa y nada más. */}
+              {espacio === "cavalry" && report && paginaMontada(RANK_PAGE) && (
+                <div className={claseHoja(RANK_PAGE)}><RankingPage onSelectPlayer={(indice) => { selectPlayer(indice); setReportPage(CARD_PAGE); }} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl}
+                  medirEnSuLiga={medirContra === "liga"} nivel={nivelDelRanking} /></div>
+              )}
+              {espacio === "cavalry" && paginaMontada(POOL_PAGE) && (
+                <div className={claseHoja(POOL_PAGE)}><PoolPage onAbrirJugador={(indice) => { selectPlayer(indice); setReportPage(CARD_PAGE); }} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
+              )}
+              {espacio === "cavalry" && paginaMontada(STYLE_PAGE) && (
+                <EstiloPage claseHoja={claseHoja(STYLE_PAGE)} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} />
+              )}
+              {espacio === "cavalry" && paginaMontada(FLOW_PAGE) && (
+                <div className={claseHoja(FLOW_PAGE)}><FlujoPage destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
+              )}
+              {report ? visualPages.filter((page) => printRun ? printRun.includes(page) : reportPage === page).map((page) => (
+                <ReportPageDesigner key={page} pageNumber={page} persist={!printRun || reportPage === page} player={report.player} team={profile.club || report.team} position={formatPlayerPositions(profile.position || report.position)} theme={reportTheme} onThemeChange={setReportTheme} recipientName={recipientName} recipientLogoUrl={reportRecipientLogoUrl} aiFacts={aiControlsHidden ? undefined : () => ({ lang, player: aiPlayerFacts(report), metrics: aiMetricFacts(report) })}
+                  ficha={{ rows: reportRows, indice: selectedPlayer, informe: report, perfilTm: profile, minutosMin: minimumMinutes }} />
+              )) : !printRun && reportPage >= FIRST_VISUAL_PAGE ? <div className="empty-preview">{t("Selecciona un jugador para diseñar las páginas.")}</div> : null}
+              {report && paginaMontada(BOARD_PAGE) && (
+                <div className={claseHoja(BOARD_PAGE)}><ScoutingBoard rows={reportRows} minimumMinutes={minimumMinutes} onSelectPlayer={(indice) => { selectPlayer(indice); setBoardPreviewOpen(true); }} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
               )}
               {paginaMontada(DATA_PAGE) && (
                 <div className={claseHoja(DATA_PAGE)}><DatosPage
@@ -2533,23 +2610,6 @@ export default function ScoutStudio() {
                   onTemporadaAnterior={cambiarTemporadaAnterior}
                 /></div>
               )}
-              {/* Ranking, Entre ligas, Estilo de juego, Flujo de posesión y Ficha ampliada —con el
-                  encaje de equipo— son de Cavalry: en el espacio Maldonado no
-                  se montan aunque la página quede recordada o llegue por un
-                  enlace. Allí se trabaja con la mesa y nada más. */}
-              {espacio === "cavalry" && report && paginaMontada(RANK_PAGE) && (
-                <div className={claseHoja(RANK_PAGE)}><RankingPage onSelectPlayer={(indice) => { selectPlayer(indice); setReportPage(CARD_PAGE); }} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl}
-                  medirEnSuLiga={medirContra === "liga"} nivel={nivelDelRanking} /></div>
-              )}
-              {espacio === "cavalry" && paginaMontada(POOL_PAGE) && (
-                <div className={claseHoja(POOL_PAGE)}><PoolPage onAbrirJugador={(indice) => { selectPlayer(indice); setReportPage(CARD_PAGE); }} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
-              )}
-              {espacio === "cavalry" && paginaMontada(FLOW_PAGE) && (
-                <div className={claseHoja(FLOW_PAGE)}><FlujoPage destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
-              )}
-              {espacio === "cavalry" && paginaMontada(STYLE_PAGE) && (
-                <EstiloPage claseHoja={claseHoja(STYLE_PAGE)} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} />
-              )}
               {boardPreviewOpen && (
                 <div className="board-preview-overlay" role="dialog" aria-modal="true" aria-label={t("Vista rápida del reporte")} onClick={() => setBoardPreviewOpen(false)}>
                   <div className="board-preview-dialog" onClick={(event) => event.stopPropagation()}>
@@ -2566,22 +2626,6 @@ export default function ScoutStudio() {
                   </div>
                 </div>
               )}
-              {espacio === "cavalry" && report && paginaMontada(SNAPSHOT_PAGE) && (
-                <SnapshotPage rows={reportRows} indice={selectedPlayer} informe={report} perfilTm={profile} minutosMin={minimumMinutes} claseHoja={claseHoja(SNAPSHOT_PAGE)}
-                  destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} onAbrirJugador={(indice) => selectPlayer(indice)}
-                  equipoEncaje={equipoEncaje} onEquipoEncaje={setEquipoEncaje} sinHojaDeEncaje={Boolean(printRun) && !pdfConEncaje} />
-              )}
-              {report && paginaMontada(CONTEXT_PAGE) && (
-                <div className={claseHoja(CONTEXT_PAGE)}><ContextPage report={report} rows={reportRows} bases={sourceDatasets} minutosFiltro={minimumMinutes} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} controles={{
-                  equipos: teams, jugadores: teamPlayers, equipo: selectedTeam, jugador: selectedPlayer,
-                  cohorte: cohort,
-                  onEquipo: selectTeam, onJugador: selectPlayer, onCohorte: setCohort,
-                }} /></div>
-              )}
-              {report ? visualPages.filter((page) => printRun ? printRun.includes(page) : reportPage === page).map((page) => (
-                <ReportPageDesigner key={page} pageNumber={page} persist={!printRun || reportPage === page} player={report.player} team={profile.club || report.team} position={formatPlayerPositions(profile.position || report.position)} theme={reportTheme} onThemeChange={setReportTheme} recipientName={recipientName} recipientLogoUrl={reportRecipientLogoUrl} aiFacts={aiControlsHidden ? undefined : () => ({ lang, player: aiPlayerFacts(report), metrics: aiMetricFacts(report) })}
-                  ficha={{ rows: reportRows, indice: selectedPlayer, informe: report, perfilTm: profile, minutosMin: minimumMinutes }} />
-              )) : !printRun && reportPage >= FIRST_VISUAL_PAGE ? <div className="empty-preview">{t("Selecciona un jugador para diseñar las páginas.")}</div> : null}
 
               {printDialogOpen && <div className="print-dialog-overlay" role="dialog" aria-modal="true" aria-label={t("¿Qué páginas quieres incluir en el PDF?")} onClick={() => setPrintDialogOpen(false)}>
                 {/* La hoja de imprimir, como una de iOS.
@@ -2607,11 +2651,16 @@ export default function ScoutStudio() {
                   </div>
                   <div className="impresion-lista">
                     {paginasParaImprimir.map(({ page, title, hint }) => {
-                      const elegida = printPages.includes(page);
-                      const fila = <label key={page} className={elegida ? "impresion-fila elegida" : "impresion-fila"}>
-                        <input type="checkbox" className="impresion-casilla" checked={elegida} onChange={() => togglePrintPage(page)} />
+                      const vacia = paginasVacias.includes(page);
+                      const elegida = printPages.includes(page) && !vacia;
+                      const fila = <label key={page} className={vacia ? "impresion-fila vacia" : elegida ? "impresion-fila elegida" : "impresion-fila"}>
+                        <input type="checkbox" className="impresion-casilla" checked={elegida} disabled={vacia} onChange={() => togglePrintPage(page)} />
                         <span className="impresion-marca" aria-hidden="true">{elegida && <Check size={14} />}</span>
-                        <span className="impresion-fila-texto"><b>{title}</b><small>{page === SNAPSHOT_PAGE ? (pdfConEncaje ? t("3 hojas: familias, mapas y encaje") : t("2 hojas: familias y mapas")) : hint}</small></span>
+                        <span className="impresion-fila-texto"><b>{title}</b><small>{vacia
+                          ? t("Vacía ahora: ábrela y elige qué mostrar para que salga en el PDF.")
+                          : page === SNAPSHOT_PAGE ? (pdfConEncaje ? t("3 hojas: familias, mapas y encaje") : t("2 hojas: familias y mapas"))
+                          : page === CONTEXT_PAGE ? t("2 hojas: el jugador y la comparación")
+                          : hint}</small></span>
                       </label>;
                       // El encaje va colgado de la ficha ampliada: solo se ofrece si ella sale.
                       if (page !== SNAPSHOT_PAGE || !elegida) return fila;
@@ -2626,8 +2675,8 @@ export default function ScoutStudio() {
                     <span>{t("Nombre sugerido")}</span>
                     <b>{reportExportName}.pdf</b>
                   </div>
-                  <button type="button" className="impresion-accion" onClick={startPrint} disabled={!printPages.length}><Printer size={16} /> {t("Generar PDF / Imprimir")}</button>
-                  {!printPages.length && <small className="print-dialog-note">{t("Selecciona al menos una página.")}</small>}
+                  <button type="button" className="impresion-accion" onClick={startPrint} disabled={!cuantasImprimibles}><Printer size={16} /> {t("Generar PDF / Imprimir")}</button>
+                  {!cuantasImprimibles && <small className="print-dialog-note">{t("Selecciona al menos una página.")}</small>}
                   {printLayoutError && <small className="print-dialog-note">{t(printLayoutError)}</small>}
                 </div>
               </div>}
@@ -2635,6 +2684,7 @@ export default function ScoutStudio() {
           </div>
       </main>
     </div>
+    </MomentoDeImpresion.Provider>
     </ProveedorDeBase>
   );
 }

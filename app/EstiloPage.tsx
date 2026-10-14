@@ -174,7 +174,7 @@ export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", lo
   // salen al imprimir.
   return <>
   <div className={claseHoja}>
-  <section className="estilo-page estilo-hoja-1">
+  <section className="estilo-page estilo-hoja-1" data-hoja-vacia={elegido ? undefined : ""}>
     <header>
       <div>
         <span>{t("STATSBOMB · ESTADÍSTICAS DE EQUIPO")}</span>
@@ -301,7 +301,7 @@ export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", lo
   </div>
 
   {elegido && <div className={claseHoja}>
-  <section className="estilo-page estilo-hoja-2">
+  <section className="estilo-page estilo-hoja-2" data-hoja-vacia={elegido ? undefined : ""}>
     <header className="estilo-cabecera-continuacion">
       <div>
         <span>{t("STATSBOMB · ESTADÍSTICAS DE EQUIPO · 2 DE 2")}</span>

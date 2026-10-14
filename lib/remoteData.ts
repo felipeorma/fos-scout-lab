@@ -213,6 +213,7 @@ function toDataset(fileName: string, season: string, rows: DataRow[], provider: 
     headers: Object.keys(rows[0]),
     rows,
     provider,
+    cargadoEl: Date.now(),
   };
 }
 

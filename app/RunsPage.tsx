@@ -325,7 +325,7 @@ export function RunsPage({ destinatario = "", logoDestinatario = "" }: {
     verJugador(nombre);
   };
 
-  return <section className="runs-page">
+  return <section className="runs-page" data-hoja-vacia={datos ? undefined : ""}>
     {/* La explicación de la leyenda se lee una vez: pasa a un desplegable. */}
     <header>
       <div>

@@ -14,6 +14,8 @@ export type SourceDataset = {
   rows: DataRow[];
   /** Plataforma de origen; los minutos no se suman entre proveedores distintos. */
   provider?: MetricSource;
+  /** Cuándo se leyó el archivo o se pidió a la plataforma (milisegundos). Lo firma el pie del PDF. */
+  cargadoEl?: number;
   /**
    * El nombre del archivo tal como se subió, si después se le puso liga y
    * temporada a mano (ver lib/nombresDeBase.ts). Es la identidad de la base:

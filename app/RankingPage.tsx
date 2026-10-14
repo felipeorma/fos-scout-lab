@@ -191,7 +191,8 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
     onSelectPlayer(indice);
   };
 
-  return <section className="rank-page">
+  const sinNadaQueImprimir = vista === "indice" ? !listados.length : !arquetipos.length;
+  return <section className="rank-page" data-hoja-vacia={sinNadaQueImprimir ? "" : undefined}>
     {/* La cabecera dice qué es la pantalla y nada más. La explicación del
         índice ocupaba tres líneas encima de todo, y se lee una vez: pasa a un
         desplegable, un nivel más abajo, igual que el aviso de cobertura. */}

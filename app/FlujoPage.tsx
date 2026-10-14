@@ -251,7 +251,7 @@ export function FlujoPage({ destinatario = "", logoDestinatario = "" }: {
     </th>
   );
 
-  return <section className="flujo-page">
+  return <section className="flujo-page" data-hoja-vacia={resultado?.liga ? undefined : ""}>
     <header>
       <div>
         <span>{t("STATSBOMB · EVENTOS DE TEMPORADA")}</span>
