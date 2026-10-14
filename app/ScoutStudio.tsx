@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import * as XLSX from "xlsx";
 import { BarChart3, Check, ChevronDown, ChevronRight, Crosshair, Database, FileSpreadsheet, ImageIcon, LockKeyhole, Menu, Merge, MoreHorizontal, Plus, Printer, RadarChart, RotateCcw, Route, Search, Sparkles, Trash, Trophy, Upload, X, ShieldCheck, LayoutDashboard, Wind } from "./Icons";
 import { PizzaRadar } from "./PizzaRadar";
 import { ContextPage } from "./ContextPage";
@@ -50,6 +49,7 @@ import { removePlayerImageBackground } from "@/lib/playerImageBackground";
 import { fetchAiSummary, type AiMetricFact, type AiPlayerFacts, fetchSkillcornerCompetitions, fetchSkillcornerDataset, fetchSourcesStatus, fetchStatsbombCompetitions, fetchStatsbombDataset, fetchTransfermarktProfile, temporadasUtiles, type ApiCompetition, type SourcesStatus } from "@/lib/remoteData";
 import { reportExportBaseName } from "@/lib/reportExportName";
 import { canonicalizeRow } from "@/lib/wyscoutHeaders";
+import { leerFilasDeArchivo } from "@/lib/lecturaDeArchivos";
 import { METRIC_SOURCE_COLORS, SIMILARITY_METRIC_GROUPS, similarityMetricGroup } from "@/lib/similarityMetricGroups";
 import { numberLocale, setActiveLang, t, tDefault, tf, type Lang } from "@/lib/i18n";
 
@@ -155,20 +155,14 @@ const PROFILE_ASSETS: Array<{ field: ProfileAssetField; label: string; linkLabel
 
 function readWorkbook(file: File): Promise<SourceDataset> {
   return file.arrayBuffer().then((buffer) => {
-    // Un .xlsx guarda su texto como XML UTF-8 dentro del zip y se lee solo,
-    // pero un .csv es texto plano: leído como bytes se decodifica en Latin-1
-    // y "Atlético Ottawa" llega como "AtlÃ©tico". Se decodifica a mano.
-    const esTexto = /\.(csv|tsv|txt)$/i.test(file.name);
-    const workbook = esTexto
-      ? XLSX.read(new TextDecoder("utf-8").decode(buffer), { type: "string", cellDates: true })
-      : XLSX.read(buffer, { type: "array", cellDates: true });
-    const sheetName = workbook.SheetNames[0];
-    if (!sheetName) throw new Error(tf("El archivo {name} no contiene hojas.", { name: file.name }));
+    // Codificación, separador decimal y fechas se resuelven en
+    // lib/lecturaDeArchivos, que tiene sus pruebas.
+    const { hoja, filas } = leerFilasDeArchivo(buffer, file.name);
+    if (!hoja) throw new Error(tf("El archivo {name} no contiene hojas.", { name: file.name }));
     // Wyscout exporta la misma plantilla en varios idiomas: las cabeceras se
     // llevan al nombre inglés canónico para que un archivo en español y otro
     // en inglés se lean igual y puedan combinarse entre sí.
-    const rawRows = XLSX.utils.sheet_to_json<DataRow>(workbook.Sheets[sheetName], { defval: "", raw: true });
-    const rows = rawRows.map((row) => canonicalizeRow(row) as DataRow);
+    const rows = filas.map((row) => canonicalizeRow(row) as DataRow);
     const headers = rows.length ? Object.keys(rows[0]) : [];
     if (!rows.length || !headers.length) throw new Error(tf("El archivo {name} está vacío.", { name: file.name }));
     return { fileName: file.name, season: extractSeason(file.name), headers, rows };
