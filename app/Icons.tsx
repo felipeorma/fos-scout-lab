@@ -76,3 +76,4 @@ export const Palette = icono(<><path d="M12 3.5a8.5 8.5 0 1 0 0 17c1.3 0 2-.8 2-
 export const Columns = icono(<><rect x="3.5" y="4.5" width="17" height="15" rx="2" /><path d="M12 4.5v15" /></>);
 export const MoveUp = icono(<><path d="M12 19.5V5" /><path d="m6.5 10.5 5.5-5.5 5.5 5.5" /></>);
 export const MoveDown = icono(<><path d="M12 4.5V19" /><path d="m6.5 13.5 5.5 5.5 5.5-5.5" /></>);
+export const Pencil = icono(<><path d="M15.2 5.3 18.7 8.8" /><path d="M5 19l1-4.2L16.2 4.6a1.6 1.6 0 0 1 2.3 0l.9.9a1.6 1.6 0 0 1 0 2.3L9.2 18 5 19z" /></>);

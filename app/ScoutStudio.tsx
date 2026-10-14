@@ -16,7 +16,9 @@ import { ReportPageDesigner } from "./ReportPageDesigner";
 import { SimilarityStudio } from "./SimilarityStudio";
 import { CLIENT_THEMES, DEFAULT_REPORT_THEME, reportThemeStyle, type ReportTheme } from "./reportTheme";
 import { LOGOS_PLATAFORMA, LogoPlataforma } from "./LogosPlataforma";
-import { ligasDeBases, origenPorFila, basesDelRadar } from "@/lib/procedencia";
+import { ligasDeBases, origenPorFila, basesDelRadar, ligaYAnioDe } from "@/lib/procedencia";
+import { aplicarNombre, conNombresGuardados, guardarNombre, identidadDeBase, nombreActual, type NombreDeBase } from "@/lib/nombresDeBase";
+import { EditorDeNombreDeBase } from "./EditorDeNombreDeBase";
 import { ProveedorDeBase, useEstadoDeBase } from "./BaseActiva";
 import { BarraDeFiltros } from "./BarraDeFiltros";
 import { MenuDeLigas, MenuDesplegable, type OpcionDeMenu } from "./MenuDesplegable";
@@ -1117,6 +1119,58 @@ export default function ScoutStudio() {
     aplicarActivos(activos);
   }
 
+  /**
+   * Poner liga y temporada a bases cargadas desde archivo.
+   *
+   * Se reescribe su nombre en el inventario y se rehace el cruce con las
+   * encendidas, como al apagar una liga: así la ficha, los filtros y el panel
+   * leen el nombre nuevo, las apagadas siguen apagadas y no vuelve a saltar
+   * la oferta de SkillCorner. Se sigue en el mismo jugador.
+   */
+  function renombrarBases(archivos: string[], nombre: NombreDeBase) {
+    const actual = reportRows[selectedPlayer];
+    const jugador = String(actual?.Player ?? "");
+    const club = String(actual?.Team ?? "");
+    const cambios = new Map<string, string>();
+    const inventario = sourceDatasets.map((dataset) => {
+      if (!archivos.includes(dataset.fileName)) return dataset;
+      guardarNombre(dataset, nombre);
+      const renombrada = aplicarNombre(dataset, nombre);
+      cambios.set(dataset.fileName, renombrada.fileName);
+      return renombrada;
+    });
+    if (!cambios.size) return;
+    const apagadas = ligasApagadas.map((archivo) => cambios.get(archivo) ?? archivo);
+    setLigasApagadas(apagadas);
+    setSourceDatasets(inventario);
+    if (inventario.length === 1) setReportFileName(inventario[0].fileName.replace(/\.(xlsx|xls|csv)$/i, ""));
+    const activos = inventario.filter((dataset) => !apagadas.includes(dataset.fileName));
+    const result = aggregateDatasets(activos);
+    setReportRows(result.rows);
+    setReportSourceCount(activos.length);
+    const mismo = result.rows.findIndex((fila) => String(fila.Player ?? "") === jugador && String(fila.Team ?? "") === club);
+    const indice = mismo >= 0 ? mismo : result.rows.findIndex((fila) => String(fila.Player ?? "") === jugador);
+    const seleccion = indice >= 0 ? { index: indice, team: String(result.rows[indice].Team ?? "") } : firstPlayerSelection(result.rows);
+    setSelectedTeam(seleccion.team);
+    setSelectedPlayer(seleccion.index);
+  }
+
+  /**
+   * Las bases de archivo (Wyscout) detrás de una temporada del jugador: las
+   * de ese año y esa liga. Las de la API ya traen su nombre y no se tocan:
+   * StatsBomb y su capa de SkillCorner tienen que seguir diciendo lo mismo.
+   * La ficha solo deja nombrar una fila que sale de un único archivo: dos
+   * Excel sin año caen en la misma "temporada" aunque sean dos distintas, y
+   * nombrarlos juntos los dejaría así. Uno a uno se hace en Base activa.
+   */
+  function basesDeArchivoDe(temporada: { anio: number; ligas: string[] } | undefined) {
+    if (!temporada || espacio !== "cavalry") return [];
+    return sourceDatasets.filter((dataset) => dataset.provider !== "statsbomb" && dataset.provider !== "skillcorner"
+      && !ligasApagadas.includes(dataset.fileName)
+      // Sin extensión, como la escribe el cruce en el origen de cada fila.
+      && dataset.season === temporada.anio && temporada.ligas.includes(ligaYAnioDe(dataset.fileName.replace(/\.(xlsx|xls|csv)$/i, "")).liga));
+  }
+
   /** Rehace el cruce con las bases encendidas, sin tocar el inventario. */
   function aplicarActivos(activos: SourceDataset[]) {
     const result = aggregateDatasets(activos);
@@ -1153,7 +1207,9 @@ export default function ScoutStudio() {
     // Una base, una vez. Dos copias del mismo archivo no son dos temporadas:
     // el cruce las sumaba como si lo fueran y todos los minutos salían dobles.
     // Si llega repetida, manda la última, que es la más reciente.
-    const datasets = [...new Map(entrantes.map((dataset) => [dataset.fileName, dataset] as const)).values()];
+    // Por su archivo original: dos Excel distintos pueden llevar el mismo
+    // nombre de liga y temporada (Wyscout parte las exportaciones grandes).
+    const datasets = [...new Map(entrantes.map((dataset) => [identidadDeBase(dataset), dataset] as const)).values()];
     const result = aggregateDatasets(datasets);
     // Una búsqueda, para seguir en el mismo jugador cuando el cruce cambia los índices.
     const seleccion = typeof seleccionPedida === "function" ? seleccionPedida(result.rows) : seleccionPedida;
@@ -1520,7 +1576,7 @@ export default function ScoutStudio() {
     setReportError("");
     try {
       const datasets = await Promise.all(list.map(readWorkbook));
-      applyDatasets(datasets);
+      applyDatasets(espacio === "cavalry" ? conNombresGuardados(datasets) : datasets);
     } catch (error) {
       setReportError(error instanceof Error ? error.message : t("No se pudieron leer los archivos."));
     } finally {
@@ -1689,6 +1745,10 @@ export default function ScoutStudio() {
   const temporadasDelJugador = report ? temporadasDeFila(filasDelInforme[indiceDelInforme]) : [];
   const variasTemporadas = temporadasDelJugador.length > 1;
   const temporadaActual = variasTemporadas ? temporadasDelJugador[0] : null;
+  // El título de la primera fila de la franja, y las bases de archivo que lo explican.
+  const tituloPrincipal = (temporadaActual ? [temporadaActual.ligas.join(" + "), temporadaActual.etiqueta].filter(Boolean).join(" · ") : "")
+    || basesDeLaFicha?.titulo || base.descripcion || tDefault(reportFileName);
+  const basesPrincipales = basesDeArchivoDe(temporadasDelJugador[0]);
   const baseConVariasTemporadas = new Set(sourceDatasets.map((dataset) => dataset.season || dataset.fileName)).size > 1;
   const cifra = (valor: number) => (Number.isFinite(valor) ? numberFormat(valor) : "—");
   const reportArticleNode = report ? (
@@ -1724,7 +1784,9 @@ export default function ScoutStudio() {
       </header>
 
       <section className="dossier-season-strip">
-        <div className="season-source"><span><InlineText editKey={`label-${report.player}`} value={ETIQUETAS_DE_BASE.includes(analysisLabel) ? "" : tDefault(analysisLabel)} fallback={!variasTemporadas && (basesDeLaFicha?.cuantas ?? reportSourceCount) > 1 ? t("BASES ANALIZADAS") : t("BASE ANALIZADA")} onCommit={setAnalysisLabel} /></span><b><InlineText editKey={`source-${report.player}`} value={tDefault(analysisSourceTitle)} fallback={(temporadaActual ? [temporadaActual.ligas.join(" + "), temporadaActual.etiqueta].filter(Boolean).join(" · ") : "") || basesDeLaFicha?.titulo || base.descripcion || tDefault(reportFileName)} onCommit={updateAnalysisSourceName} /></b><small>{basesDeLaFicha?.plataformas ? `${basesDeLaFicha.plataformas} · ` : ""}{temporadasDelJugador.length && (variasTemporadas || baseConVariasTemporadas)
+        <div className="season-source"><span><InlineText editKey={`label-${report.player}`} value={ETIQUETAS_DE_BASE.includes(analysisLabel) ? "" : tDefault(analysisLabel)} fallback={!variasTemporadas && (basesDeLaFicha?.cuantas ?? reportSourceCount) > 1 ? t("BASES ANALIZADAS") : t("BASE ANALIZADA")} onCommit={setAnalysisLabel} /></span><b>{basesPrincipales.length === 1 && !analysisSourceTitle.trim()
+          ? <EditorDeNombreDeBase actual={nombreActual(basesPrincipales[0])} onGuardar={(nombre) => renombrarBases(basesPrincipales.map((dataset) => dataset.fileName), nombre)}>{tituloPrincipal}</EditorDeNombreDeBase>
+          : <InlineText editKey={`source-${report.player}`} value={tDefault(analysisSourceTitle)} fallback={tituloPrincipal} onCommit={updateAnalysisSourceName} />}</b><small>{basesDeLaFicha?.plataformas ? `${basesDeLaFicha.plataformas} · ` : ""}{temporadasDelJugador.length && (variasTemporadas || baseConVariasTemporadas)
           ? tf("Temporada {s} · cohorte {c} · mín. {m}′", { s: temporadasDelJugador[0].etiqueta, c: cohortLabel(report.cohort), m: minimumMinutes })
           : tf("Cohorte {c} · mín. {m}′", { c: cohortLabel(report.cohort), m: minimumMinutes })}</small></div>
         {/* Con varias temporadas, esta fila es la más reciente y las anteriores
@@ -1739,7 +1801,13 @@ export default function ScoutStudio() {
         <section className="dossier-season-strip dossier-season-previa" key={temporada.etiqueta}>
           <div className="season-source">
             <span>{posicion === 0 ? t("TEMPORADA ANTERIOR") : tf("TEMPORADA {s}", { s: temporada.etiqueta })}</span>
-            <b>{[temporada.etiqueta, temporada.ligas.join(" + ")].filter(Boolean).join(" · ")}</b>
+            <b>{(() => {
+              const texto = [temporada.etiqueta, temporada.ligas.join(" + ")].filter(Boolean).join(" · ");
+              const suyas = basesDeArchivoDe(temporada);
+              return suyas.length === 1
+                ? <EditorDeNombreDeBase actual={nombreActual(suyas[0])} onGuardar={(nombre) => renombrarBases(suyas.map((dataset) => dataset.fileName), nombre)}>{texto}</EditorDeNombreDeBase>
+                : texto;
+            })()}</b>
             <small>{temporada.equipo}</small>
           </div>
           <div className="dossier-stat"><strong>{numberFormat(temporada.partidos)}</strong><span>{t("Partidos")}</span></div>
@@ -2374,6 +2442,7 @@ export default function ScoutStudio() {
                   cargando={reportLoading}
                   onQuitarCompeticion={quitarCompeticion}
                   apagadas={ligasApagadas}
+                  onRenombrar={espacio === "cavalry" ? renombrarBases : undefined}
                   onAlternarCompeticion={alternarCompeticion}
                   onCargarTodo={() => void cargarTodasLasLigas()}
                   onCargarAnio={(anio) => void cargarTodasLasLigas(anio, true)}

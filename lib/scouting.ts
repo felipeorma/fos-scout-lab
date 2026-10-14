@@ -14,6 +14,12 @@ export type SourceDataset = {
   rows: DataRow[];
   /** Plataforma de origen; los minutos no se suman entre proveedores distintos. */
   provider?: MetricSource;
+  /**
+   * El nombre del archivo tal como se subió, si después se le puso liga y
+   * temporada a mano (ver lib/nombresDeBase.ts). Es la identidad de la base:
+   * dos Excel distintos pueden acabar con el mismo nombre de liga.
+   */
+  nombreOriginal?: string;
 };
 
 export type AggregationResult = {
