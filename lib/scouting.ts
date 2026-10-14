@@ -93,7 +93,22 @@ export type PlayerReport = {
   cohorteDescartada?: string;
   /** Las métricas elegidas a mano no existen en esta base y se usó el set del perfil. */
   seleccionDescartada?: boolean;
+  /**
+   * Contra quién se midió, cuando se pidió medir contra su liga (`porLiga`):
+   *  - modo "liga": los de su puesto en sus mismas liga y temporada (`claves`).
+   *  - modo "todas": se pidió su liga pero no llegaba al mínimo de jugadores
+   *    (`enSuLiga` dice cuántos había) y se midió contra todas las cargadas.
+   * Sin `porLiga`, o con una sola competición cargada, no aparece.
+   */
+  frente?: { modo: "liga" | "todas"; claves: string[]; enSuLiga: number };
 };
+
+/**
+ * Por debajo de este número de jugadores de su puesto, su liga no da para un
+ * percentil: con nueve pares, un solo jugador mueve once puntos. Es el mismo
+ * mínimo que usa la búsqueda de similares en su modo por liga.
+ */
+export const MINIMO_COHORTE_EN_SU_LIGA = 10;
 
 const PLAYER_ALIASES = ["player", "jugador", "player name", "nombre jugador"];
 const MINUTES_ALIASES = ["minutes played", "minutes", "mins", "minutos jugados", "minutos"];
@@ -1954,7 +1969,14 @@ export function buildPlayerReport(
    * ranking, la similitud y la mesa no lo piden: allí un jugador sin métricas
    * de su perfil no debe entrar en la lista con un índice hecho de otra cosa.
    */
-  opciones: { indiceSinRecorte?: boolean; rescate?: boolean } = {},
+  /**
+   * `porLiga`: medir contra los de su puesto en su misma liga y temporada en
+   * vez de contra todas las cargadas. `clavesPorFila[i]` son las claves
+   * "liga año" de la fila i de `rows` (ver origenPorFila). Lo pide la ficha:
+   * con dieciséis ligas cargadas, un jugador de la CPL cambiaba 6 puntos de
+   * media —y hasta 40 en una métrica— según qué más hubiera cargado.
+   */
+  opciones: { indiceSinRecorte?: boolean; rescate?: boolean; porLiga?: { clavesPorFila: string[][]; minimoCohorte?: number } } = {},
 ): PlayerReport | null {
   const row = rows[selectedIndex];
   if (!row) return null;
@@ -1976,6 +1998,20 @@ export function buildPlayerReport(
   // solo significa algo si se le compara contra delanteros.
   const peerGroup = peerCohort(cohort);
   let peers = paresDeCohorte(rows, peerGroup, positionColumn, core.minutes, minimumMinutes);
+  let frente: PlayerReport["frente"];
+  const susClaves = opciones.porLiga?.clavesPorFila[selectedIndex] ?? [];
+  if (opciones.porLiga && susClaves.length) {
+    const claves = opciones.porLiga.clavesPorFila;
+    const deSusLigas = new Set(rows.filter((_, indice) => (claves[indice] ?? []).some((clave) => susClaves.includes(clave))));
+    const enSuLiga = peers.filter((candidato) => deSusLigas.has(candidato));
+    if (enSuLiga.length >= (opciones.porLiga.minimoCohorte ?? MINIMO_COHORTE_EN_SU_LIGA)) {
+      peers = enSuLiga;
+      frente = { modo: "liga", claves: susClaves, enSuLiga: enSuLiga.length };
+    } else {
+      frente = { modo: "todas", claves: susClaves, enSuLiga: enSuLiga.length };
+    }
+  }
+  const paresDeLaLiga = peers;
   const medir = (definiciones: MetricDefinition[], pares: DataRow[]): RadarMetric[] => (!pares.length ? [] : definiciones.flatMap((definition) => {
     const key = findColumn(headers, definition.aliases);
     if (!key) return [];
@@ -2092,6 +2128,8 @@ export function buildPlayerReport(
     metrics: metricsUnicas,
     reading: roleReading(cohort, metricsUnicas),
     ...(rescate ? { rescate } : {}),
+    // Si el rescate cambió los pares, ya no se midió contra su liga.
+    ...(frente ? { frente: frente.modo === "liga" && peers !== paresDeLaLiga ? { ...frente, modo: "todas" as const } : frente } : {}),
   };
 }
 

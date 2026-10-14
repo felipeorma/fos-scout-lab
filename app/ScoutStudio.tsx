@@ -46,10 +46,11 @@ import { fuenteStatsbomb } from "@/lib/snapshot";
 import { profileStorageKey, readStoredJson, type TransfermarktProfile } from "@/lib/transfermarkt";
 import { formatPlayerPositions, selectedCohortPosition } from "@/lib/positions";
 import { removePlayerImageBackground } from "@/lib/playerImageBackground";
-import { fetchAiSummary, type AiMetricFact, type AiPlayerFacts, fetchSkillcornerCompetitions, fetchSkillcornerDataset, fetchSourcesStatus, fetchStatsbombCompetitions, fetchStatsbombDataset, fetchTransfermarktProfile, temporadasUtiles, type ApiCompetition, type SourcesStatus } from "@/lib/remoteData";
+import { fetchAiSummary, type AiMetricFact, type AiPlayerFacts, fetchOptaLeagueMeta, fetchSkillcornerCompetitions, fetchSkillcornerDataset, fetchSourcesStatus, fetchStatsbombCompetitions, fetchStatsbombDataset, fetchTransfermarktProfile, temporadasUtiles, type ApiCompetition, type SourcesStatus } from "@/lib/remoteData";
 import { reportExportBaseName } from "@/lib/reportExportName";
 import { canonicalizeRow } from "@/lib/wyscoutHeaders";
 import { leerFilasDeArchivo } from "@/lib/lecturaDeArchivos";
+import { FECHA_NIVEL_RESPALDO, LIGA_DE_REFERENCIA, PUNTOS_POR_RATING, indiceANivel, nivelDeLiga, ratingDeTramos, type EntradaOpta } from "@/lib/nivelDeLiga";
 import { METRIC_SOURCE_COLORS, SIMILARITY_METRIC_GROUPS, similarityMetricGroup } from "@/lib/similarityMetricGroups";
 import { numberLocale, setActiveLang, t, tDefault, tf, type Lang } from "@/lib/i18n";
 
@@ -585,6 +586,28 @@ export default function ScoutStudio() {
   }, [cruceDeUnaTemporada, filaElegida]);
   const filasDelInforme = cruceDeUnaTemporada && indiceEnUnaTemporada >= 0 ? cruceDeUnaTemporada : reportRows;
   const indiceDelInforme = cruceDeUnaTemporada && indiceEnUnaTemporada >= 0 ? indiceEnUnaTemporada : selectedPlayer;
+  /*
+   * Contra quién se mide la ficha. Por defecto, contra los de su puesto en su
+   * misma liga y temporada: con dieciséis ligas cargadas, un jugador de la CPL
+   * cambiaba 6 puntos de media —y hasta 40 en una métrica— según qué más
+   * hubiera en la base, y el número dejaba de ser suyo. El nivel de la liga
+   * se dice aparte, junto al índice. Con una sola competición cargada las dos
+   * opciones son lo mismo y no se ofrece elegir.
+   */
+  const [medirContra, setMedirContra] = useState<"liga" | "todas">("liga");
+  useEffect(() => {
+    try { if (window.localStorage.getItem("fos-medir-contra-v1") === "todas") setMedirContra("todas"); } catch { /* preferencia opcional */ }
+  }, []);
+  function cambiarMedirContra(valor: "liga" | "todas") {
+    setMedirContra(valor);
+    try { window.localStorage.setItem("fos-medir-contra-v1", valor); } catch { /* preferencia opcional */ }
+  }
+  const clavesDelInforme = useMemo(() => {
+    if (procedencias.length < 2) return null;
+    const claves = origenPorFila(filasDelInforme, procedencias).map((origen) => origen.claves);
+    return new Set(claves.flat()).size > 1 ? claves : null;
+  }, [filasDelInforme, procedencias]);
+  const porLiga = medirContra === "liga" && clavesDelInforme ? { clavesPorFila: clavesDelInforme } : undefined;
   const report = useMemo(
     () => {
       // El perfil solo se conoce tras construir el informe, y la selección se
@@ -598,7 +621,7 @@ export default function ScoutStudio() {
        * consiguió el radar y la ficha lo escribe al pie.
        */
       const medir = (lente: string, elegidas?: string[]) => (
-        buildPlayerReport(filasDelInforme, indiceDelInforme, minimumMinutes, lente, elegidas, { rescate: true })
+        buildPlayerReport(filasDelInforme, indiceDelInforme, minimumMinutes, lente, elegidas, { rescate: true, porLiga })
       );
       let base = medir(cohort);
       let lente = cohort;
@@ -619,8 +642,42 @@ export default function ScoutStudio() {
       return base.cohorteDescartada ? { ...conElegidas, cohorteDescartada: base.cohorteDescartada } : conElegidas;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filasDelInforme, indiceDelInforme, minimumMinutes, cohort, lang, metricPicks],
+    [filasDelInforme, indiceDelInforme, minimumMinutes, cohort, lang, metricPicks, medirContra, clavesDelInforme],
   );
+  /*
+   * El nivel de la liga donde jugó, junto al índice, y ese índice llevado a la
+   * CPL con la regla calibrada en lib/nivelDeLiga. Solo en Cavalry: la mesa de
+   * Maldonado tiene su propio descuento. La equivalencia solo se da cuando el
+   * índice se midió dentro de su liga; medido contra la mezcla de todas, ya
+   * lleva dentro una parte del nivel y ajustarlo otra vez lo contaría dos.
+   */
+  const [feedOpta, setFeedOpta] = useState<EntradaOpta[] | null>(null);
+  useEffect(() => {
+    if (espacio !== "cavalry" || feedOpta) return;
+    let vivo = true;
+    void fetchOptaLeagueMeta().then((feed) => { if (vivo && feed) setFeedOpta(feed); });
+    return () => { vivo = false; };
+  }, [espacio, feedOpta]);
+  const nivelDeLaFicha = useMemo(() => {
+    if (!report || espacio !== "cavalry") return null;
+    const temporadas = temporadasDeFila(filasDelInforme[indiceDelInforme]);
+    const tramos = temporadas.flatMap((temporada) => temporada.ligas.map((liga) => ({ liga, minutos: temporada.minutos / temporada.ligas.length })));
+    const ligas = [...new Set(tramos.map((tramo) => tramo.liga))];
+    const niveles = ligas.map((liga) => nivelDeLiga(feedOpta, liga));
+    if (!ligas.length || niveles.some((nivel) => !nivel)) return null;
+    const referencia = nivelDeLiga(feedOpta, LIGA_DE_REFERENCIA);
+    const rating = ratingDeTramos(tramos, feedOpta);
+    const medidoEnSuLiga = clavesDelInforme ? report.frente?.modo === "liga" : true;
+    const enLaReferencia = ligas.length === 1 && ligas[0] === LIGA_DE_REFERENCIA;
+    const equivalente = referencia && rating !== null && medidoEnSuLiga && !enLaReferencia
+      ? indiceANivel(report.score, rating, referencia.rating) : null;
+    return {
+      niveles: niveles as NonNullable<(typeof niveles)[number]>[],
+      referencia,
+      equivalente,
+      enVivo: niveles.every((nivel) => nivel?.enVivo) && (referencia?.enVivo ?? true),
+    };
+  }, [report, espacio, filasDelInforme, indiceDelInforme, feedOpta, clavesDelInforme]);
   /*
    * Qué recomendar cuando el jugador no tiene temporada anterior en la base:
    * la de su liga en StatsBomb, si existe. Si ya está cargada y él no sale,
@@ -1824,6 +1881,11 @@ export default function ScoutStudio() {
         <div className="dossier-radar">{report.metrics.length ? <PizzaRadar metrics={report.metrics} score={report.score} cohort={report.cohort} lang={lang} colorMode={radarColorMode} /> : <div className="empty-radar"><BarChart3 size={34} /><b>{motivoSinRadar}</b>{report.minutes > 0 && <span>{t("Prueba con otra cohorte o revisa qué bases están cargadas.")}</span>}</div>}</div>
         <aside className="dossier-reading">
           <div className="average-percentile"><strong>{report.score}</strong><small>{t("percentil")}<br />{t("medio")}</small></div>
+          {nivelDeLaFicha && <div className="nivel-de-liga" title={tf("Opta Power Rankings{c}. La equivalencia suma {p} puntos de índice por cada punto de rating de diferencia, calibrado con 112 jugadores que cambiaron de liga entre 2025 y 2026.", { c: nivelDeLaFicha.enVivo ? "" : ` · ${tf("copia del {f}", { f: FECHA_NIVEL_RESPALDO })}`, p: String(PUNTOS_POR_RATING).replace(".", ",") })}>
+            <small>{t("NIVEL DE LIGA")}</small>
+            <b>{nivelDeLaFicha.niveles.map((nivel) => `${nivel.corto} ${nivel.rating.toFixed(1).replace(".", ",")}${nivel.puesto ? ` · #${nivel.puesto}` : ""}`).join(" + ")}</b>
+            {nivelDeLaFicha.equivalente !== null && nivelDeLaFicha.referencia && <span>{tf("≈ {n} a nivel {liga}", { n: nivelDeLaFicha.equivalente, liga: nivelDeLaFicha.referencia.corto })}</span>}
+          </div>}
           <div className="dossier-legend">{radarColorMode === "platform"
             ? [...new Set(report.metrics.map((metric) => metric.source ?? "wyscout"))].map((source) => <span key={source}><i style={{ background: METRIC_SOURCE_COLORS[source]?.color }} />{METRIC_SOURCE_COLORS[source]?.label ?? source}</span>)
             : SIMILARITY_METRIC_GROUPS.filter((group) => report.metrics.some((metric) => similarityMetricGroup(metric, report.cohort).id === group.id)).map((group) => <span key={group.id}><i style={{ background: group.color }} />{t(group.label)}</span>)}</div>
@@ -1840,9 +1902,12 @@ export default function ScoutStudio() {
         ))}
       </section>
       <footer className="dossier-footer">
-        <p>{new Set(base.competiciones.map((c) => c.liga)).size > 1
+        <p>{report.frente?.modo === "liga"
+          ? tf("Percentiles frente a los de su puesto en {ligas} · mínimo {m}′ · {n} jugadores en la cohorte · datos por 90 minutos.", { ligas: report.frente.claves.join(" + "), m: minimumMinutes, n: report.cohortSize })
+          : new Set(base.competiciones.map((c) => c.liga)).size > 1
           ? tf("Percentiles por posición · mínimo {m}′ · {n} jugadores en la cohorte, de {k} competiciones cargadas · datos por 90 minutos.", { m: minimumMinutes, n: report.cohortSize, k: new Set(base.competiciones.map((c) => c.liga)).size })
           : tf("Percentiles por posición · mínimo {m}′ · {n} jugadores en la cohorte · datos por 90 minutos.", { m: minimumMinutes, n: report.cohortSize })}
+          {report.frente?.modo === "todas" && ` ${tf("En {ligas} solo hay {n} de su puesto con el mínimo de minutos: no dan para un percentil y se le mide contra todas las cargadas.", { ligas: report.frente.claves.join(" + "), n: report.frente.enSuLiga })}`}
           {variasTemporadas && ` ${tf("Radar e índice con {n} temporadas juntas ({s}), ponderadas por minutos: {m}′ en total.", {
             n: temporadasDelJugador.length,
             s: temporadasDelJugador.map((temporada) => temporada.etiqueta).join(" + "),
@@ -2273,6 +2338,15 @@ export default function ScoutStudio() {
                   <div className="panel-seccion">
                     <span className="panel-seccion-titulo">{t("Cómo se mide")}</span>
                     <label className="field-group"><FieldLabel>{t("Cohorte")}</FieldLabel><span className="select-wrap simple"><select value={cohort} onChange={(event) => setCohort(event.target.value)}><option value="AUTO">{t("Automática")}</option><option value="GK">{t("Porteros")}</option><option value="CB">{t("Centrales")}</option><option value="FB">{t("Laterales")}</option><option value="DMF">{t("Pivotes / mediocentros")}</option><option value="B2B">{t("Interiores (box-to-box)")}</option><option value="WING">{t("Extremos")}</option><option value="DWING">{t("Extremos directos")}</option><option value="AM">{t("Mediapuntas")}</option><option value="CF">{t("Delanteros")}</option></select><ChevronDown size={16} /></span></label>
+                  {clavesDelInforme && <label className="field-group"><FieldLabel>{t("Comparar con")}</FieldLabel>
+                    <span className="select-wrap simple"><select value={medirContra} onChange={(event) => cambiarMedirContra(event.target.value === "todas" ? "todas" : "liga")}>
+                      <option value="liga">{t("Su liga y temporada (recomendado)")}</option>
+                      <option value="todas">{t("Todas las ligas cargadas")}</option>
+                    </select><ChevronDown size={16} /></span>
+                    <small className="temporada-previa-nota">{medirContra === "liga"
+                      ? t("Cada jugador se mide contra los de su puesto en su liga; el nivel de la liga va aparte, junto al índice.")
+                      : t("Mezcla ligas de distinto nivel: el percentil cambia según qué más haya cargado.")}</small>
+                  </label>}
                   {report && <div className="field-group temporada-previa">
                     <FieldLabel>{t("Temporada anterior")}</FieldLabel>
                     {temporadasDeLaFila.length > 1 ? <>
@@ -2297,7 +2371,7 @@ export default function ScoutStudio() {
                   </div>}
                   {report && availableMetrics.length > 0 && <details className="profile-details metric-picker">
                     <summary>{t("Añadir o quitar métricas")} <b>{report.metrics.length}</b></summary>
-                    <p className="metric-picker-hint">{t("Marca las que quieres ver. El percentil siempre se calcula contra los jugadores de su posición en la base cargada.")}</p>
+                    <p className="metric-picker-hint">{t("Marca las que quieres ver. El percentil siempre se calcula contra los jugadores de su posición.")}</p>
                     {SIMILARITY_METRIC_GROUPS.map((group) => {
                       const delGrupo = availableMetrics.filter((definition) => similarityMetricGroup(definition, report.cohort).id === group.id);
                       if (!delGrupo.length) return null;
