@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { RadarMetric } from "@/lib/scouting";
+import { METRIC_SOURCE_ORDER, type RadarMetric } from "@/lib/scouting";
 import { METRIC_SOURCE_COLORS, similarityMetricGroup } from "@/lib/similarityMetricGroups";
 import { sitioDelValor } from "@/lib/radar";
 import { t, tf, type Lang } from "@/lib/i18n";
@@ -42,12 +42,12 @@ export function PizzaRadar({ metrics, score, cohort, lang = "es", colorMode = "g
       const outer = size * [0.31, 0.27, 0.25][density];
       const inner = size * 0.085;
       const gap = 0.025;
-      // El informe entrega las métricas agrupadas por categoría; al colorear
-      // por plataforma se reordenan por fuente para que cada color siga
-      // ocupando un solo arco continuo.
-      const SOURCE_ORDER = ["wyscout", "statsbomb", "skillcorner"];
+      // La ficha ya entrega las métricas por proveedor y, dentro, por
+      // categoría. Al colorear por plataforma se asegura el orden por fuente
+      // para radares que llegan de otro sitio, y cada color sigue ocupando un
+      // solo arco continuo.
       const ordered = colorMode !== "platform" ? metrics : [...metrics].sort((a, b) => (
-        SOURCE_ORDER.indexOf(a.source ?? "wyscout") - SOURCE_ORDER.indexOf(b.source ?? "wyscout")
+        METRIC_SOURCE_ORDER.indexOf(a.source ?? "wyscout") - METRIC_SOURCE_ORDER.indexOf(b.source ?? "wyscout")
       ));
       const step = Math.PI * 2 / ordered.length;
       // En modo plataforma cada métrica toma el color de su fuente de datos

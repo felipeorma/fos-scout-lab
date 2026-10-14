@@ -34,6 +34,8 @@ export type AggregationResult = {
 export type MetricColorGroup = "finishing" | "creating" | "passing" | "defending" | "goalkeeper" | "physical";
 
 export type MetricSource = "wyscout" | "statsbomb" | "skillcorner";
+/** El orden de los bloques del mapping de roles: primero Wyscout, después StatsBomb y al final SkillCorner. */
+export const METRIC_SOURCE_ORDER: MetricSource[] = ["wyscout", "statsbomb", "skillcorner"];
 
 export type RadarMetric = {
   key: string;
@@ -2032,12 +2034,17 @@ export function buildPlayerReport(
   // del scout manda: si pidió las dos, salen las dos.
   const metricsUnicas = selectedMetricLabels?.length ? metrics : sinDuplicadosDeDestreza(metrics);
 
-  // El radar se lee por bloques: las métricas salen agrupadas por categoría
-  // (finalización → creación → pase → defensa → portero → físico) para que
-  // cada color forme un solo arco continuo en vez de repartirse por todo el
-  // círculo. Dentro de cada categoría se respeta el orden de la definición.
+  // El radar se lee como el mapping de roles: un bloque por proveedor
+  // (Wyscout → StatsBomb → SkillCorner) y, dentro de cada uno, agrupadas por
+  // categoría (finalización → creación → pase → defensa → portero → físico)
+  // para que cada color forme un arco continuo. Ordenar solo por categoría
+  // mezclaba los proveedores dentro de cada color. Dentro de cada categoría
+  // se respeta el orden de la definición (el sort es estable).
   const groupRank = new Map(SIMILARITY_METRIC_GROUPS.map((group, index) => [group.id, index] as const));
+  const sourceRank = (metric: RadarMetric) => Math.max(0, METRIC_SOURCE_ORDER.indexOf(metric.source ?? "wyscout"));
   metricsUnicas.sort((a, b) => {
+    const porFuente = sourceRank(a) - sourceRank(b);
+    if (porFuente) return porFuente;
     const rankA = groupRank.get(similarityMetricGroup(a, cohort).id) ?? SIMILARITY_METRIC_GROUPS.length;
     const rankB = groupRank.get(similarityMetricGroup(b, cohort).id) ?? SIMILARITY_METRIC_GROUPS.length;
     return rankA - rankB;
