@@ -658,6 +658,7 @@ export default function ScoutStudio() {
     void fetchOptaLeagueMeta().then((feed) => { if (vivo && feed) setFeedOpta(feed); });
     return () => { vivo = false; };
   }, [espacio, feedOpta]);
+  const nivelDelRanking = useMemo(() => (espacio === "cavalry" ? { feed: feedOpta, referencia: LIGA_DE_REFERENCIA } : null), [espacio, feedOpta]);
   const nivelDeLaFicha = useMemo(() => {
     if (!report || espacio !== "cavalry") return null;
     const temporadas = temporadasDeFila(filasDelInforme[indiceDelInforme]);
@@ -2532,7 +2533,8 @@ export default function ScoutStudio() {
                   se montan aunque la página quede recordada o llegue por un
                   enlace. Allí se trabaja con la mesa y nada más. */}
               {espacio === "cavalry" && report && paginaMontada(RANK_PAGE) && (
-                <div className={claseHoja(RANK_PAGE)}><RankingPage onSelectPlayer={(indice) => { selectPlayer(indice); setReportPage(CARD_PAGE); }} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
+                <div className={claseHoja(RANK_PAGE)}><RankingPage onSelectPlayer={(indice) => { selectPlayer(indice); setReportPage(CARD_PAGE); }} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl}
+                  medirEnSuLiga={medirContra === "liga"} nivel={nivelDelRanking} /></div>
               )}
               {espacio === "cavalry" && paginaMontada(POOL_PAGE) && (
                 <div className={claseHoja(POOL_PAGE)}><PoolPage onAbrirJugador={(indice) => { selectPlayer(indice); setReportPage(CARD_PAGE); }} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>

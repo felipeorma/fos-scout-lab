@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState, type KeyboardEvent } from "react";
-import { rankingDeCohorte } from "@/lib/ranking";
+import { rankingDeCohorte, type OpcionesDeRanking } from "@/lib/ranking";
+import { PUNTOS_POR_RATING_INDICE, nivelDeLiga, type EntradaOpta } from "@/lib/nivelDeLiga";
 import { PERFILES } from "@/lib/perfiles";
 import { useBaseActiva } from "./BaseActiva";
 import { PieDeReporte } from "./PieDeReporte";
@@ -57,8 +58,12 @@ const COHORTE_MINIMA = 5;
 const TOPES_DE_VALOR = [50_000, 100_000, 250_000, 500_000, 1_000_000, 2_500_000, 5_000_000];
 
 
-export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatario = "" }: {
+export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatario = "", medirEnSuLiga = true, nivel = null }: {
   onSelectPlayer?: (indice: number) => void;
+  /** Medir a cada uno contra su liga y temporada (la preferencia de "Comparar con" de la ficha). */
+  medirEnSuLiga?: boolean;
+  /** Llevar los índices a una liga de referencia con el nivel de Opta; null en Maldonado. */
+  nivel?: { feed: EntradaOpta[] | null; referencia: string } | null;
   /** Club destinatario del PDF, para firmar la hoja como las de diseño. */
   destinatario?: string;
   logoDestinatario?: string;
@@ -76,7 +81,22 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
 
   // El informe completo es caro: se calcula una vez por perfil y minutos, y
   // los filtros de mercado se aplican después sobre el resultado.
-  const todos = useMemo(() => rankingDeCohorte(rows, perfil, minutosMin), [rows, perfil, minutosMin]);
+  /*
+   * Con varias ligas cargadas, cada uno se mide contra los de su puesto en su
+   * liga y temporada, y la lista se ordena por ese índice llevado a la liga
+   * de referencia con el nivel de Opta: así un P90 de la MLS Next Pro no pasa
+   * por delante de un P85 de la MLS solo porque su liga es más floja.
+   */
+  const clavesPorFila = useMemo(() => {
+    const claves = procedencia?.map((origen) => origen.claves) ?? null;
+    return claves && new Set(claves.flat()).size > 1 ? claves : null;
+  }, [procedencia]);
+  const opcionesDeRanking = useMemo((): OpcionesDeRanking => (
+    medirEnSuLiga && clavesPorFila ? { porLiga: { clavesPorFila }, ...(nivel ? { nivel } : {}) } : {}
+  ), [medirEnSuLiga, clavesPorFila, nivel]);
+  const todos = useMemo(() => rankingDeCohorte(rows, perfil, minutosMin, opcionesDeRanking), [rows, perfil, minutosMin, opcionesDeRanking]);
+  const referencia = opcionesDeRanking.nivel ? nivelDeLiga(opcionesDeRanking.nivel.feed, opcionesDeRanking.nivel.referencia) : null;
+  const ordenaANivel = Boolean(referencia) && todos.some((fila) => fila.aNivel !== null);
 
   const visibles = useMemo(
     () => todos.filter((fila) => pasaFiltros(fila.indice)),
@@ -182,6 +202,9 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
         <details className="como-se-calcula">
           <summary><ChevronDown size={13} />{t("Cómo se calcula el índice")}</summary>
           <p>{t("El índice parte del percentil medio contra los jugadores de su misma posición y lo acerca a sus tres mejores métricas: destacar en algo cuenta, y no solo ser correcto en todo.")}</p>
+          {opcionesDeRanking.porLiga && <p>{ordenaANivel && referencia
+            ? tf("Con varias ligas cargadas, cada jugador se mide contra los de su puesto en su liga y temporada, y su índice se lleva a la {liga} con el nivel de su liga en los Opta Power Rankings: {p} puntos por cada punto de rating, calibrado con 112 jugadores que cambiaron de liga entre 2025 y 2026. Ordena ese número; el pequeño de al lado es su índice dentro de su liga.", { liga: referencia.corto, p: String(PUNTOS_POR_RATING_INDICE).replace(".", ",") })
+            : t("Con varias ligas cargadas, cada jugador se mide contra los de su puesto en su liga y temporada.")}</p>}
           {hayCoberturaDesigual && <p>{t("El índice está corregido por cobertura: no todas las ligas traen las mismas métricas —sólo algunas tienen SkillCorner encima— y quien se mide con menos da un número más inestable, que asomaba en la cima más de lo que le tocaba. El ajuste acerca a la media a quien se apoya en poco, hasta que haya con qué separarlo de ella. El número pequeño de al lado es el índice sin corregir.")}</p>}
         </details>
       </div>
@@ -339,12 +362,19 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
             </span>
             <CeldaEncaje encaje={encaje(fila.equipo)} cargando={estilos.cargando} />
             {encajeEquipo.activo && <CeldaEncajeEquipo encaje={encajeEquipo.para(fila.indice, perfil)} cargandoSitio={encajeEquipo.cargandoSitio} />}
-            <b className="rank-indice">{fila.puntuacion}<u title={tf("Índice sin corregir: {c} · calculado con {m} métricas", { c: fila.puntuacionCruda, m: fila.metricas })}>{fila.puntuacionCruda}</u></b>
+            <b className={ordenaANivel && fila.aNivel === null ? "rank-indice sin-nivel" : "rank-indice"}>{fila.puntuacion}<u title={ordenaANivel && referencia
+              ? (fila.aNivel !== null
+                ? tf("En su liga: {c} · a nivel {liga}: {n} · calculado con {m} métricas", { c: fila.puntuacionCruda, liga: referencia.corto, n: fila.aNivel, m: fila.metricas })
+                : tf("En su liga: {c} · su liga no tiene nivel de Opta y no se lleva a la {liga} · calculado con {m} métricas", { c: fila.puntuacionCruda, liga: referencia.corto, m: fila.metricas }))
+              : tf("Índice sin corregir: {c} · calculado con {m} métricas", { c: fila.puntuacionCruda, m: fila.metricas })}>{fila.puntuacionCruda}</u></b>
             {onSelectPlayer ? <ChevronRight size={14} className="rank-chevron" /> : <span />}
           </li>;
         })}
       </ol>
-      {hayCoberturaDesigual && <p className="rank-pie">{t("Índice corregido por cobertura: el número pequeño es el índice sin corregir.")}</p>}
+      {ordenaANivel && referencia && <p className="rank-pie">{tf("Ordenado a nivel {liga}: cada uno medido en su liga y llevado a la {liga} por el nivel de Opta. El número pequeño es su índice en su liga; en gris, ligas sin nivel de Opta, sin llevar.", { liga: referencia.corto })}</p>}
+      {hayCoberturaDesigual && <p className="rank-pie">{ordenaANivel
+        ? t("El número grande está además corregido por cobertura: acerca a la media a quien se mide con pocas métricas.")
+        : t("Índice corregido por cobertura: el número pequeño es el índice sin corregir.")}</p>}
     </>}
 
     {vista === "arquetipos" && (arquetipos.length > 0 ? <div className="rank-arq-grid">

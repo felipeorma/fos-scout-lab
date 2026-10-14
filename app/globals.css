@@ -808,6 +808,8 @@ body { color-scheme: dark; background: radial-gradient(circle at 74% 9%, rgba(25
 .nivel-de-liga small { color: var(--report-muted); font-family: var(--font-barlow-condensed),sans-serif; font-size: 8.5px; font-weight: 700; letter-spacing: .08em; }
 .nivel-de-liga b { color: var(--report-ink, inherit); font-size: 10.5px; font-weight: 700; }
 .nivel-de-liga span { color: var(--report-accent); font-size: 10px; font-weight: 700; }
+/* En el ranking ordenado a nivel de la liga de referencia: los de ligas sin rating de Opta van en gris, sin llevar. */
+.rank-indice.sin-nivel { opacity: .55; }
 .dossier-legend { display: flex; flex-direction: column; gap: 9px; }
 .dossier-legend span { display: flex; align-items: center; gap: 8px; color: var(--report-ink); font-family: var(--font-barlow-condensed),sans-serif; font-size: 11px; font-weight: 650; text-transform: uppercase; }
 .dossier-legend i { width: 10px; height: 10px; display: block; border-radius: 3px; }

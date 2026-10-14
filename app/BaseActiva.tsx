@@ -60,7 +60,7 @@ export type BaseActiva = {
    */
   descripcion: string;
   /** Liga y año de cada fila, alineado con `rows`. */
-  procedencia: Array<{ ligas: string[]; anios: number[] }> | null;
+  procedencia: Array<{ ligas: string[]; anios: number[]; claves: string[] }> | null;
   /** Las competiciones cargadas, con sus archivos. */
   competiciones: Procedencia[];
 

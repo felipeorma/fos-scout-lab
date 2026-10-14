@@ -4,8 +4,10 @@ import {
   detectCoreColumns,
   headersOf,
   positionColumnOf,
+  temporadasDeFila,
   type DataRow,
 } from "./scouting.ts";
+import { PUNTOS_POR_RATING_INDICE, indiceANivel, nivelDeLiga, ratingDeTramos, type EntradaOpta } from "./nivelDeLiga.ts";
 import { playerPassports } from "./similarity.ts";
 import { encogerHaciaLaMedia } from "./cobertura.ts";
 
@@ -25,8 +27,15 @@ export type FilaRanking = {
   minutos: number;
   /** El índice corregido por cobertura: es el que ordena la lista. */
   puntuacion: number;
-  /** El índice tal cual sale del informe, sin corregir. */
+  /** El índice tal cual sale del informe, sin corregir: con `porLiga`, dentro de su liga. */
   puntuacionCruda: number;
+  /**
+   * Con `nivel`: el índice llevado a la liga de referencia, que es lo que
+   * ordena. null si su liga no tiene rating (NCAA, un Excel de Wyscout) o si
+   * no se le pudo medir dentro de su liga: entonces ordena el crudo y la
+   * pantalla lo marca.
+   */
+  aNivel: number | null;
   /** Con cuántas métricas se calculó, que es lo que sostiene el número. */
   metricas: number;
   destacadas: Array<{ label: string; percentile: number }>;
@@ -40,7 +49,18 @@ function numero(value: unknown) {
   return Number.isFinite(parsed) ? parsed : Number.NaN;
 }
 
-export function rankingDeCohorte(rows: DataRow[], perfil: string, minutosMin: number): FilaRanking[] {
+export type OpcionesDeRanking = {
+  /** Medir a cada uno contra los de su puesto en su liga y temporada (claves de origenPorFila). */
+  porLiga?: { clavesPorFila: string[][] };
+  /**
+   * Llevar cada índice a la liga de referencia con el nivel de Opta. Solo
+   * tiene sentido junto con `porLiga`: medido contra la mezcla de todas, el
+   * índice ya lleva una parte del nivel dentro.
+   */
+  nivel?: { feed: EntradaOpta[] | null; referencia: string };
+};
+
+export function rankingDeCohorte(rows: DataRow[], perfil: string, minutosMin: number, opciones: OpcionesDeRanking = {}): FilaRanking[] {
   const salida: FilaRanking[] = [];
   const cabeceras = headersOf(rows);
   const core = detectCoreColumns(cabeceras);
@@ -54,6 +74,7 @@ export function rankingDeCohorte(rows: DataRow[], perfil: string, minutosMin: nu
    * contra los extremos, que es lo que hace `peerCohort` con DWING.
    */
   const cohorteBuscada = perfil === "DWING" ? "WING" : perfil;
+  const referencia = opciones.porLiga && opciones.nivel ? nivelDeLiga(opciones.nivel.feed, opciones.nivel.referencia) : null;
   const cohorteDelInforme = perfil === "DWING" ? "DWING" : "AUTO";
 
   for (let indice = 0; indice < rows.length; indice += 1) {
@@ -71,16 +92,23 @@ export function rankingDeCohorte(rows: DataRow[], perfil: string, minutosMin: nu
     const minutos = numero(fila[core.minutes]);
     if (Number.isFinite(minutos) && minutosMin > 0 && minutos < minutosMin) continue;
 
-    const informe = buildPlayerReport(rows, indice, minutosMin, cohorteDelInforme);
+    const informe = buildPlayerReport(rows, indice, minutosMin, cohorteDelInforme, null, opciones.porLiga ? { porLiga: opciones.porLiga } : {});
     if (!informe || informe.metrics.length < 4) continue;
+    let aNivel: number | null = null;
+    if (referencia && informe.frente?.modo === "liga") {
+      const tramos = temporadasDeFila(fila).flatMap((temporada) => temporada.ligas.map((liga) => ({ liga, minutos: temporada.minutos / temporada.ligas.length })));
+      const rating = ratingDeTramos(tramos, opciones.nivel?.feed);
+      if (rating !== null) aNivel = indiceANivel(informe.indice, rating, referencia.rating, PUNTOS_POR_RATING_INDICE);
+    }
     salida.push({
       indice,
       jugador: informe.player,
       equipo: informe.team,
       edad: numero(fila.Age),
       minutos: Number.isFinite(minutos) ? minutos : 0,
-      puntuacion: informe.indice,
+      puntuacion: aNivel ?? informe.indice,
       puntuacionCruda: informe.indice,
+      aNivel,
       // Las que sostienen el índice, no las que se dibujan: es lo que mide
       // la evidencia detrás del número y lo que corrige encogerHaciaLaMedia.
       metricas: informe.metricasDelIndice,

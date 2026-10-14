@@ -30,8 +30,16 @@ import type { OptaLiga } from "./maldonado.ts";
  * índice y Opta mide la fuerza de los equipos, no cómo viaja cada métrica.
  */
 
-/** Puntos de índice por punto de rating de Opta. Ver la calibración arriba. */
+/** Puntos de percentil medio (el número de la ficha) por punto de rating de Opta. Ver la calibración arriba. */
 export const PUNTOS_POR_RATING = 0.43;
+
+/**
+ * Lo mismo para el índice que ordena el ranking, que pesa más los picos y
+ * por eso se mueve algo menos: 0,34 por punto de rating (IC del 95 %, 0,15 a
+ * 0,51), con la misma muestra. Con este índice la regla de tres predice peor
+ * que no ajustar; la aditiva baja el error de 7,7 a 7,6.
+ */
+export const PUNTOS_POR_RATING_INDICE = 0.34;
 
 /** Una entrada del feed de Opta; solo lo que se usa. */
 export type EntradaOpta = OptaLiga & { globalRank?: number };
@@ -150,6 +158,6 @@ export function ratingDeTramos(tramos: Array<{ liga: string; minutos: number }>,
  * El índice llevado a la liga de referencia: el mismo jugador, medido entre
  * los de su puesto de esa liga. Aditivo y con tope en 0 y 100.
  */
-export function indiceANivel(indice: number, ratingDeSuLiga: number, ratingDeReferencia: number) {
-  return Math.max(0, Math.min(100, Math.round(indice + PUNTOS_POR_RATING * (ratingDeSuLiga - ratingDeReferencia))));
+export function indiceANivel(indice: number, ratingDeSuLiga: number, ratingDeReferencia: number, puntosPorRating = PUNTOS_POR_RATING) {
+  return Math.max(0, Math.min(100, Math.round(indice + puntosPorRating * (ratingDeSuLiga - ratingDeReferencia))));
 }

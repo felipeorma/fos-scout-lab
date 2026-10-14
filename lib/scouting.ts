@@ -1943,6 +1943,30 @@ function jugadoresDeCampo(rows: DataRow[], positionColumn: string, columnaMinuto
   return pares;
 }
 
+/**
+ * Los pares de un jugador dentro de sus ligas y temporadas, recordados.
+ *
+ * Todos los de una misma liga comparten grupo, así que en un ranking se
+ * calcula una vez por liga y no una por jugador; y al ser el mismo arreglo,
+ * las poblaciones de cada métrica también se reutilizan.
+ */
+const _paresEnSusLigas = new WeakMap<string[][], { filas: DataRow[]; grupos: Map<string, DataRow[]> }>();
+
+function paresEnSusLigas(rows: DataRow[], clavesPorFila: string[][], susClaves: string[], peers: DataRow[], clavePares: string) {
+  let entrada = _paresEnSusLigas.get(clavesPorFila);
+  if (!entrada || entrada.filas !== rows) {
+    entrada = { filas: rows, grupos: new Map() };
+    _paresEnSusLigas.set(clavesPorFila, entrada);
+  }
+  const clave = `${clavePares}|${[...susClaves].sort().join("¦")}`;
+  const recordado = entrada.grupos.get(clave);
+  if (recordado) return recordado;
+  const deSusLigas = new Set(rows.filter((_, indice) => (clavesPorFila[indice] ?? []).some((c) => susClaves.includes(c))));
+  const enSuLiga = peers.filter((candidato) => deSusLigas.has(candidato));
+  entrada.grupos.set(clave, enSuLiga);
+  return enSuLiga;
+}
+
 function poblacionDeMetrica(peers: DataRow[], key: string) {
   let cache = _poblacionesPorPares.get(peers);
   if (!cache) {
@@ -2001,9 +2025,7 @@ export function buildPlayerReport(
   let frente: PlayerReport["frente"];
   const susClaves = opciones.porLiga?.clavesPorFila[selectedIndex] ?? [];
   if (opciones.porLiga && susClaves.length) {
-    const claves = opciones.porLiga.clavesPorFila;
-    const deSusLigas = new Set(rows.filter((_, indice) => (claves[indice] ?? []).some((clave) => susClaves.includes(clave))));
-    const enSuLiga = peers.filter((candidato) => deSusLigas.has(candidato));
+    const enSuLiga = paresEnSusLigas(rows, opciones.porLiga.clavesPorFila, susClaves, peers, `${peerGroup}|${minimumMinutes}`);
     if (enSuLiga.length >= (opciones.porLiga.minimoCohorte ?? MINIMO_COHORTE_EN_SU_LIGA)) {
       peers = enSuLiga;
       frente = { modo: "liga", claves: susClaves, enSuLiga: enSuLiga.length };
