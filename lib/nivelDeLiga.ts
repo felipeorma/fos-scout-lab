@@ -35,11 +35,12 @@ export const PUNTOS_POR_RATING = 0.43;
 
 /**
  * Lo mismo para el índice que ordena el ranking, que pesa más los picos y
- * por eso se mueve algo menos: 0,34 por punto de rating (IC del 95 %, 0,15 a
- * 0,51), con la misma muestra. Con este índice la regla de tres predice peor
- * que no ajustar; la aditiva baja el error de 7,7 a 7,6.
+ * deja fuera las métricas que no se repiten: 0,39 por punto de rating (IC del
+ * 95 %, 0,21 a 0,55; entre 0,32 y 0,48 por bloque), con la misma muestra. En
+ * validación cruzada, el error en los que cambian de liga es 8,5 sin ajustar,
+ * 8,5 con la regla de tres y 8,3 con la aditiva.
  */
-export const PUNTOS_POR_RATING_INDICE = 0.34;
+export const PUNTOS_POR_RATING_INDICE = 0.39;
 
 /** Una entrada del feed de Opta; solo lo que se usa. */
 export type EntradaOpta = OptaLiga & { globalRank?: number };

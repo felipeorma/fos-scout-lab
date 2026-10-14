@@ -1305,7 +1305,10 @@ export function positionColumnOf(headers: string[]) {
 type MetricDefinition = {
   label: string; aliases: string[]; group: number; colorGroup: MetricColorGroup;
   inverse?: boolean; source?: MetricSource;
-  /** Se dibuja en el radar pero no entra en el índice: no separa a nadie. */
+  /**
+   * Se dibuja en el radar pero no entra en el índice: no separa a nadie, o
+   * no se repite de una temporada a otra (ver REPETIBILIDAD más abajo).
+   */
   sinIndice?: boolean;
   /** Métricas que miden lo mismo; en el índice entra una sola de cada familia. */
   familia?: string;
@@ -1465,15 +1468,34 @@ function scMetric(label: string, aliases: string[], inverse = false, extra: Part
   return { label, aliases, group: 2, colorGroup: "physical", inverse, source: "skillcorner", ...extra };
 }
 
+/*
+ * REPETIBILIDAD. Una métrica que no se repite de una temporada a otra no dice
+ * cómo es el jugador sino cómo le fue, y en un promedio solo añade ruido.
+ * Medido el 14 de octubre de 2026 con StatsBomb, en doce ligas: jugadores de
+ * campo y porteros con 900′ o más en dos temporadas seguidas de la misma
+ * liga, con su percentil dentro de su liga, temporada y puesto (que es como
+ * entra en el índice). Correlación entre una temporada y la siguiente, con
+ * su IC del 95 %:
+ *   Atajadas % 0,05 (−0,13 a 0,23) · OBV defensivo 0,10 (0,05 a 0,16) ·
+ *   OBV portero 0,16 (0,00 a 0,31) · PSxG en contra 0,21 (0,00 a 0,38) ·
+ *   Entradas ganadas % 0,25 (0,13 a 0,30) · Conversión de gol % 0,25
+ *   (0,06 a 0,49).
+ * Las seis quedan fuera del índice (`sinIndice`) y se siguen dibujando. Para
+ * comparar: progresiones profundas 0,60, conducciones 0,66, pases JA 0,74.
+ * Goles /90, PSxG sin penales y remates también rondan 0,25–0,55, pero ya
+ * entran una sola vez por familia, con el xG. Las de Wyscout no se pudieron
+ * medir (no hay dos temporadas del mismo export); las de juego de SkillCorner
+ * tampoco (la temporada 2025 solo trae el paquete físico).
+ */
 const SB = {
   carries: sbMetric("Conducciones (SB)", ["carries sb"], 1, "creating", false, { familia: "progresion" }),
   deepProg: sbMetric("Progresiones profundas (SB)", ["deep progressions sb"], 2, "passing", false, { familia: "progresion", familiaPrincipal: true }),
   obvDribbleCarry: sbMetric("OBV regate y conducción (SB)", ["dribble carry obv sb"], 1, "creating"),
-  obvDefensive: sbMetric("OBV defensivo (SB)", ["defensive action obv sb"], 0, "defending"),
+  obvDefensive: sbMetric("OBV defensivo (SB)", ["defensive action obv sb"], 0, "defending", false, { sinIndice: true }),
   obvPass: sbMetric("OBV pase (SB)", ["pass obv sb"], 2, "passing"),
   ballRecoveries: sbMetric("Recuperaciones (SB)", ["ball recoveries sb"], 0, "defending"),
   counterpressures: sbMetric("Contrapresiones (SB)", ["counterpressures sb"], 0, "defending"),
-  challenge: sbMetric("Entradas ganadas % (SB)", ["tackle dribbled past % sb"], 0, "defending"),
+  challenge: sbMetric("Entradas ganadas % (SB)", ["tackle dribbled past % sb"], 0, "defending", false, { sinIndice: true }),
   deepCompletions: sbMetric("Pases profundos completados (SB)", ["deep completions sb"], 2, "passing"),
   tacklesInterceptions: sbMetric("Entradas + intercepciones (SB)", ["tackles interceptions sb"], 0, "defending"),
   opKeyPasses: sbMetric("Pases clave JA (SB)", ["op key passes sb"], 1, "creating", false, { familia: "creacion" }),
@@ -1496,7 +1518,7 @@ const SB = {
   throughBalls: sbMetric("Pases filtrados (SB)", ["through balls sb"], 1, "creating"),
   dribbles: sbMetric("Regates exitosos (SB)", ["successful dribbles sb"], 1, "creating"),
   touchesBox: sbMetric("Toques en el área (SB)", ["touches in box sb"], 0, "finishing"),
-  goalConversion: sbMetric("Conversión de gol % (SB)", ["goal conversion % sb"], 0, "finishing"),
+  goalConversion: sbMetric("Conversión de gol % (SB)", ["goal conversion % sb"], 0, "finishing", false, { sinIndice: true }),
   goals: sbMetric("Goles /90 (SB)", ["goals per 90 sb"], 0, "finishing", false, { familia: "remate" }),
   npPsxg: sbMetric("PSxG sin penales (SB)", ["np psxg sb"], 0, "finishing", false, { familia: "remate" }),
   foulsWon: sbMetric("Faltas recibidas (SB)", ["fouls won sb"], 1, "creating"),
@@ -1536,10 +1558,10 @@ const SC = {
 };
 
 METRICS.GK.push(
-  sbMetric("OBV portero (SB)", ["gk obv sb"], 0, "goalkeeper"),
+  sbMetric("OBV portero (SB)", ["gk obv sb"], 0, "goalkeeper", false, { sinIndice: true }),
   sbMetric("Precisión balón largo % (SB)", ["long ball % sb"], 0, "goalkeeper"),
-  sbMetric("Atajadas % (SB)", ["shot stopping % sb"], 0, "goalkeeper"),
-  sbMetric("PSxG en contra (SB)", ["opp np psxg faced sb"], 0, "goalkeeper", true),
+  sbMetric("Atajadas % (SB)", ["shot stopping % sb"], 0, "goalkeeper", false, { sinIndice: true }),
+  sbMetric("PSxG en contra (SB)", ["opp np psxg faced sb"], 0, "goalkeeper", true, { sinIndice: true }),
   sbMetric("OBV pase (SB)", ["pass obv sb"], 0, "goalkeeper"),
   sbMetric("Distancia de intervención (SB)", ["gk aggressive distance sb"], 0, "goalkeeper"),
   sbMetric("Longitud de pase (SB)", ["pass length sb"], 0, "goalkeeper"),
