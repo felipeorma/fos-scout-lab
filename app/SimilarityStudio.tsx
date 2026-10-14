@@ -1369,6 +1369,9 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
               {pesosVisibles && <>
                 <div className="similarity-pesos-ayuda">
                   <p>{t("100% mantiene el peso normal. Sube una métrica para que influya más en el ranking o llévala a 0% para excluirla.")}</p>
+                  <p>{activeMetricWeights
+                    ? t("Con pesos personalizados, el parecido se mide solo con estas métricas.")
+                    : t("Con los pesos neutrales, el parecido usa todas las métricas que trae la base —no solo estas—, cada una con el peso de lo que se repite de una temporada a otra. Al tocar un peso se mide solo con las de esta lista.")}</p>
                   <button type="button" onClick={resetMetricWeights} disabled={!activeMetricWeights}><RotateCcw size={14} /> {t("Restablecer pesos")}</button>
                 </div>
                 <div className="similarity-weight-grid">

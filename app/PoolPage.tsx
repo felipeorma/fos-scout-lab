@@ -159,6 +159,7 @@ export function PoolPage({ onAbrirJugador, destinatario = "", logoDestinatario =
       <p>{t("Quién se parece a un jugador dentro de la base activa. Toca a cualquiera para abrir su ficha.")}</p>
       <details className="como-se-calcula">
         <summary><ChevronDown size={13} />{t("Cómo se calcula el parecido")}</summary>
+        <p>{t("El parecido se mide con todas las métricas que trae la base, en desviaciones típicas frente a los de su puesto, y cada una pesa lo que se repite de una temporada a otra: lo que cambia de un año al siguiente dice cómo le fue, no cómo juega.")}</p>
         <p>{t("El parecido se corrige por cobertura: con pocas métricas en común el número se acerca a la media del conjunto hasta que haya evidencia que lo separe.")}</p>
       </details>
     </header>

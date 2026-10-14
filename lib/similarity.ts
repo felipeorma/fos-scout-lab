@@ -5,10 +5,12 @@ import {
   detectCoreColumns,
   findColumn,
   headersOf,
+  metricCatalogue,
   numeric,
   type DataRow,
   type PlayerReport,
 } from "./scouting.ts";
+import { pesoPorRepetibilidad } from "./fiabilidad.ts";
 import {
   POSITION_ROLES,
   formatPlayerPositions,
@@ -126,6 +128,32 @@ function percentileRank(value: number, sortedPopulation: number[], inverse = fal
   const equal = upperBound(sortedPopulation, value) - below;
   const rank = Math.round(((below + equal * 0.5) / sortedPopulation.length) * 100);
   return inverse ? 100 - rank : rank;
+}
+
+/*
+ * El parecido se mide en desviaciones típicas (z), no en percentiles. El
+ * percentil aplana las colas —entre el P95 y el P99 cabe una diferencia de
+ * estilo enorme— y es justo ahí donde un jugador se distingue. Se acota a dos
+ * desviaciones para que un valor extremo no se coma el resto.
+ */
+const _momentos = new WeakMap<number[], { media: number; sd: number }>();
+
+function momentos(poblacion: number[]) {
+  const recordado = _momentos.get(poblacion);
+  if (recordado) return recordado;
+  const media = poblacion.reduce((suma, valor) => suma + valor, 0) / poblacion.length;
+  const sd = Math.sqrt(poblacion.reduce((suma, valor) => suma + (valor - media) ** 2, 0) / Math.max(1, poblacion.length - 1));
+  const calculado = { media, sd };
+  _momentos.set(poblacion, calculado);
+  return calculado;
+}
+
+function zAcotado(valor: number, poblacion: number[], inversa = false): number | null {
+  if (!Number.isFinite(valor) || poblacion.length < 2) return null;
+  const { media, sd } = momentos(poblacion);
+  if (!sd) return null;
+  const z = (valor - media) / sd;
+  return Math.max(-1, Math.min(1, (inversa ? -z : z) / 2));
 }
 
 function clamp01(value: number) {
@@ -258,9 +286,31 @@ export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filt
   const cohortPeers = indicesDeCohorte.map((indice) => rows[indice]);
   const metricInverse = new Map(target.metrics.map((metric) => [metric.key, Boolean(metric.inverse)] as const));
 
-  const poblacionesDe = (filas: DataRow[]) => new Map(target.metrics.map((metric) => [
-    metric.key,
-    filas.map((row) => numeric(row[metric.key])).filter(Number.isFinite).sort((a, b) => a - b),
+  /*
+   * La huella: con qué se mide el parecido.
+   *
+   * La hoja enseña las métricas del perfil del puesto, pero medir el parecido
+   * solo con esas doce o diecisiete deja fuera casi todo lo que distingue a un
+   * jugador. Por defecto se mide con todas las que trae la base, cada una con
+   * el peso de lo que se repite de una temporada a otra (lib/fiabilidad).
+   * Probado con 600 jugadores de doce ligas —su perfil de 2025 tiene que
+   * encontrarle a él mismo entre los de 2026—: en primer lugar del 13 % al
+   * 31 %, entre los diez primeros del 37 % al 60 %, y su puesto mediano del
+   * 24 al 6. Con los pesos estimados en unas ligas y probados en otras, la
+   * mejora se mantiene.
+   *
+   * Si el scout puso su propia lente —eligió métricas, forzó un rol o tocó
+   * algún peso— se respeta y se mide solo con esas, con sus pesos.
+   */
+  const lentePropia = Boolean(selectedMetricLabels?.length) || forcedCohort !== "AUTO"
+    || target.metrics.some((metric) => metricWeight(metric.key, metricWeights) !== 1);
+  const huella = lentePropia ? [] : metricCatalogue(rows, target.cohort)
+    .filter((definicion) => Number.isFinite(numeric(targetRow[definicion.key])));
+  const clavesMedidas = [...new Set([...target.metrics.map((metric) => metric.key), ...huella.map((definicion) => definicion.key)])];
+
+  const poblacionesDe = (filas: DataRow[]) => new Map(clavesMedidas.map((key) => [
+    key,
+    filas.map((row) => numeric(row[key])).filter(Number.isFinite).sort((a, b) => a - b),
   ]));
   const metricPopulations = poblacionesDe(cohortPeers);
 
@@ -293,6 +343,11 @@ export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filt
   // para este jugador: se dice que no en vez de devolver números inventados.
   if (porLiga && !baseObjetivo) return null;
   const poblacionesObjetivo = baseObjetivo?.poblaciones ?? metricPopulations;
+  // De la huella solo cuenta lo que se puede medir en él: una métrica sin
+  // variación en su cohorte no distingue a nadie y no entra.
+  const huellaMedible = huella.filter((definicion) => (
+    zAcotado(numeric(targetRow[definicion.key]), poblacionesObjetivo.get(definicion.key) ?? [], definicion.inverse) !== null
+  ));
 
   const targetRanks = new Map(target.metrics.flatMap((metric) => {
     const rank = percentileRank(numeric(targetRow[metric.key]), poblacionesObjetivo.get(metric.key) ?? [], metricInverse.get(metric.key));
@@ -361,9 +416,26 @@ export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filt
     const minimoComparable = Math.max(Math.min(3, target.metrics.length), Math.ceil(target.metrics.length * 0.6));
     if (metrics.length < minimoComparable) return [];
 
-    const targetVector = metrics.map((metric) => (metric.targetPercentile - 50) / 50);
-    const candidateVector = metrics.map((metric) => (metric.candidatePercentile - 50) / 50);
-    const configuredWeights = metrics.map((metric) => metric.weight);
+    const dimensiones = (lentePropia
+      ? metrics.map((metric) => ({
+        objetivo: zAcotado(metric.targetValue, poblacionesObjetivo.get(metric.key) ?? [], metricInverse.get(metric.key)),
+        candidato: zAcotado(metric.candidateValue, poblacionesCandidato.get(metric.key) ?? [], metricInverse.get(metric.key)),
+        peso: metric.weight,
+      }))
+      : huellaMedible.map((definicion) => ({
+        objetivo: zAcotado(numeric(targetRow[definicion.key]), poblacionesObjetivo.get(definicion.key) ?? [], definicion.inverse),
+        candidato: zAcotado(numeric(row[definicion.key]), poblacionesCandidato.get(definicion.key) ?? [], definicion.inverse),
+        peso: pesoPorRepetibilidad(definicion.label),
+      }))
+    ).filter((dimension): dimension is { objetivo: number; candidato: number; peso: number } => dimension.objetivo !== null && dimension.candidato !== null);
+    // Con la huella, el mismo listón que con el perfil: tiene que poder
+    // compararse en la mayoría de lo que se mide.
+    if (!lentePropia && dimensiones.length < Math.max(Math.min(3, huellaMedible.length), Math.ceil(huellaMedible.length * 0.6))) return [];
+    if (!dimensiones.length) return [];
+
+    const targetVector = dimensiones.map((dimension) => dimension.objetivo);
+    const candidateVector = dimensiones.map((dimension) => dimension.candidato);
+    const configuredWeights = dimensiones.map((dimension) => dimension.peso);
     const hasWeightedMetrics = configuredWeights.some((weight) => weight > 0);
     if (anyWeightConfigured && !hasWeightedMetrics) return [];
     const effectiveWeights = hasWeightedMetrics ? configuredWeights : configuredWeights.map(() => 1);

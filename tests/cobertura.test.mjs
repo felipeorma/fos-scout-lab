@@ -27,10 +27,16 @@ function conCobertura(candidatos, totalMetricas) {
     .sort((a, b) => b.ajustado - a.ajustado || b.coverage - a.coverage);
 }
 
+/*
+ * Las métricas de Wyscout varían con el jugador, como en una base de verdad:
+ * la similitud mide en desviaciones típicas y una columna constante no
+ * distingue a nadie, así que no cuenta. Las dos ligas comparten esos valores
+ * (dependen solo de `aereo`); la rica añade además las de SkillCorner.
+ */
 const delantero = (nombre, aereo, extra = {}) => ({
   Player: nombre, Team: "T", Position: "CF", Age: 25, "Minutes played": 900, "Matches played": 10,
-  "Goals per 90": 0.5, "xG per 90": 0.5, "Shots on target, %": 40, "Touches in box per 90": 5,
-  "Accurate passes, %": 75, "Received passes per 90": 20, "Aerial duels won, %": aereo, ...extra,
+  "Goals per 90": 0.3 + aereo / 200, "xG per 90": 0.25 + aereo / 220, "Shots on target, %": aereo * 0.8, "Touches in box per 90": aereo / 10,
+  "Accurate passes, %": 60 + aereo / 4, "Received passes per 90": aereo / 3, "Aerial duels won, %": aereo, ...extra,
 });
 
 function fondoMixto() {
