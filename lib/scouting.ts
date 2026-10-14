@@ -136,15 +136,24 @@ export function numeric(value: CellValue): number {
   if (typeof value === "number") return Number.isFinite(value) ? value : Number.NaN;
   if (value === null || value === undefined || value === "") return Number.NaN;
   const raw = String(value).trim().replace(/%$/, "").replace(/\s/g, "");
+  // Con los dos separadores, el último es el decimal: "1.234,5" y "1,234.5"
+  // son el mismo número. Antes se daba por hecho el formato europeo y
+  // "1,234.5" salía 1,2345.
+  const punto = raw.lastIndexOf(".");
+  const coma = raw.lastIndexOf(",");
+  if (punto >= 0 && coma >= 0) {
+    const decimal = punto > coma ? "." : ",";
+    const parsed = Number(raw.replaceAll(decimal === "." ? "," : ".", "").replace(decimal, "."));
+    return Number.isFinite(parsed) ? parsed : Number.NaN;
+  }
   // "2,340" / "2.340" / "1,234,567" son números con separador de miles, no
-  // decimales: grupos de exactamente 3 dígitos tras el primer separador.
-  if (/^[+-]?\d{1,3}([.,]\d{3})+$/.test(raw)) {
+  // decimales: grupos de exactamente 3 dígitos tras el primer separador. La
+  // parte entera nunca es 0: "0.123" es un decimal de tres cifras —xG,
+  // OBV, cualquier ratio de StatsBomb—, no 123.
+  if (/^[+-]?[1-9]\d{0,2}([.,]\d{3})+$/.test(raw)) {
     return Number(raw.replace(/[.,]/g, ""));
   }
-  const normalized = raw.includes(",") && raw.includes(".")
-    ? raw.replace(/\./g, "").replace(",", ".")
-    : raw.replace(",", ".");
-  const parsed = Number(normalized);
+  const parsed = Number(raw.replace(",", "."));
   return Number.isFinite(parsed) ? parsed : Number.NaN;
 }
 

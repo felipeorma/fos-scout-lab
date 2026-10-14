@@ -76,6 +76,14 @@ test("numeric interpreta separadores de miles y decimales correctamente", async 
   assert.equal(numeric("0,85"), 0.85);
   assert.equal(numeric("1.234,5"), 1234.5);
   assert.equal(numeric("45.5"), 45.5);
+  // Decimales de tres cifras con parte entera 0: no son miles.
+  assert.equal(numeric("0.123"), 0.123);
+  assert.equal(numeric("0,123"), 0.123);
+  assert.equal(numeric("-0.045"), -0.045);
+  // Con los dos separadores, el último es el decimal, sea cual sea el formato.
+  assert.equal(numeric("1,234.5"), 1234.5);
+  assert.equal(numeric("12.345.678,9"), 12345678.9);
+  assert.equal(numeric("45,5 %"), 45.5);
 });
 
 test("extractSeason prefiere el año de 4 dígitos aunque haya otros números", async () => {
