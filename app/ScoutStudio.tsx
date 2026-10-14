@@ -1500,6 +1500,11 @@ export default function ScoutStudio() {
       // debe apuntar a Canadian Premier League); el año exacto pesa más que
       // una temporada que solo lo contiene (2026 vs 2025/2026).
       const baseYears = new Set(datasets.flatMap((dataset) => String(dataset.season ?? "").match(/\d{4}/g) ?? []));
+      // Con la temporada anterior cargada hay dos años en la base, y las dos
+      // temporadas empataban: ganaba la primera de la lista, la vieja, y los
+      // datos físicos iban a la temporada que no se está mirando. La más
+      // reciente pesa un punto más.
+      const latestYear = String(Math.max(0, ...[...baseYears].map(Number)));
       const baseNames = datasets.map((dataset) => dataset.fileName.toLowerCase());
       let best = 0;
       let bestScore = 0;
@@ -1508,6 +1513,7 @@ export default function ScoutStudio() {
         const seasonText = String(competition.season ?? "").trim();
         const years = seasonText.match(/\d{4}/g) ?? [];
         if (years.some((year) => baseYears.has(year))) score += /^\d{4}$/.test(seasonText) ? 3 : 1;
+        if (years.some((year) => year === latestYear)) score += 1;
         const competitionName = (competition.name ?? "").toLowerCase();
         if (competitionName) {
           const words = competitionName.split(/\s+/).filter((word) => word.length >= 4);
