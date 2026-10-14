@@ -50,8 +50,10 @@ def session_for(model: str):
 
 
 def cors_headers(extra=None):
+    # Sin Access-Control-Allow-Origin: lo pone `solo_la_app`, con el origen
+    # concreto que ya comprobó. Un "*" aquí dejaba a cualquier web abierta en
+    # el navegador leer StatsBomb y SkillCorner y gastar la API de Claude.
     headers = {
-        "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
         "Access-Control-Allow-Headers": "*",
         # Chrome exige este header para permitir que una página pública
@@ -61,6 +63,63 @@ def cors_headers(extra=None):
     if extra:
         headers.update(extra)
     return headers
+
+
+# ---- Quién puede hablar con el puente ---------------------------------------
+# El puente vive en 127.0.0.1, pero el navegador deja que cualquier web le
+# mande peticiones: leer la respuesta lo frena CORS, mandarla no. Así que el
+# filtro va aquí y no en las cabeceras. Pasan solo:
+# - la app publicada y la que se sirve desde esta máquina (cualquier puerto
+#   local: el propio puente, `npm run dev`, una vista previa);
+# - lo que no viene de un navegador (curl, scripts), que no trae Origin ni
+#   Sec-Fetch-Site: si alguien ya corre programas aquí, el puente no lo frena.
+# Y se exige que el Host sea local, para que una web que haga apuntar su
+# dominio a 127.0.0.1 (DNS rebinding) no cuele como si fuera de aquí.
+import re as _re
+import os as _os
+
+_ORIGEN_LOCAL = _re.compile(r"^http://(localhost|127\.0\.0\.1|\[::1\])(:\d{1,5})?$")
+_ORIGENES_PUBLICADOS = {"https://felipeorma.github.io"} | {
+    origen.strip().rstrip("/") for origen in _os.environ.get("FOS_ORIGENES", "").split(",") if origen.strip()
+}
+_HOSTS_LOCALES = {"127.0.0.1", "localhost", "[::1]"}
+
+
+def origen_permitido(origen: str) -> bool:
+    return origen in _ORIGENES_PUBLICADOS or bool(_ORIGEN_LOCAL.match(origen))
+
+
+def _rechazo(motivo: str):
+    import json as _json
+    return Response(_json.dumps({"error": motivo}), status_code=403, media_type="application/json")
+
+
+@app.middleware("http")
+async def solo_la_app(request: Request, call_next):
+    host = (request.headers.get("host") or "").lower()
+    nombre = host.split("]")[0] + "]" if host.startswith("[") else host.split(":")[0]
+    if nombre not in _HOSTS_LOCALES:
+        return _rechazo("host no local")
+
+    origen = request.headers.get("origin")
+    if origen is not None:
+        if not origen_permitido(origen):
+            return _rechazo("origen no permitido")
+    else:
+        # Sin Origin, un navegador manda igual Sec-Fetch-Site. Una petición
+        # "cross-site" sin Origin es un <img>, <script> o <link> de otra web:
+        # no puede leer la respuesta, pero sí gastar cuota o tiempo. Abrir el
+        # puente desde un enlace (navegación) sí vale, salvo hacia la API.
+        sitio = request.headers.get("sec-fetch-site")
+        navegacion = request.headers.get("sec-fetch-mode") == "navigate" and request.method == "GET"
+        if sitio in ("cross-site", "same-site") and not (navegacion and not request.url.path.startswith("/api/")):
+            return _rechazo("petición de otra web")
+
+    respuesta = await call_next(request)
+    if origen is not None:
+        respuesta.headers["Access-Control-Allow-Origin"] = origen
+        respuesta.headers["Vary"] = "Origin"
+    return respuesta
 
 
 @app.options("/{path:path}")
