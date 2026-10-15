@@ -138,3 +138,79 @@ export function rankingDeCohorte(rows: DataRow[], perfil: string, minutosMin: nu
     .map((fila, i) => ({ ...fila, puntuacion: Math.round(ajustados[i]) }))
     .sort((a, b) => b.puntuacion - a.puntuacion || b.metricas - a.metricas);
 }
+
+// ---- Candidatos para un equipo ----------------------------------------------------------
+
+export type Candidato = FilaRanking & {
+  /**
+   * Cuánto mejora al titular del equipo en el puesto, en puntos de índice y al
+   * mismo nivel de liga (los dos llevados a la liga de referencia con Opta, o
+   * los dos sin llevar si no hay nivel). null si el equipo no tiene a nadie en
+   * el puesto con minutos.
+   */
+  mejora: number | null;
+  /** El margen de esa diferencia por los minutos de los dos (raíz de la suma de cuadrados). */
+  margen: number | null;
+  /** La mejora supera su margen: no es ruido de muestra. */
+  clara: boolean;
+};
+
+/** El índice con el que se compara: a nivel de la liga de referencia si lo hay; si no, dentro de su liga. */
+export const nivelDeFila = (fila: FilaRanking) => fila.aNivel ?? fila.puntuacionCruda;
+
+/**
+ * Los candidatos para un equipo en un puesto, ordenados por cuánto mejoran
+ * a su titular.
+ *
+ * El mejor jugador en abstracto no es el mejor fichaje: lo que importa es la
+ * diferencia con lo que ya hay. El titular es el del equipo con más minutos
+ * en ese puesto; la mejora es la diferencia de índices a un mismo nivel de
+ * liga (con la regla aditiva de Opta, la diferencia no depende de qué liga se
+ * tome de referencia). Y se dice si supera el margen de los minutos de los dos:
+ * +5 con 600′ no se distingue de cero.
+ */
+export function candidatosParaEquipo(
+  filas: FilaRanking[],
+  esDelEquipo: (fila: FilaRanking) => boolean,
+  margen: (minutos: number) => number | null,
+) {
+  const plantilla = filas.filter(esDelEquipo).sort((a, b) => b.minutos - a.minutos);
+  const titular = plantilla[0] ?? null;
+  const candidatos: Candidato[] = filas.filter((fila) => !esDelEquipo(fila)).map((fila) => {
+    const mejora = titular ? nivelDeFila(fila) - nivelDeFila(titular) : null;
+    const mc = margen(fila.minutos);
+    const mt = titular ? margen(titular.minutos) : null;
+    const m = mc !== null && mt !== null ? Math.round(Math.sqrt(mc ** 2 + mt ** 2)) : null;
+    return { ...fila, mejora, margen: m, clara: mejora !== null && m !== null && mejora > m };
+  }).sort((a, b) => (b.mejora ?? -Infinity) - (a.mejora ?? -Infinity) || nivelDeFila(b) - nivelDeFila(a) || b.minutos - a.minutos);
+  return { titular, plantilla, candidatos };
+}
+
+/**
+ * Los que nadie supera a la vez en todo: el frente de Pareto. Sirve para una
+ * lista corta sin tener que decidir cuánto vale cada eje frente a los demás
+ * (rendimiento, encaje, edad...): fuera queda solo quien tiene a otro igual o
+ * mejor en todos los ejes y mejor en alguno. Un eje sin dato (NaN) no cuenta
+ * para nadie.
+ */
+export function frenteDePareto<T>(items: T[], ejes: Array<(item: T) => number>): Set<T> {
+  const valores = items.map((item) => ejes.map((eje) => eje(item)));
+  const frente = new Set<T>();
+  items.forEach((item, i) => {
+    const vi = valores[i];
+    const dominado = valores.some((vj, j) => {
+      if (j === i) return false;
+      let alMenosIgual = true;
+      let mejorEnAlguno = false;
+      for (let k = 0; k < vi.length; k += 1) {
+        const a = Number.isFinite(vj[k]) ? vj[k] : -Infinity;
+        const b = Number.isFinite(vi[k]) ? vi[k] : -Infinity;
+        if (a < b) { alMenosIgual = false; break; }
+        if (a > b) mejorEnAlguno = true;
+      }
+      return alMenosIgual && mejorEnAlguno;
+    });
+    if (!dominado) frente.add(item);
+  });
+  return frente;
+}

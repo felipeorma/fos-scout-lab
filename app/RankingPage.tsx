@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, type KeyboardEvent } from "react";
-import { rankingDeCohorte, type OpcionesDeRanking } from "@/lib/ranking";
+import { candidatosParaEquipo, frenteDePareto, nivelDeFila, rankingDeCohorte, type Candidato, type OpcionesDeRanking } from "@/lib/ranking";
 import { PUNTOS_POR_RATING_INDICE, nivelDeLiga, type EntradaOpta } from "@/lib/nivelDeLiga";
 import { MINUTOS_FIABLES, margenDelIndice } from "@/lib/fiabilidad";
 import { PERFILES } from "@/lib/perfiles";
@@ -15,7 +15,7 @@ import { headersOf } from "@/lib/scouting";
 import { contratoCorto, cortesDeContrato, pasaMercado, valorCorto, type FiltroDeMercado } from "@/lib/mercado";
 import { useMercado, type FilaDeMercado } from "./useMercado";
 import { rankingPorArquetipo } from "@/lib/arquetipos";
-import { EQUIPO_PROPIO, crearEncaje, perfilesDeEstilo } from "@/lib/estiloEquipo";
+import { EQUIPO_PROPIO, crearEncaje, mismoEquipo, perfilesDeEstilo } from "@/lib/estiloEquipo";
 import { useEstilos } from "./useEstilos";
 import { CeldaEncaje } from "./CeldaEncaje";
 import { CeldaEncajeEquipo } from "./CeldaEncajeEquipo";
@@ -70,7 +70,8 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
   logoDestinatario?: string;
 }) {
   const [perfil, setPerfil] = useState("CF");
-  const [vista, setVista] = useState<"indice" | "arquetipos">("indice");
+  const [vista, setVista] = useState<"indice" | "arquetipos" | "equipo">("indice");
+  const [soloPareto, setSoloPareto] = useState(false);
   /*
    * Los filtros vienen de la barra compartida: liga, año, club, pasaporte,
    * edad y minutos son los mismos en toda la plataforma, y lo que elijas aquí
@@ -149,10 +150,8 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
    * la columna dice "—" en vez de inventar un número.
    */
   const estilos = useEstilos();
-  const encaje = useMemo(
-    () => crearEncaje(estilos.filas ? perfilesDeEstilo(estilos.filas) : [], EQUIPO_PROPIO),
-    [estilos.filas],
-  );
+  const perfilesDeEquipo = useMemo(() => (estilos.filas ? perfilesDeEstilo(estilos.filas) : []), [estilos.filas]);
+  const encaje = useMemo(() => crearEncaje(perfilesDeEquipo, EQUIPO_PROPIO), [perfilesDeEquipo]);
 
   /*
    * Encaje con un equipo, opcional: por defecto no se muestra. Al elegir un
@@ -166,6 +165,22 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
   // aplica; aquí se dice cuál es y se puede quitar.
   const ajusteDelPuesto = useRefuerzos(equipoEncaje, perfil);
 
+  /*
+   * Candidatos para un equipo: ordenados por cuánto mejoran a su titular en
+   * el puesto, no por el índice a secas. El equipo es el de "Encaje con"; al
+   * abrir esta vista sin ninguno elegido, el nuestro.
+   */
+  const destino = equipoEncaje;
+  const elegirVista = (nueva: typeof vista) => {
+    if (nueva === "equipo" && !equipoEncaje) setEquipoEncaje(equiposEncaje.find((equipo) => mismoEquipo(equipo, EQUIPO_PROPIO)) ?? equiposEncaje[0] ?? "");
+    setVista(nueva);
+  };
+  const paraElEquipo = useMemo(
+    () => (vista === "equipo" && destino ? candidatosParaEquipo(todos, (fila) => mismoEquipo(fila.equipo, destino), margenDelIndice) : null),
+    [vista, destino, todos],
+  );
+  const encajeConDestino = useMemo(() => crearEncaje(perfilesDeEquipo, destino || EQUIPO_PROPIO), [perfilesDeEquipo, destino]);
+
   // De qué puesto es esta hoja, para que la firma lo diga en el PDF.
   const nombreDelPuesto = t(PERFILES.find((item) => item.id === perfil)?.nombre ?? perfil);
 
@@ -175,6 +190,25 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
   );
 
   const maximo = listados[0]?.puntuacion ?? 100;
+
+  const candidatosListados = useMemo(() => {
+    if (!paraElEquipo) return [] as Candidato[];
+    return paraElEquipo.candidatos.filter((fila) => pasaFiltros(fila.indice) && (!mercadoActivo || pasaMercado(mercadoDe(fila.indice), filtroMercado)));
+    // mercadoDe y filtroMercado se rehacen cada render; dependen de lo listado aquí.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paraElEquipo, pasaFiltros, mercadoActivo, valorElegido, contratoHasta, mercado]);
+  /*
+   * El frente de Pareto: los que nadie supera a la vez en mejora, encaje de
+   * estilo con el equipo, encaje con lo que pide el puesto y juventud. Una
+   * lista corta sin decidir cuánto vale cada cosa.
+   */
+  const frente = useMemo(() => frenteDePareto(candidatosListados, [
+    (c) => nivelDeFila(c),
+    (c) => encajeConDestino(c.equipo)?.valor ?? Number.NaN,
+    (c) => encajeEquipo.para(c.indice, perfil)?.puesto ?? Number.NaN,
+    (c) => (Number.isFinite(c.edad) ? -c.edad : Number.NaN),
+  ]), [candidatosListados, encajeConDestino, encajeEquipo, perfil]);
+  const candidatosVisibles = soloPareto ? candidatosListados.filter((c) => frente.has(c)) : candidatosListados;
   /* El aviso solo cuando la cobertura es desigual de verdad: si toda la base
      viene de la misma plataforma, el ajuste no mueve a nadie y explicarlo
      sería ruido. */
@@ -191,7 +225,7 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
     onSelectPlayer(indice);
   };
 
-  const sinNadaQueImprimir = vista === "indice" ? !listados.length : !arquetipos.length;
+  const sinNadaQueImprimir = vista === "indice" ? !listados.length : vista === "equipo" ? !candidatosVisibles.length : !arquetipos.length;
   return <section className="rank-page" data-hoja-vacia={sinNadaQueImprimir ? "" : undefined}>
     {/* La cabecera dice qué es la pantalla y nada más. La explicación del
         índice ocupaba tres líneas encima de todo, y se lee una vez: pasa a un
@@ -236,8 +270,9 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
         </Desplegable>
       </div>
       <div className="rank-tabs" role="group" aria-label={t("Cómo ordenar")}>
-        <button type="button" className={vista === "indice" ? "on" : ""} aria-pressed={vista === "indice"} onClick={() => setVista("indice")}>{t("Por índice")}</button>
-        <button type="button" className={vista === "arquetipos" ? "on" : ""} aria-pressed={vista === "arquetipos"} onClick={() => setVista("arquetipos")}>{t("Por arquetipo")}</button>
+        <button type="button" className={vista === "indice" ? "on" : ""} aria-pressed={vista === "indice"} onClick={() => elegirVista("indice")}>{t("Por índice")}</button>
+        <button type="button" className={vista === "arquetipos" ? "on" : ""} aria-pressed={vista === "arquetipos"} onClick={() => elegirVista("arquetipos")}>{t("Por arquetipo")}</button>
+        <button type="button" className={vista === "equipo" ? "on" : ""} aria-pressed={vista === "equipo"} onClick={() => elegirVista("equipo")}>{t("Para un equipo")}</button>
       </div>
     </div>
 
@@ -378,6 +413,50 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
         ? t("El número grande está además corregido por cobertura: acerca a la media a quien se mide con pocas métricas.")
         : t("Índice corregido por cobertura: el número pequeño es el índice sin corregir.")}</p>}
     </>}
+
+    {vista === "equipo" && paraElEquipo && <div className="rank-para-equipo">
+      <div className="rank-titular">
+        {paraElEquipo.titular ? <>
+          <span>{tf("Titular de {equipo} · {puesto}", { equipo: destino, puesto: nombreDelPerfil })}</span>
+          <b>{paraElEquipo.titular.jugador}<em>{tf("índice {n} · {m}′", { n: nivelDeFila(paraElEquipo.titular), m: Math.round(paraElEquipo.titular.minutos).toLocaleString(numberLocale()) })}</em></b>
+          {paraElEquipo.plantilla.length > 1 && <small>{tf("Detrás: {lista}", { lista: paraElEquipo.plantilla.slice(1, 4).map((f) => `${f.jugador} (${nivelDeFila(f)}, ${Math.round(f.minutos)}′)`).join(" · ") })}</small>}
+        </> : <span>{tf("{equipo} no tiene a nadie de este puesto con minutos en la base: la lista va por índice.", { equipo: destino })}</span>}
+        <label className="rank-pareto">
+          <input type="checkbox" checked={soloPareto} onChange={(evento) => setSoloPareto(evento.target.checked)} />
+          <span><b>{t("Solo los que nadie supera en todo")}</b><small>{t("Rendimiento, encaje de estilo, lo que pide el puesto y edad: fuera queda quien tiene a otro igual o mejor en las cuatro.")}</small></span>
+        </label>
+      </div>
+      {candidatosVisibles.length > 0 ? <ol className="rank-list con-encaje con-encaje-equipo rank-candidatos">
+        {candidatosVisibles.slice(0, 40).map((fila, posicion) => <li key={fila.indice}
+          className={onSelectPlayer ? "clicable" : ""}
+          role={onSelectPlayer ? "button" : undefined}
+          tabIndex={onSelectPlayer ? 0 : undefined}
+          onClick={() => onSelectPlayer?.(fila.indice)}
+          onKeyDown={(evento) => abrirConTeclado(evento, fila.indice)}>
+          <span className={posicion < 3 ? "rank-pos podio" : "rank-pos"}>{posicion + 1}</span>
+          <span className="rank-cuerpo">
+            <span className="rank-nombre">
+              {fila.jugador}{frente.has(fila) && !soloPareto && <i className="rank-pareto-marca" title={t("Nadie le supera a la vez en rendimiento, encaje, puesto y edad")}>◆</i>}
+              <small><Escudo equipo={fila.equipo} liga={procedencia?.[fila.indice]?.ligas[0] ?? ""} tamano={13} />{fila.equipo}{procedencia?.[fila.indice]?.ligas[0] ? ` · ${procedencia[fila.indice].ligas[0]}` : ""}{Number.isFinite(fila.edad) ? ` · ${fila.edad}` : ""}{` · ${Math.round(fila.minutos)}′`}</small>
+            </span>
+            {fila.destacadas.length > 0 && <span className="rank-flags">
+              {fila.destacadas.map((metrica) => <em key={metrica.label}>{t(metrica.label)} <u>P{metrica.percentile}</u></em>)}
+            </span>}
+          </span>
+          <CeldaEncaje encaje={encajeConDestino(fila.equipo)} cargando={estilos.cargando} />
+          <CeldaEncajeEquipo encaje={encajeEquipo.para(fila.indice, perfil)} cargandoSitio={encajeEquipo.cargandoSitio} />
+          <b className={`rank-mejora ${fila.mejora === null ? "" : fila.clara ? "clara" : fila.mejora > 0 ? "dudosa" : "negativa"}`}
+            title={fila.mejora === null ? t("Sin titular con el que comparar") : fila.margen === null
+              ? t("Muy pocos minutos para separar la mejora del ruido")
+              : fila.clara ? tf("Mejora al titular por más que su margen (±{m})", { m: fila.margen }) : tf("Dentro del margen de los minutos (±{m}): no se distingue del titular", { m: fila.margen })}>
+            {fila.mejora === null ? nivelDeFila(fila) : `${fila.mejora > 0 ? "+" : fila.mejora < 0 ? "−" : "±"}${Math.abs(fila.mejora)}`}
+            <u>{fila.margen !== null ? `±${fila.margen}` : t("pocos min.")}</u>
+          </b>
+          {onSelectPlayer ? <ChevronRight size={14} className="rank-chevron" /> : <span />}
+        </li>)}
+      </ol> : <p className="rank-empty">{t("Ningún candidato pasa los filtros.")}</p>}
+      <p className="rank-pie">{tf("Ordenados por cuánto mejoran al titular de {equipo}: la diferencia de índices al mismo nivel de liga (Opta). En verde, la que supera el margen de los minutos de los dos; en gris, la que todavía no se distingue de cero. Encaje: cuánto se parece el estilo de su club al de {equipo}; la otra columna, cuánto se parece a lo que {equipo} pide en el puesto.", { equipo: destino })}</p>
+    </div>}
 
     {vista === "arquetipos" && (arquetipos.length > 0 ? <div className="rank-arq-grid">
       {arquetipos.map((ranking) => (
