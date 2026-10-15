@@ -11,6 +11,9 @@
 export const WYSCOUT_HEADERS_ES_EN: Record<string, string> = {
   "Jugador": "Player",
   "Equipo": "Team",
+  // Lo traía sin traducir: la temporada a mano y lo que pide el nombre
+  // canónico no encontraban el club del periodo en los Excel en español.
+  "Equipo durante el período seleccionado": "Team within selected timeframe",
   "Posición específica": "Position",
   "Edad": "Age",
   "Valor de mercado (Transfermarkt)": "Market value",
