@@ -5,7 +5,7 @@ import { lineaDeDatos } from "@/lib/fechasDelInforme";
 import { useBaseActiva } from "./BaseActiva";
 import { useContext } from "react";
 import { MomentoDeImpresion } from "./medidaDeImpresion";
-import { AutorDelInforme, MarcaDelClub } from "./FirmaDelInforme";
+import { AutorDelInforme } from "./FirmaDelInforme";
 
 /**
  * La firma del informe: quién lo hace, sobre quién es y para quién va.
@@ -33,7 +33,6 @@ export function PieDeReporte({ asunto, destinatario, logo, className = "" }: {
   const { descripcion, cargadaEl } = useBaseActiva();
   const generadoEl = useContext(MomentoDeImpresion);
   return <footer className={`visual-page-footer visual-page-signature ${className}`.trim()}>
-    <MarcaDelClub />
     <div className="report-signatures">
       <AutorDelInforme />
       <span className="visual-footer-confidential">{asunto.toUpperCase()} · {t("REPORTE CONFIDENCIAL")}</span>

@@ -850,9 +850,6 @@ body { color-scheme: dark; background: radial-gradient(circle at 74% 9%, rgba(25
 .report-author.con-escudo { display: grid; grid-template-columns: 1fr auto; column-gap: 9px; align-items: center; }
 .report-author.con-escudo > :not(.report-author-escudo) { grid-column: 1; }
 .report-author-escudo { grid-column: 2; grid-row: 1 / span 3; width: auto; height: 34px; max-width: 40px; object-fit: contain; }
-/* Marca de agua: sube desde el pie, que está en todas las hojas. */
-.dossier-footer, .visual-page-footer { position: relative; }
-.marca-del-club { position: absolute; right: 6%; bottom: calc(100% + 28px); width: min(34%, 230px); height: auto; opacity: .055; pointer-events: none; user-select: none; mix-blend-mode: multiply; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .firma-escudo { display: grid; gap: 6px; }
 .firma-escudo-fila { display: flex; align-items: center; gap: 8px; }
 .firma-escudo-fila img { width: 34px; height: 34px; object-fit: contain; border-radius: 8px; background: rgba(255,255,255,.06); padding: 3px; }

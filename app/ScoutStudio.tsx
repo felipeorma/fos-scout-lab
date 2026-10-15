@@ -51,7 +51,7 @@ import { alFallarElGuardado, guardarConImagenes, leerConImagenes, migrarImagenes
 import { MomentoDeImpresion, ocultarComoAlImprimir } from "./medidaDeImpresion";
 import { lineaDeDatos } from "@/lib/fechasDelInforme";
 import { cruzarEnSegundoPlano } from "@/lib/cruceEnSegundoPlano";
-import { AutorDelInforme, ContextoDeFirma, MarcaDelClub, type FirmaDelInforme } from "./FirmaDelInforme";
+import { AutorDelInforme, ContextoDeFirma, type FirmaDelInforme } from "./FirmaDelInforme";
 import { FieldLabel, FilaSeccion, InlineText, MenuDeCompeticiones, ReportImage } from "./estudio/piezas";
 import { useCruceDeAnios } from "./estudio/useCruceDeAnios";
 import { alphabeticCollator, blobToDataUrl, cohortLabel, firstPlayerSelection, horaActual, inicioDe, numberFormat, playerOptionsFor, profileFromReport, readWorkbook } from "./estudio/datos";
@@ -113,7 +113,7 @@ const NOMBRE_DE_SECCION: Record<number, string> = {
  * Maldonado son clientes distintos y no se firman igual— más una temporal
  * para el trabajo suelto que no es de ninguno de los dos.
  */
-type Firma = { nombre: string; cargo: string; /** Escudo del club en alta resolución (data URI), para la marca de agua. */ escudo?: string };
+type Firma = { nombre: string; cargo: string; /** Escudo del club en alta resolución (data URI), para que salga nítido al imprimir. */ escudo?: string };
 type ClaveFirma = "cavalry" | "maldonado" | "temporal";
 const FIRMAS_POR_DEFECTO: Record<ClaveFirma, Firma> = {
   cavalry: { nombre: "Felipe Ormazabal", cargo: "Scouting · Cavalry FC" },
@@ -748,7 +748,6 @@ export default function ScoutStudio() {
       cargo: firma.cargo,
       club: deClub?.nombre ?? "",
       escudo: deClub ? firma.escudo || deClub.src : "",
-      escudoGrande: deClub ? firma.escudo ?? "" : "",
     };
   }, [firma, claveFirma]);
   async function subirEscudo(archivo: File | undefined) {
@@ -1977,7 +1976,6 @@ export default function ScoutStudio() {
           {notaDeRescate && ` ${notaDeRescate}`}
           {` ${lineaDeDatos({ descripcion: base.descripcion, cargadaEl: base.cargadaEl, generadoEl: impresoEl })}.`}
           {report.metrics.some((metric) => metric.source === "skillcorner") && ` ${t("Los volúmenes de SkillCorner (SC) van por 30 minutos con balón del equipo.")}`}</p>
-        <MarcaDelClub />
         <div className="report-signatures">
           <AutorDelInforme />
           <div className="report-recipient">
@@ -2542,8 +2540,8 @@ export default function ScoutStudio() {
                         {firma.escudo && <button type="button" className="button secondary compact" onClick={() => editarFirma("escudo", "")}>{t("Quitar")}</button>}
                       </div>
                       <p className="firma-nota">{firma.escudo
-                        ? t("Va junto a tu firma y como marca de agua en cada hoja.")
-                        : t("Ahora va el escudo pequeño junto a tu firma. Sube uno de 1.000 px o más (o SVG) para que también salga como marca de agua en cada hoja.")}</p>
+                        ? t("Va junto a tu firma en cada hoja.")
+                        : t("Ahora va el escudo pequeño junto a tu firma. Sube uno en alta resolución (PNG o SVG) para que salga nítido al imprimir.")}</p>
                     </div>}
                     <label className="firma-temporal">
                       <input type="checkbox" checked={firmaTemporal} onChange={(event) => { setFirmaTemporal(event.target.checked); setReportTheme(event.target.checked ? CLIENT_THEMES.otros : CLIENT_THEMES[espacio]); }} />
