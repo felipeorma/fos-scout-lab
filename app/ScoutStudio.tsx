@@ -2082,7 +2082,7 @@ export default function ScoutStudio() {
     <ProveedorDeBase valor={base}>
     <MomentoDeImpresion.Provider value={impresoEl}>
     <ContextoDeFirma.Provider value={firmaDelInforme}>
-    <div className="app-shell no-sidebar" data-paleta={paleta} data-tema={tema}>
+    <div className="app-shell no-sidebar" data-paleta={paleta} data-tema={tema} data-informe={reportTheme.oscuro ? "oscuro" : "claro"}>
       <main className="main-area">
         {/* La barra de navegación, al modo de iOS: una guía a la izquierda,
             el título de la sección, y UNA acción principal a la derecha.

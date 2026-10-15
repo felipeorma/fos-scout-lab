@@ -64,3 +64,13 @@ test("cada conjunto va de un tono apagado a uno claro, y los de plataforma igual
   assert.ok(luz(statsbomb.bajo) < luz("#b0243a") && luz("#b0243a") < luz(statsbomb.alto));
   assert.deepEqual(tonosDe("rgb(1,2,3)"), { bajo: "rgb(1,2,3)", alto: "rgb(1,2,3)" });
 });
+
+test("el texto sobre el color de un jugador se lee: oscuro sobre claro, blanco sobre oscuro", async () => {
+  const { textoSobre } = await import("../lib/colores.ts");
+  assert.equal(textoSobre("#f5f5f7"), "#0b0b0f");
+  assert.equal(textoSobre("#ffffff"), "#0b0b0f");
+  assert.equal(textoSobre("#111111"), "#ffffff");
+  assert.equal(textoSobre("#ff3b30"), "#ffffff");
+  assert.equal(textoSobre("#1f5fd6"), "#ffffff");
+  assert.equal(textoSobre("rojo"), "#ffffff");
+});

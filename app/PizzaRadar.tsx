@@ -23,6 +23,33 @@ const TINTAS = {
   oscuro: { anillo: "rgba(255, 255, 255, .07)", baseDelAnillo: "rgba(255, 255, 255, .06)", etiqueta: "#b7b7c2", disco: "#08080a", indice: "#858592", pista: "rgba(255, 255, 255, .035)" },
 };
 
+/**
+ * En la hoja oscura el lienzo lleva su propio fondo: el tramo del degradado de
+ * la tarjeta que le toca. Transparente, Chrome lo aplanaba sobre blanco al
+ * pasar a PDF y el radar salía en un cuadrado blanco en medio de la ficha.
+ */
+function pintarFondoDeLaTarjeta(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, size: number) {
+  const tarjeta = canvas.closest<HTMLElement>("[data-oscuro]");
+  if (!tarjeta) return;
+  const estilo = getComputedStyle(tarjeta);
+  const arriba = estilo.getPropertyValue("--report-paper-top").trim();
+  const abajo = estilo.getPropertyValue("--report-paper-bottom").trim();
+  if (!/^#[0-9a-f]{6}$/i.test(arriba) || !/^#[0-9a-f]{6}$/i.test(abajo)) return;
+  const caja = tarjeta.getBoundingClientRect();
+  const lienzo = canvas.getBoundingClientRect();
+  if (!caja.height) return;
+  const mezcla = (t: number) => {
+    const canal = (hex: string, i: number) => parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16);
+    const f = Math.min(1, Math.max(0, t));
+    return `rgb(${[0, 1, 2].map((i) => Math.round(canal(arriba, i) * (1 - f) + canal(abajo, i) * f)).join(",")})`;
+  };
+  const degradado = ctx.createLinearGradient(0, 0, 0, size);
+  degradado.addColorStop(0, mezcla((lienzo.top - caja.top) / caja.height));
+  degradado.addColorStop(1, mezcla((lienzo.bottom - caja.top) / caja.height));
+  ctx.fillStyle = degradado;
+  ctx.fillRect(0, 0, size, size);
+}
+
 export function PizzaRadar({ metrics, score, cohort, lang = "es", colorMode = "groups", oscuro = false }: { metrics: RadarMetric[]; score: number; cohort: string; lang?: Lang; colorMode?: "groups" | "platform"; oscuro?: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -41,6 +68,7 @@ export function PizzaRadar({ metrics, score, cohort, lang = "es", colorMode = "g
       if (!ctx) return;
       ctx.scale(ratio, ratio);
       ctx.clearRect(0, 0, size, size);
+      if (oscuro) pintarFondoDeLaTarjeta(ctx, canvas, size);
       const cx = size / 2;
       const cy = size / 2;
       // Con sets de 14-16 métricas el radio se reduce para dejar aire a las
@@ -257,7 +285,10 @@ export function PizzaRadar({ metrics, score, cohort, lang = "es", colorMode = "g
     watchDpr();
     const observer = new ResizeObserver(draw);
     observer.observe(canvas);
+    // Al imprimir cambia el tamaño de la hoja, y con él el tramo de fondo.
+    window.addEventListener("beforeprint", draw);
     return () => {
+      window.removeEventListener("beforeprint", draw);
       observer.disconnect();
       dprMedia?.removeEventListener("change", onDprChange);
     };

@@ -27,6 +27,7 @@ import { canvasImageCandidates, fetchAiSummary, fetchTransfermarktProfile, proxi
 import { reportExportBaseName } from "@/lib/reportExportName";
 import { t, tf, numberLocale, type Lang } from "@/lib/i18n";
 import { guardarConImagenes } from "@/lib/almacen";
+import { AutorDelInforme } from "./FirmaDelInforme";
 
 type TargetOption = { index: number; player: string; team: string };
 type ProfileSide = "target" | "candidate";
@@ -396,8 +397,10 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
    * `colorContrastante` sigue en pie para cuando se elige a mano el color del
    * objetivo: entonces el del comparado se recalcula contra ése.
    */
-  const targetColor = targetColorChoice || "#111111";
-  const candidateColor = candidateColorChoice || (targetColorChoice ? colorContrastante(targetColor) : "#ff0000");
+  // En la hoja oscura (look Night) el par es el mismo al revés: blanco el
+  // objetivo, el rojo del acento el comparado.
+  const targetColor = targetColorChoice || (theme.oscuro ? "#f5f5f7" : "#111111");
+  const candidateColor = candidateColorChoice || (targetColorChoice ? colorContrastante(targetColor) : theme.oscuro ? "#ff3b30" : "#ff0000");
   const targetLabelColor = targetLabelColorChoice || targetColor;
   const candidateLabelColor = candidateLabelColorChoice || candidateColor;
   const paletteColors = useMemo(() => [...new Set([theme.accent, theme.dark, ...PLAYER_PALETTE])], [theme.accent, theme.dark]);
@@ -768,7 +771,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
   }
 
 
-  return <div className="page-content similarity-page similarity-report-theme" style={reportThemeStyle(theme)}>
+  return <div className="page-content similarity-page similarity-report-theme" data-oscuro={theme.oscuro ? "" : undefined} style={reportThemeStyle(theme)}>
     {rows.length > 0 && !search && porLiga ? <section className="dataset-onboarding similarity-empty">
       <span className="dataset-step">{t("SIN COHORTE EN SU LIGA")}</span>
       <span className="dataset-icon"><Search size={30} /></span>
@@ -951,7 +954,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
               <section ref={reportSheetRef} className="similarity-report-sheet">
                 {similarityReportPayload && <SimilarityReportMain payload={similarityReportPayload} />}
                 {comparisonNote.trim() && <div className="similarity-note-block"><span>{t("Comentarios")}</span><p>{comparisonNote}</p></div>}
-                <footer className="dossier-footer similarity-report-footer"><p>{tf("Percentiles P0–P100 · métricas comunes {n}% · {w}.", { n: selectedCandidate.coverage, w: activeMetricWeights ? tf("{n} ponderaciones personalizadas activas", { n: activeMetricWeights }) : t("pesos métricos uniformes") })}</p><div className="report-signatures"><div className="report-author"><span>{t("ELABORADO POR")}</span><b>FELIPE ORMAZABAL</b><small>SCOUTING REPORT</small></div><div className="report-recipient">{recipientLogoReady ? <ReportImage src={recipientLogoUrl.trim()} alt={reportRecipient} className="dossier-footer-club-logo" /> : <span className="dossier-footer-club-fallback">{reportRecipient.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span>}<div><span>{t("REPORTE GENERADO PARA")}</span><b>{reportRecipient}</b></div></div></div></footer>
+                <footer className="dossier-footer similarity-report-footer"><p>{tf("Percentiles P0–P100 · métricas comunes {n}% · {w}.", { n: selectedCandidate.coverage, w: activeMetricWeights ? tf("{n} ponderaciones personalizadas activas", { n: activeMetricWeights }) : t("pesos métricos uniformes") })}</p><div className="report-signatures"><AutorDelInforme /><div className="report-recipient">{recipientLogoReady ? <ReportImage src={recipientLogoUrl.trim()} alt={reportRecipient} className="dossier-footer-club-logo" /> : <span className="dossier-footer-club-fallback">{reportRecipient.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span>}<div><span>{t("REPORTE GENERADO PARA")}</span><b>{reportRecipient}</b></div></div></div></footer>
               </section>
             </div>
 

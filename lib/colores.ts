@@ -35,3 +35,16 @@ export function colorContrastante(colorObjetivo: string) {
   if (distanciaDeTono(colorObjetivo, AZUL) >= 120) return AZUL;
   return [...CANDIDATOS].sort((x, y) => distanciaDeTono(colorObjetivo, y) - distanciaDeTono(colorObjetivo, x))[0];
 }
+
+/**
+ * El texto que se lee sobre un fondo de este color: casi negro sobre los
+ * claros, blanco sobre los demás. Con el look Night el jugador objetivo va en
+ * blanco, y su rótulo en blanco sobre blanco no se veía.
+ */
+export function textoSobre(color: string): string {
+  const hex = color.trim().replace("#", "");
+  if (!/^[0-9a-f]{6}$/i.test(hex)) return "#ffffff";
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+    .map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.45 ? "#0b0b0f" : "#ffffff";
+}

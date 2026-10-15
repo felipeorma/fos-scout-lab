@@ -1374,7 +1374,7 @@ body.print-layout-check .similarity-star-visual > svg { transform: none !importa
 /* ---- Encabezado del duelo: nombre · estrella · nombre ---- */
 .duel-header { display: grid !important; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px; }
 .duel-header-player { min-width: 0; }
-.duel-header-player span { display: inline-block; margin-bottom: 6px; padding: 2.5px 9px; border-radius: 99px; background: var(--player-color); color: #fff; font-size: 6.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.duel-header-player span { display: inline-block; margin-bottom: 6px; padding: 2.5px 9px; border-radius: 99px; background: var(--player-color); color: var(--player-ink, #fff); font-size: 6.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
 .duel-header-player b { display: block; overflow: hidden; color: #fff; font-family: var(--font-oswald), sans-serif; font-size: 19px; line-height: 1.05; text-transform: uppercase; text-overflow: ellipsis; white-space: nowrap; }
 .duel-header-player.right { text-align: right; }
 .duel-header-center { display: flex; flex-direction: column; align-items: center; gap: 4px; }
@@ -1529,7 +1529,7 @@ body.print-layout-check .similarity-star-visual > svg { transform: none !importa
 .duel-header-copy { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .duel-header-role {
   align-self: start; margin-bottom: 3px; padding: 2px 8px; border-radius: 99px;
-  background: var(--player-color); color: #fff;
+  background: var(--player-color); color: var(--player-ink, #fff);
   font-size: 6px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
 }
 .duel-header-player.right .duel-header-role { align-self: end; }
@@ -1789,6 +1789,16 @@ body.print-layout-check .similarity-star-visual > svg { transform: none !importa
   box-shadow: 0 4px 12px rgba(0, 0, 0, .26);
 }
 .duel-header-glow { display: none; }
+/* En el look Night la tarjeta es grafito y vira al color del jugador hacia abajo. */
+.similarity-report-theme[data-oscuro] .duel-header-photo {
+  background: linear-gradient(180deg,
+    var(--report-paper-top) 0%,
+    var(--report-paper-top) 34%,
+    color-mix(in srgb, var(--player-color) 22%, var(--report-paper)) 78%,
+    color-mix(in srgb, var(--player-color) 34%, var(--report-paper)) 100%);
+  box-shadow: inset 0 0 0 .9px var(--report-line);
+}
+.similarity-report-theme[data-oscuro] .duel-header-initials { color: color-mix(in srgb, var(--player-color) 70%, var(--report-faint)); }
 
 /* Escudo dentro de la tarjeta, sin recuadro: es el propio PNG. */
 .duel-header-photo > .duel-header-crest {
@@ -5536,7 +5546,8 @@ button.menu-fila:active { transform: scale(.985); }
    impresión. El campo del mapa mantiene su fondo oscuro: es un dibujo, no
    texto, y lleva su propio print-color-adjust. */
 @media print {
-  .app-shell[data-tema] :is(.runs-page, .flujo-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) {
+  /* Solo con el informe claro: en el look Night las hojas se imprimen oscuras (más abajo). */
+  .app-shell[data-tema]:not([data-informe="oscuro"]) :is(.runs-page, .flujo-page, .rank-page, .pool-page, .context-page, .scouting-board, .estilo-page, .snap-page) {
     --ink: #1d1d1f;
     --muted: #5b6472;
     --line: rgba(0, 0, 0, .16);
@@ -6587,3 +6598,30 @@ body.print-layout-check .legal-page-shell:has([data-hoja-vacia]) { display: none
 .aviso-guardado { margin: 8px 16px 0; padding: 9px 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid rgba(240, 163, 94, .45); border-radius: 10px; color: #f3c79c; background: rgba(240, 163, 94, .1); font-size: 12px; }
 .aviso-guardado button { border: 0; background: none; color: inherit; font-size: 16px; line-height: 1; cursor: pointer; }
 @media print { .aviso-guardado { display: none !important; } }
+
+/* =====================================================================
+   Impresión en el look Night
+   =====================================================================
+   "Nunca fondo blanco" (diseno-reportes-cavalry.json): con el tema oscuro
+   del informe cada hoja sale entera en casi negro, con los brillos de la
+   página, y las hojas de análisis como tarjetas grafito con filete. Sin
+   print-color-adjust el navegador quita los fondos y deja texto claro sobre
+   papel blanco. */
+@media print {
+  html:has(.app-shell[data-informe="oscuro"]),
+  html:has(.app-shell[data-informe="oscuro"]) body { background: #08080a !important; color-scheme: dark; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .app-shell[data-informe="oscuro"] .legal-page-shell {
+    background:
+      radial-gradient(95% 55% at 86% 108%, var(--halo-a, rgba(255,42,31,.34)), transparent 70%),
+      radial-gradient(70% 40% at 6% -10%, var(--halo-b, rgba(61,91,255,.10)), transparent 70%),
+      #08080a !important;
+  }
+  .app-shell[data-informe="oscuro"] .legal-page-shell,
+  .app-shell[data-informe="oscuro"] .legal-page-shell * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .app-shell[data-informe="oscuro"] :is(.report-preview-wrap, .designer-stage) { background: transparent !important; }
+  .app-shell[data-informe="oscuro"] .legal-page-shell:has(> :is(.snap-page, .estilo-page, .rank-page, .pool-page, .runs-page, .flujo-page, .scouting-board, .context-page, .similarity-report-sheet))::after { border: .9px solid #2a2a32; }
+  .app-shell[data-informe="oscuro"] .legal-page-shell > :is(.snap-page, .estilo-page, .rank-page, .pool-page, .runs-page, .flujo-page, .scouting-board, .context-page, .similarity-report-sheet) {
+    background: linear-gradient(180deg, #1b1b20, #101013) !important;
+  }
+}
+

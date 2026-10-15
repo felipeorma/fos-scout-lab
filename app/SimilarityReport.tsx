@@ -1,6 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
+import { textoSobre } from "@/lib/colores";
 import { type CSSProperties, useEffect, useId, useRef, useState } from "react";
 import { ComparisonRadar } from "./ComparisonRadar";
 import { Search } from "./Icons";
@@ -202,7 +203,7 @@ function PlayerPortrait({ src, alt, photoScale, fit = "auto" }: { src: string; a
 
 function HeaderPlayer({ player, label, side }: { player: SimilarityReportPlayer; label: string; side: "left" | "right" }) {
   const { profile, name, team, position, age, passport, color, photoScale, photoFit } = player;
-  return <div className={`duel-header-player ${side}`} style={{ "--player-color": color } as CSSProperties}>
+  return <div className={`duel-header-player ${side}`} style={{ "--player-color": color, "--player-ink": textoSobre(color) } as CSSProperties}>
     <div className="duel-header-photo">
       <span className="duel-header-glow" aria-hidden="true" />
       {profile.clubLogo && <ReportImage src={profile.clubLogo} alt={profile.club || team} className="duel-header-crest" />}
