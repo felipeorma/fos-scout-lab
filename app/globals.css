@@ -6478,6 +6478,9 @@ body.print-layout-check .legal-page-shell > :is(.rank-page, .pool-page) :is(.ran
 .temporada-previa .select-wrap select { text-overflow: ellipsis; }
 .temporada-previa-nota { color: var(--muted); font-size: 11px; line-height: 1.45; }
 .temporada-previa .button.compact { align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; }
+.temporada-previa-nota.aviso { color: var(--accent, #cd2b2b); }
+.previa-manual { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px dashed var(--line, rgba(255,255,255,.14)); border-radius: 10px; }
+.previa-manual .anadir-wyscout { margin-top: 0; }
 
 /* Nombre de una base de archivo (Wyscout), editable en su sitio. Cerrado se
    lee como el título que es —también en el PDF—; el lápiz solo asoma al
