@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Archivo, Barlow, Barlow_Condensed, Oswald } from "next/font/google";
+import { Archivo, Barlow, Barlow_Condensed, Geist, Oswald } from "next/font/google";
 import "./globals.css";
 
 const barlow = Barlow({
@@ -22,6 +22,14 @@ const archivo = Archivo({
   weight: ["400", "500", "600", "700"],
 });
 
+// La letra del look Night (diseno-reportes-cavalry.json): Geist, con cifras
+// tabulares. Sustituye a Barlow y a Archivo en la plataforma (globals.css).
+const geist = Geist({
+  variable: "--font-geist",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "900"],
+});
+
 const oswald = Oswald({
   variable: "--font-oswald",
   subsets: ["latin"],
@@ -40,7 +48,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
-      <body className={`${barlow.variable} ${barlowCondensed.variable} ${archivo.variable} ${oswald.variable}`}>
+      <body className={`${barlow.variable} ${barlowCondensed.variable} ${archivo.variable} ${oswald.variable} ${geist.variable}`}>
         {children}
       </body>
     </html>
