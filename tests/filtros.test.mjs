@@ -103,3 +103,15 @@ test("cuenta bien los filtros activos, uno a uno", () => {
   // El mínimo de minutos no cuenta: no es un filtro de mercado.
   assert.equal(cuantosFiltrosActivos(con({ minutosMin: 900 })), 0);
 });
+
+test("liga y año juntos piden el par exacto: jugó en esa liga ese año", () => {
+  const [r] = resumirFilas([fila()]);
+  // MLS Next Pro en 2025 y CPL en 2026.
+  const origen = { ligas: ["MLS Next Pro", "Canadian Premier League"], anios: [2025, 2026], claves: ["MLS Next Pro 2025", "Canadian Premier League 2026"] };
+  assert.equal(pasaLosFiltros(r, origen, con({ liga: "Canadian Premier League", anio: 2026 })), true);
+  assert.equal(pasaLosFiltros(r, origen, con({ liga: "Canadian Premier League", anio: 2025 })), false, "en 2025 no jugó en la CPL");
+  assert.equal(pasaLosFiltros(r, origen, con({ liga: "MLS Next Pro", anio: 2025 })), true);
+  // Solo uno de los dos sigue como antes.
+  assert.equal(pasaLosFiltros(r, origen, con({ liga: "Canadian Premier League" })), true);
+  assert.equal(pasaLosFiltros(r, origen, con({ anio: 2025 })), true);
+});

@@ -61,7 +61,8 @@ export function temporadasUtiles<T extends CompeticionElegible>(competiciones: T
 }
 
 /** El año en que arranca una temporada: 2025 tanto en "2025" como en "2025/2026". */
-const anioDeInicio = (temporada: string) => Number(String(temporada ?? "").match(/\d{4}/)?.[0] ?? 0);
+/** El año con que empieza una temporada: 2025 en "2025" y en "2025/2026". Es el año de los filtros. */
+export const anioDeInicio = (temporada: string) => Number(String(temporada ?? "").match(/\d{4}/)?.[0] ?? 0);
 
 /**
  * La temporada que sirve hoy y la anterior, de cada competición.

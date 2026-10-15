@@ -86,7 +86,7 @@ export function resumirFilas(rows: DataRow[]): ResumenDeFila[] {
 }
 
 /** La procedencia de una fila: de qué ligas y años viene. */
-export type OrigenDeFila = { ligas: string[]; anios: number[] };
+export type OrigenDeFila = { ligas: string[]; anios: number[]; claves?: string[] };
 
 /**
  * Solo los filtros que describen al JUGADOR, no dónde juega.
@@ -133,8 +133,15 @@ export function pasaLosFiltros(
   if (!pasaLosFiltrosDeJugador(fila, filtros)) return false;
   if (filtros.liga !== "TODAS" || filtros.anio) {
     if (!origen) return false;
-    if (filtros.liga !== "TODAS" && !origen.ligas.includes(filtros.liga)) return false;
-    if (filtros.anio && !origen.anios.includes(filtros.anio)) return false;
+    if (filtros.liga !== "TODAS" && filtros.anio && origen.claves) {
+      // Liga y año juntos piden el par exacto: jugó en ESA liga ESE año. Por
+      // separado, quien estuvo en la MLS Next Pro en 2025 y en la CPL en 2026
+      // pasaba por "CPL 2025" y aparecía en la ficha con su club de la otra liga.
+      if (!origen.claves.includes(`${filtros.liga} ${filtros.anio}`)) return false;
+    } else {
+      if (filtros.liga !== "TODAS" && !origen.ligas.includes(filtros.liga)) return false;
+      if (filtros.anio && !origen.anios.includes(filtros.anio)) return false;
+    }
   }
   return true;
 }

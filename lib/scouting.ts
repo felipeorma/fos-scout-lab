@@ -610,6 +610,8 @@ export type TemporadaDeJugador = {
   anio: number;
   ligas: string[];
   equipo: string;
+  /** El club en cada una de sus ligas de esa temporada. */
+  equipoPorLiga: Record<string, string>;
   partidos: number;
   minutos: number;
   /** NaN si la base no trae la columna. */
@@ -1294,6 +1296,14 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
         anio: identidad.season,
         ligas,
         equipo: rowTeam(identidad.row),
+        // El club en cada liga de esa temporada (donde más jugó en ella): quien
+        // pasó de la CPL a Sligo a mitad de año es de Sligo en la temporada,
+        // pero de su club de la CPL cuando se filtra por la CPL.
+        equipoPorLiga: Object.fromEntries(ligas.map((liga) => {
+          const enLaLiga = (base.length ? base : entradas).filter((entry) => ligaYAnioDe(entry.source).liga === liga);
+          const principal = [...enLaLiga].sort((a, b) => minutosDe(b.row) - minutosDe(a.row))[0];
+          return [liga, principal ? rowTeam(principal.row) : rowTeam(identidad.row)];
+        })),
         partidos: maxPerProvider(entradas, (row) => numeric(row[core.matches]) || 0),
         minutos: maxPerProvider(entradas, (row) => numeric(row[core.minutes]) || 0),
         goles: total(goalsColumn),

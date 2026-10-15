@@ -27,8 +27,8 @@ test("la fila junta las dos temporadas y guarda lo que jugó en cada una", () =>
   assert.ok(Math.abs(fila["Passes per 90"] - (40 * 2310 + 50 * 476) / 2786) < 1e-9, "por 90, ponderado por minutos");
   assert.equal(fila.Team, "Cavalry FC", "el club es el de la temporada más reciente");
   assert.deepEqual(temporadasDeFila(fila), [
-    { etiqueta: "2026", anio: 2026, ligas: ["Canadian Premier League"], equipo: "Cavalry FC", partidos: 14, minutos: 476, goles: 0, asistencias: 0 },
-    { etiqueta: "2025", anio: 2025, ligas: ["Canadian Premier League"], equipo: "HFX Wanderers", partidos: 28, minutos: 2310, goles: 1, asistencias: 3 },
+    { etiqueta: "2026", anio: 2026, ligas: ["Canadian Premier League"], equipo: "Cavalry FC", equipoPorLiga: { "Canadian Premier League": "Cavalry FC" }, partidos: 14, minutos: 476, goles: 0, asistencias: 0 },
+    { etiqueta: "2025", anio: 2025, ligas: ["Canadian Premier League"], equipo: "HFX Wanderers", equipoPorLiga: { "Canadian Premier League": "HFX Wanderers" }, partidos: 28, minutos: 2310, goles: 1, asistencias: 3 },
   ]);
 });
 
