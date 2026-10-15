@@ -797,6 +797,18 @@ body { color-scheme: dark; background: radial-gradient(circle at 74% 9%, rgba(25
 /* Los rótulos sobran bajo los de arriba; en pantalla estrecha, donde la fila
    se parte en dos columnas, vuelven. */
 .dossier-season-previa .dossier-stat > span { display: none; }
+/* Jerarquía: la base analizada manda y la temporada anterior acompaña. Antes
+   el título de la principal salía más pequeño que el de la anterior; ahora la
+   principal es más grande y lleva el rótulo en color, y la anterior va en
+   gris, más pequeña y apagada. */
+.dossier-season-strip:not(.dossier-season-previa) .season-source > span { font-size: 8.5px; }
+.dossier-season-strip:not(.dossier-season-previa) .season-source > b { font-size: 17px; line-height: 1.08; white-space: normal; overflow-wrap: anywhere; }
+/* Partido en dos líneas si no cabe: a 17 px un nombre largo ("Challenger Pro
+   League · 2025/2026") se montaba sobre la columna de partidos. */
+.dossier-season-strip:not(.dossier-season-previa) .season-source > b .nombre-base { white-space: normal; text-align: left; }
+.dossier-season-previa .season-source > span { color: var(--report-muted); font-size: 7px; }
+.dossier-season-previa .season-source > b { color: color-mix(in srgb, var(--report-ink) 62%, transparent); font-size: 11.5px; }
+.dossier-season-previa .dossier-stat strong { font-size: 15px; opacity: .6; }
 .season-radar-note { display: flex; flex-direction: column; align-items: center; gap: 1px; text-align: center; }
 .season-radar-note span { color: var(--report-accent); font-size: 6.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
 .season-radar-note b { color: var(--report-ink); font-size: 8.5px; font-weight: 700; white-space: nowrap; }
@@ -6515,3 +6527,14 @@ body.print-layout-check .legal-page-shell:has([data-hoja-vacia]) { display: none
 
 /* De qué datos sale cada hoja y cuándo se generó, bajo la firma. */
 .pie-datos { margin: 4px 0 0; color: var(--report-muted, #8493ab); font-size: 7.5px; letter-spacing: .02em; text-align: center; }
+
+/* Añadir a mano la temporada anterior de una base de Wyscout. */
+.anadir-wyscout { margin-top: 6px; }
+.anadir-wyscout-form { display: grid; gap: 8px; margin-top: 4px; }
+.anadir-wyscout-form fieldset { margin: 0; padding: 8px 10px; display: grid; grid-template-columns: 1fr 110px; gap: 6px 8px; border: 1px solid var(--line, rgba(255,255,255,.1)); border-radius: 10px; }
+.anadir-wyscout-form legend { padding: 0 4px; color: var(--muted, #8b95a5); font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.anadir-wyscout-form label { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.anadir-wyscout-form label > span { color: var(--muted, #8b95a5); font-size: 10px; }
+.anadir-wyscout-form input { min-width: 0; padding: 6px 8px; border: 1px solid var(--line, rgba(255,255,255,.14)); border-radius: 8px; color: inherit; background: rgba(255,255,255,.04); font: inherit; font-size: 12px; }
+.anadir-wyscout-error { color: #f0a35e; font-size: 11px; }
+.anadir-wyscout-acciones { display: flex; gap: 8px; }

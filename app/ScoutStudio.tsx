@@ -18,6 +18,7 @@ import { LOGOS_PLATAFORMA, LogoPlataforma } from "./LogosPlataforma";
 import { ligasDeBases, origenPorFila, basesDelRadar, ligaYAnioDe } from "@/lib/procedencia";
 import { aplicarNombre, conNombresGuardados, guardarNombre, identidadDeBase, nombreActual, type NombreDeBase } from "@/lib/nombresDeBase";
 import { EditorDeNombreDeBase } from "./EditorDeNombreDeBase";
+import { AnadirTemporadaWyscout } from "./AnadirTemporadaWyscout";
 import { ProveedorDeBase, useEstadoDeBase } from "./BaseActiva";
 import { BarraDeFiltros } from "./BarraDeFiltros";
 import { MenuDeLigas, MenuDesplegable, type OpcionDeMenu } from "./MenuDesplegable";
@@ -1384,6 +1385,41 @@ export default function ScoutStudio() {
       && dataset.season === temporada.anio && temporada.ligas.includes(ligaYAnioDe(dataset.fileName.replace(/\.(xlsx|xls|csv)$/i, "")).liga));
   }
 
+  /**
+   * La temporada anterior de una base de Wyscout, subida a mano: el archivo
+   * nuevo entra con la liga y la temporada que se escriban, y la base que ya
+   * estaba se renombra si se le cambiaron las suyas. Los dos nombres se
+   * recuerdan para la próxima vez que se suban esos mismos archivos.
+   */
+  async function anadirTemporadaWyscout(archivo: File, anterior: NombreDeBase, nombreDeEsta: NombreDeBase) {
+    const nombre = String(filaElegida?.Player ?? "");
+    const nacimiento = String(filaElegida?.["Birth date"] ?? "");
+    const deEsta = basesDeArchivoDe(temporadaDeReferencia ?? undefined).map((dataset) => dataset.fileName);
+    setReportLoading(true);
+    setReportError("");
+    try {
+      const leida = await readWorkbook(archivo);
+      guardarNombre(leida, anterior);
+      const nueva = aplicarNombre(leida, anterior);
+      const inventario = sourceDatasets.map((dataset) => {
+        if (!deEsta.includes(dataset.fileName)) return dataset;
+        const ahora = nombreActual(dataset);
+        if (ahora.liga === nombreDeEsta.liga.trim() && ahora.temporada === nombreDeEsta.temporada.trim().replace(/\s+/g, "")) return dataset;
+        guardarNombre(dataset, nombreDeEsta);
+        return aplicarNombre(dataset, nombreDeEsta);
+      });
+      applyDatasets([...inventario, nueva], (filas) => {
+        const indice = filas.findIndex((fila) => String(fila.Player ?? "") === nombre
+          && (!nacimiento || !fila["Birth date"] || String(fila["Birth date"]) === nacimiento));
+        return indice >= 0 ? indice : 0;
+      });
+    } catch (error) {
+      setReportError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setReportLoading(false);
+    }
+  }
+
   /** Rehace el cruce con las bases encendidas, sin tocar el inventario. */
   function aplicarActivos(activos: SourceDataset[]) {
     const result = aggregateDatasets(activos);
@@ -2567,6 +2603,10 @@ export default function ScoutStudio() {
                         <Plus size={13} />{tf("Añadir {liga} {s}", { liga: temporadaRecomendada.competicion.name, s: temporadaRecomendada.competicion.season })}
                       </button>
                     </> : temporadaRecomendada?.cargada ? <small className="temporada-previa-nota">{tf("No aparece en {liga} {s}: si jugó en otra liga, añádela desde Base activa.", { liga: temporadaRecomendada.competicion.name, s: temporadaRecomendada.competicion.season })}</small>
+                    : basesDeArchivoDe(temporadaDeReferencia ?? undefined).length > 0 ? <>
+                      <small className="temporada-previa-nota">{t("No hay temporada anterior en la base. Sube el Excel de Wyscout del año anterior y escribe su liga y su temporada.")}</small>
+                      <AnadirTemporadaWyscout actual={nombreActual(basesDeArchivoDe(temporadaDeReferencia ?? undefined)[0])} deshabilitado={reportLoading} onAnadir={anadirTemporadaWyscout} />
+                    </>
                     : <small className="temporada-previa-nota">{(filaElegida && String(filaElegida["Data sources"] ?? "").includes("StatsBomb ·"))
                       ? t("No hay temporada anterior de este jugador en la base. Puedes añadirla desde Base activa.")
                       : t("No hay temporada anterior en la base. Con Wyscout, sube también el Excel del año anterior, con el año en el nombre.")}</small>}

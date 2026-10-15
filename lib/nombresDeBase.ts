@@ -41,8 +41,35 @@ export function aplicarNombre(dataset: SourceDataset, nombre: NombreDeBase): Sou
   return { ...dataset, fileName, season: extractSeason(fileName), nombreOriginal: dataset.nombreOriginal ?? dataset.fileName };
 }
 
-/** Lo que identifica a una base aunque se haya renombrado. */
-export const identidadDeBase = (dataset: SourceDataset) => dataset.nombreOriginal ?? dataset.fileName;
+/**
+ * Lo que identifica a una base aunque se haya renombrado.
+ *
+ * Un archivo es su nombre original Y su contenido: Wyscout llama "Search
+ * results" a casi todo, y dos temporadas distintas con el mismo nombre se
+ * tomaban por la misma base y una pisaba a la otra al añadir la anterior.
+ * Dos copias del mismo archivo siguen siendo una. Las de la API son su
+ * competición: una recarga con datos más nuevos sustituye a la vieja en vez
+ * de sumarse a ella.
+ */
+export const identidadDeBase = (dataset: SourceDataset) => (dataset.provider === "statsbomb" || dataset.provider === "skillcorner"
+  ? dataset.fileName
+  : `${dataset.nombreOriginal ?? dataset.fileName}#${firmaDeBase(dataset)}`);
+
+/**
+ * La temporada anterior a una escrita a mano, en el mismo formato: "2026" →
+ * "2025", "2025/2026" → "2024/2025", "2025/26" → "2024/25". Vacía si no se
+ * puede deducir.
+ */
+export function temporadaAnteriorDe(temporada: string) {
+  const limpia = temporada.trim().replace(/\s+/g, "");
+  const cruzada = limpia.match(/^(\d{4})\/(\d{2}|\d{4})$/);
+  if (cruzada) {
+    const inicio = Number(cruzada[1]) - 1;
+    const fin = cruzada[2].length === 4 ? String(Number(cruzada[2]) - 1) : String(Number(cruzada[2]) - 1).padStart(2, "0").slice(-2);
+    return `${inicio}/${fin}`;
+  }
+  return /^\d{4}$/.test(limpia) ? String(Number(limpia) - 1) : "";
+}
 
 /**
  * La firma de un archivo: su contenido. Sirve para reconocerlo al volver a

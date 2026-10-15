@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { aplicarNombre, conNombresGuardados, firmaDeBase, identidadDeBase, nombreActual, temporadaValida } from "../lib/nombresDeBase.ts";
+import { aplicarNombre, conNombresGuardados, firmaDeBase, identidadDeBase, nombreActual, temporadaAnteriorDe, temporadaValida } from "../lib/nombresDeBase.ts";
 import { ligaYAnioDe } from "../lib/procedencia.ts";
 import { aggregateDatasets, temporadasDeFila } from "../lib/scouting.ts";
 
@@ -20,7 +20,8 @@ test("nombrar una base reescribe de dónde dice la app que viene: liga, temporad
   assert.equal(nombrada.season, 2026);
   assert.equal(nombrada.nombreOriginal, "Search results (3).xlsx");
   assert.deepEqual({ liga: ligaYAnioDe(nombrada.fileName).liga, temporada: ligaYAnioDe(nombrada.fileName).temporada }, { liga: "Primera División", temporada: "2025/2026" });
-  assert.equal(identidadDeBase(aplicarNombre(nombrada, { liga: "Otra", temporada: "2026" })), "Search results (3).xlsx", "renombrar dos veces conserva el archivo original");
+  assert.equal(identidadDeBase(aplicarNombre(nombrada, { liga: "Otra", temporada: "2026" })), identidadDeBase(original), "renombrar dos veces conserva la identidad");
+  assert.ok(identidadDeBase(original).startsWith("Search results (3).xlsx#"), "nombre original y contenido");
   assert.equal(aplicarNombre(original, { liga: "  ", temporada: "2026" }), original, "sin liga no se toca");
 });
 
@@ -61,4 +62,23 @@ test("dos temporadas de la misma liga, con los mismos clubes, tienen firmas dist
   const [a, b] = conNombresGuardados([t2025, t2026], guardados);
   assert.equal(a.fileName, "Primera División 2025");
   assert.equal(b.fileName, "Primera División 2026");
+});
+
+test("dos Excel distintos con el mismo nombre de archivo son dos bases; dos copias del mismo, una", () => {
+  const a = base("Search results.xlsx", [fila("Ana Uno", "Peñarol")]);
+  const b = base("Search results.xlsx", [fila("Ana Uno", "Peñarol", { "Minutes played": 1200 })]);
+  assert.notEqual(identidadDeBase(a), identidadDeBase(b), "otra temporada con el mismo nombre no pisa a la primera");
+  assert.equal(identidadDeBase(a), identidadDeBase(base("Search results.xlsx", [fila("Ana Uno", "Peñarol")])));
+  // Las de la API son su competición: una recarga sustituye a la anterior.
+  const api = (filas) => ({ ...base("StatsBomb · Liga 2026", filas), provider: "statsbomb" });
+  assert.equal(identidadDeBase(api([fila("Ana Uno", "Peñarol")])), identidadDeBase(api([fila("Ana Uno", "Peñarol", { "Minutes played": 1300 })])));
+});
+
+test("la temporada anterior a una escrita a mano, en su mismo formato", () => {
+  assert.equal(temporadaAnteriorDe("2026"), "2025");
+  assert.equal(temporadaAnteriorDe("2025/2026"), "2024/2025");
+  assert.equal(temporadaAnteriorDe("2025/26"), "2024/25");
+  assert.equal(temporadaAnteriorDe("2000/01"), "1999/00");
+  assert.equal(temporadaAnteriorDe(""), "");
+  assert.equal(temporadaAnteriorDe("Apertura"), "");
 });
