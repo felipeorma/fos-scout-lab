@@ -51,6 +51,7 @@ import { alFallarElGuardado, guardarConImagenes, leerConImagenes, migrarImagenes
 import { MomentoDeImpresion, ocultarComoAlImprimir } from "./medidaDeImpresion";
 import { lineaDeDatos } from "@/lib/fechasDelInforme";
 import { cruzarEnSegundoPlano } from "@/lib/cruceEnSegundoPlano";
+import { AutorDelInforme, ContextoDeFirma, MarcaDelClub, type FirmaDelInforme } from "./FirmaDelInforme";
 import { FieldLabel, FilaSeccion, InlineText, MenuDeCompeticiones, ReportImage } from "./estudio/piezas";
 import { useCruceDeAnios } from "./estudio/useCruceDeAnios";
 import { alphabeticCollator, blobToDataUrl, cohortLabel, firstPlayerSelection, horaActual, inicioDe, numberFormat, playerOptionsFor, profileFromReport, readWorkbook } from "./estudio/datos";
@@ -112,7 +113,7 @@ const NOMBRE_DE_SECCION: Record<number, string> = {
  * Maldonado son clientes distintos y no se firman igual— más una temporal
  * para el trabajo suelto que no es de ninguno de los dos.
  */
-type Firma = { nombre: string; cargo: string };
+type Firma = { nombre: string; cargo: string; /** Escudo del club en alta resolución (data URI), para la marca de agua. */ escudo?: string };
 type ClaveFirma = "cavalry" | "maldonado" | "temporal";
 const FIRMAS_POR_DEFECTO: Record<ClaveFirma, Firma> = {
   cavalry: { nombre: "Felipe Ormazabal", cargo: "Scouting · Cavalry FC" },
@@ -727,19 +728,6 @@ export default function ScoutStudio() {
   const recipientName = reportRecipientName.trim() || t("Club destinatario");
   const recipientLogoReady = /^https?:\/\/\S+$/i.test(reportRecipientLogoUrl.trim());
 
-  useEffect(() => {
-    try {
-      const guardado = window.localStorage.getItem(CLAVE_FIRMAS);
-      if (guardado) {
-        const leido = JSON.parse(guardado) as Partial<Record<ClaveFirma, Firma>>;
-        setFirmas((actuales) => ({
-          cavalry: { ...actuales.cavalry, ...(leido.cavalry ?? {}) },
-          maldonado: { ...actuales.maldonado, ...(leido.maldonado ?? {}) },
-          temporal: { ...actuales.temporal, ...(leido.temporal ?? {}) },
-        }));
-      }
-    } catch { /* la firma por defecto sigue sirviendo */ }
-  }, []);
 
   const claveFirma: ClaveFirma = firmaTemporal ? "temporal" : espacio;
   const firma = firmas[claveFirma];
@@ -749,7 +737,23 @@ export default function ScoutStudio() {
   function editarFirma(campo: keyof Firma, valor: string) {
     const siguiente = { ...firmas, [claveFirma]: { ...firmas[claveFirma], [campo]: valor } };
     setFirmas(siguiente);
-    try { window.localStorage.setItem(CLAVE_FIRMAS, JSON.stringify(siguiente)); } catch { /* opcional */ }
+    // Con el escudo dentro puede pesar megas: la imagen va a IndexedDB.
+    guardarConImagenes(CLAVE_FIRMAS, siguiente, t("la firma"));
+  }
+  /** Lo que leen el pie y la marca de agua de cada hoja. */
+  const firmaDelInforme = useMemo<FirmaDelInforme>(() => {
+    const deClub = claveFirma === "temporal" ? null : ESCUDOS[claveFirma];
+    return {
+      nombre: firma.nombre || FIRMAS_POR_DEFECTO[claveFirma].nombre,
+      cargo: firma.cargo,
+      club: deClub?.nombre ?? "",
+      escudo: deClub ? firma.escudo || deClub.src : "",
+      escudoGrande: deClub ? firma.escudo ?? "" : "",
+    };
+  }, [firma, claveFirma]);
+  async function subirEscudo(archivo: File | undefined) {
+    if (!archivo) return;
+    editarFirma("escudo", await blobToDataUrl(archivo));
   }
 
   useEffect(() => {
@@ -1092,6 +1096,17 @@ export default function ScoutStudio() {
     });
     return dejarDeOir;
   }, []);
+  useEffect(() => {
+    if (!almacenListo) return;
+    const leido = leerConImagenes<Partial<Record<ClaveFirma, Firma>>>(CLAVE_FIRMAS);
+    if (!leido) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setFirmas((actuales) => ({
+      cavalry: { ...actuales.cavalry, ...(leido.cavalry ?? {}) },
+      maldonado: { ...actuales.maldonado, ...(leido.maldonado ?? {}) },
+      temporal: { ...actuales.temporal, ...(leido.temporal ?? {}) },
+    }));
+  }, [almacenListo]);
   useEffect(() => {
     if (!almacenListo || !report) return;
     const restored = restoreProfile(report);
@@ -1962,8 +1977,9 @@ export default function ScoutStudio() {
           {notaDeRescate && ` ${notaDeRescate}`}
           {` ${lineaDeDatos({ descripcion: base.descripcion, cargadaEl: base.cargadaEl, generadoEl: impresoEl })}.`}
           {report.metrics.some((metric) => metric.source === "skillcorner") && ` ${t("Los volúmenes de SkillCorner (SC) van por 30 minutos con balón del equipo.")}`}</p>
+        <MarcaDelClub />
         <div className="report-signatures">
-          <div className="report-author"><span>{t("ELABORADO POR")}</span><b>{firma.nombre || FIRMAS_POR_DEFECTO[claveFirma].nombre}</b><small>{firma.cargo}</small></div>
+          <AutorDelInforme />
           <div className="report-recipient">
             {recipientLogoReady ? <ReportImage src={reportRecipientLogoUrl.trim()} alt={recipientName} className="dossier-footer-club-logo" /> : <span className="dossier-footer-club-fallback">{recipientName.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span>}
             <div><span>{t("REPORTE GENERADO PARA")}</span><b><InlineText editKey="recipient" value={reportRecipientName} fallback={t("Club destinatario")} onCommit={setReportRecipientName} /></b></div>
@@ -2008,6 +2024,7 @@ export default function ScoutStudio() {
   return (
     <ProveedorDeBase valor={base}>
     <MomentoDeImpresion.Provider value={impresoEl}>
+    <ContextoDeFirma.Provider value={firmaDelInforme}>
     <div className="app-shell no-sidebar" data-paleta={paleta} data-tema={tema}>
       <main className="main-area">
         {/* La barra de navegación, al modo de iOS: una guía a la izquierda,
@@ -2513,6 +2530,21 @@ export default function ScoutStudio() {
                     <label><small>{t("Cargo o pie de firma")}</small>
                       <input value={firma.cargo} maxLength={70} onChange={(event) => editarFirma("cargo", event.target.value)} />
                     </label>
+                    {claveFirma !== "temporal" && <div className="firma-escudo">
+                      <small>{t("Escudo del club en alta resolución")}</small>
+                      <div className="firma-escudo-fila">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={firmaDelInforme.escudo} alt={firmaDelInforme.club} />
+                        <label className="button secondary compact">
+                          <Upload size={13} />{firma.escudo ? t("Cambiar") : t("Subir escudo")}
+                          <input type="file" accept="image/png,image/svg+xml,image/webp,image/jpeg" hidden onChange={(event) => { void subirEscudo(event.target.files?.[0]); event.target.value = ""; }} />
+                        </label>
+                        {firma.escudo && <button type="button" className="button secondary compact" onClick={() => editarFirma("escudo", "")}>{t("Quitar")}</button>}
+                      </div>
+                      <p className="firma-nota">{firma.escudo
+                        ? t("Va junto a tu firma y como marca de agua en cada hoja.")
+                        : t("Ahora va el escudo pequeño junto a tu firma. Sube uno de 1.000 px o más (o SVG) para que también salga como marca de agua en cada hoja.")}</p>
+                    </div>}
                     <label className="firma-temporal">
                       <input type="checkbox" checked={firmaTemporal} onChange={(event) => { setFirmaTemporal(event.target.checked); setReportTheme(event.target.checked ? CLIENT_THEMES.otros : CLIENT_THEMES[espacio]); }} />
                       <span><b>{t("Usar firma temporal")}</b><small>{t("Para un informe que no es de Cavalry ni de Maldonado. Cambia también a los colores neutros.")}</small></span>
@@ -2745,6 +2777,7 @@ export default function ScoutStudio() {
           </div>
       </main>
     </div>
+    </ContextoDeFirma.Provider>
     </MomentoDeImpresion.Provider>
     </ProveedorDeBase>
   );

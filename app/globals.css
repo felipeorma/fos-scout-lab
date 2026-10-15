@@ -846,6 +846,17 @@ body { color-scheme: dark; background: radial-gradient(circle at 74% 9%, rgba(25
 .dossier-footer { min-height: 78px; padding: 16px 30px 20px; display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; border-top: 1px solid var(--report-line); }
 .dossier-footer > p { max-width: 430px; margin: 0; color: var(--report-muted); font-size: 8px; line-height: 1.5; }
 .report-signatures { display: flex; align-items: center; justify-content: flex-end; gap: 18px; white-space: nowrap; }
+/* La firma con el escudo del club al lado (FirmaDelInforme). */
+.report-author.con-escudo { display: grid; grid-template-columns: 1fr auto; column-gap: 9px; align-items: center; }
+.report-author.con-escudo > :not(.report-author-escudo) { grid-column: 1; }
+.report-author-escudo { grid-column: 2; grid-row: 1 / span 3; width: auto; height: 34px; max-width: 40px; object-fit: contain; }
+/* Marca de agua: sube desde el pie, que está en todas las hojas. */
+.dossier-footer, .visual-page-footer { position: relative; }
+.marca-del-club { position: absolute; right: 6%; bottom: calc(100% + 28px); width: min(34%, 230px); height: auto; opacity: .055; pointer-events: none; user-select: none; mix-blend-mode: multiply; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.firma-escudo { display: grid; gap: 6px; }
+.firma-escudo-fila { display: flex; align-items: center; gap: 8px; }
+.firma-escudo-fila img { width: 34px; height: 34px; object-fit: contain; border-radius: 8px; background: rgba(255,255,255,.06); padding: 3px; }
+.firma-escudo-fila .button.compact { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
 .report-author { text-align: right; }.report-author > span, .report-recipient > div > span { display: block; color: var(--report-muted); font-family: var(--font-oswald),var(--font-barlow-condensed),sans-serif; font-size: 7.5px; font-weight: 650; letter-spacing: .1em; }.report-author > b, .report-recipient > div > b { display: block; color: var(--report-ink); font-family: var(--font-oswald),var(--font-barlow-condensed),sans-serif; font-size: 15px; line-height: 1.05; }.report-author > small { display: block; margin-top: 2px; color: var(--report-accent); font-size: 7px; font-weight: 700; letter-spacing: .1em; }
 .report-recipient { min-width: 0; padding-left: 18px; display: flex; align-items: center; gap: 9px; border-left: 1px solid var(--report-line); }.report-recipient > div { min-width: 0; text-align: left; }.report-recipient > div > b { max-width: 180px; margin-top: 3px; overflow: hidden; font-size: 13px; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
 .dossier-footer-club-logo, .dossier-footer-club-fallback { width: 35px; height: 35px; flex: none; }.dossier-footer-club-logo { display: block; object-fit: contain; }.dossier-footer-club-fallback { display: grid; place-items: center; border: 1px solid color-mix(in srgb,var(--report-accent) 25%,var(--report-line)); border-radius: 9px; color: var(--report-accent); background: color-mix(in srgb,var(--report-accent) 8%,var(--report-paper)); font-family: var(--font-oswald),var(--font-barlow-condensed),sans-serif; font-size: 11px; font-weight: 700; }
