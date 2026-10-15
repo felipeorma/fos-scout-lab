@@ -864,9 +864,7 @@ body { color-scheme: dark; background: transparent; color: #f5f5f7; font-family:
 .jordhy-report[data-oscuro] .dossier-season-strip { background: color-mix(in srgb, var(--report-surface) 70%, transparent); }
 .jordhy-report[data-oscuro] .quick-reading { background: color-mix(in srgb, var(--report-surface) 80%, transparent); }
 .jordhy-report[data-oscuro] .market-transfermarkt-logo { border-color: transparent; }
-/* La franja del radar va en el papel liso, igual que el fondo que pinta el
-   lienzo (PizzaRadar): así no hay costura ni en pantalla ni en el PDF. */
-.jordhy-report[data-oscuro] .dossier-radar-row { background: var(--report-paper); }
+
 .metric-row { margin-top: 9px; }.metric-row > div { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }.metric-row span { color: var(--report-ink); font-size: 8.5px; }.metric-row b { color: var(--report-ink); font-family: var(--font-oswald),var(--font-barlow-condensed),sans-serif; font-size: 10px; white-space: nowrap; }.metric-row b small { color: var(--report-muted); font-size: 8px; }.metric-row > i { height: 4px; margin-top: 3px; display: block; overflow: hidden; border-radius: 4px; background: var(--report-line); }.metric-row > i em { height: 100%; display: block; border-radius: 4px; background: var(--metric-group-color); background-image: linear-gradient(90deg, var(--metric-group-bajo, var(--metric-group-color)), var(--metric-group-color) 55%, var(--metric-group-alto, var(--metric-group-color))); background-repeat: no-repeat; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .dossier-footer { min-height: 78px; padding: 16px 30px 20px; display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; border-top: 1px solid var(--report-line); }
 .dossier-footer > p { max-width: 430px; margin: 0; color: var(--report-muted); font-size: 8px; line-height: 1.5; }
@@ -6858,6 +6856,3 @@ body.print-layout-check .legal-page-shell:has([data-hoja-vacia]) { display: none
 .metric-marca-nota { flex: 0 0 100%; margin: 0 0 -8px; display: flex; align-items: center; justify-content: flex-end; gap: 7px; color: var(--report-muted); font-size: 8px; }
 .metric-marca-nota u { position: relative; top: 0; margin: 0; }
 
-/* Un contorno del papel encima del borde del lienzo: al pasar a PDF el
-   borde del mapa de bits se suavizaba y dibujaba un recuadro fino. */
-.jordhy-report[data-oscuro] .dossier-radar .pizza-radar { background: var(--report-paper); outline: 6px solid var(--report-paper); outline-offset: -3px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
