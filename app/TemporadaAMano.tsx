@@ -20,21 +20,24 @@ type Comun = {
   inicioDeReferencia: number;
   /** La temporada que se propone ("2025" con 2026 de referencia). */
   temporadaPropuesta: string;
-  /** Ligas conocidas para sugerir; se puede escribir cualquier otra. */
-  ligasSugeridas: string[];
+  /** Ligas para sugerir, con su país; se puede escribir cualquier otra. */
+  ligasSugeridas: LigaSugerida[];
   deshabilitado?: boolean;
   onAnadir: (datos: DatosDeTemporada) => void;
 };
 
+/** Una liga del desplegable: el nombre que se guarda y, al lado, su país. */
+export type LigaSugerida = { nombre: string; pais?: string };
+
 const numeroDe = (texto: string) => (texto.trim() === "" ? Number.NaN : Number(texto.replace(",", ".")));
 
 function CamposDeLigaYTemporada({ liga, etiqueta, ligasSugeridas, onLiga, onEtiqueta }: {
-  liga: string; etiqueta: string; ligasSugeridas: string[]; onLiga: (valor: string) => void; onEtiqueta: (valor: string) => void;
+  liga: string; etiqueta: string; ligasSugeridas: LigaSugerida[]; onLiga: (valor: string) => void; onEtiqueta: (valor: string) => void;
 }) {
   return <>
-    <label><span>{t("Liga")}</span><input value={liga} list="ligas-sugeridas" placeholder={t("Cualquier liga")} onChange={(evento) => onLiga(evento.target.value)} /></label>
+    <label><span>{t("Liga")}</span><input value={liga} list="ligas-sugeridas" placeholder={t("Escríbela o elígela")} onChange={(evento) => onLiga(evento.target.value)} /></label>
     <label><span>{t("Temporada")}</span><input value={etiqueta} inputMode="numeric" placeholder="2025 · 2024/2025" onChange={(evento) => onEtiqueta(evento.target.value)} /></label>
-    <datalist id="ligas-sugeridas">{ligasSugeridas.map((nombre) => <option key={nombre} value={nombre} />)}</datalist>
+    <datalist id="ligas-sugeridas">{ligasSugeridas.map(({ nombre, pais }) => <option key={`${nombre}|${pais ?? ""}`} value={nombre}>{pais}</option>)}</datalist>
   </>;
 }
 

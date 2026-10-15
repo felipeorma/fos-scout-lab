@@ -735,7 +735,10 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
                 </div> : block.type === "image" ? nativeSimilarity
                   ? block.similarity
                     ? <div className="similarity-native-content similarity-report-sheet" aria-label={t("Reporte de similitud en calidad nativa")}><SimilarityReportMain payload={block.similarity} /></div>
-                    : <div className="similarity-native-content similarity-report-sheet" aria-label={t("Reporte de similitud en calidad nativa")} dangerouslySetInnerHTML={{ __html: block.html ?? "" }} />
+                    // Las páginas guardadas con versiones viejas traen la comparación como
+                    // HTML. Insertarlo tal cual era abrir la puerta a cualquier cosa que
+                    // hubiera en el almacenamiento: se pide volver a enviarla.
+                    : <div className="similarity-native-content similarity-report-sheet"><p className="snap-vacio">{t("Esta comparación se guardó con una versión anterior: vuelve a enviarla desde Similitud.")}</p></div>
                   : <label className={`visual-image-slot ${block.image ? "has-image" : ""}`} onClick={(event) => event.stopPropagation()}>
                     {block.image ? <LocalPreviewImage src={block.image} alt={displayText(block.title)} fit={block.fit} /> : <span><span className="image-placeholder-icon"><ImageIcon size={27} /></span><b>{t("Agregar imagen")}</b><small>{t("PNG, JPG o WEBP")}</small><em><Upload size={13} /> {t("Elegir archivo")}</em></span>}
                     <input type="file" accept="image/*" hidden onChange={(event) => onImage(event.target.files?.[0], block.id)} />

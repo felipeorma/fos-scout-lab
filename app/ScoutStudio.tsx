@@ -681,11 +681,25 @@ export default function ScoutStudio() {
     guardarTemporadasAMano(suyas.length ? { ...resto, [claveDelJugador]: suyas } : resto);
     setEleccionPrevia(null);
   }
-  const ligasSugeridas = useMemo(() => [...new Set([
-    ...catalogoSb.map((competicion) => competicion.name),
-    ...Object.keys(LIGAS_CON_NIVEL),
-    ...temporadasDeLaFila.flatMap((temporada) => temporada.ligas),
-  ])].filter(Boolean).sort((a, b) => a.localeCompare(b, "es")), [catalogoSb, temporadasDeLaFila]);
+  /*
+   * Sugerencias para la liga de una temporada añadida a mano: cualquier liga
+   * del mundo. Las del ranking de Opta (454 ligas de 188 países, con su país
+   * al lado), más las del catálogo y las del jugador. El campo admite
+   * cualquier otra escrita a mano.
+   */
+  const ligasSugeridas = useMemo(() => {
+    const todas = new Map<string, { nombre: string; pais?: string }>();
+    const sumar = (nombre: string | undefined, pais?: string) => {
+      const limpio = (nombre ?? "").trim();
+      if (limpio && !todas.has(`${limpio}|${pais ?? ""}`)) todas.set(`${limpio}|${pais ?? ""}`, { nombre: limpio, pais });
+    };
+    for (const liga of feedOpta ?? []) sumar(liga.leagueName, liga.countryName);
+    const conPais = new Set([...todas.values()].map((liga) => liga.nombre));
+    for (const nombre of [...catalogoSb.map((competicion) => competicion.name), ...Object.keys(LIGAS_CON_NIVEL), ...temporadasDeLaFila.flatMap((temporada) => temporada.ligas)]) {
+      if (!conPais.has(nombre)) sumar(nombre);
+    }
+    return [...todas.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, "es") || (a.pais ?? "").localeCompare(b.pais ?? "", "es"));
+  }, [feedOpta, catalogoSb, temporadasDeLaFila]);
 
   /** Añade temporadas de StatsBomb a la base sin perder al jugador que se está mirando. */
   async function sumarTemporada(...competiciones: ApiCompetition[]) {
@@ -2563,7 +2577,7 @@ export default function ScoutStudio() {
                         </div>
                         <div className="previa-via">
                           <span className="previa-via-titulo">{t("Escribiendo los datos")}</span>
-                          <small className="temporada-previa-nota">{t("Cualquier liga del mundo y cualquier año.")}</small>
+                          <small className="temporada-previa-nota">{t("Cualquier liga del mundo y cualquier año, también juveniles o reservas: escribe el nombre tal cual o elígelo de la lista.")}</small>
                           <TemporadaEscrita key={claveDelJugador} inicioDeReferencia={inicioDeReferencia} temporadaPropuesta={temporadaPropuesta}
                             ligasSugeridas={ligasSugeridas} deshabilitado={reportLoading} onAnadir={anadirTemporadaAMano} />
                         </div>
