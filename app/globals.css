@@ -6858,3 +6858,6 @@ body.print-layout-check .legal-page-shell:has([data-hoja-vacia]) { display: none
 .metric-marca-nota { flex: 0 0 100%; margin: 0 0 -8px; display: flex; align-items: center; justify-content: flex-end; gap: 7px; color: var(--report-muted); font-size: 8px; }
 .metric-marca-nota u { position: relative; top: 0; margin: 0; }
 
+/* Un contorno del papel encima del borde del lienzo: al pasar a PDF el
+   borde del mapa de bits se suavizaba y dibujaba un recuadro fino. */
+.jordhy-report[data-oscuro] .dossier-radar .pizza-radar { background: var(--report-paper); outline: 6px solid var(--report-paper); outline-offset: -3px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
