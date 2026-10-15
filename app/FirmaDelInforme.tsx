@@ -30,14 +30,15 @@ export function useFirma() {
   return useContext(ContextoDeFirma);
 }
 
-/** "Elaborado por", con el escudo del club al lado. */
+/**
+ * "Elaborado por" y el nombre, nada más. El escudo y el cargo se quitaron el
+ * 15 de octubre de 2026: el escudo repetía el del club destinatario, que va
+ * al lado, y el pie quedaba recargado.
+ */
 export function AutorDelInforme() {
   const firma = useFirma();
-  return <div className={firma.escudo ? "report-author con-escudo" : "report-author"}>
-    {/* eslint-disable-next-line @next/next/no-img-element */}
-    {firma.escudo && <img src={firma.escudo} alt={firma.club} className="report-author-escudo" />}
+  return <div className="report-author">
     <span>{t("ELABORADO POR")}</span>
     <b>{firma.nombre}</b>
-    {firma.cargo && <small>{firma.cargo}</small>}
   </div>;
 }

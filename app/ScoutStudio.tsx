@@ -818,10 +818,6 @@ export default function ScoutStudio() {
       escudo: deClub && claveFirma !== "temporal" ? firma.escudo || ESCUDOS_INFORME[claveFirma] : "",
     };
   }, [firma, claveFirma]);
-  async function subirEscudo(archivo: File | undefined) {
-    if (!archivo) return;
-    editarFirma("escudo", await blobToDataUrl(archivo));
-  }
 
   useEffect(() => {
     try {
@@ -2619,24 +2615,6 @@ export default function ScoutStudio() {
                     <label><small>{t("Nombre")}</small>
                       <input value={firma.nombre} maxLength={60} onChange={(event) => editarFirma("nombre", event.target.value)} />
                     </label>
-                    <label><small>{t("Cargo o pie de firma")}</small>
-                      <input value={firma.cargo} maxLength={70} onChange={(event) => editarFirma("cargo", event.target.value)} />
-                    </label>
-                    {claveFirma !== "temporal" && <div className="firma-escudo">
-                      <small>{t("Escudo del club")}</small>
-                      <div className="firma-escudo-fila">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={firmaDelInforme.escudo} alt={firmaDelInforme.club} />
-                        <label className="button secondary compact">
-                          <Upload size={13} />{firma.escudo ? t("Cambiar") : t("Subir escudo")}
-                          <input type="file" accept="image/png,image/svg+xml,image/webp,image/jpeg" hidden onChange={(event) => { void subirEscudo(event.target.files?.[0]); event.target.value = ""; }} />
-                        </label>
-                        {firma.escudo && <button type="button" className="button secondary compact" onClick={() => editarFirma("escudo", "")}>{t("Quitar")}</button>}
-                      </div>
-                      <p className="firma-nota">{firma.escudo
-                        ? t("Va junto a tu firma en cada hoja.")
-                        : t("Va el escudo del club junto a tu firma en cada hoja. Puedes cambiarlo por otro (PNG o SVG).")}</p>
-                    </div>}
                     <label className="firma-temporal">
                       <input type="checkbox" checked={firmaTemporal} onChange={(event) => { setFirmaTemporal(event.target.checked); setReportTheme(event.target.checked ? CLIENT_THEMES.otros : CLIENT_THEMES[espacio]); }} />
                       <span><b>{t("Usar firma temporal")}</b><small>{t("Para un informe que no es de Cavalry ni de Maldonado. Cambia también a los colores neutros.")}</small></span>
