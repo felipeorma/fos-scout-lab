@@ -149,7 +149,6 @@ function estrella(x: number, y: number, radio: number) {
   return `${d}Z`;
 }
 
-const tramo = (percentil: number) => (percentil >= 80 ? "p5" : percentil >= 60 ? "p4" : percentil >= 40 ? "p3" : percentil >= 20 ? "p2" : "p1");
 const conSigno = (z: number) => `${z >= 0 ? "+" : "−"}${Math.abs(z).toFixed(2)}`;
 export const apellido = (nombre: string) => nombre.trim().split(/\s+/).slice(-1)[0] ?? nombre;
 const pct = (parte: number, total: number) => `${total ? Math.round((parte / total) * 100) : 0}%`;
