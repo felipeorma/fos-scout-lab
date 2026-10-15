@@ -6856,3 +6856,12 @@ body.print-layout-check .legal-page-shell:has([data-hoja-vacia]) { display: none
 .metric-marca-nota { flex: 0 0 100%; margin: 0 0 -8px; display: flex; align-items: center; justify-content: flex-end; gap: 7px; color: var(--report-muted); font-size: 8px; }
 .metric-marca-nota u { position: relative; top: 0; margin: 0; }
 
+
+/* Marco "su liga" de Contexto y Entre ligas: el texto dice contra quién y con qué nivel; en ámbar, cuando su liga no da y se vuelve a todas. */
+.ctx-ligas > em.ctx-marco { color: var(--pl-ink, var(--ink)); font-variant-numeric: tabular-nums; }
+.ctx-ligas > em.ctx-marco.aviso,
+.pool-marco.aviso { color: var(--aviso-tinta, #f0b45a); }
+.pool-marco { margin: 12px 0 14px; color: var(--muted); font-size: 12.5px; line-height: 1.45; }
+.pool-opta { margin-left: 5px; color: var(--muted); font-style: normal; font-size: .92em; font-variant-numeric: tabular-nums; opacity: .85; }
+.app-shell[data-tema="claro"] .ctx-ligas > em.ctx-marco.aviso,
+.app-shell[data-tema="claro"] .pool-marco.aviso { color: #8a5300; }

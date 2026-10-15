@@ -520,6 +520,12 @@ export default function ScoutStudio() {
     return new Set(claves.flat()).size > 1 ? claves : null;
   }, [filasDelInforme, procedencias]);
   const porLiga = medirContra === "liga" && clavesDelInforme ? { clavesPorFila: clavesDelInforme } : undefined;
+  // Lo mismo para la Ficha ampliada y las piezas de Visuales, que arman su
+  // grupo sobre las filas de la temporada que se mira.
+  const clavesDeLasPiezas = useMemo(() => {
+    if (medirContra !== "liga" || procedencias.length < 2) return null;
+    return origenPorFila(filasDeLasPiezas, procedencias).map((origen) => origen.claves);
+  }, [medirContra, procedencias, filasDeLasPiezas]);
   const report = useMemo(
     () => {
       // El perfil solo se conoce tras construir el informe, y la selección se
@@ -2743,11 +2749,13 @@ export default function ScoutStudio() {
                   tests/orden-del-pdf.test.mjs. */}
               {espacio === "cavalry" && report && paginaMontada(SNAPSHOT_PAGE) && (
                 <SnapshotPage rows={filasDeLasPiezas} indice={indiceDeLasPiezas} informe={report} perfilTm={profile} minutosMin={minimumMinutes} claseHoja={claseHoja(SNAPSHOT_PAGE)} temporada={temporadaDeReferencia?.etiqueta}
+                  clavesPorFila={clavesDeLasPiezas} feedOpta={feedOpta}
                   destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} onAbrirJugador={(indice) => { const enBase = enLaBase(indice); if (enBase >= 0) selectPlayer(enBase); }}
                   equipoEncaje={equipoEncaje} onEquipoEncaje={setEquipoEncaje} sinHojaDeEncaje={Boolean(printRun) && !pdfConEncaje} />
               )}
               {report && paginaMontada(CONTEXT_PAGE) && (
-                <ContextPage claseHoja={claseHoja(CONTEXT_PAGE)} report={report} rows={reportRows} bases={sourceDatasets} minutosFiltro={minimumMinutes} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} controles={{
+                <ContextPage claseHoja={claseHoja(CONTEXT_PAGE)} report={report} rows={reportRows} bases={sourceDatasets} minutosFiltro={minimumMinutes} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl}
+                  medirEnSuLiga={medirContra === "liga"} feedOpta={feedOpta} controles={{
                   equipos: teams, jugadores: teamPlayers, equipo: selectedTeam, jugador: selectedPlayer,
                   cohorte: cohort,
                   onEquipo: selectTeam, onJugador: selectPlayer, onCohorte: setCohort,
@@ -2765,7 +2773,8 @@ export default function ScoutStudio() {
                   medirEnSuLiga={medirContra === "liga"} nivel={nivelDelRanking} /></div>
               )}
               {espacio === "cavalry" && paginaMontada(POOL_PAGE) && (
-                <div className={claseHoja(POOL_PAGE)}><PoolPage onAbrirJugador={(indice) => { selectPlayer(indice); setReportPage(CARD_PAGE); }} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
+                <div className={claseHoja(POOL_PAGE)}><PoolPage onAbrirJugador={(indice) => { selectPlayer(indice); setReportPage(CARD_PAGE); }} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl}
+                  medirEnSuLiga={medirContra === "liga"} feedOpta={feedOpta} /></div>
               )}
               {espacio === "cavalry" && paginaMontada(STYLE_PAGE) && (
                 <EstiloPage claseHoja={claseHoja(STYLE_PAGE)} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} />
@@ -2775,7 +2784,7 @@ export default function ScoutStudio() {
               )}
               {report ? visualPages.filter((page) => printRun ? printRun.includes(page) : reportPage === page).map((page) => (
                 <ReportPageDesigner key={page} pageNumber={page} persist={!printRun || reportPage === page} player={report.player} team={profile.club || report.team} position={formatPlayerPositions(profile.position || report.position)} theme={reportTheme} onThemeChange={setReportTheme} recipientName={recipientName} recipientLogoUrl={reportRecipientLogoUrl} aiFacts={aiControlsHidden ? undefined : () => ({ lang, player: aiPlayerFacts(report), metrics: aiMetricFacts(report) })}
-                  ficha={{ rows: filasDeLasPiezas, indice: indiceDeLasPiezas, informe: report, perfilTm: profile, minutosMin: minimumMinutes, temporada: temporadaDeReferencia?.etiqueta }} />
+                  ficha={{ rows: filasDeLasPiezas, indice: indiceDeLasPiezas, informe: report, perfilTm: profile, minutosMin: minimumMinutes, temporada: temporadaDeReferencia?.etiqueta, clavesPorFila: clavesDeLasPiezas, feedOpta }} />
               )) : !printRun && reportPage >= FIRST_VISUAL_PAGE ? <div className="empty-preview">{t("Selecciona un jugador para diseñar las páginas.")}</div> : null}
               {report && paginaMontada(BOARD_PAGE) && (
                 <div className={claseHoja(BOARD_PAGE)}><ScoutingBoard rows={reportRows} minimumMinutes={minimumMinutes} onSelectPlayer={(indice) => { selectPlayer(indice); setBoardPreviewOpen(true); }} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>

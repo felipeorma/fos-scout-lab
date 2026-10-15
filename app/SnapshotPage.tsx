@@ -4,6 +4,7 @@ import { useState } from "react";
 import { PieDeReporte } from "./PieDeReporte";
 import { Antetitulo } from "./KitNight";
 import { PiezaFicha, useDatosFicha, type ContextoFicha, type IdPieza } from "./PiezasFicha";
+import type { EntradaOpta } from "@/lib/nivelDeLiga";
 import { t, tf } from "@/lib/i18n";
 import type { DataRow, PlayerReport } from "@/lib/scouting";
 import type { TransfermarktProfile } from "@/lib/transfermarkt";
@@ -21,7 +22,10 @@ import type { TransfermarktProfile } from "@/lib/transfermarkt";
  * Cada gráfico es una pieza de PiezasFicha: los mismos que Visuales ofrece
  * sueltos para montar una hoja a medida.
  */
-export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, destinatario = "", logoDestinatario = "", onAbrirJugador, claseHoja = "legal-page-shell", equipoEncaje: equipoDeFuera, onEquipoEncaje, sinHojaDeEncaje = false, temporada }: {
+export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, destinatario = "", logoDestinatario = "", onAbrirJugador, claseHoja = "legal-page-shell", equipoEncaje: equipoDeFuera, onEquipoEncaje, sinHojaDeEncaje = false, temporada, clavesPorFila = null, feedOpta = null }: {
+  /** Las claves "liga año" de cada fila cuando se mide contra su liga. */
+  clavesPorFila?: string[][] | null;
+  feedOpta?: EntradaOpta[] | null;
   /** La temporada que se mira en la ficha; sin ella, la más reciente del jugador. */
   temporada?: string;
   rows: DataRow[];
@@ -40,7 +44,7 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
   /** Sin la tercera hoja: en el PDF el encaje es opcional. En pantalla siempre está. */
   sinHojaDeEncaje?: boolean;
 }) {
-  const contexto: ContextoFicha = { rows, indice, informe, perfilTm, minutosMin, onAbrirJugador, temporada };
+  const contexto: ContextoFicha = { rows, indice, informe, perfilTm, minutosMin, onAbrirJugador, temporada, clavesPorFila, feedOpta };
   const datos = useDatosFicha(contexto, true, true);
   const [familiaTop, setFamiliaTop] = useState("progresion");
   // El mapa de recepciones y su reparto se agrupan igual: cambiar uno cambia los dos.
@@ -56,7 +60,11 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
     <div>
       <Antetitulo>{hoja > 1 ? tf("STATSBOMB · FICHA AMPLIADA · {n} DE {total}", { n: hoja, total: totalHojas }) : t("STATSBOMB · FICHA AMPLIADA")}</Antetitulo>
       <h2>{datos.jugador}</h2>
-      <p>{tf("Familias contra {n} {grupo} de la base cargada, con al menos {m} minutos.", { n: datos.grupo.indices.length, grupo: datos.nombreGrupo.toLowerCase(), m: minutosMin })}</p>
+      <p>{datos.marco?.modo === "liga"
+        ? tf("Familias contra {n} {grupo} de su liga y temporada ({marco}), con al menos {m} minutos.", { n: datos.grupo.indices.length, grupo: datos.nombreGrupo.toLowerCase(), m: minutosMin, marco: datos.marco.texto })
+        : datos.marco
+          ? tf("Familias contra {n} {grupo} de la base cargada, con al menos {m} minutos: su liga ({marco}) solo tiene {k} de su puesto, pocos para un grupo propio.", { n: datos.grupo.indices.length, grupo: datos.nombreGrupo.toLowerCase(), m: minutosMin, marco: datos.marco.texto, k: datos.marco.enSuLiga })
+          : tf("Familias contra {n} {grupo} de la base cargada, con al menos {m} minutos.", { n: datos.grupo.indices.length, grupo: datos.nombreGrupo.toLowerCase(), m: minutosMin })}</p>
     </div>
   </header>;
   const pie = <PieDeReporte asunto={datos.jugador} destinatario={destinatario} logo={logoDestinatario} />;

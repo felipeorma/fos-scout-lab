@@ -1,10 +1,11 @@
 "use client";
 
 import { Fragment, useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
-import { t, tf } from "@/lib/i18n";
+import { numberLocale, t, tf } from "@/lib/i18n";
 import { encogerHaciaLaMedia } from "@/lib/cobertura";
 import { positionSides } from "@/lib/positions";
-import { buildSimilaritySearch, type SimilarityFilters } from "@/lib/similarity";
+import { buildSimilaritySearch, MINIMO_COHORTE_POR_LIGA, type SimilarityFilters } from "@/lib/similarity";
+import { nivelDeLiga, type EntradaOpta } from "@/lib/nivelDeLiga";
 import { useBaseActiva } from "./BaseActiva";
 import { PieDeReporte } from "./PieDeReporte";
 import { BarraDeFiltros, Desplegable } from "./BarraDeFiltros";
@@ -29,9 +30,12 @@ import { EQUIPO_PROPIO, crearEncaje, perfilesDeEstilo } from "@/lib/estiloEquipo
  * cargado. Ahora trabaja sobre la base activa, como todas las demás: cargar
  * ligas se hace en un solo sitio.
  *
- * Lo que esta pantalla NO hace: ajustar por nivel de liga. Un 90 en Ligue 3 no
- * es un 90 en la MLS. Por eso la liga de cada candidato va en su columna, bien
- * visible, en vez de esconderse en un promedio.
+ * Cómo se mide: como la ficha, cada uno contra los de su puesto en su liga y
+ * temporada (si la suya tiene al menos diez); así el perfil del jugador no
+ * cambia según qué más haya cargado. Lo que NO hace: ajustar por nivel de
+ * liga. Un 90 en Ligue 3 no es un 90 en la MLS. Por eso la liga de cada
+ * candidato va en su línea con su nivel de Opta al lado, bien visible, en vez
+ * de esconderse en un promedio.
  */
 
 /**
@@ -52,7 +56,11 @@ function conCobertura<T extends { similarity: number; coverage: number }>(candid
     .sort((a, b) => b.ajustado - a.ajustado || b.coverage - a.coverage);
 }
 
-export function PoolPage({ onAbrirJugador, destinatario = "", logoDestinatario = "" }: {
+export function PoolPage({ onAbrirJugador, destinatario = "", logoDestinatario = "", medirEnSuLiga = false, feedOpta = null }: {
+  /** Medir a cada uno contra su liga, como la ficha ("Comparar con" del panel). */
+  medirEnSuLiga?: boolean;
+  /** Los Opta Power Rankings, para el nivel de cada liga. */
+  feedOpta?: EntradaOpta[] | null;
   /** Abrir la ficha de un jugador. Es la misma base, así que basta el índice. */
   onAbrirJugador?: (indice: number) => void;
   /** Club destinatario del PDF, para firmar la hoja como las de diseño. */
@@ -106,8 +114,18 @@ export function PoolPage({ onAbrirJugador, destinatario = "", logoDestinatario =
     return "";
   }, [rows, objetivo]);
 
-  const resultado = useMemo(() => {
-    if (objetivo < 0 || !rows.length) return null;
+  // Cada uno contra su liga y temporada cuando hay más de una cargada. Si la
+  // del jugador de referencia no tiene diez de su puesto, la búsqueda vuelve
+  // a todas las ligas y se avisa; los candidatos de una liga sin diez de su
+  // puesto quedan fuera, en vez de colarse medidos con otra regla.
+  const porLiga = useMemo(() => {
+    if (!medirEnSuLiga || !procedencia?.length) return null;
+    const ligasPorFila = procedencia.map((origen) => origen.claves);
+    return new Set(ligasPorFila.flat()).size > 1 ? { ligasPorFila } : null;
+  }, [medirEnSuLiga, procedencia]);
+
+  const { resultado, medidoEnSuLiga } = useMemo(() => {
+    if (objetivo < 0 || !rows.length) return { resultado: null, medidoEnSuLiga: false };
     const filtrosMotor: SimilarityFilters = {
       query: "", position: "", secondaryRole: "",
       side: mismoFlanco ? flancoObjetivo : "",
@@ -115,8 +133,17 @@ export function PoolPage({ onAbrirJugador, destinatario = "", logoDestinatario =
       minimumMinutes: filtros.minutosMin,
       ageMin: null, ageMax: null,
     };
-    return buildSimilaritySearch(rows, objetivo, filtrosMotor);
-  }, [rows, objetivo, filtros.minutosMin, mismoFlanco, flancoObjetivo]);
+    const enSuLiga = porLiga ? buildSimilaritySearch(rows, objetivo, filtrosMotor, {}, "AUTO", null, porLiga) : null;
+    return enSuLiga
+      ? { resultado: enSuLiga, medidoEnSuLiga: true }
+      : { resultado: buildSimilaritySearch(rows, objetivo, filtrosMotor), medidoEnSuLiga: false };
+  }, [rows, objetivo, filtros.minutosMin, mismoFlanco, flancoObjetivo, porLiga]);
+
+  /** "CPL · Opta 56,0": la liga con su nivel, o sola si no se conoce. */
+  const conNivel = (liga: string) => {
+    const nivel = nivelDeLiga(feedOpta, liga);
+    return nivel ? `${liga} · Opta ${nivel.rating.toLocaleString(numberLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 })}` : liga;
+  };
 
   const nombreObjetivo = objetivo >= 0 && rows[objetivo] ? String(rows[objetivo].Player ?? "") : "";
 
@@ -136,7 +163,7 @@ export function PoolPage({ onAbrirJugador, destinatario = "", logoDestinatario =
   }, [resultado, procedencia, pasaFiltros]);
 
   const equipoObjetivo = objetivo >= 0 && rows[objetivo] ? String(rows[objetivo].Team ?? "") : "";
-  const ligaObjetivo = objetivo >= 0 ? (procedencia?.[objetivo]?.ligas ?? []).join(" · ") : "";
+  const ligaObjetivo = objetivo >= 0 ? (procedencia?.[objetivo]?.ligas ?? []).map(conNivel).join(" + ") : "";
   const cambiarReferencia = () => { setObjetivo(-1); setBusqueda(""); setMismoFlanco(false); };
   const abrirConTeclado = (evento: KeyboardEvent, indice: number) => {
     if (!onAbrirJugador || (evento.key !== "Enter" && evento.key !== " ")) return;
@@ -162,6 +189,7 @@ export function PoolPage({ onAbrirJugador, destinatario = "", logoDestinatario =
         <summary><ChevronDown size={13} />{t("Cómo se calcula el parecido")}</summary>
         <p>{t("El parecido se mide con todas las métricas que trae la base, en desviaciones típicas frente a los de su puesto, y cada una pesa lo que se repite de una temporada a otra: lo que cambia de un año al siguiente dice cómo le fue, no cómo juega.")}</p>
         <p>{t("El parecido se corrige por cobertura: con pocas métricas en común el número se acerca a la media del conjunto hasta que haya evidencia que lo separe.")}</p>
+        {porLiga && <p>{t("Cada uno se mide contra los de su puesto en su liga y temporada, como en la ficha: así su perfil no cambia según qué más haya cargado. El nivel de cada liga va junto a su nombre.")}</p>}
       </details>
     </header>
 
@@ -219,6 +247,9 @@ export function PoolPage({ onAbrirJugador, destinatario = "", logoDestinatario =
       </div>
     </div>}
 
+    {resultado && porLiga && <p className={medidoEnSuLiga ? "pool-marco" : "pool-marco aviso"}>{medidoEnSuLiga
+      ? tf("Cada uno medido contra su liga y temporada. Fuera quedan los de ligas con menos de {n} de su puesto.", { n: MINIMO_COHORTE_POR_LIGA })
+      : tf("Su liga no tiene {n} de su puesto con minutos: la búsqueda lo mide contra todas las ligas cargadas.", { n: MINIMO_COHORTE_POR_LIGA })}</p>}
     {resultado && <Paso numero={2}>Entre quiénes lo buscas</Paso>}
     {resultado && <BarraDeFiltros campos={["liga", "anio", "equipo", "pasaporte", "minutos", "edad"]} resultado={ordenados.length} accesorio={
       /* La lista se corta en cuarenta; el CSV lleva todos los candidatos que
@@ -226,12 +257,14 @@ export function PoolPage({ onAbrirJugador, destinatario = "", logoDestinatario =
          porque un 90% con 55% de cobertura no es un 90% con 100. */
       <BotonExportar
         nombre={[t("parecidos-a"), nombreObjetivo, filtros.liga !== "TODAS" ? filtros.liga : null, filtros.anio || null]}
-        columnas={[t("#"), t("Jugador"), t("Equipo"), t("Liga"), t("Año"), t("Edad"), t("Min"), t("Parecido"), t("Bruto"), t("Cobertura"), tf("Encaje de estilo con {equipo}", { equipo: EQUIPO_PROPIO }),
+        columnas={[t("#"), t("Jugador"), t("Equipo"), t("Liga"), t("Nivel Opta"), t("Año"), t("Edad"), t("Min"), t("Parecido"), t("Bruto"), t("Cobertura"), tf("Encaje de estilo con {equipo}", { equipo: EQUIPO_PROPIO }),
           ...(equipoEncaje ? [tf("Encaje con {equipo}: puesto", { equipo: equipoEncaje }), tf("Encaje con {equipo}: lugar en la plantilla", { equipo: equipoEncaje }), tf("Encaje con {equipo}: % de partidos con su puesto", { equipo: equipoEncaje })] : [])]}
         cuantas={ordenados.length}
         filas={() => ordenados.map((candidato, posicion) => [
           posicion + 1, candidato.name, candidato.team,
-          candidato.origen.ligas.join(" · "), candidato.origen.anios.join(" · "),
+          candidato.origen.ligas.join(" · "),
+          candidato.origen.ligas.map((liga) => nivelDeLiga(feedOpta, liga)?.rating ?? null).filter((r) => r !== null).join(" · ") || null,
+          candidato.origen.anios.join(" · "),
           candidato.age ?? null, Math.round(candidato.minutes),
           candidato.ajustado, candidato.similarity, candidato.coverage,
           encaje(candidato.team)?.valor ?? null,
@@ -276,7 +309,10 @@ export function PoolPage({ onAbrirJugador, destinatario = "", logoDestinatario =
               <small>{conPuntos([
                 candidato.team ? <Fragment key="equipo"><Escudo equipo={candidato.team} liga={candidato.origen.ligas[0] ?? ""} tamano={13} />{candidato.team}</Fragment> : null,
                 // Entre ligas, la liga es lo que distingue una fila de otra: con su logo se ve sin leer.
-                ...candidato.origen.ligas.map((liga) => <Fragment key={`liga-${liga}`}><LogoLiga liga={liga} tamano={14} />{liga}</Fragment>),
+                ...candidato.origen.ligas.map((liga) => <Fragment key={`liga-${liga}`}><LogoLiga liga={liga} tamano={14} />{liga}{(() => {
+                  const nivel = nivelDeLiga(feedOpta, liga);
+                  return nivel ? <em className="pool-opta">{`Opta ${nivel.rating.toLocaleString(numberLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`}</em> : null;
+                })()}</Fragment>),
                 candidato.age != null ? String(candidato.age) : null,
                 `${Math.round(candidato.minutes)}′`,
               ])}</small>

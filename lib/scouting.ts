@@ -2045,6 +2045,39 @@ function paresEnSusLigas(rows: DataRow[], clavesPorFila: string[][], susClaves: 
   return enSuLiga;
 }
 
+/**
+ * El marco "su liga" de las páginas que arman su propio grupo de comparación
+ * —Contexto y la Ficha ampliada—, con la misma regla que la ficha: las filas
+ * que comparten alguna clave "liga año" con la suya. Si los de su puesto en
+ * su liga no llegan al mínimo, el modo es "todas" y la página lo dice.
+ * null cuando no hay nada que elegir: una sola competición, o una fila sin
+ * procedencia conocida.
+ */
+export type MarcoDeSuLiga = {
+  modo: "liga" | "todas";
+  /** Sus claves "liga año": "Canadian Premier League 2026". */
+  claves: string[];
+  /** Los de su puesto con el mínimo de minutos en su liga. */
+  enSuLiga: number;
+  /** Los índices de `rows` de su liga y temporada, de cualquier puesto. */
+  filas: Set<number>;
+};
+
+export function marcoDeSuLiga(rows: DataRow[], clavesPorFila: string[][] | null | undefined, indice: number, cohorte: string, minimumMinutes: number): MarcoDeSuLiga | null {
+  const susClaves = clavesPorFila?.[indice] ?? [];
+  if (!clavesPorFila || !susClaves.length || !rows[indice]) return null;
+  if (new Set(clavesPorFila.flat()).size < 2) return null;
+  const filas = new Set<number>();
+  rows.forEach((_, i) => { if ((clavesPorFila[i] ?? []).some((clave) => susClaves.includes(clave))) filas.add(i); });
+  const headers = headersOf(rows);
+  const core = detectCoreColumns(headers);
+  const positionColumn = findColumn(headers, POSITION_ALIASES);
+  const suCohorte = cohorte === "AUTO" ? cohortOf(positionColumn ? rows[indice][positionColumn] : "") : cohorte;
+  const pares = paresDeCohorte(rows, peerCohort(suCohorte), positionColumn, core.minutes, minimumMinutes);
+  const enSuLiga = paresEnSusLigas(rows, clavesPorFila, susClaves, pares, `${peerCohort(suCohorte)}|${minimumMinutes}`).length;
+  return { modo: enSuLiga >= MINIMO_COHORTE_EN_SU_LIGA ? "liga" : "todas", claves: susClaves, enSuLiga, filas };
+}
+
 function poblacionDeMetrica(peers: DataRow[], key: string) {
   let cache = _poblacionesPorPares.get(peers);
   if (!cache) {

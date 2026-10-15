@@ -63,15 +63,17 @@ const media = (xs: number[]) => xs.reduce((s, x) => s + x, 0) / xs.length;
  * Cada métrica se estandariza contra ese grupo; la familia es la media de las
  * que el jugador tenga (al menos la mitad: con una sola de cuatro, el número
  * sería esa métrica y no la familia). El percentil es contra el mismo grupo.
+ * `admitida` acota el grupo: la Ficha ampliada lo deja en su liga y temporada.
  */
-export function familiasCompuestas(rows: DataRow[], cohorte: string, minutosMin: number, objetivo = -1): GrupoCompuesto {
+export function familiasCompuestas(rows: DataRow[], cohorte: string, minutosMin: number, objetivo = -1, admitida?: (indice: number) => boolean): GrupoCompuesto {
   const cabeceras = headersOf(rows);
   const core = detectCoreColumns(cabeceras);
   const columnaPosicion = positionColumnOf(cabeceras);
   const grupo = peerCohort(cohorte);
   const indices = rows
     .map((_, i) => i)
-    .filter((i) => cohortOf(columnaPosicion ? rows[i][columnaPosicion] : "") === grupo
+    .filter((i) => (!admitida || admitida(i))
+      && cohortOf(columnaPosicion ? rows[i][columnaPosicion] : "") === grupo
       && (minutosMin <= 0 || numeric(rows[i][core.minutes]) >= minutosMin));
 
   const escalas = new Map<string, { m: number; sd: number }>();

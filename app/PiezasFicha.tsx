@@ -12,7 +12,8 @@ import { Escudo } from "./Escudo";
 import { buildSimilaritySearch, type SimilarityFilters, type SimilarityPlayer } from "@/lib/similarity";
 import { PERFILES } from "@/lib/perfiles";
 import { primaryPositionRole } from "@/lib/positions";
-import { temporadasDeFila, type DataRow, type PlayerReport } from "@/lib/scouting";
+import { marcoDeSuLiga, temporadasDeFila, type DataRow, type PlayerReport } from "@/lib/scouting";
+import { marcoConNivel, type EntradaOpta } from "@/lib/nivelDeLiga";
 import type { TransfermarktProfile } from "@/lib/transfermarkt";
 import {
   AGRUPACIONES_RECEPCION,
@@ -62,6 +63,10 @@ export type ContextoFicha = {
   onAbrirJugador?: (indice: number) => void;
   /** La temporada que se mira en la ficha ("2026", "2025/2026"); sin ella, la más reciente del jugador. */
   temporada?: string;
+  /** Las claves "liga año" de cada fila cuando se mide contra su liga; sin ellas, contra todas. */
+  clavesPorFila?: string[][] | null;
+  /** Los Opta Power Rankings, para decir el nivel de su liga junto al grupo. */
+  feedOpta?: EntradaOpta[] | null;
 };
 
 export type IdPieza =
@@ -250,7 +255,7 @@ function separar(lista: EventoSB[]) {
  * de descarga que no va a usar.
  */
 export function useDatosFicha(contexto: ContextoFicha, conEventos: boolean, conRoles = false) {
-  const { rows, indice, informe, minutosMin } = contexto;
+  const { rows, indice, informe, minutosMin, clavesPorFila, feedOpta } = contexto;
   const fila = rows[indice];
   const jugador = String(fila?.Player ?? informe.player);
   const fuente = fuenteStatsbomb(fila?.["Data sources"], contexto.temporada);
@@ -261,10 +266,17 @@ export function useDatosFicha(contexto: ContextoFicha, conEventos: boolean, conR
   const { eventos, estado } = useEventos(clave, conEventos, equipo);
   const { roles: rolesLiga, estado: estadoRoles } = useRoles(fuente?.liga ?? "", fuente?.temporada ?? "", conRoles);
 
-  const grupo = useMemo(
-    () => deCache(grupos, rows, `${informe.cohort}|${minutosMin}|${indice}`, () => familiasCompuestas(rows, informe.cohort, minutosMin, indice)),
-    [rows, informe.cohort, minutosMin, indice],
+  // Su grupo, como en la ficha: los de su puesto en su liga y temporada, si
+  // hay al menos diez; si no, todos los cargados, y la cabecera lo dice.
+  const suLiga = useMemo(
+    () => marcoDeSuLiga(rows, clavesPorFila, indice, informe.cohort, minutosMin),
+    [rows, clavesPorFila, indice, informe.cohort, minutosMin],
   );
+  const grupo = useMemo(() => {
+    const enSuLiga = suLiga?.modo === "liga" ? suLiga : null;
+    const clave = `${informe.cohort}|${minutosMin}|${indice}|${enSuLiga ? enSuLiga.claves.join("¦") : "todas"}`;
+    return deCache(grupos, rows, clave, () => familiasCompuestas(rows, informe.cohort, minutosMin, indice, enSuLiga ? (i) => enSuLiga.filas.has(i) : undefined));
+  }, [rows, informe.cohort, minutosMin, indice, suLiga]);
   const parecidos = useMemo(() => deCache(similares, rows, `${indice}|${minutosMin}`, () => {
     const filtros: SimilarityFilters = { query: "", position: "", secondaryRole: "", side: "", passport: "", minimumMinutes: minutosMin, ageMin: null, ageMax: null };
     try {
@@ -307,6 +319,8 @@ export function useDatosFicha(contexto: ContextoFicha, conEventos: boolean, conR
     grupo,
     propias: grupo.valores.get(indice) ?? {},
     nombreGrupo: t(PERFILES.find((perfil) => perfil.id === informe.cohort)?.nombre ?? informe.cohort),
+    /** Contra quién se midió el grupo, con el nivel de su liga; null con una sola competición. */
+    marco: suLiga ? { modo: suLiga.modo, texto: marcoConNivel(suLiga.claves, feedOpta), enSuLiga: suLiga.enSuLiga } : null,
     parecidos,
     // Los aros de los gráficos de grupo: los cinco más parecidos de su puesto
     // que están en el grupo (con el mínimo de minutos).
@@ -531,7 +545,9 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
   const { contexto, jugador, equipo, fuente, eventos, grupo, propias, nombreGrupo, parecidos, destacados, nombres, sinEventos } = datos;
   const { rows, indice, informe, perfilTm, onAbrirJugador } = contexto;
   const aviso = suelta && sinEventos ? datos.estado || undefined : undefined;
-  const conGrupo = tf("frente a {n} {grupo}", { n: grupo.indices.length, grupo: nombreGrupo.toLowerCase() });
+  const conGrupo = datos.marco?.modo === "liga"
+    ? tf("frente a {n} {grupo} de su liga ({marco})", { n: grupo.indices.length, grupo: nombreGrupo.toLowerCase(), marco: datos.marco.texto })
+    : tf("frente a {n} {grupo}", { n: grupo.indices.length, grupo: nombreGrupo.toLowerCase() });
 
   switch (pieza) {
     case "ficha":

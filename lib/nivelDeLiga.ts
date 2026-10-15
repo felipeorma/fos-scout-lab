@@ -1,4 +1,5 @@
 import type { OptaLiga } from "./maldonado.ts";
+import { numberLocale } from "./i18n.ts";
 
 /**
  * Nivel de liga: cuánto vale un índice según dónde se consiguió.
@@ -153,6 +154,22 @@ export function ratingDeTramos(tramos: Array<{ liga: string; minutos: number }>,
     minutos += tramo.minutos;
   }
   return suma / minutos;
+}
+
+/**
+ * Las ligas de un marco "su liga" con su nivel al lado, para decirlo junto al
+ * número: "CPL 2026 · Opta 56,0". Las claves son "liga año"; con dos (cambió
+ * de liga en el año) se unen con " + ". Una liga sin nivel conocido va sin él:
+ * no se le inventa uno.
+ */
+export function marcoConNivel(claves: string[], feed: EntradaOpta[] | null | undefined): string {
+  return claves.map((clave) => {
+    const anio = clave.match(/\s+(\d{4})$/)?.[1] ?? "";
+    const liga = anio ? clave.slice(0, clave.length - anio.length).trim() : clave;
+    const nivel = nivelDeLiga(feed, liga);
+    const nombre = `${nivel?.corto ?? liga}${anio ? ` ${anio}` : ""}`;
+    return nivel ? `${nombre} · Opta ${nivel.rating.toLocaleString(numberLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 })}` : nombre;
+  }).join(" + ");
 }
 
 /**
