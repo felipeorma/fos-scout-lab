@@ -3,6 +3,8 @@
 import { useMemo, type CSSProperties } from "react";
 import { t, tf } from "@/lib/i18n";
 import type { CarreraSinBalon } from "@/lib/remoteData";
+import { SIMILARITY_METRIC_GROUPS } from "@/lib/similarityMetricGroups";
+import { CAL, Cesped, ChipNeutro, Cometa, FilaDeMetrica, tonosDeColor } from "./KitNight";
 
 /**
  * Mapa de carreras sin balón, al modo del artículo "Open Data #4" de
@@ -34,11 +36,18 @@ const proyectar = (x: number, y: number) => ({
   cy: MARGEN + (LARGO / 2 - x),
 });
 
+/*
+ * El color, con el efecto del radar en el verde de SkillCorner (físico): más
+ * claro cuanto más rápido. Apagado al ritmo de carrera, su verde a alta
+ * velocidad y el tono claro en el sprint.
+ */
+const FISICO = SIMILARITY_METRIC_GROUPS.find((grupo) => grupo.id === "physical")!;
 const COLOR_BANDA: Record<string, string> = {
-  sprinting: "#12c48b",
-  hsr: "#7fe0b8",
+  sprinting: FISICO.alto,
+  hsr: FISICO.color,
 };
-const COLOR_BASE = "rgba(255,255,255,.28)";
+const COLOR_BASE = FISICO.bajo;
+const ANCHO_BANDA: Record<string, number> = { sprinting: 1.05, hsr: 0.8 };
 
 /** Los diez tipos de carrera de SkillCorner, con su nombre corto en español. */
 export const TIPOS_CARRERA: Record<string, string> = {
@@ -55,10 +64,12 @@ export const TIPOS_CARRERA: Record<string, string> = {
 };
 
 function Cancha() {
-  const linea = { fill: "none", stroke: "rgba(255,255,255,.3)", strokeWidth: 0.4 };
+  const linea = CAL;
   const areaGrande = { x: MARGEN + (ANCHO - 40.3) / 2, ancho: 40.3, alto: 16.5 };
   const areaChica = { x: MARGEN + (ANCHO - 18.3) / 2, ancho: 18.3, alto: 5.5 };
   return <g>
+    {/* Césped en todo el lienzo, también en el margen: es la cancha entera. */}
+    <Cesped ancho={VB_W} largo={VB_H} franja={LARGO / 12} radio={2.5} />
     <rect x={MARGEN} y={MARGEN} width={ANCHO} height={LARGO} rx={0.5} {...linea} />
     <line x1={MARGEN} y1={MARGEN + LARGO / 2} x2={MARGEN + ANCHO} y2={MARGEN + LARGO / 2} {...linea} />
     <circle cx={MARGEN + ANCHO / 2} cy={MARGEN + LARGO / 2} r={9.15} {...linea} />
@@ -102,14 +113,10 @@ export function RunMap({ carreras, titulo, subtitulo }: {
         const fin = proyectar(carrera.x_end as number, carrera.y_end as number);
         const color = COLOR_BANDA[carrera.speed_avg_band] ?? COLOR_BASE;
         const intensa = Boolean(COLOR_BANDA[carrera.speed_avg_band]);
-        return <g key={indice} opacity={intensa ? 0.95 : 0.5}>
-          <line
-            x1={inicio.cx} y1={inicio.cy} x2={fin.cx} y2={fin.cy}
-            stroke={color} strokeWidth={intensa ? 0.5 : 0.32} strokeLinecap="round"
-          />
-          {/* La punta va en el final del recorrido: dice hacia dónde ataca. */}
-          <circle cx={fin.cx} cy={fin.cy} r={intensa ? 0.75 : 0.5} fill={color} />
-          {carrera.received && <circle cx={fin.cx} cy={fin.cy} r={1.15} fill="none" stroke="#fff" strokeWidth={0.32} />}
+        // Una cometa que engorda hacia donde termina: la dirección se lee sin punta.
+        return <g key={indice}>
+          <Cometa x1={inicio.cx} y1={inicio.cy} x2={fin.cx} y2={fin.cy} ancho={ANCHO_BANDA[carrera.speed_avg_band] ?? 0.55} color={color} opacidad={intensa ? 0.85 : 0.5} />
+          {carrera.received && <circle cx={fin.cx} cy={fin.cy} r={1.1} fill="none" stroke="#f5f5f7" strokeWidth={0.32} />}
         </g>;
       })}
     </svg>
@@ -144,14 +151,15 @@ export function RepartoCarreras({ carreras }: { carreras: CarreraSinBalon[] }) {
 
   if (!reparto.length) return null;
   const total = reparto.reduce((suma, [, valor]) => suma + valor, 0);
+  const tonos = tonosDeColor(FISICO.color);
 
+  // Filas de métrica: la barra contra el tipo más frecuente, con el degradado
+  // del verde físico, y el chip con su parte del total.
   return <div className="run-mix">
     {reparto.map(([tipo, valor]) => (
-      <div key={tipo} className="run-mix-row">
-        <span>{t(TIPOS_CARRERA[tipo] ?? tipo)}</span>
-        <i><em style={{ width: `${Math.max(1, (valor / reparto[0][1]) * 100)}%` }} /></i>
-        <b>{valor}<small>{Math.round((valor / total) * 100)}%</small></b>
-      </div>
+      <FilaDeMetrica key={tipo} etiqueta={t(TIPOS_CARRERA[tipo] ?? tipo)} cifra={valor}
+        chip={<ChipNeutro>{Math.round((valor / total) * 100)} %</ChipNeutro>}
+        valor={(valor / reparto[0][1]) * 100} tonos={tonos} />
     ))}
   </div>;
 }

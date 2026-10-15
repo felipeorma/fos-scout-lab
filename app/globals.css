@@ -6647,3 +6647,60 @@ body.print-layout-check .legal-page-shell:has([data-hoja-vacia]) { display: none
 .app-shell[data-informe="oscuro"] .similarity-metric-head b { text-transform: lowercase; letter-spacing: 0; font-family: var(--font-geist), "Avenir Next", Arial, sans-serif; }
 .app-shell[data-informe="oscuro"] .similarity-metric-head b::first-letter { text-transform: uppercase; }
 
+
+/* =====================================================================
+   Kit Night (app/KitNight.tsx)
+   =====================================================================
+   Las piezas de diseno-reportes-cavalry.json que comparten Carreras, la
+   ficha ampliada y Similitud. Leen los tokens de la plataforma (--ink,
+   --muted, --line, --acento), así que valen en oscuro, en claro y al
+   imprimir; las hojas con tema propio los reasignan desde --report-*. */
+.n-antetitulo {
+  display: inline-block; height: 20px; padding: 0 9px; border-radius: 999px;
+  color: var(--n-acento, var(--acento-claro, #ff3b30));
+  background: color-mix(in srgb, var(--n-acento, var(--acento, #ff3b30)) 20%, transparent);
+  font-size: 10px; font-weight: 600; letter-spacing: .12em; line-height: 20px; text-transform: uppercase; white-space: nowrap;
+}
+.n-franja { display: grid; grid-auto-columns: minmax(0, 1fr); grid-auto-flow: column; border-top: .7px solid var(--n-filete, var(--line)); }
+.n-franja > div { min-width: 0; padding: 12px 12px 4px; box-shadow: inset .7px 0 0 var(--n-pista, color-mix(in srgb, var(--ink) 10%, transparent)); }
+.n-franja > div:first-child { padding-left: 0; box-shadow: none; }
+.n-franja span { display: block; overflow: hidden; color: var(--n-muted, var(--muted)); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.n-franja b { display: block; margin-top: 3px; color: var(--n-ink, var(--ink)); font-size: 26px; font-weight: 700; letter-spacing: -.02em; line-height: 1; font-variant-numeric: tabular-nums; }
+.n-franja small { display: block; margin-top: 4px; overflow: hidden; color: var(--n-faint, var(--faint, var(--muted))); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+@media screen and (max-width: 700px) {
+  body:not(.print-layout-check) .n-franja { grid-auto-flow: row; grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 8px; }
+  body:not(.print-layout-check) .n-franja > div:nth-child(3n + 1) { padding-left: 0; box-shadow: none; }
+}
+.n-chip { flex: none; height: 18px; padding: 0 7px; border-radius: 999px; font-size: 10px; font-weight: 600; line-height: 18px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.n-chip.igual { color: var(--n-faint, var(--faint, var(--muted))); background: color-mix(in srgb, var(--n-ink, var(--ink)) 8%, transparent); }
+.n-chip.bueno { color: #32d583; background: color-mix(in srgb, #32d583 16%, transparent); }
+.n-chip.malo { color: #ff6b5e; background: color-mix(in srgb, #ff6b5e 16%, transparent); }
+.app-shell[data-tema="claro"] .n-chip.bueno { color: #1a7f37; }
+.app-shell[data-tema="claro"] .n-chip.malo { color: #c62828; }
+.n-fila { display: block; width: 100%; padding: 7px 0 8px; border: 0; background: none; color: inherit; font: inherit; text-align: left; }
+.n-fila + .n-fila { border-top: .7px solid color-mix(in srgb, var(--n-filete, var(--line)) 60%, transparent); }
+.n-fila > div { display: flex; align-items: baseline; gap: 8px; }
+.n-fila-etiqueta { flex: 1; min-width: 0; overflow: hidden; color: var(--n-muted, var(--muted)); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.n-fila-cifra { color: var(--n-ink, var(--ink)); font-size: 13.5px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.n-fila-cifra small { margin-left: 3px; color: var(--n-faint, var(--faint, var(--muted))); font-size: 10px; font-weight: 500; }
+.n-fila.clicable { cursor: pointer; }
+.n-fila.clicable:hover .n-fila-etiqueta, .n-fila.activa .n-fila-etiqueta { color: var(--n-ink, var(--ink)); }
+.n-barra { position: relative; display: block; height: 6px; margin-top: 5px; border-radius: 6px; background: var(--n-pista, color-mix(in srgb, var(--ink) 10%, transparent)); }
+.n-barra em {
+  display: block; height: 100%; border-radius: 6px;
+  background-color: var(--n-c); background-image: linear-gradient(90deg, var(--n-lo), var(--n-c) 55%, var(--n-hi)); background-repeat: no-repeat;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+.n-barra u { position: absolute; top: -3px; width: 4px; height: 12px; margin-left: -2px; border-radius: 1px; background: var(--n-tarjeta, var(--paper)); }
+.n-barra u::after { content: ""; position: absolute; left: 1.25px; top: 0; width: 1.5px; height: 12px; border-radius: 1px; background: var(--n-ink, var(--ink)); }
+
+/* ---- Carreras en el look Night ---- */
+.app-shell .runs-page > header span.n-antetitulo:first-child { display: inline-block; height: 20px; padding: 0 9px; border-radius: 999px; color: var(--acento-claro, #ff3b30); background: color-mix(in srgb, var(--acento, #ff3b30) 20%, transparent); font-size: 10px; font-weight: 600; letter-spacing: .12em; line-height: 20px; text-transform: uppercase; }
+.app-shell[data-tema] .runs-page .runs-franja { margin: 4px 0 14px; padding: 4px 16px 10px; border: 0; border-radius: 16px; background: linear-gradient(180deg, var(--tarjeta-arriba, var(--paper)), var(--tarjeta-abajo, var(--paper))); box-shadow: 0 0 0 .7px var(--line); }
+.app-shell[data-tema] .runs-page .runs-franja > div:first-child { padding-left: 0; }
+/* El campo es césped en los dos temas: es un dibujo, como lo pinta SkillCorner. */
+.app-shell[data-tema] .run-map svg { background: #0e2a1f; }
+.app-shell[data-tema] .run-map-legend i { background: linear-gradient(var(--muestra), var(--muestra)) center / 12px 3px no-repeat, #0e2a1f; }
+.app-shell[data-tema] .run-map-legend i.run-map-recibida { background: radial-gradient(circle, transparent 2.4px, #f5f5f7 2.6px, #f5f5f7 3.4px, transparent 3.6px), #0e2a1f; }
+.app-shell[data-tema] .runs-side .run-mix .n-fila:first-child { padding-top: 2px; }
+.runs-lista .pool-cuerpo .n-barra { height: 4px; margin: 5px 0 4px; max-width: 320px; }
