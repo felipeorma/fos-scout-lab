@@ -28,6 +28,7 @@ import { reportExportBaseName } from "@/lib/reportExportName";
 import { t, tf, numberLocale, type Lang } from "@/lib/i18n";
 import { guardarConImagenes } from "@/lib/almacen";
 import { AutorDelInforme } from "./FirmaDelInforme";
+import { clavesDeSimilitud, coincidenciasYDiferencias, duelosDeSimilitud } from "@/lib/similitudClaves";
 
 type TargetOption = { index: number; player: string; team: string };
 type ProfileSide = "target" | "candidate";
@@ -445,8 +446,36 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
         photoFit: candidatePhotoFit,
       },
       metrics: selectedCandidate.metrics,
+      extra: (() => {
+        // Duelos, coincidencias, claves y otros parecidos: se calculan aquí y
+        // viajan con la hoja, así que una comparación guardada se lee igual.
+        const ligaDe = (indice: number) => procedenciaPorFila?.[indice]?.ligas?.[0] ?? null;
+        const edadObjetivo = Number(search.target.age);
+        const metricas = selectedCandidate.metrics;
+        const otros = search.candidates.filter((c) => c.index !== selectedCandidate.index).slice(0, 5).map((c) => ({
+          nombre: c.name,
+          equipo: c.team,
+          detalle: [c.team, ligaDe(c.index), c.age === null ? "" : String(c.age)].filter(Boolean).join(" · "),
+          parecido: c.similarity,
+        }));
+        return {
+          duelos: duelosDeSimilitud(metricas, { edad: edadObjetivo, minutos: search.target.minutes }, { edad: selectedCandidate.age ?? Number.NaN, minutos: selectedCandidate.minutes }),
+          ...coincidenciasYDiferencias(metricas),
+          claves: clavesDeSimilitud({
+            metricas,
+            objetivo: { nombre: search.target.player, minutos: search.target.minutes, liga: ligaDe(selectedIndex) },
+            comparable: { nombre: selectedCandidate.name, minutos: selectedCandidate.minutes, liga: ligaDe(selectedCandidate.index) },
+          }),
+          otros,
+        };
+      })(),
     };
+    // `lang` va a propósito: las claves se escriben ya traducidas al calcularlas.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    procedenciaPorFila,
+    selectedIndex,
+    lang,
     candidateColor,
     candidateLabelColor,
     candidateLabelTransparency,

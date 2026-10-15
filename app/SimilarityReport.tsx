@@ -11,8 +11,10 @@ import { similarityMetricDensity } from "@/lib/reportPageLayout";
 import { formatCell } from "@/lib/scouting";
 import { type SimilarityMetricComparison } from "@/lib/similarity";
 import { SIMILARITY_METRIC_GROUPS, similarityMetricGroup } from "@/lib/similarityMetricGroups";
-import { t, tDefault, tf } from "@/lib/i18n";
+import { numberLocale, t, tDefault, tf } from "@/lib/i18n";
 import { type TransfermarktProfile } from "@/lib/transfermarkt";
+import type { ExtraDeSimilitud } from "@/lib/similitudClaves";
+import { BarraDegradada, ChipDeCambio, FilaDeMetrica, tonosDeColor } from "./KitNight";
 
 const TRANSFERMARKT_LOGO = process.env.NEXT_PUBLIC_GITHUB_PAGES === "true"
   ? "/fos-scout-lab/tm_logo.svg"
@@ -45,6 +47,8 @@ export type SimilarityReportPayload = {
   target: SimilarityReportPlayer;
   candidate: SimilarityReportPlayer;
   metrics: SimilarityMetricComparison[];
+  /** Duelos, coincidencias, claves y otros parecidos. Las hojas guardadas antes no lo traen. */
+  extra?: ExtraDeSimilitud;
 };
 
 export function isSimilarityReportPayload(value: unknown): value is SimilarityReportPayload {
@@ -255,25 +259,76 @@ function MetricComparison({ metric, cohort, targetName, candidateName, targetCol
   </div>;
 }
 
+/** Duelos del encabezado: etiqueta y cifras a cada lado, barra dividida con el color de cada uno. */
+function Duelos({ extra, target, candidate }: { extra: ExtraDeSimilitud; target: SimilarityReportPlayer; candidate: SimilarityReportPlayer }) {
+  // Con separador de miles también en cuatro cifras (3.131), en el idioma de la hoja.
+  const cifra = (valor: number, decimales = 0) => valor.toLocaleString(numberLocale(), { minimumFractionDigits: decimales, maximumFractionDigits: decimales, useGrouping: "always" } as Intl.NumberFormatOptions);
+  return <div className="sim-duelos" style={{ "--sim-a": target.color, "--sim-b": candidate.color } as CSSProperties}>
+    {extra.duelos.map((duelo) => {
+      const total = duelo.objetivo + duelo.comparable || 1;
+      return <div key={duelo.etiqueta} className="sim-duelo">
+        <div><b>{cifra(duelo.objetivo, duelo.decimales)}</b><span>{t(duelo.etiqueta)}</span><b>{cifra(duelo.comparable, duelo.decimales)}</b></div>
+        <i><em className="a" style={{ width: `${(duelo.objetivo / total) * 100}%` }} /><em className="b" style={{ width: `${(duelo.comparable / total) * 100}%` }} /></i>
+      </div>;
+    })}
+  </div>;
+}
+
+/** Una métrica en "Dónde coinciden / se separan": barra del comparable, marca del objetivo, chip con la diferencia. */
+function FilaComparada({ metric, cohort }: { metric: SimilarityMetricComparison; cohort: string }) {
+  const grupo = similarityMetricGroup(metric, cohort);
+  return <FilaDeMetrica etiqueta={t(metric.label)} cifra={formatMetricValue(metric.candidateValue, metric.key)} detalle={`P${metric.candidatePercentile}`}
+    chip={<ChipDeCambio cambio={metric.candidatePercentile - metric.targetPercentile} />}
+    valor={metric.candidatePercentile} tonos={tonosDeColor(grupo.color)} marca={metric.targetPercentile} />;
+}
+
 export function SimilarityReportMain({ payload }: { payload: SimilarityReportPayload }) {
-  const { target, candidate, metrics } = payload;
+  const { target, candidate, metrics, extra } = payload;
+  const porClave = new Map(metrics.map((metric) => [metric.key, metric]));
+  const apellido = (nombre: string) => nombre.trim().split(/\s+/).slice(-1)[0] ?? nombre;
   return <div className="similarity-report-main" data-metric-density={similarityMetricDensity(metrics.length)}>
     <header className="similarity-report-header duel-header">
       <HeaderPlayer player={target} label={t("JUGADOR OBJETIVO")} side="left" />
-      <div className="duel-header-center"><SimilarityStarScore similarity={payload.similarity} /><small><span className="report-lupa"><Search size={9} /></span> {t("COMPARACIÓN DE JUGADORES")} · {tf("Percentiles posicionales · {src}", { src: tDefault(payload.sourceName) })}</small></div>
+      <div className="duel-header-center"><SimilarityStarScore similarity={payload.similarity} /><div className="sim-marcador"><b>{Math.round(payload.similarity)}<small>%</small></b><span>{t("Parecido")}</span></div><small><span className="report-lupa"><Search size={9} /></span> {t("COMPARACIÓN DE JUGADORES")} · {tf("Percentiles posicionales · {src}", { src: tDefault(payload.sourceName) })}</small></div>
       <HeaderPlayer player={candidate} label={t("JUGADOR COMPARABLE")} side="right" />
     </header>
+    {extra && extra.duelos.length > 0 && <Duelos extra={extra} target={target} candidate={candidate} />}
     <div className="similarity-report-body">
-      <div className="similarity-showdown radar-only">
+      <div className={extra ? "similarity-showdown con-lado" : "similarity-showdown radar-only"}>
         <div className="similarity-radar-column">
           <ComparisonRadar metrics={metrics} metricCohort={payload.metricCohort} targetName={target.name} candidateName={candidate.name} targetColor={target.color} candidateColor={candidate.color} targetLabelColor={target.labelColor} candidateLabelColor={candidate.labelColor} targetLabelTransparency={target.labelTransparency} candidateLabelTransparency={candidate.labelTransparency} />
           <MetricGroupLegend metrics={metrics} cohort={payload.metricCohort} />
         </div>
+        {extra && <div className="sim-lado">
+          <section className="sim-tarjeta">
+            <h4>{t("Dónde coinciden")}</h4>
+            <p>{tf("Barra = {b} · marca = {a}", { a: apellido(target.name), b: apellido(candidate.name) })}</p>
+            {extra.coinciden.map((clave) => porClave.get(clave)).filter((m): m is SimilarityMetricComparison => Boolean(m)).map((metric) => <FilaComparada key={metric.key} metric={metric} cohort={payload.metricCohort} />)}
+          </section>
+          <section className="sim-tarjeta">
+            <h4>{t("Dónde se separan")}</h4>
+            <p>{tf("Chip = diferencia de {b} en puntos de percentil", { b: apellido(candidate.name) })}</p>
+            {extra.separan.map((clave) => porClave.get(clave)).filter((m): m is SimilarityMetricComparison => Boolean(m)).map((metric) => <FilaComparada key={metric.key} metric={metric} cohort={payload.metricCohort} />)}
+          </section>
+        </div>}
       </div>
-      <div className="similarity-metric-section">
+      {extra ? <div className="sim-cierre">
+        <section className="sim-tarjeta">
+          <h4>{t("Claves")}</h4>
+          <ol className="sim-vinetas">{extra.claves.map((clave, i) => <li key={i}>{clave}</li>)}</ol>
+        </section>
+        {extra.otros.length > 0 && <section className="sim-tarjeta">
+          <h4>{t("Otros parecidos")}</h4>
+          <ol className="sim-otros">{extra.otros.map((otro, i) => <li key={`${otro.nombre}-${i}`}>
+            <span className="n">{i + 2}</span>
+            <span className="quien"><b>{otro.nombre}</b><small>{otro.detalle}</small><BarraDegradada valor={otro.parecido} tonos={tonosDeColor("#ff3b30")} /></span>
+            <span className="v">{`${Math.round(otro.parecido)} %`}</span>
+          </li>)}</ol>
+        </section>}
+      </div> : <div className="similarity-metric-section">
         <div className="similarity-metric-head"><span style={{ color: target.color }}>{target.name}</span><b>{t("COMPARATIVA MÉTRICA A MÉTRICA")}</b><span style={{ color: candidate.color }}>{candidate.name}</span></div>
         <div className="metric-comparison-list">{metrics.map((metric) => <MetricComparison key={metric.key} metric={metric} cohort={payload.metricCohort} targetName={target.name} candidateName={candidate.name} targetColor={target.color} candidateColor={candidate.color} />)}</div>
-      </div>
+      </div>}
     </div>
   </div>;
 }
