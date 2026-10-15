@@ -28,7 +28,7 @@ import { Escudo, LogoLiga } from "./Escudo";
 import { DatosPage } from "./DatosPage";
 import { Interruptor } from "./Interruptor";
 import { FilaDeMenu, GrupoDeMenu, MenuFlotante } from "./MenuFlotante";
-import { ESCUDOS, RETRATO } from "./Imagenes";
+import { ESCUDOS, ESCUDOS_INFORME, RETRATO } from "./Imagenes";
 import {
   buildPlayerReport,
   metricCatalogue,
@@ -747,7 +747,7 @@ export default function ScoutStudio() {
       nombre: firma.nombre || FIRMAS_POR_DEFECTO[claveFirma].nombre,
       cargo: firma.cargo,
       club: deClub?.nombre ?? "",
-      escudo: deClub ? firma.escudo || deClub.src : "",
+      escudo: deClub && claveFirma !== "temporal" ? firma.escudo || ESCUDOS_INFORME[claveFirma] : "",
     };
   }, [firma, claveFirma]);
   async function subirEscudo(archivo: File | undefined) {
@@ -2529,7 +2529,7 @@ export default function ScoutStudio() {
                       <input value={firma.cargo} maxLength={70} onChange={(event) => editarFirma("cargo", event.target.value)} />
                     </label>
                     {claveFirma !== "temporal" && <div className="firma-escudo">
-                      <small>{t("Escudo del club en alta resolución")}</small>
+                      <small>{t("Escudo del club")}</small>
                       <div className="firma-escudo-fila">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={firmaDelInforme.escudo} alt={firmaDelInforme.club} />
@@ -2541,7 +2541,7 @@ export default function ScoutStudio() {
                       </div>
                       <p className="firma-nota">{firma.escudo
                         ? t("Va junto a tu firma en cada hoja.")
-                        : t("Ahora va el escudo pequeño junto a tu firma. Sube uno en alta resolución (PNG o SVG) para que salga nítido al imprimir.")}</p>
+                        : t("Va el escudo del club junto a tu firma en cada hoja. Puedes cambiarlo por otro (PNG o SVG).")}</p>
                     </div>}
                     <label className="firma-temporal">
                       <input type="checkbox" checked={firmaTemporal} onChange={(event) => { setFirmaTemporal(event.target.checked); setReportTheme(event.target.checked ? CLIENT_THEMES.otros : CLIENT_THEMES[espacio]); }} />
