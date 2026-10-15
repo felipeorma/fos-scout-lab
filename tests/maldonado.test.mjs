@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { PUNTOS_POR_RATING_INDICE } from "../lib/nivelDeLiga.ts";
 import test from "node:test";
 
 import {
@@ -11,7 +12,7 @@ import {
   construirFoto,
   detectarLiga,
   detectarLigaConMemoria,
-  factoresDeLiga,
+  descuentosDeLiga,
   indiceAjustado,
   ligasSinRating,
   mesActual,
@@ -133,21 +134,25 @@ test("el respaldo fechado coincide con los nombres de liga del feed", () => {
   }
 });
 
-test("el factor de liga es relativo a la mejor liga presente, no a todas", () => {
+test("el descuento es relativo a la mejor liga presente, no a todas", () => {
   const ratings = ratingsDesdeOpta(OPTA_FALSO);
-  const factores = factoresDeLiga(ratings, ["uruguay-segunda", "argentina-metropolitana"]);
+  const descuentos = descuentosDeLiga(ratings, ["uruguay-segunda", "argentina-metropolitana"]);
   // Con esas dos cargadas, la referencia es Uruguay Segunda, no Primera Argentina.
-  assert.equal(factores["uruguay-segunda"], 1);
-  assert.ok(factores["argentina-metropolitana"] < 1);
-  assert.ok(Math.abs(factores["argentina-metropolitana"] - 58.92 / 64.13) < 1e-9);
+  assert.equal(descuentos["uruguay-segunda"], 0);
+  assert.equal(descuentos["argentina-metropolitana"], Math.round(PUNTOS_POR_RATING_INDICE * (58.92 - 64.13) * 10) / 10);
 });
 
-test("el descuento baja el índice de la liga más débil y respeta el de la mejor", () => {
+test("el descuento es aditivo y calibrado: baja a la liga débil sin pasarse, y respeta a la mejor", () => {
   const ratings = ratingsDesdeOpta(OPTA_FALSO);
-  const factores = factoresDeLiga(ratings, ["argentina-primera", "argentina-metropolitana"]);
-  assert.equal(indiceAjustado(80, factores["argentina-primera"]), 80);
-  assert.equal(indiceAjustado(80, factores["argentina-metropolitana"]), Math.round(80 * (58.92 / 81.37)));
-  // Sin factor conocido el índice se deja tal cual: la interfaz avisa aparte.
+  const descuentos = descuentosDeLiga(ratings, ["argentina-primera", "argentina-metropolitana"]);
+  assert.equal(indiceAjustado(80, descuentos["argentina-primera"]), 80);
+  // 0,39 por punto de rating: 80 en Primera B (58,92) frente a Primera (81,37) → 71, no 58 como con la regla de tres.
+  assert.equal(indiceAjustado(80, descuentos["argentina-metropolitana"]), Math.round(80 + PUNTOS_POR_RATING_INDICE * (58.92 - 81.37)));
+  assert.ok(indiceAjustado(80, descuentos["argentina-metropolitana"]) > Math.round(80 * (58.92 / 81.37)));
+  // El mismo descuento para todos los de la liga, sea su índice alto o bajo.
+  assert.equal(80 - indiceAjustado(80, descuentos["argentina-metropolitana"]), 40 - indiceAjustado(40, descuentos["argentina-metropolitana"]));
+  // Con tope, y sin descuento conocido el índice se deja tal cual: la interfaz avisa aparte.
+  assert.equal(indiceAjustado(3, -9), 0);
   assert.equal(indiceAjustado(80, undefined), 80);
 });
 

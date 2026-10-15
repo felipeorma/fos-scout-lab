@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { buildPlayerReport, type DataRow, numeric, type CellValue } from "@/lib/scouting";
-import { t, tf } from "@/lib/i18n";
+import { t, tf, numberLocale } from "@/lib/i18n";
 import { OnceIdeal } from "./OnceIdeal";
 import { Desplegable } from "./BarraDeFiltros";
 import { ChevronRight } from "./Icons";
@@ -22,7 +22,7 @@ import {
   construirFoto,
   detectarLiga,
   detectarLigaConMemoria,
-  factoresDeLiga,
+  descuentosDeLiga,
   indiceAjustado,
   ligaPorId,
   ligasSinRating,
@@ -267,13 +267,13 @@ export function ScoutingBoard({ rows, minimumMinutes, onSelectPlayer, destinatar
   }, [fichasBase, rows, ligaDeFuente]);
   const ligasPresentes = useMemo(() => (ligasClave ? ligasClave.split("|") : []), [ligasClave]);
 
-  const factores = useMemo(() => factoresDeLiga(ratings, ligasPresentes), [ratings, ligasPresentes]);
+  const descuentos = useMemo(() => descuentosDeLiga(ratings, ligasPresentes), [ratings, ligasPresentes]);
   const sinRating = useMemo(() => ligasSinRating(ratings, ligasPresentes), [ratings, ligasPresentes]);
 
   const fichas = useMemo<Ficha[]>(() => fichasBase.map((ficha) => {
     const liga = ligaDeFilaDe(rows[ficha.indice], ligaDeFuente);
-    return { ...ficha, liga, ajustada: indiceAjustado(ficha.puntuacion, factores[liga]) };
-  }), [fichasBase, rows, ligaDeFuente, factores]);
+    return { ...ficha, liga, ajustada: indiceAjustado(ficha.puntuacion, descuentos[liga]) };
+  }), [fichasBase, rows, ligaDeFuente, descuentos]);
 
   // ---- 4. Filtros ----------------------------------------------------------
   /**
@@ -697,13 +697,13 @@ export function ScoutingBoard({ rows, minimumMinutes, onSelectPlayer, destinatar
       </div>
 
       {vistaOnce === "combinado" && <div className="board-descuento">
-        <p>{t("El índice se descuenta por nivel de liga con el rating medio de Opta Power Rankings: la mejor liga cargada vale 1 y el resto baja en proporción. Un 70 en Primera B no es un 70 en Primera División.")}</p>
+        <p>{t("El índice se descuenta por nivel de liga con el rating medio de Opta Power Rankings: la mejor liga cargada no cambia y cada una de las demás baja 0,39 puntos por punto de rating de diferencia, la regla calibrada con jugadores que cambiaron de liga. Un 70 en Primera B no es un 70 en Primera División.")}</p>
         <ul>
           {ligasPresentes.map((liga) => (
             <li key={liga}>
               <b>{ligaPorId(liga)?.nombre ?? liga}</b>
-              {factores[liga]
-                ? <span>{tf("×{f}", { f: factores[liga].toFixed(3) })}</span>
+              {descuentos[liga] !== undefined
+                ? <span>{descuentos[liga] === 0 ? t("referencia") : tf("{n} puntos", { n: descuentos[liga].toLocaleString(numberLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }) })}</span>
                 : <em>{t("sin rating: entra sin descuento")}</em>}
             </li>
           ))}
