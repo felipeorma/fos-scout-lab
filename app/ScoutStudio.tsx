@@ -1,14 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BarChart3, Check, ChevronDown, ChevronRight, Crosshair, Database, FileSpreadsheet, ImageIcon, LockKeyhole, Menu, MoreHorizontal, Plus, Printer, RadarChart, RotateCcw, Route, Search, Sparkles, Trash, Trophy, Upload, X, ShieldCheck, LayoutDashboard, Wind } from "./Icons";
+import { BarChart3, Check, ChevronDown, ChevronRight, Crosshair, Database, FileSpreadsheet, ImageIcon, LockKeyhole, Menu, MoreHorizontal, Plus, Printer, RadarChart, RotateCcw, Route, Search, Sparkles, Trash, Trophy, Upload, X, ShieldCheck, LayoutDashboard } from "./Icons";
 import { PizzaRadar } from "./PizzaRadar";
 import { ContextPage } from "./ContextPage";
 import { ScoutingBoard } from "./ScoutingBoard";
 import { RunsPage } from "./RunsPage";
 import { RankingPage } from "./RankingPage";
 import { EstiloPage } from "./EstiloPage";
-import { FlujoPage } from "./FlujoPage";
 import { SnapshotPage } from "./SnapshotPage";
 import { ReportPageDesigner } from "./ReportPageDesigner";
 import { SimilarityStudio } from "./SimilarityStudio";
@@ -75,7 +74,8 @@ const BOARD_PAGE = 91;
 // Carreras sin balón de SkillCorner: vive fuera del rango visual, como las anteriores.
 const RUNS_PAGE = 92;
 // Flujo de posesión: las rutas del balón de cada equipo, como un mapa de viento.
-const FLOW_PAGE = 93;
+// 93 era "Flujo de posesión": ahora es una sección de Estilo de juego, con
+// los mismos dos equipos. El número no se reutiliza.
 // Ranking de la base por posición: quién es el mejor de cada puesto.
 const RANK_PAGE = 94;
 // 95 era "Entre ligas": su lista vive ahora en Similitud, que usa el mismo
@@ -105,7 +105,6 @@ const NOMBRE_DE_SECCION: Record<number, string> = {
   [RANK_PAGE]: "Ranking",
   [DATA_PAGE]: "Base activa",
   [STYLE_PAGE]: "Estilo de juego",
-  [FLOW_PAGE]: "Flujo de posesión",
   [SNAPSHOT_PAGE]: "Ficha ampliada",
 };
 
@@ -2094,15 +2093,14 @@ export default function ScoutStudio() {
       { page: CONTEXT_PAGE, title: t("Contexto"), hint: t("Dónde destaca y por qué") },
       { page: RUNS_PAGE, title: t("Carreras"), hint: t("Mapa sin balón") },
       { page: RANK_PAGE, title: t("Ranking"), hint: t("Los mejores por puesto") },
-      { page: STYLE_PAGE, title: t("Estilo de juego"), hint: t("Cómo juega cada equipo") },
-      { page: FLOW_PAGE, title: t("Flujo de posesión"), hint: t("Rutas del balón por equipo") },
+      { page: STYLE_PAGE, title: t("Estilo de juego"), hint: t("Cómo juega, el partido y el flujo") },
       ...visualPages.map((page, index) => ({ page, title: tf("Visuales {n}", { n: index + 1 }), hint: t("Mapas, imágenes y texto") })),
     ];
   const todasMarcadas = paginasParaImprimir.every(({ page }) => printPages.includes(page));
-  const paginasQuePidenElegir: ReportPage[] = [RUNS_PAGE, FLOW_PAGE, STYLE_PAGE];
+  const paginasQuePidenElegir: ReportPage[] = [RUNS_PAGE, STYLE_PAGE];
   useEffect(() => {
     if (!printDialogOpen) return;
-    setPaginasVacias([RUNS_PAGE, FLOW_PAGE, STYLE_PAGE, RANK_PAGE].filter((page) => (
+    setPaginasVacias([RUNS_PAGE, STYLE_PAGE, RANK_PAGE].filter((page) => (
       (paginasQuePidenElegir.includes(page) && !paginasAbiertas.includes(page))
       || Boolean(document.querySelector(`.hoja-${page} [data-hoja-vacia]`))
     )));
@@ -2403,9 +2401,7 @@ export default function ScoutStudio() {
                     <FilaSeccion activa={reportPage === RANK_PAGE} onClick={() => setReportPage(RANK_PAGE)}
                       icono={<Trophy size={16} />} titulo={t("Ranking")} detalle={t("Los mejores por puesto")} />
                     <FilaSeccion activa={reportPage === STYLE_PAGE} onClick={() => setReportPage(STYLE_PAGE)}
-                      icono={<ShieldCheck size={16} />} titulo={t("Estilo de juego")} detalle={t("Cómo juega cada equipo")} api />
-                    <FilaSeccion activa={reportPage === FLOW_PAGE} onClick={() => setReportPage(FLOW_PAGE)}
-                      icono={<Wind size={16} />} titulo={t("Flujo de posesión")} detalle={t("Rutas del balón por equipo")} api />
+                      icono={<ShieldCheck size={16} />} titulo={t("Estilo de juego")} detalle={t("Cómo juega, el partido y el flujo")} api />
                   </div>
                 </section>
 
@@ -2772,9 +2768,6 @@ export default function ScoutStudio() {
               )}
               {espacio === "cavalry" && paginaMontada(STYLE_PAGE) && (
                 <EstiloPage claseHoja={claseHoja(STYLE_PAGE)} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} />
-              )}
-              {espacio === "cavalry" && paginaMontada(FLOW_PAGE) && (
-                <div className={claseHoja(FLOW_PAGE)}><FlujoPage destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
               )}
               {report ? visualPages.filter((page) => printRun ? printRun.includes(page) : reportPage === page).map((page) => (
                 <ReportPageDesigner key={page} pageNumber={page} persist={!printRun || reportPage === page} player={report.player} team={profile.club || report.team} position={formatPlayerPositions(profile.position || report.position)} theme={reportTheme} onThemeChange={setReportTheme} recipientName={recipientName} recipientLogoUrl={reportRecipientLogoUrl} aiFacts={aiControlsHidden ? undefined : () => ({ lang, player: aiPlayerFacts(report), metrics: aiMetricFacts(report) })}

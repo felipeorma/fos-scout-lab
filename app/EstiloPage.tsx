@@ -10,6 +10,9 @@ import { COLOR_FAMILIA, RosaDeEstilo } from "./RosaDeEstilo";
 import { numberLocale, t, tf } from "@/lib/i18n";
 import { useEstilos } from "./useEstilos";
 import { fetchExtrasDeEquipo, type ExtrasDeEquipo } from "@/lib/remoteData";
+import { ElPartido, partesDeClave, usePartidosDeLiga } from "./ElPartido";
+import { FlujoPage } from "./FlujoPage";
+import { proximoPartido } from "@/lib/partido";
 import {
   FAMILIAS,
   METRICAS_ESTILO,
@@ -27,11 +30,13 @@ import {
 /**
  * Estilo de juego: la página 7 del dossier, con nuestros datos.
  *
- * Tres preguntas, de arriba abajo: cómo juega este equipo (la rosa y la lista
- * por familias), a quién se parece (los diez más cercanos en estilo) y en qué
- * se diferencia del que elijas para comparar (el cara a cara). La primera
- * respuesta sirve para preparar un partido; las otras dos, para fichar:
- * quien viene de un equipo que juega como el nuestro se adapta antes.
+ * Cuatro preguntas, de arriba abajo: cómo juega este equipo (la rosa y la
+ * lista por familias), qué pasará contra el rival (El partido: formación
+ * probable, choque de dibujos, lo esperado, ventajas), por dónde mueve el
+ * balón cada uno (el flujo de posesión, que antes era otra página) y en qué se
+ * diferencian y a quién se parece (cara a cara y top 10). Las primeras sirven
+ * para preparar un partido; la última, para fichar: quien viene de un equipo
+ * que juega como el nuestro se adapta antes.
  */
 
 function formatear(metrica: MetricaEstilo, valor: number) {
@@ -139,7 +144,24 @@ export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", lo
   );
   const elegido = perfiles.find((perfil) => perfil.clave === clave) ?? propio ?? comparables[0] ?? null;
   const parecidos = useMemo(() => (elegido ? equiposParecidos(elegido, comparables, 10) : []), [elegido, comparables]);
-  const rival = perfiles.find((perfil) => perfil.clave === claveRival) ?? parecidos[0]?.perfil ?? null;
+  /*
+   * El rival por defecto es el del próximo partido, si el calendario de
+   * StatsBomb lo trae; si no, el más parecido de su misma liga, y solo sin
+   * nadie de su liga, el más parecido de cualquiera. "El partido" necesita
+   * que los dos sean de la misma liga y temporada.
+   */
+  const partesElegido = elegido ? partesDeClave(elegido.clave) : null;
+  const { liga: partidosDeSuLiga } = usePartidosDeLiga(partesElegido?.competicion ?? null, partesElegido?.temporada ?? null);
+  const proximo = elegido && partidosDeSuLiga && partesElegido ? proximoPartido(partidosDeSuLiga, partesElegido.equipo) : null;
+  const rivalProximo = proximo && partesElegido
+    ? perfiles.find((perfil) => perfil.clave === `${partesElegido.competicion}:${partesElegido.temporada}:${proximo.rival}`) ?? null
+    : null;
+  const parecidoDeSuLiga = parecidos.find(({ perfil }) => perfil.competicion === elegido?.competicion && perfil.temporada === elegido?.temporada)?.perfil
+    ?? (elegido ? equiposParecidos(elegido, perfiles.filter((perfil) => perfil.competicion === elegido.competicion && perfil.temporada === elegido.temporada), 1)[0]?.perfil : null)
+    ?? null;
+  const rival = perfiles.find((perfil) => perfil.clave === claveRival) ?? rivalProximo ?? parecidoDeSuLiga ?? parecidos[0]?.perfil ?? null;
+  const mismaLiga = Boolean(elegido && rival && partesDeClave(elegido.clave).competicion === partesDeClave(rival.clave).competicion
+    && partesDeClave(elegido.clave).temporada === partesDeClave(rival.clave).temporada);
   const duelo = useMemo(() => (elegido && rival ? cabezaACabeza(elegido, rival) : []), [elegido, rival]);
   const encaje = elegido && propio && elegido.clave !== propio.clave ? parecidoDeEstilo(elegido, propio) : Number.NaN;
   const encajeSc = elegido && propio && elegido.clave !== propio.clave ? parecidoDeEstilo(elegido, propio, ["statsbomb", "skillcorner"]) : Number.NaN;
@@ -199,12 +221,13 @@ export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", lo
             icono={<Escudo equipo={elegido.equipo} liga={elegido.competicion} tamano={14} />}
             opciones={opcionesDeEquipo} iconoDeGrupo={logoDeGrupo}
             elegida={elegido.clave} onElegir={(clave) => { setClave(clave); setClaveRival(""); }} />
-          <MenuDesplegable etiqueta={t("Comparar con")} valor={rival?.equipo ?? t("Nadie")} activo={Boolean(claveRival)}
+          <MenuDesplegable etiqueta={t("Rival")} valor={rival?.equipo ?? t("Nadie")} activo={Boolean(claveRival)}
             icono={rival ? <Escudo equipo={rival.equipo} liga={rival.competicion} tamano={14} /> : null}
             opciones={[{ valor: "", texto: t("Nadie") }, ...opcionesDeEquipo]} iconoDeGrupo={logoDeGrupo}
             elegida={rival?.clave ?? ""} onElegir={setClaveRival} />
         </div>
       </div>
+      {proximo && rivalProximo && !claveRival && <p className="estilo-proximo">{tf("Rival: el próximo partido, {fecha} {donde}.", { fecha: proximo.fecha, donde: proximo.enCasa ? t("en casa") : t("fuera") })}</p>}
       {estado && <p className="estilo-estado" role="status">{estado}</p>}
 
       <div className="estilo-grid">
@@ -300,11 +323,25 @@ export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", lo
   </section>
   </div>
 
+  {elegido && rival && <div className={claseHoja}>
+  <section className="estilo-page estilo-hoja-partido">
+    <ElPartido a={elegido} b={rival} />
+    {pie}
+  </section>
+  </div>}
+
+  {elegido && partesElegido && <div className={claseHoja}>
+  <section className="estilo-page estilo-hoja-flujo">
+    <FlujoPage fijado={{ competicion: partesElegido.competicion, temporada: partesElegido.temporada, equipoA: partesElegido.equipo, equipoB: rival && mismaLiga ? partesDeClave(rival.clave).equipo : null }} />
+    {pie}
+  </section>
+  </div>}
+
   {elegido && <div className={claseHoja}>
   <section className="estilo-page estilo-hoja-2" data-hoja-vacia={elegido ? undefined : ""}>
     <header className="estilo-cabecera-continuacion">
       <div>
-        <span>{t("STATSBOMB · ESTADÍSTICAS DE EQUIPO · 2 DE 2")}</span>
+        <span>{t("STATSBOMB · ESTADÍSTICAS DE EQUIPO")}</span>
         <h2>{rival ? `${elegido.equipo} · ${rival.equipo}` : elegido.equipo}</h2>
       </div>
     </header>

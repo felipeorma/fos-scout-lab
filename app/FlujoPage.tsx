@@ -129,9 +129,15 @@ const VALOR_DE_ORDEN: Record<Orden, (r: ResumenFlujo) => number> = {
   ultimo: (r) => r.velocidad[2],
 };
 
-export function FlujoPage({ destinatario = "", logoDestinatario = "" }: {
+export function FlujoPage({ destinatario = "", logoDestinatario = "", fijado = null }: {
   destinatario?: string;
   logoDestinatario?: string;
+  /**
+   * Dentro de Estilo de juego: la liga y los dos equipos los elige esa página
+   * (con su clave "competición:temporada:equipo") y aquí no hay selectores
+   * propios, solo el mapa, sus ajustes y la tabla de la liga.
+   */
+  fijado?: { competicion: number; temporada: number; equipoA: number; equipoB: number | null } | null;
 }) {
   const { competiciones: cargadas } = useBaseActiva();
   const [catalogo, setCatalogo] = useState<ApiCompetition[]>([]);
@@ -141,8 +147,8 @@ export function FlujoPage({ destinatario = "", logoDestinatario = "" }: {
   // deriva de aquí: si la clave ya no es la elegida, se está cargando otra.
   const [resultado, setResultado] = useState<{ clave: string; liga?: LigaFlujo; error?: string } | null>(null);
   const [intento, setIntento] = useState(0);
-  const [equipoA, setEquipoA] = useState<number | null>(null);
-  const [equipoB, setEquipoB] = useState<number | null>(null);
+  const [equipoAElegido, setEquipoA] = useState<number | null>(null);
+  const [equipoBElegido, setEquipoB] = useState<number | null>(null);
   const [detalle, setDetalle] = useState(Math.round(AJUSTES_INICIALES.detalle * 100));
   const [ancho, setAncho] = useState(Math.round(AJUSTES_INICIALES.ancho * 100));
   const [estela, setEstela] = useState(50);
@@ -173,7 +179,7 @@ export function FlujoPage({ destinatario = "", logoDestinatario = "" }: {
           ?? cpl[cpl.length - 1]
           ?? jugables[0];
         // Un reintento no pisa la liga que ya se eligió a mano.
-        if (elegida) setClaveLiga((actual) => actual || claveDe(elegida));
+        if (elegida && !fijado) setClaveLiga((actual) => actual || claveDe(elegida));
       })
       .catch(() => {
         if (vivo) setErrorCatalogo(t("El servidor local no respondió. Arranca npm run bg:server y reintenta."));
@@ -184,7 +190,11 @@ export function FlujoPage({ destinatario = "", logoDestinatario = "" }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [intento]);
 
-  const competicion = catalogo.find((candidata) => claveDe(candidata) === claveLiga) ?? null;
+  // Con la liga y los equipos fijados desde fuera, mandan esos.
+  const claveVigente = fijado ? `${fijado.competicion}:${fijado.temporada}` : claveLiga;
+  const equipoA = fijado ? fijado.equipoA : equipoAElegido;
+  const equipoB = fijado ? fijado.equipoB : equipoBElegido;
+  const competicion = catalogo.find((candidata) => claveDe(candidata) === claveVigente) ?? null;
 
   useEffect(() => {
     if (!competicion) return;
@@ -194,6 +204,7 @@ export function FlujoPage({ destinatario = "", logoDestinatario = "" }: {
       .then((respuesta) => {
         if (!vivo) return;
         setResultado({ clave, liga: respuesta });
+        if (fijado) return;
         const propio = respuesta.equipos.find((equipo) => mismoEquipo(equipo.nombre, EQUIPO_PROPIO)) ?? respuesta.equipos[0];
         setEquipoA(propio?.equipo ?? null);
         setEquipoB(respuesta.equipos.find((equipo) => equipo.equipo !== propio?.equipo)?.equipo ?? null);
@@ -207,9 +218,9 @@ export function FlujoPage({ destinatario = "", logoDestinatario = "" }: {
     return () => { vivo = false; };
     // La competición se identifica por su clave; el objeto cambia con cada catálogo.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [claveLiga, catalogo.length, intento]);
+  }, [claveVigente, catalogo.length, intento]);
 
-  const vigente = resultado?.clave === claveLiga ? resultado : null;
+  const vigente = resultado?.clave === claveVigente ? resultado : null;
   const liga = vigente?.liga ?? null;
   const fallo = errorCatalogo || vigente?.error || "";
   const estado = fallo
@@ -251,11 +262,11 @@ export function FlujoPage({ destinatario = "", logoDestinatario = "" }: {
     </th>
   );
 
-  return <section className="flujo-page" data-hoja-vacia={resultado?.liga ? undefined : ""}>
+  return <section className={fijado ? "flujo-page flujo-fijado" : "flujo-page"} data-hoja-vacia={resultado?.liga ? undefined : ""}>
     <header>
       <div>
         <span>{t("STATSBOMB · EVENTOS DE TEMPORADA")}</span>
-        <h2>{t("Flujo de posesión")}</h2>
+        {fijado ? <h3 className="flujo-titulo-seccion">{t("Flujo de posesión")}</h3> : <h2>{t("Flujo de posesión")}</h2>}
         <p>{t("Por dónde mueve el balón cada equipo en su temporada, como un mapa de viento: las rutas que más usa son corrientes gruesas y brillantes, las zonas que casi no pisa quedan en calma y las partículas van más rápido donde el balón va más rápido.")}</p>
         <details className="como-se-calcula">
           <summary><ChevronDown size={13} />{t("Cómo se calcula")}</summary>
@@ -267,7 +278,7 @@ export function FlujoPage({ destinatario = "", logoDestinatario = "" }: {
       </div>
     </header>
 
-    <div className="filtros-barra flujo-controles" role="group" aria-label={t("Qué liga y qué equipos")}>
+    {!fijado && <div className="filtros-barra flujo-controles" role="group" aria-label={t("Qué liga y qué equipos")}>
       <div className="filtros-chips">
         <Desplegable etiqueta={t("Competición")}
           valor={competicion ? `${competicion.name} · ${competicion.season}` : t("Elegir competición")}
@@ -286,7 +297,7 @@ export function FlujoPage({ destinatario = "", logoDestinatario = "" }: {
             opciones={opcionesDeEquipo} elegida={String(equipoB ?? "")} onElegir={(valor) => setEquipoB(Number(valor))} />
         </>}
       </div>
-    </div>
+    </div>}
     {estado && <p className="flujo-estado" role="status">
       {estado}
       {fallo && <> <button type="button" className="estilo-reintentar" onClick={reintentar}>{t("Reintentar")}</button></>}
@@ -388,7 +399,7 @@ export function FlujoPage({ destinatario = "", logoDestinatario = "" }: {
         <small className="flujo-nota">{t("Velocidades en m/s del balón en cada tercio, pausas incluidas. Carriles: reparto del recorrido del balón según ataca el equipo. Hacia delante y hacia atrás: el recorrido a menos de 56° de cada portería.")}</small>
       </section>
 
-      <PieDeReporte asunto={titulo || t("Flujo de posesión")} destinatario={destinatario} logo={logoDestinatario} className="flujo-firma" />
+      {!fijado && <PieDeReporte asunto={titulo || t("Flujo de posesión")} destinatario={destinatario} logo={logoDestinatario} className="flujo-firma" />}
     </>}
   </section>;
 }

@@ -1124,6 +1124,108 @@ def statsbomb_team_extras(competition_id: int, season_id: int, team_id: int):
     }), media_type="application/json", headers=cors_headers())
 
 
+def _sb_stats_partido(match_id: int, auth):
+    """Las estadísticas de equipo de un partido (v1 team-stats), de los dos equipos.
+
+    {team_id: {campo: valor}} con los campos numéricos team_match_* sin el
+    prefijo. Guardado en disco; de paso deja el PPDA del partido, que es lo
+    que guardaba _sb_ppda_partido, para no pedirlo dos veces.
+    """
+    import json as _json
+    ruta = _SB_EVENTS_CACHE_DIR / f"tsm-{int(match_id)}.json"
+    if ruta.exists():
+        try:
+            return {int(k): v for k, v in _json.loads(ruta.read_text(encoding="utf-8")).items()}
+        except Exception:
+            pass
+    try:
+        r = _requests.get(f"https://data.statsbomb.com/api/v1/matches/{int(match_id)}/team-stats", auth=auth, timeout=60)
+        if r.status_code != 200:
+            return None
+        filas = r.json()
+    except Exception:
+        return None
+    salida = {}
+    for fila in filas if isinstance(filas, list) else []:
+        if fila.get("team_id") is None:
+            continue
+        salida[int(fila["team_id"])] = {
+            k[len("team_match_"):]: v for k, v in fila.items()
+            if k.startswith("team_match_") and isinstance(v, (int, float)) and not isinstance(v, bool)
+        }
+    try:
+        _SB_EVENTS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        _escribir_atomico(ruta, _json.dumps(salida))
+        ruta_ppda = _SB_EVENTS_CACHE_DIR / f"ppda-{int(match_id)}.json"
+        if not ruta_ppda.exists():
+            _escribir_atomico(ruta_ppda, _json.dumps({k: v.get("ppda") for k, v in salida.items()}))
+    except OSError:
+        pass
+    return salida
+
+
+@app.get("/api/statsbomb/team-matches")
+def statsbomb_team_matches(competition_id: int, season_id: int):
+    """Todos los partidos jugados de una liga y temporada, de los dos lados.
+
+    Para cada partido: fecha, jornada, marcador y, por equipo, la formación
+    del once inicial, los puestos con que salió (de la alineación) y sus
+    estadísticas del partido. Es lo que necesita "El partido" en Estilo de
+    juego: cómo sale cada equipo, contra qué dibujo, y qué pasa en sus
+    partidos. La primera vez baja las formaciones de los eventos (minutos en
+    una liga entera); después todo sale del disco.
+    """
+    import json as _json
+    from concurrent.futures import ThreadPoolExecutor
+    auth = _statsbomb_auth()
+    if not auth:
+        return Response('{"error": "sin credenciales"}', status_code=503, media_type="application/json", headers=cors_headers())
+    partidos = _cached_get(f"sb:matches6:{competition_id}:{season_id}",
+                           f"https://data.statsbomb.com/api/v6/competitions/{competition_id}/seasons/{season_id}/matches", auth, ttl_seconds=1800)
+    jugados = [p for p in partidos if p.get("home_score") is not None and p.get("away_score") is not None]
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        stats = list(pool.map(lambda p: _sb_stats_partido(p["match_id"], auth), jugados))
+        formaciones = list(pool.map(lambda p: _sb_formaciones_partido(p["match_id"], auth), jugados))
+        alineaciones = list(pool.map(lambda p: _sb_alineacion_partido(p["match_id"], auth), jugados))
+
+    def lado(p, campo, st, fo, al):
+        equipo = p.get(f"{campo}_team") or {}
+        team_id = equipo.get(f"{campo}_team_id")
+        inicio = next((c["formacion"] for c in (fo or {}).get("cambios", []) if c.get("equipo") == team_id and c.get("inicio")), None)
+        once = sorted(codigo for codigo, desde, _ in (al or {}).get(team_id, []) if desde == 0)
+        return {
+            "equipo": team_id,
+            "nombre": equipo.get(f"{campo}_team_name"),
+            "goles": p.get(f"{campo}_score"),
+            "formacion": inicio,
+            "cambios": sum(1 for c in (fo or {}).get("cambios", []) if c.get("equipo") == team_id and not c.get("inicio")),
+            "once": once,
+            "stats": (st or {}).get(team_id) or {},
+        }
+
+    salida, fallidos = [], 0
+    for p, st, fo, al in zip(jugados, stats, formaciones, alineaciones):
+        if not st:
+            fallidos += 1
+        salida.append({
+            "partido": p.get("match_id"),
+            "fecha": p.get("match_date"),
+            "jornada": p.get("match_week"),
+            "local": lado(p, "home", st, fo, al),
+            "visita": lado(p, "away", st, fo, al),
+        })
+    salida.sort(key=lambda x: str(x.get("fecha") or ""))
+    # Los que faltan por jugar, para saber quién es el próximo rival.
+    pendientes = [{
+        "fecha": p.get("match_date"),
+        "local": {"equipo": (p.get("home_team") or {}).get("home_team_id"), "nombre": (p.get("home_team") or {}).get("home_team_name")},
+        "visita": {"equipo": (p.get("away_team") or {}).get("away_team_id"), "nombre": (p.get("away_team") or {}).get("away_team_name")},
+    } for p in partidos if p.get("home_score") is None or p.get("away_score") is None]
+    pendientes.sort(key=lambda x: str(x.get("fecha") or ""))
+    return Response(_json.dumps({"partidos": salida, "fallidos": fallidos, "pendientes": pendientes}),
+                    media_type="application/json", headers=cors_headers())
+
+
 # ---- Roles en la secuencia ---------------------------------------------------
 # Cada vez que un jugador toca el balón dentro de una secuencia de su equipo en
 # juego abierto es una intervención, y se le da un solo rol, el primero que

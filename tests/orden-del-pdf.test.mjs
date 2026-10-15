@@ -22,7 +22,7 @@ function ordenDelRender() {
     ["CARD_PAGE", 'className="legal-page-shell">{reportArticleNode}'],
     ["SIMILARITY_PAGE", "similarity-page-host"],
     ["VISUALES", "visualPages.filter((page) => printRun"],
-    ...["SNAPSHOT_PAGE", "CONTEXT_PAGE", "RUNS_PAGE", "RANK_PAGE", "STYLE_PAGE", "FLOW_PAGE"].map((p) => [p, `claseHoja(${p})`]),
+    ...["SNAPSHOT_PAGE", "CONTEXT_PAGE", "RUNS_PAGE", "RANK_PAGE", "STYLE_PAGE"].map((p) => [p, `claseHoja(${p})`]),
   ];
   return marcas.map(([pagina, marca]) => ({ pagina, en: render.indexOf(marca) }))
     .filter(({ en }) => en >= 0)
@@ -32,6 +32,6 @@ function ordenDelRender() {
 
 test("las hojas se pintan en el orden del diálogo de imprimir", () => {
   const dialogo = ordenDelDialogo();
-  assert.ok(dialogo.length >= 9, `lista del diálogo: ${dialogo}`);
+  assert.ok(dialogo.length >= 8, `lista del diálogo: ${dialogo}`);
   assert.deepEqual(ordenDelRender(), dialogo);
 });

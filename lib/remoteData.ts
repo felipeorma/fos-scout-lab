@@ -162,6 +162,7 @@ async function fetchHtmlThroughCorsProxy(url: string) {
 import { extractSeason, type DataRow, type SourceDataset } from "./scouting";
 import { OPTA_URL, type FotoMensual, type OptaLiga } from "./maldonado";
 import type { FilaEquipo } from "./estiloEquipo";
+import type { LigaPartidos } from "./partido";
 import type { EventosJugador } from "./snapshot";
 
 const LOCAL_BRIDGE = "http://127.0.0.1:7001";
@@ -304,6 +305,16 @@ export function fetchFlujoDePosesion(competicion: ApiCompetition) {
     `/api/statsbomb/possession-flow?competition_id=${competicion.competition_id}&season_id=${competicion.season_id}`,
     900_000,
   );
+}
+
+/**
+ * Todos los partidos jugados de una liga y temporada, de los dos lados: la
+ * formación y los puestos del once de cada equipo y sus estadísticas del
+ * partido (lib/partido.ts). La primera vez baja las formaciones de los
+ * eventos: minutos en una liga entera; después sale del disco del puente.
+ */
+export function fetchPartidosDeLiga(competicion: number, temporada: number) {
+  return bridgeJson<LigaPartidos>(`/api/statsbomb/team-matches?competition_id=${competicion}&season_id=${temporada}`, 1_800_000);
 }
 
 export type ExtrasDeEquipo = {
