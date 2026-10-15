@@ -24,29 +24,17 @@ const TINTAS = {
 };
 
 /**
- * En la hoja oscura el lienzo lleva su propio fondo: el tramo del degradado de
- * la tarjeta que le toca. Transparente, Chrome lo aplanaba sobre blanco al
- * pasar a PDF y el radar salía en un cuadrado blanco en medio de la ficha.
+ * En la hoja oscura el lienzo lleva su propio fondo: el papel liso de la
+ * tarjeta, el mismo que pinta la franja del radar (globals.css). Transparente,
+ * Chrome lo aplanaba sobre blanco al pasar a PDF y el radar salía en un
+ * cuadrado blanco; con un tramo del degradado quedaba un recuadro, porque la
+ * hoja impresa no tiene las mismas proporciones que la pantalla.
  */
 function pintarFondoDeLaTarjeta(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, size: number) {
   const tarjeta = canvas.closest<HTMLElement>("[data-oscuro]");
-  if (!tarjeta) return;
-  const estilo = getComputedStyle(tarjeta);
-  const arriba = estilo.getPropertyValue("--report-paper-top").trim();
-  const abajo = estilo.getPropertyValue("--report-paper-bottom").trim();
-  if (!/^#[0-9a-f]{6}$/i.test(arriba) || !/^#[0-9a-f]{6}$/i.test(abajo)) return;
-  const caja = tarjeta.getBoundingClientRect();
-  const lienzo = canvas.getBoundingClientRect();
-  if (!caja.height) return;
-  const mezcla = (t: number) => {
-    const canal = (hex: string, i: number) => parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16);
-    const f = Math.min(1, Math.max(0, t));
-    return `rgb(${[0, 1, 2].map((i) => Math.round(canal(arriba, i) * (1 - f) + canal(abajo, i) * f)).join(",")})`;
-  };
-  const degradado = ctx.createLinearGradient(0, 0, 0, size);
-  degradado.addColorStop(0, mezcla((lienzo.top - caja.top) / caja.height));
-  degradado.addColorStop(1, mezcla((lienzo.bottom - caja.top) / caja.height));
-  ctx.fillStyle = degradado;
+  const papel = tarjeta ? getComputedStyle(tarjeta).getPropertyValue("--report-paper").trim() : "";
+  if (!papel) return;
+  ctx.fillStyle = papel;
   ctx.fillRect(0, 0, size, size);
 }
 
@@ -285,7 +273,7 @@ export function PizzaRadar({ metrics, score, cohort, lang = "es", colorMode = "g
     watchDpr();
     const observer = new ResizeObserver(draw);
     observer.observe(canvas);
-    // Al imprimir cambia el tamaño de la hoja, y con él el tramo de fondo.
+    // Al imprimir cambia el tamaño de la hoja.
     window.addEventListener("beforeprint", draw);
     return () => {
       window.removeEventListener("beforeprint", draw);
