@@ -1934,7 +1934,7 @@ export default function ScoutStudio() {
         <div className="dossier-portrait">
           <span className="portrait-glow" />
           {profile.clubLogo ? <ReportImage src={profile.clubLogo} alt={profile.club || report.team} className="dossier-club-logo" /> : <span className="dossier-club-fallback">{report.team.slice(0, 2).toUpperCase()}</span>}
-          <b className="shirt-number">#{profile.number || "—"}</b>
+          {profile.number && <b className="shirt-number">{profile.number}</b>}
           {profile.playerImage ? <ReportImage src={profile.playerImage} alt={report.player} className="dossier-player-image" /> : <div className="dossier-player-fallback">{report.player.split(/\s+/).slice(0, 2).map((part) => part[0]).join("")}</div>}
         </div>
         <div className="dossier-info">

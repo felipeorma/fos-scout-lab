@@ -6741,3 +6741,50 @@ body.print-layout-check .legal-page-shell:has([data-hoja-vacia]) { display: none
 /* Listas con su barra. */
 .app-shell[data-tema] .snap-parecidos li > .n-barra { grid-column: 2 / -1; height: 3px; margin: 1px 0 2px; }
 .app-shell[data-tema] .snap-top li > b > .n-barra { height: 3px; margin-top: 4px; }
+
+/* =====================================================================
+   Retrato del jugador en el look Night (Ficha, Similitud y Ficha ampliada)
+   =====================================================================
+   El mismo lenguaje en los tres: tarjeta grafito con el brillo del club
+   arriba a la derecha, el dorsal grande solo en contorno, la foto recortada
+   con contorno blanco tipo sticker (como el informe de presiones del
+   diseño) y un velo oscuro abajo; sin foto, las iniciales grandes y casi
+   transparentes en lugar de un arco gris vacío. */
+.retrato-sticker, .jordhy-report[data-oscuro] .dossier-player-image,
+.app-shell[data-informe="oscuro"] .snap-foto-marco > img.snap-foto,
+.similarity-report-theme[data-oscuro] .duel-header-photo .comparison-player-image {
+  filter: drop-shadow(2px 0 0 #fff) drop-shadow(-2px 0 0 #fff) drop-shadow(0 2px 0 #fff) drop-shadow(0 -2px 0 #fff) drop-shadow(0 10px 16px rgba(0, 0, 0, .55));
+}
+
+/* Ficha */
+.jordhy-report[data-oscuro] .dossier-portrait { background: linear-gradient(180deg, #1e1e24, #0d0d10); }
+.jordhy-report[data-oscuro] .dossier-portrait::after { content: ""; position: absolute; inset: auto 0 0; z-index: 2; height: 32%; background: linear-gradient(180deg, transparent, rgba(8, 8, 10, .92)); pointer-events: none; }
+.jordhy-report[data-oscuro] .portrait-glow { top: -90px; right: -80px; width: 320px; height: 320px; background: radial-gradient(circle, color-mix(in srgb, var(--report-accent) 46%, transparent), transparent 62%); }
+.jordhy-report[data-oscuro] .shirt-number { top: 6px; right: 16px; color: transparent; -webkit-text-stroke: 1.2px rgba(245, 245, 247, .22); font-family: var(--font-geist), sans-serif; font-size: 78px; font-weight: 900; letter-spacing: -.05em; line-height: 1; }
+.jordhy-report[data-oscuro] .dossier-player-image { z-index: 1; }
+.jordhy-report[data-oscuro] .dossier-player-fallback {
+  z-index: 1; width: 100%; height: 100%; position: absolute; inset: 0; padding-bottom: 14%;
+  border: 0; border-radius: 0; background: none;
+  color: rgba(245, 245, 247, .09); font-family: var(--font-geist), sans-serif; font-size: 120px; font-weight: 900; letter-spacing: -.06em;
+}
+.jordhy-report[data-oscuro] .dossier-club-logo { z-index: 3; }
+
+/* Ficha ampliada */
+.snap-foto-marco { position: relative; flex: none; display: block; width: 60px; height: 60px; }
+.app-shell[data-informe="oscuro"] .snap-foto-marco {
+  width: 92px; height: auto; aspect-ratio: 210 / 262; overflow: hidden; isolation: isolate;
+  border-radius: 13px; background: linear-gradient(180deg, #1e1e24, #0d0d10); box-shadow: inset 0 0 0 .7px var(--line);
+}
+.app-shell[data-informe="oscuro"] .snap-foto-marco::before { content: ""; position: absolute; inset: -30% -40% 30% 10%; z-index: -1; background: radial-gradient(circle at 70% 30%, color-mix(in srgb, var(--acento, #ff3b30) 46%, transparent), transparent 60%); }
+.app-shell[data-informe="oscuro"] .snap-foto-marco::after { content: ""; position: absolute; inset: auto 0 0; height: 30%; z-index: 2; background: linear-gradient(180deg, transparent, rgba(8, 8, 10, .9)); }
+.app-shell[data-informe="oscuro"] .snap-foto-marco > .snap-foto { position: absolute; left: 50%; bottom: 0; z-index: 1; width: 88%; height: auto; border-radius: 0; background: none; object-fit: contain; transform: translateX(-50%); }
+.app-shell[data-informe="oscuro"] .snap-foto-marco > .snap-foto.vacia { inset: 0; left: 0; width: 100%; height: 100%; transform: none; padding-bottom: 16%; color: rgba(245, 245, 247, .1); font-size: 42px; font-weight: 900; letter-spacing: -.06em; }
+.snap-foto-dorsal { display: none; }
+.app-shell[data-informe="oscuro"] .snap-foto-dorsal { display: block; position: absolute; top: 2px; right: 7px; z-index: 1; color: transparent; -webkit-text-stroke: 1px rgba(245, 245, 247, .22); font-size: 34px; font-weight: 900; letter-spacing: -.05em; line-height: 1; }
+
+/* Similitud */
+.similarity-report-theme[data-oscuro] .duel-header-photo { isolation: isolate; border-radius: 13px; }
+.similarity-report-theme[data-oscuro] .duel-header-photo::after { content: ""; position: absolute; inset: auto 0 0; height: 30%; z-index: 2; background: linear-gradient(180deg, transparent, rgba(8, 8, 10, .85)); pointer-events: none; }
+.similarity-report-theme[data-oscuro] .duel-header-number { top: 2px; right: 6px; z-index: 1; color: transparent; -webkit-text-stroke: 1px rgba(245, 245, 247, .25); font-size: 30px; font-weight: 900; letter-spacing: -.05em; }
+.similarity-report-theme[data-oscuro] .duel-header-initials { padding-bottom: 14%; color: color-mix(in srgb, var(--player-color) 22%, transparent); font-family: var(--font-geist), sans-serif; font-size: 40px; font-weight: 900; letter-spacing: -.06em; }
+.app-shell[data-informe="oscuro"] .snap-ficha { grid-template-columns: 92px minmax(0, 1fr); align-items: end; }

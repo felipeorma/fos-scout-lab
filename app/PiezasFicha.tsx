@@ -536,10 +536,15 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
   switch (pieza) {
     case "ficha":
       return <div className="snap-ficha">
-        {perfilTm?.playerImage
-          // eslint-disable-next-line @next/next/no-img-element
-          ? <img className="snap-foto" src={perfilTm.playerImage} alt="" />
-          : <span className="snap-foto vacia">{jugador.split(/\s+/).map((p) => p[0]).slice(0, 2).join("")}</span>}
+        {/* El retrato: marco grafito con el brillo del club, dorsal en
+            contorno y la foto recortada con contorno blanco tipo sticker. */}
+        <span className="snap-foto-marco">
+          {(eventos?.dorsal || perfilTm?.number) && <b className="snap-foto-dorsal">{eventos?.dorsal || perfilTm?.number}</b>}
+          {perfilTm?.playerImage
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img className="snap-foto" src={perfilTm.playerImage} alt="" />
+            : <span className="snap-foto vacia">{jugador.split(/\s+/).map((p) => p[0]).slice(0, 2).join("")}</span>}
+        </span>
         <div className="snap-ficha-texto">
           <b>{jugador}</b>
           <small>
