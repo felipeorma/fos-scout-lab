@@ -752,6 +752,28 @@ export default function ScoutStudio() {
   // Bloques de métricas del desglose: solo las categorías con datos. El número
   // de columnas se ajusta al total para no dejar una categoría suelta al final
   // (5 bloques → 3 arriba y 2 centradas abajo, 6 → 3 y 3).
+  /*
+   * La marca de la temporada anterior en cada barra del desglose: el
+   * percentil que tuvo en la anterior, sola, medido igual —mismo puesto,
+   * mismas métricas y el mismo criterio de liga—. Solo con una anterior de
+   * la base: las añadidas a mano no traen métricas.
+   */
+  const anioDeLaPrevia = temporadaPrevia && !previaAMano ? temporadaPrevia.anio : null;
+  const cruceDeLaPrevia = useCruceDeAnios(basesActivas, report && anioDeLaPrevia !== null ? String(anioDeLaPrevia) : "");
+  const marcasDeLaPrevia = useMemo(() => {
+    if (!report || !cruceDeLaPrevia || !filaElegida) return null;
+    const nombre = String(filaElegida.Player ?? "");
+    const nacimiento = String(filaElegida["Birth date"] ?? "");
+    const indice = cruceDeLaPrevia.findIndex((fila) => String(fila.Player ?? "") === nombre
+      && (!nacimiento || !fila["Birth date"] || String(fila["Birth date"]) === nacimiento));
+    if (indice < 0) return null;
+    const claves = medirContra === "liga" && procedencias.length > 1 ? origenPorFila(cruceDeLaPrevia, procedencias).map((origen) => origen.claves) : null;
+    const previo = buildPlayerReport(cruceDeLaPrevia, indice, minimumMinutes, report.cohort, report.metrics.map((metric) => metric.label), {
+      rescate: true, porLiga: claves && new Set(claves.flat()).size > 1 ? { clavesPorFila: claves } : undefined,
+    });
+    return previo?.metrics.length ? new Map(previo.metrics.map((metric) => [metric.key, metric.percentile])) : null;
+  }, [report, cruceDeLaPrevia, filaElegida, medirContra, procedencias, minimumMinutes]);
+
   const metricBreakdown = useMemo(() => {
     if (!report) return [];
     return SIMILARITY_METRIC_GROUPS
@@ -2022,10 +2044,11 @@ export default function ScoutStudio() {
       </section>
 
       <section className="metric-breakdown" style={{ "--metric-columns": metricBreakdownColumns } as React.CSSProperties}>
+        {marcasDeLaPrevia && temporadaPrevia && <p className="metric-marca-nota"><u aria-hidden="true" />{tf("Marca: la temporada {s} sola, medida igual", { s: temporadaPrevia.etiqueta })}</p>}
         {metricBreakdown.map(({ group, metrics }) => (
           <div className="metric-group" style={{ "--metric-group-color": group.color, "--metric-group-bajo": group.bajo, "--metric-group-alto": group.alto } as React.CSSProperties} key={group.id}>
             <h3>{t(group.label)}</h3>
-            {metrics.slice(0, 4).map((metric) => <div className="metric-row" key={metric.key}><div><span>{t(metric.label)}</span><b>{formatCell(metric.value)} <small>· P{metric.percentile}</small></b></div><i><em style={{ width: `${metric.percentile}%`, backgroundSize: `${10000 / Math.max(metric.percentile, 2)}% 100%` }} /></i></div>)}
+            {metrics.slice(0, 4).map((metric) => <div className="metric-row" key={metric.key}><div><span>{t(metric.label)}</span><b>{formatCell(metric.value)} <small>· P{metric.percentile}</small></b></div><i><em style={{ width: `${metric.percentile}%`, backgroundSize: `${10000 / Math.max(metric.percentile, 2)}% 100%` }} />{marcasDeLaPrevia?.has(metric.key) && <u title={tf("Temporada {s}: P{p}", { s: temporadaPrevia?.etiqueta ?? "", p: marcasDeLaPrevia.get(metric.key)! })} style={{ left: `${marcasDeLaPrevia.get(metric.key)}%` }} />}</i></div>)}
           </div>
         ))}
       </section>

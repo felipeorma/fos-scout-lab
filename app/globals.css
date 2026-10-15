@@ -6850,3 +6850,11 @@ body.print-layout-check .legal-page-shell:has([data-hoja-vacia]) { display: none
   color: color-mix(in srgb, var(--player-color) 26%, rgba(245, 245, 247, .1)) !important;
   font-family: var(--font-geist), sans-serif !important; font-size: 40px !important; font-weight: 900 !important; letter-spacing: -.06em !important; line-height: 1 !important;
 }
+
+/* ---- Marca de la temporada anterior en el desglose de la ficha ---- */
+.metric-row > i { position: relative; overflow: visible; }
+.metric-row > i u, .metric-marca-nota u { position: absolute; top: -3px; width: 4px; height: 10px; margin-left: -2px; border-radius: 1px; background: var(--report-paper); }
+.metric-row > i u::after, .metric-marca-nota u::after { content: ""; position: absolute; left: 1.25px; top: 0; width: 1.5px; height: 10px; border-radius: 1px; background: var(--report-ink); }
+.metric-marca-nota { flex: 0 0 100%; margin: 0 0 -8px; display: flex; align-items: center; justify-content: flex-end; gap: 7px; color: var(--report-muted); font-size: 8px; }
+.metric-marca-nota u { position: relative; top: 0; margin: 0; }
+
