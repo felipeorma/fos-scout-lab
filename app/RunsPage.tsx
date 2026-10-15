@@ -159,6 +159,9 @@ export function RunsPage({ destinatario = "", logoDestinatario = "" }: {
       .catch(() => { if (montado) setEstado(t("No se pudieron leer los equipos de esta competición.")); })
       .finally(() => { if (montado) setCargandoEquipos(false); });
     return () => { montado = false; };
+    // Solo al cambiar de competición: el equipo del filtro se lee en ese
+    // momento, y cambiarlo después no debe volver a pedir la lista.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [edicion]);
 
   async function cargar() {

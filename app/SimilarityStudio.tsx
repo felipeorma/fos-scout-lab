@@ -9,24 +9,23 @@ import { PERFILES_FILTRO } from "@/lib/perfiles";
 import { type CSSProperties, type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDownToLine, ChevronDown, Printer, RotateCcw, Search, Sparkles, Upload } from "./Icons";
 import { reportThemeStyle, type ReportTheme } from "./reportTheme";
-import { SimilarityReportMain, similarityStarColor, similarityStarGlow, type SimilarityReportPayload } from "./SimilarityReport";
+import { SimilarityReportMain, type SimilarityReportPayload } from "./SimilarityReport";
 import {
   buildSimilaritySearch,
   secondaryRoleOptions,
   similarityOptions,
   type SimilarityFilters,
-  type SimilarityMetricComparison,
   type SimilarityMetricWeights,
   type SimilarityPlayer,
 } from "@/lib/similarity";
-import { formatCell, type DataRow, type PlayerReport } from "@/lib/scouting";
+import { type DataRow } from "@/lib/scouting";
 import { formatPlayerPositions, selectedCohortPosition, type PlayerPosition } from "@/lib/positions";
-import { SIMILARITY_METRIC_GROUPS, similarityMetricGroup } from "@/lib/similarityMetricGroups";
+import { similarityMetricGroup } from "@/lib/similarityMetricGroups";
 import { createEmptyTransfermarktProfile, profileStorageKey, readStoredJson, type TransfermarktProfile } from "@/lib/transfermarkt";
 import { removePlayerImageBackground } from "@/lib/playerImageBackground";
 import { canvasImageCandidates, fetchAiSummary, fetchTransfermarktProfile, proxiedImageUrl, type AiMetricFact, type AiPlayerFacts } from "@/lib/remoteData";
 import { reportExportBaseName } from "@/lib/reportExportName";
-import { t, tDefault, tf, numberLocale, type Lang } from "@/lib/i18n";
+import { t, tf, numberLocale, type Lang } from "@/lib/i18n";
 import { guardarConImagenes } from "@/lib/almacen";
 
 type TargetOption = { index: number; player: string; team: string };
@@ -78,10 +77,6 @@ function safeFileName(value: string) {
   return value.toLocaleLowerCase("es").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
-function formatMetricValue(value: number, key: string) {
-  return `${formatCell(value)}${key.includes("%") ? "%" : ""}`;
-}
-
 function candidateProfileSeed(candidate: SimilarityPlayer | null) {
   return createEmptyTransfermarktProfile({
     name: candidate?.name ?? "",
@@ -101,46 +96,8 @@ function loadStoredProfile(candidate: SimilarityPlayer) {
   return saved ? { ...base, ...saved } as TransfermarktProfile : base;
 }
 
-function drawRoundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
-  const corner = Math.min(radius, width / 2, height / 2);
-  ctx.beginPath();
-  ctx.moveTo(x + corner, y);
-  ctx.arcTo(x + width, y, x + width, y + height, corner);
-  ctx.arcTo(x + width, y + height, x, y + height, corner);
-  ctx.arcTo(x, y + height, x, y, corner);
-  ctx.arcTo(x, y, x + width, y, corner);
-  ctx.closePath();
-}
-
-function fitText(ctx: CanvasRenderingContext2D, value: string, maxWidth: number) {
-  if (ctx.measureText(value).width <= maxWidth) return value;
-  let text = value;
-  while (text.length > 2 && ctx.measureText(`${text}…`).width > maxWidth) text = text.slice(0, -1);
-  return `${text}…`;
-}
-
 function canvasImageSource(src: string) {
   return src.startsWith("data:image/") || src.startsWith("/") ? src : proxiedImageUrl(src);
-}
-
-function loadImageAttempt(url: string, timeoutMs = 12_000) {
-  return new Promise<HTMLImageElement | null>((resolve) => {
-    const image = new Image();
-    const timer = window.setTimeout(() => resolve(null), timeoutMs);
-    image.crossOrigin = "anonymous";
-    image.onload = () => { window.clearTimeout(timer); resolve(image); };
-    image.onerror = () => { window.clearTimeout(timer); resolve(null); };
-    image.src = url;
-  });
-}
-
-async function loadCanvasImage(src: string) {
-  // Cadena de respaldos: si un proxy falla, la foto no se pierde en silencio.
-  for (const candidate of canvasImageCandidates(src)) {
-    const image = await loadImageAttempt(candidate);
-    if (image) return image;
-  }
-  return null;
 }
 
 function blobToDataUrl(blob: Blob) {
@@ -150,429 +107,6 @@ function blobToDataUrl(blob: Blob) {
     reader.onerror = () => reject(new Error(t("No se pudo convertir la imagen procesada.")));
     reader.readAsDataURL(blob);
   });
-}
-
-function drawContain(ctx: CanvasRenderingContext2D, image: HTMLImageElement, x: number, y: number, width: number, height: number) {
-  const scale = Math.min(width / image.naturalWidth, height / image.naturalHeight);
-  const drawWidth = image.naturalWidth * scale;
-  const drawHeight = image.naturalHeight * scale;
-  ctx.drawImage(image, x + (width - drawWidth) / 2, y + (height - drawHeight) / 2, drawWidth, drawHeight);
-}
-
-function canvasColorWithAlpha(color: string, alpha: string) {
-  return /^#[0-9a-f]{6}$/i.test(color) ? `${color}${alpha}` : color;
-}
-
-function drawStarPath(ctx: CanvasRenderingContext2D, cx: number, cy: number, outerRadius: number, innerRadius: number) {
-  ctx.beginPath();
-  for (let point = 0; point < 10; point += 1) {
-    const radius = point % 2 === 0 ? outerRadius : innerRadius;
-    const angle = -Math.PI / 2 + point * Math.PI / 5;
-    const x = cx + Math.cos(angle) * radius;
-    const y = cy + Math.sin(angle) * radius;
-    if (point === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  }
-  ctx.closePath();
-}
-
-function drawCanvasSimilarityStar(ctx: CanvasRenderingContext2D, similarity: number, cx: number, cy: number, radius: number, theme: ReportTheme) {
-  const percentage = Math.min(Math.max(Math.round(similarity), 0), 100);
-  const glow = similarityStarGlow(percentage);
-  const innerRadius = radius * .46;
-  const fillTop = cy + radius - radius * 2 * percentage / 100;
-
-  // Silueta pendiente: permite leer de inmediato cuánto falta para el 100%.
-  ctx.save();
-  drawStarPath(ctx, cx, cy, radius, innerRadius);
-  ctx.fillStyle = canvasColorWithAlpha(theme.dark, "b8");
-  ctx.fill();
-  ctx.strokeStyle = "rgba(255,246,196,.55)";
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-  ctx.restore();
-
-  // El relleno sube desde la base de la estrella según el porcentaje real.
-  ctx.save();
-  drawStarPath(ctx, cx, cy, radius, innerRadius);
-  ctx.clip();
-  ctx.beginPath();
-  ctx.rect(cx - radius - 3, fillTop, radius * 2 + 6, cy + radius - fillTop + 2);
-  ctx.clip();
-  const fill = ctx.createLinearGradient(0, cy + radius, 0, cy - radius);
-  const starColor = similarityStarColor(percentage);
-  fill.addColorStop(0, starColor);
-  fill.addColorStop(.68, starColor);
-  fill.addColorStop(1, percentage >= 90 ? "#fffbe4" : "#fde68a");
-  ctx.fillStyle = fill;
-  ctx.fillRect(cx - radius - 3, cy - radius - 3, radius * 2 + 6, radius * 2 + 6);
-  ctx.restore();
-
-  // El halo es deliberadamente no lineal: los scores cercanos al 100% brillan más.
-  ctx.save();
-  ctx.shadowColor = `rgba(250,204,21,${Math.min(.95, .12 + glow * .82)})`;
-  ctx.shadowBlur = 2 + glow * 44;
-  drawStarPath(ctx, cx, cy, radius, innerRadius);
-  ctx.strokeStyle = `rgba(255,246,196,${.35 + glow * .6})`;
-  ctx.lineWidth = 1.4 + glow;
-  ctx.stroke();
-  ctx.restore();
-
-  ctx.save();
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.font = "800 18px Arial";
-  ctx.lineWidth = 3.2;
-  ctx.lineJoin = "round";
-  ctx.strokeStyle = canvasColorWithAlpha(theme.dark, "ed");
-  ctx.strokeText(`${percentage}%`, cx, cy + 1);
-  ctx.fillStyle = "#ffffff";
-  ctx.fillText(`${percentage}%`, cx, cy + 1);
-  ctx.restore();
-}
-
-function radarPoint(index: number, total: number, radius: number, cx: number, cy: number) {
-  const angle = -Math.PI / 2 + index * Math.PI * 2 / total;
-  return { x: cx + Math.cos(angle) * radius, y: cy + Math.sin(angle) * radius, angle };
-}
-
-function drawRadar(ctx: CanvasRenderingContext2D, metrics: SimilarityMetricComparison[], cohort: string, theme: ReportTheme, cx: number, cy: number, radius: number, targetColor: string, candidateColor: string, targetLabelColor: string, candidateLabelColor: string, targetLabelTransparency: number, candidateLabelTransparency: number) {
-  if (metrics.length < 3) return;
-  [0.25, 0.5, 0.75, 1].forEach((level) => {
-    ctx.beginPath();
-    metrics.forEach((_, index) => {
-      const value = radarPoint(index, metrics.length, radius * level, cx, cy);
-      if (index === 0) ctx.moveTo(value.x, value.y); else ctx.lineTo(value.x, value.y);
-    });
-    ctx.closePath();
-    ctx.strokeStyle = theme.line;
-    ctx.lineWidth = 2;
-    ctx.stroke();
-  });
-  metrics.forEach((_, index) => {
-    const value = radarPoint(index, metrics.length, radius, cx, cy);
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.lineTo(value.x, value.y);
-    ctx.strokeStyle = theme.line;
-    ctx.lineWidth = 1;
-    ctx.stroke();
-  });
-  metrics.forEach((metric, index) => {
-    const step = Math.PI * 2 / metrics.length;
-    const start = -Math.PI / 2 + index * step - step * .42;
-    const end = -Math.PI / 2 + index * step + step * .42;
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius + 14, start, end);
-    ctx.strokeStyle = similarityMetricGroup(metric, cohort).color;
-    ctx.lineWidth = 8;
-    ctx.lineCap = "round";
-    ctx.stroke();
-  });
-  const area = (field: "targetPercentile" | "candidatePercentile", stroke: string, fill: string) => {
-    ctx.beginPath();
-    metrics.forEach((metric, index) => {
-      const value = radarPoint(index, metrics.length, radius * metric[field] / 100, cx, cy);
-      if (index === 0) ctx.moveTo(value.x, value.y); else ctx.lineTo(value.x, value.y);
-    });
-    ctx.closePath();
-    ctx.fillStyle = fill;
-    ctx.fill();
-    ctx.strokeStyle = stroke;
-    ctx.lineWidth = 5;
-    ctx.stroke();
-  };
-  area("targetPercentile", targetColor, `${targetColor}33`);
-  area("candidatePercentile", candidateColor, `${candidateColor}2b`);
-  // Con 10+ métricas las etiquetas se escalonan en dos alturas alternadas y
-  // se envuelven en dos líneas: así no chocan entre sí ni con el radar.
-  const dense = metrics.length > 10;
-  const labelFont = dense ? 12 : 14;
-  const badgeWidth = dense ? 38 : 44;
-  const badgeHeight = dense ? 19 : 22;
-  const badgeGap = dense ? 4 : 6;
-  metrics.forEach((metric, index) => {
-    // Las etiquetas laterales se empujan más hacia afuera (el texto centrado
-    // crece en horizontal); arriba y abajo se mantiene el escalonado corto.
-    const angle = -Math.PI / 2 + index * Math.PI * 2 / metrics.length;
-    const horizontalPush = Math.abs(Math.cos(angle)) * 30;
-    const stagger = (dense ? (index % 2 === 0 ? 46 : 96) : 66) + horizontalPush;
-    const label = radarPoint(index, metrics.length, radius + stagger, cx, cy);
-    const text = t(metric.label).replace(/\s*\/90/g, "").replace(/,\s*%$/, " %").toUpperCase();
-    ctx.font = `700 ${labelFont}px Arial`;
-    let lines = [fitText(ctx, text, dense ? 175 : 175)];
-    if (dense && text.length > 14) {
-      const words = text.split(" ");
-      if (words.length > 1) {
-        let splitIndex = 1;
-        let bestDiff = Infinity;
-        for (let wordIndex = 1; wordIndex < words.length; wordIndex += 1) {
-          const diff = Math.abs(words.slice(0, wordIndex).join(" ").length - words.slice(wordIndex).join(" ").length);
-          if (diff < bestDiff) { bestDiff = diff; splitIndex = wordIndex; }
-        }
-        lines = [words.slice(0, splitIndex).join(" "), words.slice(splitIndex).join(" ")];
-      }
-    }
-    ctx.fillStyle = theme.ink;
-    ctx.textAlign = "center";
-    lines.forEach((line, lineIndex) => {
-      ctx.fillText(fitText(ctx, line, dense ? 175 : 175), label.x, label.y - (lines.length - 1 - lineIndex) * (labelFont + 1));
-    });
-    const badgesWidth = badgeWidth * 2 + badgeGap;
-    const badgesX = label.x - badgesWidth / 2;
-    const badgesY = label.y + 6;
-    const percentileBadge = (x: number, value: number, color: string, transparency: number, corner: number) => {
-      drawRoundedRect(ctx, x, badgesY, badgeWidth, badgeHeight, corner);
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, Math.min(100, 100 - transparency)) / 100;
-      ctx.fillStyle = color;
-      ctx.fill();
-      ctx.restore();
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-      ctx.fillStyle = color;
-      ctx.font = `800 ${dense ? 10 : 11}px Arial`;
-      ctx.textAlign = "center";
-      ctx.fillText(`P${value}`, x + badgeWidth / 2, badgesY + (dense ? 13.5 : 15));
-    };
-    percentileBadge(badgesX, metric.targetPercentile, targetLabelColor, targetLabelTransparency, badgeHeight / 2);
-    percentileBadge(badgesX + badgeWidth + badgeGap, metric.candidatePercentile, candidateLabelColor, candidateLabelTransparency, 4);
-  });
-}
-
-// Lupa de scouting dibujada a mano: identifica las láminas sin firmar con nombre.
-function drawMagnifier(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number, color: string) {
-  ctx.save();
-  ctx.strokeStyle = color;
-  ctx.lineWidth = Math.max(3, radius * 0.3);
-  ctx.lineCap = "round";
-  ctx.beginPath();
-  ctx.arc(x, y, radius, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(x + radius * 0.74, y + radius * 0.74);
-  ctx.lineTo(x + radius * 1.65, y + radius * 1.65);
-  ctx.stroke();
-  ctx.restore();
-}
-
-// `forReport`: la lámina va incrustada en la Página 2 del reporte, que ya trae
-// firma propia — se omiten el nombre del título y el bloque de firma inferior.
-async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer, sourceName: string, theme: ReportTheme, targetProfile: TransfermarktProfile, candidateProfile: TransfermarktProfile, recipientName: string, recipientLogoUrl: string, targetColor: string, candidateColor: string, targetLabelColor: string, candidateLabelColor: string, targetLabelTransparency: number, candidateLabelTransparency: number, forReport = false, targetPhotoScale = 100, candidatePhotoScale = 100) {
-  const canvas = document.createElement("canvas");
-  canvas.width = 1600;
-  canvas.height = forReport ? 1452 : 1566;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return "";
-  const [targetImage, targetClub, candidateImage, candidateClub, recipientLogo, transfermarktLogo] = await Promise.all([
-    loadCanvasImage(targetProfile.playerImage),
-    loadCanvasImage(targetProfile.clubLogo),
-    loadCanvasImage(candidateProfile.playerImage),
-    loadCanvasImage(candidateProfile.clubLogo),
-    loadCanvasImage(recipientLogoUrl),
-    loadCanvasImage(TRANSFERMARKT_LOGO),
-  ]);
-
-  ctx.fillStyle = theme.paper;
-  ctx.fillRect(0, 0, 1600, canvas.height);
-
-  // ---- Cinta superior: jugadores a los costados y estrella al centro ----
-  const RIBBON = 250;
-  ctx.fillStyle = theme.dark;
-  ctx.fillRect(0, 0, 1600, RIBBON);
-  ctx.fillStyle = targetColor;
-  ctx.fillRect(0, RIBBON - 4, 800, 4);
-  ctx.fillStyle = candidateColor;
-  ctx.fillRect(800, RIBBON - 4, 800, 4);
-
-  const ribbonPlayer = (side: "left" | "right", info: { name: string; team: string; position: string; age: string; passport: string }, profile: TransfermarktProfile, image: HTMLImageElement | null, club: HTMLImageElement | null, label: string, color: string, photoScale: number) => {
-    const frameX = side === "left" ? 60 : 1380;
-    const textX = side === "left" ? 254 : 1346;
-    ctx.textAlign = side === "left" ? "left" : "right";
-
-    // Marco del retrato con degradado del color del jugador
-    drawRoundedRect(ctx, frameX, 34, 160, 186, 14);
-    const frameGradient = ctx.createLinearGradient(frameX, 34, frameX, 220);
-    frameGradient.addColorStop(0, canvasColorWithAlpha(color, "55"));
-    frameGradient.addColorStop(1, canvasColorWithAlpha(color, "18"));
-    ctx.fillStyle = frameGradient;
-    ctx.fill();
-    ctx.strokeStyle = canvasColorWithAlpha(color, "aa");
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    if (image) {
-      const scale = Math.max(0.6, Math.min(1.4, photoScale / 100));
-      const boxWidth = 150 * scale;
-      const boxHeight = 176 * scale;
-      ctx.save();
-      drawRoundedRect(ctx, frameX, 34, 160, 186, 14);
-      ctx.clip();
-      drawContain(ctx, image, frameX + 80 - boxWidth / 2, 218 - boxHeight, boxWidth, boxHeight);
-      ctx.restore();
-    } else {
-      ctx.fillStyle = "rgba(255,255,255,.85)";
-      ctx.font = "800 52px Arial";
-      const initialsAlign = ctx.textAlign;
-      ctx.textAlign = "center";
-      ctx.fillText(info.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join(""), frameX + 80, 145);
-      ctx.textAlign = initialsAlign;
-    }
-    if (club) {
-      const crestX = side === "left" ? frameX + 128 : frameX - 14;
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(crestX + 23, 195, 27, 0, Math.PI * 2);
-      ctx.fillStyle = "#ffffff";
-      ctx.fill();
-      ctx.restore();
-      drawContain(ctx, club, crestX, 172, 46, 46);
-    }
-
-    // Chip de rol del jugador en su color
-    ctx.font = "800 11px Arial";
-    const chipText = label;
-    const chipWidth = ctx.measureText(chipText).width + 26;
-    const chipX = side === "left" ? textX : textX - chipWidth;
-    drawRoundedRect(ctx, chipX, 44, chipWidth, 24, 12);
-    ctx.fillStyle = color;
-    ctx.fill();
-    ctx.fillStyle = "#ffffff";
-    const chipAlign = ctx.textAlign;
-    ctx.textAlign = "center";
-    ctx.fillText(chipText, chipX + chipWidth / 2, 60);
-    ctx.textAlign = chipAlign;
-
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "800 27px Arial";
-    ctx.fillText(fitText(ctx, info.name.toUpperCase(), 420), textX, 104);
-    ctx.fillStyle = "rgba(255,255,255,.78)";
-    ctx.font = "700 15px Arial";
-    ctx.fillText(fitText(ctx, profile.club || info.team, 400), textX, 131);
-    ctx.fillStyle = "rgba(255,255,255,.6)";
-    ctx.font = "600 12px Arial";
-    ctx.fillText(fitText(ctx, formatPlayerPositions(profile.position || info.position), 420), textX, 154);
-    ctx.fillText(tf("{age} años · {passport}", { age: profile.age || info.age || "—", passport: profile.citizenship || info.passport }), textX, 175);
-    const marketValue = profile.marketValue || t("VALOR N/D");
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "800 20px Arial";
-    ctx.fillText(marketValue, textX, 205);
-    if (transfermarktLogo) {
-      const valueWidth = ctx.measureText(marketValue).width;
-      const logoX = side === "left" ? textX + valueWidth + 14 : textX - valueWidth - 14 - 88;
-      ctx.fillStyle = "#ffffff";
-      drawRoundedRect(ctx, logoX, 188, 88, 22, 4);
-      ctx.fill();
-      drawContain(ctx, transfermarktLogo, logoX + 4, 190, 80, 18);
-    }
-  };
-
-  ribbonPlayer("left", { name: target.player, team: target.team, position: target.position, age: target.age, passport: target.passport }, targetProfile, targetImage, targetClub, t("JUGADOR OBJETIVO"), targetColor, targetPhotoScale);
-  ribbonPlayer("right", { name: candidate.name, team: candidate.team, position: candidate.position, age: candidate.age === null ? "—" : String(candidate.age), passport: candidate.passport }, candidateProfile, candidateImage, candidateClub, t("JUGADOR COMPARABLE"), candidateColor, candidatePhotoScale);
-
-  // Estrella de similitud al centro, entre los dos nombres
-  drawCanvasSimilarityStar(ctx, candidate.similarity, 800, 96, 44, theme);
-  ctx.textAlign = "center";
-  ctx.fillStyle = "rgba(255,255,255,.68)";
-  ctx.font = "700 12px Arial";
-  ctx.fillText(t("SIMILITUD"), 800, 160);
-  ctx.font = "600 11px Arial";
-  const headerLine = fitText(ctx, `${t("COMPARACIÓN DE JUGADORES")} · ${t("Percentiles posicionales").toUpperCase()} · ${tDefault(sourceName).toUpperCase()}`, 560);
-  ctx.fillText(headerLine, 812, 200);
-  drawMagnifier(ctx, 812 - ctx.measureText(headerLine).width / 2 - 22, 196, 8, "rgba(255,255,255,.68)");
-  ctx.textAlign = "left";
-
-  // Radar a lo ancho, con radio generoso: la cinta liberó el espacio lateral.
-  drawRadar(ctx, candidate.metrics, target.cohort, theme, 800, 615, candidate.metrics.length > 10 ? 235 : 260, targetColor, candidateColor, targetLabelColor, candidateLabelColor, targetLabelTransparency, candidateLabelTransparency);
-
-  // Solo los grupos presentes en las métricas comparadas aparecen en la leyenda.
-  const legendGroups = SIMILARITY_METRIC_GROUPS.filter((group) => candidate.metrics.some((metric) => similarityMetricGroup(metric, target.cohort).id === group.id));
-  const legendItemWidth = 175;
-  const legendStartX = 800 - legendGroups.length * legendItemWidth / 2;
-  legendGroups.forEach((group, index) => {
-    const x = legendStartX + index * legendItemWidth;
-    ctx.fillStyle = group.color;
-    drawRoundedRect(ctx, x, 992, 12, 12, 3);
-    ctx.fill();
-    ctx.fillStyle = theme.ink;
-    ctx.font = "700 11px Arial";
-    ctx.textAlign = "left";
-    ctx.fillText(t(group.label).toUpperCase(), x + 20, 1002);
-  });
-  ctx.textAlign = "left";
-
-  // Duelo métrica a métrica: etiqueta centrada sobre una barra a todo lo
-  // ancho. El lado del jugador con mejor registro va saturado; el otro,
-  // atenuado, con los valores en los extremos.
-  candidate.metrics.slice(0, 7).forEach((metric, index) => {
-    const labelY = 1046 + index * 56;
-    const barTop = labelY + 10;
-    const targetShare = metric.targetPercentile + metric.candidatePercentile > 0
-      ? metric.targetPercentile / (metric.targetPercentile + metric.candidatePercentile)
-      : 0.5;
-    const winner = metric.targetPercentile > metric.candidatePercentile ? "target" : metric.candidatePercentile > metric.targetPercentile ? "candidate" : "tie";
-    const metricLabel = metric.weight === 1
-      ? t(metric.label)
-      : `${t(metric.label)} · ${metric.weight === 0 ? t("SIN INFLUENCIA") : tf("PESO {p}%", { p: Math.round(metric.weight * 100) })}`;
-    ctx.fillStyle = theme.ink;
-    ctx.font = "700 13px Arial";
-    ctx.textAlign = "center";
-    ctx.fillText(fitText(ctx, metricLabel.toUpperCase(), 900), 800, labelY);
-
-    const barX = 240;
-    const barWidth = 1120;
-    const splitX = barX + barWidth * targetShare;
-    ctx.save();
-    drawRoundedRect(ctx, barX, barTop, barWidth, 18, 9);
-    ctx.clip();
-    ctx.globalAlpha = winner === "candidate" ? 0.3 : 1;
-    ctx.fillStyle = targetColor;
-    ctx.fillRect(barX, barTop, barWidth * targetShare, 18);
-    ctx.globalAlpha = winner === "target" ? 0.3 : 1;
-    ctx.fillStyle = candidateColor;
-    ctx.fillRect(splitX, barTop, barWidth * (1 - targetShare), 18);
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = theme.paper;
-    ctx.fillRect(splitX - 1.5, barTop, 3, 18);
-    ctx.restore();
-
-    ctx.font = winner === "target" ? "800 15px Arial" : "700 13px Arial";
-    ctx.fillStyle = winner === "target" ? targetColor : theme.muted;
-    ctx.textAlign = "right";
-    ctx.fillText(formatMetricValue(metric.targetValue, metric.key), barX - 16, barTop + 14);
-    ctx.font = winner === "candidate" ? "800 15px Arial" : "700 13px Arial";
-    ctx.fillStyle = winner === "candidate" ? candidateColor : theme.muted;
-    ctx.textAlign = "left";
-    ctx.fillText(formatMetricValue(metric.candidateValue, metric.key), barX + barWidth + 16, barTop + 14);
-    ctx.textAlign = "left";
-  });
-
-  // La firma solo va en la lámina independiente; incrustada en el reporte,
-  // la página ya firma por sí misma.
-  if (!forReport) {
-    ctx.strokeStyle = theme.line;
-    ctx.beginPath();
-    ctx.moveTo(70, 1466);
-    ctx.lineTo(1530, 1466);
-    ctx.stroke();
-    ctx.fillStyle = theme.muted;
-    ctx.font = "700 11px Arial";
-    ctx.fillText(t("ELABORADO POR"), 70, 1500);
-    ctx.fillStyle = theme.ink;
-    ctx.font = "800 19px Arial";
-    ctx.fillText("FELIPE ORMAZABAL", 70, 1527);
-    ctx.fillStyle = theme.accent;
-    ctx.font = "700 11px Arial";
-    ctx.fillText("SCOUTING REPORT", 70, 1546);
-    if (recipientLogo) drawContain(ctx, recipientLogo, 1170, 1484, 62, 62);
-    ctx.fillStyle = theme.muted;
-    ctx.font = "700 11px Arial";
-    ctx.fillText(t("REPORTE GENERADO PARA"), 1250, 1503);
-    ctx.fillStyle = theme.ink;
-    ctx.font = "800 18px Arial";
-    ctx.fillText(fitText(ctx, recipientName.toUpperCase(), 280), 1250, 1532);
-  }
-  return canvas.toDataURL("image/png");
 }
 
 export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es", aiControlsHidden = false, metricLabels = null, minimumMinutes: minutosBase, onMinimumMinutes, reportCohort = "AUTO", procedenciaPorFila = null, targets, theme, targetProfile, recipientName, recipientLogoUrl, onSelectTarget, onTargetProfileChange, onRecipientNameChange, onRecipientLogoChange, onOpenReports }: SimilarityStudioProps) {
@@ -630,7 +164,11 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     () => new Set((ligasPorFila ?? []).flat()).size > 1,
     [ligasPorFila],
   );
-  const porLiga = baseDePercentiles === "liga" && hayVariasCompeticiones && ligasPorFila?.length ? { ligasPorFila } : null;
+  // En un useMemo: un objeto nuevo en cada render rehacía la búsqueda entera en cada render.
+  const porLiga = useMemo(
+    () => (baseDePercentiles === "liga" && hayVariasCompeticiones && ligasPorFila?.length ? { ligasPorFila } : null),
+    [baseDePercentiles, hayVariasCompeticiones, ligasPorFila],
+  );
 
   /*
    * Acotar por competición, a los dos lados.
@@ -753,7 +291,6 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     secondaryRole,
     side,
   }), [ageMax, ageMin, minimumMinutes, passport, position, query, secondaryRole, side]);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   /*
    * Cuánto cambia de verdad medir contra su liga.
    *
@@ -790,13 +327,15 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
    * "Extremo": el informe se contradecía consigo mismo. Si se ha elegido un
    * puesto a mano, manda ése; si no, la posición natural del jugador.
    */
-  const posicionMostrada = (natural: string, cohorteNatural: string) => (
+  const posicionMostrada = useCallback((natural: string, cohorteNatural: string) => (
     rolMetricas ? selectedCohortPosition(rolMetricas, natural) : (
       reportCohort !== "AUTO" ? selectedCohortPosition(cohorteNatural, natural) : natural
     )
-  );
+  ), [rolMetricas, reportCohort]);
 
-  const search = useMemo(() => buildSimilaritySearch(rows, selectedIndex, filters, metricWeights, rolMetricas || reportCohort, metricLabels, porLiga), [filters, metricWeights, rows, selectedIndex, lang, reportCohort, metricLabels, porLiga]);
+  // `lang` va a propósito: el cálculo devuelve las etiquetas ya traducidas.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const search = useMemo(() => buildSimilaritySearch(rows, selectedIndex, filters, metricWeights, rolMetricas || reportCohort, metricLabels, porLiga), [filters, metricWeights, rows, selectedIndex, lang, rolMetricas, reportCohort, metricLabels, porLiga]);
   /*
    * Los candidatos se acotan DESPUÉS del motor. La liga es una decisión de
    * mercado —"de aquí no vamos a fichar"— y no puede cambiar el percentil de
@@ -911,8 +450,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     candidatePhotoFit,
     candidatePhotoScale,
     candidateProfile,
-    position,
-    reportCohort,
+    posicionMostrada,
     search,
     selectedCandidate,
     sourceName,

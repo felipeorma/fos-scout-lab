@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { METRICS, aggregateDatasets, canonicalTeamNames, clubsMatch, peerCohort } from "../lib/scouting.ts";
+import { METRICS, aggregateDatasets, clubsMatch, peerCohort } from "../lib/scouting.ts";
 
 const HEADERS = ["Player", "Team", "Age", "Birth date", "Minutes played", "Matches played", "Goals", "Assists"];
 

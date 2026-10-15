@@ -53,3 +53,15 @@ test("una liga sin rating de Opta no se lleva a nivel", () => {
   assert.ok(lista.filter((fila) => fila.jugador.startsWith("Uni")).every((fila) => fila.aNivel === null));
   assert.ok(lista.filter((fila) => fila.jugador.startsWith("Mls")).every((fila) => fila.aNivel !== null));
 });
+
+test("una celda vacía no es un cero: ni edad 0 ni fuera por minutos", () => {
+  const filas = Array.from({ length: 12 }, (_, i) => delantero(`J ${i}`, "FC", i + 1));
+  filas[11] = { ...filas[11], Age: "", "Minutes played": "" };
+  const lista = rankingDeCohorte(filas, "CF", 600);
+  const sinDatos = lista.find((fila) => fila.jugador === "J 11");
+  assert.ok(sinDatos, "sin minutos en la base no se le deja fuera por tener 0′");
+  assert.ok(Number.isNaN(sinDatos.edad), `edad ${sinDatos.edad}`);
+  // Con los dos separadores, el último es el decimal.
+  filas[10] = { ...filas[10], "Minutes played": "1.234,0" };
+  assert.ok(rankingDeCohorte(filas, "CF", 1000).some((fila) => fila.jugador === "J 10"));
+});

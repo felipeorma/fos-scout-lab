@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { buildPlayerReport, type DataRow, type PlayerReport, type SourceDataset } from "@/lib/scouting";
+import { buildPlayerReport, type DataRow, type PlayerReport, type SourceDataset, numeric, type CellValue } from "@/lib/scouting";
 import { METRIC_SOURCE_COLORS } from "@/lib/similarityMetricGroups";
 import { t, tf } from "@/lib/i18n";
 import { PieDeReporte } from "./PieDeReporte";
@@ -30,10 +30,8 @@ const cohortLabelCorto = (cohorte: string) => ETIQUETAS_PERFIL[cohorte] ?? "su p
 const DESTACA = 75;
 const FLOJEA = 25;
 
-function numero(value: unknown) {
-  const parsed = typeof value === "number" ? value : Number(String(value ?? "").replace(",", "."));
-  return Number.isFinite(parsed) ? parsed : Number.NaN;
-}
+/** Una celda como número; vacía o sin número, NaN (no 0: un hueco no es un cero). */
+const numero = (value: unknown) => numeric(value as CellValue);
 
 function mediana(values: number[]) {
   if (!values.length) return Number.NaN;
@@ -241,7 +239,7 @@ export function ContextPage({
   const porDefecto = useMemo(() => [
     ...BLOQUES.map((bloque) => bloque.id as BloqueId),
     ...CATALOGO.filter((ficha) => !ficha.perfiles.length || ficha.perfiles.includes(report.cohort)).map((ficha) => ficha.id),
-  ], [report.cohort, claveMemoria]);
+  ], [report.cohort]);
   const [visibles, setVisibles] = useState<BloqueId[]>(porDefecto);
   useEffect(() => {
     try {

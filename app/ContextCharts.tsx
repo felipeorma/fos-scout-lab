@@ -26,7 +26,7 @@ type Etiqueta = { x: number; y: number; lineas: string[] } | null;
  * casi un segundo en aparecer y se pierde; esto responde al instante y se
  * puede leer mientras el ratón recorre la nube de puntos.
  */
-function EtiquetaFlotante({ etiqueta, ancho, alto }: { etiqueta: Etiqueta; ancho: number; alto: number }) {
+function EtiquetaFlotante({ etiqueta, ancho }: { etiqueta: Etiqueta; ancho: number; alto: number }) {
   if (!etiqueta) return null;
   const anchoCaja = Math.max(...etiqueta.lineas.map((linea) => linea.length)) * 4.3 + 12;
   const altoCaja = etiqueta.lineas.length * 10 + 8;

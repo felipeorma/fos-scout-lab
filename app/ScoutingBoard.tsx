@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
-import { buildPlayerReport, type DataRow } from "@/lib/scouting";
+import { buildPlayerReport, type DataRow, numeric, type CellValue } from "@/lib/scouting";
 import { t, tf } from "@/lib/i18n";
 import { OnceIdeal } from "./OnceIdeal";
 import { Desplegable } from "./BarraDeFiltros";
@@ -54,10 +54,8 @@ type FichaBase = Omit<Ficha, "liga" | "ajustada">;
 
 type VistaMesa = "equipos" | "perfiles" | "once" | "variacion" | "ligas";
 
-function numero(value: unknown) {
-  const parsed = typeof value === "number" ? value : Number(String(value ?? "").replace(",", "."));
-  return Number.isFinite(parsed) ? parsed : Number.NaN;
-}
+/** Una celda como número; vacía o sin número, NaN (no 0: un hueco no es un cero). */
+const numero = (value: unknown) => numeric(value as CellValue);
 
 /**
  * localStorage se lee en un efecto y no durante el render: el servidor de Next

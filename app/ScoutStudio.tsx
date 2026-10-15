@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BarChart3, Check, ChevronDown, ChevronRight, Crosshair, Database, FileSpreadsheet, ImageIcon, LockKeyhole, Menu, Merge, MoreHorizontal, Plus, Printer, RadarChart, RotateCcw, Route, Search, Sparkles, Trash, Trophy, Upload, X, ShieldCheck, LayoutDashboard, Wind } from "./Icons";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { BarChart3, Check, ChevronDown, ChevronRight, Crosshair, Database, FileSpreadsheet, ImageIcon, LockKeyhole, Menu, MoreHorizontal, Plus, Printer, RadarChart, RotateCcw, Route, Search, Sparkles, Trash, Trophy, Upload, X, ShieldCheck, LayoutDashboard, Wind } from "./Icons";
 import { PizzaRadar } from "./PizzaRadar";
 import { ContextPage } from "./ContextPage";
 import { ScoutingBoard } from "./ScoutingBoard";
@@ -14,7 +14,7 @@ import { SnapshotPage } from "./SnapshotPage";
 import { ReportPageDesigner } from "./ReportPageDesigner";
 import { SimilarityStudio } from "./SimilarityStudio";
 import { CLIENT_THEMES, DEFAULT_REPORT_THEME, reportThemeStyle, type ReportTheme } from "./reportTheme";
-import { LOGOS_PLATAFORMA, LogoPlataforma } from "./LogosPlataforma";
+import { LogoPlataforma } from "./LogosPlataforma";
 import { ligasDeBases, origenPorFila, basesDelRadar, ligaYAnioDe } from "@/lib/procedencia";
 import { aplicarNombre, conNombresGuardados, guardarNombre, identidadDeBase, nombreActual, type NombreDeBase } from "@/lib/nombresDeBase";
 import { EditorDeNombreDeBase } from "./EditorDeNombreDeBase";
@@ -31,7 +31,6 @@ import { FilaDeMenu, GrupoDeMenu, MenuFlotante } from "./MenuFlotante";
 import { ESCUDOS, RETRATO } from "./Imagenes";
 import {
   buildPlayerReport,
-  defaultMetricLabels,
   metricCatalogue,
   detectCoreColumns,
   extractSeason,
@@ -577,16 +576,6 @@ export default function ScoutStudio() {
     () => (procedencias.length > 1 ? origenPorFila(reportRows, procedencias) : null),
     [reportRows, procedencias],
   );
-  const ligasDisponibles = useMemo(
-    () => [...new Set(procedencias.map((x) => x.liga))].sort(alphabeticCollator.compare),
-    [procedencias],
-  );
-  const aniosDisponibles = useMemo(
-    () => [...new Set(procedencias.map((x) => x.anio).filter(Boolean))].sort(),
-    [procedencias],
-  );
-  const [ligaElegida, setLigaElegida] = useState("TODAS");
-  const [anioElegido, setAnioElegido] = useState(0);
 
   /*
    * A quién se puede elegir. Sale de los filtros globales, así que acotar por
@@ -1265,7 +1254,7 @@ export default function ScoutStudio() {
       const legacy = `fos-scout-reading:${report.player.toLocaleLowerCase("es")}`;
       setReadingOverride(window.localStorage.getItem(key) ?? window.localStorage.getItem(legacy) ?? "");
     } catch { setReadingOverride(""); }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [report?.player, report?.team]);
 
   function updateReadingOverride(value: string) {
@@ -1380,7 +1369,7 @@ export default function ScoutStudio() {
     if (!report?.player || !profileReady) return;
     // Las imágenes van a IndexedDB; si algo no cabe, `alFallarElGuardado` lo dice.
     guardarConImagenes(profileStorageKey(report.player, report.team), profile, tf("el perfil de {jugador}", { jugador: report.player }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [profile, profileReady, report?.player, report?.team]);
 
   /**
@@ -2006,7 +1995,7 @@ export default function ScoutStudio() {
     // pantalla —la barra es compartida— así que no hay manejador local donde
     // recolocar la selección. La guarda de arriba corta la cadena en cuanto el
     // club elegido vuelve a estar dentro.
-    // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedTeam(jugadoresVisibles[0].team);
     selectPlayer(jugadoresVisibles[0].index);
     // eslint-disable-next-line react-hooks/exhaustive-deps

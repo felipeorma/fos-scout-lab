@@ -6,6 +6,8 @@ import {
   positionColumnOf,
   temporadasDeFila,
   type DataRow,
+  numeric,
+  type CellValue,
 } from "./scouting.ts";
 import { PUNTOS_POR_RATING_INDICE, indiceANivel, nivelDeLiga, ratingDeTramos, type EntradaOpta } from "./nivelDeLiga.ts";
 import { playerPassports } from "./similarity.ts";
@@ -44,10 +46,8 @@ export type FilaRanking = {
   pasaportes: string[];
 };
 
-function numero(value: unknown) {
-  const parsed = typeof value === "number" ? value : Number(String(value ?? "").replace(",", "."));
-  return Number.isFinite(parsed) ? parsed : Number.NaN;
-}
+/** Una celda como número; vacía o sin número, NaN (no 0: un hueco no es un cero). */
+const numero = (value: unknown) => numeric(value as CellValue);
 
 export type OpcionesDeRanking = {
   /** Medir a cada uno contra los de su puesto en su liga y temporada (claves de origenPorFila). */

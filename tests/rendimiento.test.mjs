@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { aggregateDatasets, buildPlayerReport, headersOf } from "../lib/scouting.ts";
+import { aggregateDatasets, headersOf } from "../lib/scouting.ts";
 
 /**
  * Guardas de rendimiento del cruce y los informes.
