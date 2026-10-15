@@ -53,6 +53,7 @@ import { reportExportBaseName } from "@/lib/reportExportName";
 import { canonicalizeRow } from "@/lib/wyscoutHeaders";
 import { leerFilasDeArchivo } from "@/lib/lecturaDeArchivos";
 import { MINUTOS_FIABLES, margenDelIndice } from "@/lib/fiabilidad";
+import { alFallarElGuardado, guardarConImagenes, leerConImagenes, migrarImagenesViejas, precargarImagenes } from "@/lib/almacen";
 import { MomentoDeImpresion, ocultarComoAlImprimir } from "./medidaDeImpresion";
 import { lineaDeDatos } from "@/lib/fechasDelInforme";
 import { FECHA_NIVEL_RESPALDO, LIGA_DE_REFERENCIA, PUNTOS_POR_RATING, indiceANivel, nivelDeLiga, ratingDeTramos, type EntradaOpta } from "@/lib/nivelDeLiga";
@@ -1220,11 +1221,10 @@ export default function ScoutStudio() {
     // Purga el diseño guardado de esa página: si se agrega una página nueva
     // con el mismo número, arranca con la plantilla y no con contenido viejo.
     try {
-      const stored = window.localStorage.getItem("fos-scout-page-designer-v1");
-      if (stored) {
-        const saved = JSON.parse(stored) as Record<string, unknown>;
+      const saved = leerConImagenes<Record<string, unknown>>("fos-scout-page-designer-v1");
+      if (saved) {
         delete saved[String(page)];
-        window.localStorage.setItem("fos-scout-page-designer-v1", JSON.stringify(saved));
+        guardarConImagenes("fos-scout-page-designer-v1", saved);
       }
     } catch { /* Sin persistencia no hay nada que purgar. */ }
   }
@@ -1269,6 +1269,29 @@ export default function ScoutStudio() {
     try { window.localStorage.setItem("fos-scout-report-theme-v1", JSON.stringify(reportTheme)); } catch { /* El diseño continúa activo durante la sesión. */ }
   }, [reportTheme, reportThemeLoaded]);
 
+  /*
+   * Al arrancar se precargan las imágenes guardadas y se mueven a IndexedDB
+   * las que seguían dentro de localStorage. Cuando están en memoria se rehace
+   * el perfil a la vista: si se abrió antes, salió sin foto.
+   */
+  const [almacenListo, setAlmacenListo] = useState(false);
+  const [avisoDeGuardado, setAvisoDeGuardado] = useState("");
+  useEffect(() => {
+    const dejarDeOir = alFallarElGuardado((mensaje) => setAvisoDeGuardado(mensaje));
+    void precargarImagenes().then(() => {
+      migrarImagenesViejas(["fos-transfermarkt:", "fos-scout-page-designer-v1"]);
+      setAlmacenListo(true);
+    });
+    return dejarDeOir;
+  }, []);
+  useEffect(() => {
+    if (!almacenListo || !report) return;
+    const restored = restoreProfile(report);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setProfile((actual) => ({ ...restored.profile, ...Object.fromEntries(Object.entries(actual).filter(([, valor]) => Boolean(valor))) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [almacenListo]);
+
   function restoreProfile(nextReport: PlayerReport | null) {
     const base = profileFromReport(nextReport);
     if (!nextReport?.player) return { profile: base, url: "" };
@@ -1281,9 +1304,8 @@ export default function ScoutStudio() {
 
   useEffect(() => {
     if (!report?.player || !profileReady) return;
-    try {
-      window.localStorage.setItem(profileStorageKey(report.player, report.team), JSON.stringify(profile));
-    } catch { /* Los recursos grandes pueden superar la cuota local; la sesión sigue funcionando. */ }
+    // Las imágenes van a IndexedDB; si algo no cabe, `alFallarElGuardado` lo dice.
+    guardarConImagenes(profileStorageKey(report.player, report.team), profile, tf("el perfil de {jugador}", { jugador: report.player }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile, profileReady, report?.player, report?.team]);
 
@@ -2258,6 +2280,10 @@ export default function ScoutStudio() {
             </MenuFlotante>
           </div>
         </header>
+        {avisoDeGuardado && <div className="aviso-guardado" role="alert">
+          <span>{avisoDeGuardado}</span>
+          <button type="button" onClick={() => setAvisoDeGuardado("")} aria-label={t("Ocultar aviso")}>×</button>
+        </div>}
 
         {/* El asistente de tres pasos vivía en la barra, donde estorbaba lo que
             se usa a diario. Baja al contenido y solo mientras hace falta: en

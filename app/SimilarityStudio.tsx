@@ -27,6 +27,7 @@ import { removePlayerImageBackground } from "@/lib/playerImageBackground";
 import { canvasImageCandidates, fetchAiSummary, fetchTransfermarktProfile, proxiedImageUrl, type AiMetricFact, type AiPlayerFacts } from "@/lib/remoteData";
 import { reportExportBaseName } from "@/lib/reportExportName";
 import { t, tDefault, tf, numberLocale, type Lang } from "@/lib/i18n";
+import { guardarConImagenes } from "@/lib/almacen";
 
 type TargetOption = { index: number; player: string; team: string };
 type ProfileSide = "target" | "candidate";
@@ -995,7 +996,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
       setCandidateProfileState(next);
       setCandidateProfileKey(sideStorageKey(side));
     }
-    try { window.localStorage.setItem(sideStorageKey(side), JSON.stringify(next)); } catch { /* La comparación continúa aunque no haya persistencia. */ }
+    guardarConImagenes(sideStorageKey(side), next, tf("el perfil de {jugador}", { jugador: playerName || next.name }));
   }
 
   function clearBackgroundOriginal(side: ProfileSide) {

@@ -6538,3 +6538,8 @@ body.print-layout-check .legal-page-shell:has([data-hoja-vacia]) { display: none
 .anadir-wyscout-form input { min-width: 0; padding: 6px 8px; border: 1px solid var(--line, rgba(255,255,255,.14)); border-radius: 8px; color: inherit; background: rgba(255,255,255,.04); font: inherit; font-size: 12px; }
 .anadir-wyscout-error { color: #f0a35e; font-size: 11px; }
 .anadir-wyscout-acciones { display: flex; gap: 8px; }
+
+/* Algo no se pudo guardar en el navegador: se dice, en vez de perderse en silencio. */
+.aviso-guardado { margin: 8px 16px 0; padding: 9px 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid rgba(240, 163, 94, .45); border-radius: 10px; color: #f3c79c; background: rgba(240, 163, 94, .1); font-size: 12px; }
+.aviso-guardado button { border: 0; background: none; color: inherit; font-size: 16px; line-height: 1; cursor: pointer; }
+@media print { .aviso-guardado { display: none !important; } }

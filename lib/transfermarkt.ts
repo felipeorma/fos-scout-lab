@@ -1,3 +1,4 @@
+import { leerConImagenes } from "./almacen.ts";
 export type TransfermarktProfile = {
   sourceUrl: string;
   name: string;
@@ -164,13 +165,9 @@ export function profileStorageKey(player: string, team = "") {
   return teamToken ? `${base}|${teamToken}` : base;
 }
 
+/** El perfil guardado: el JSON de localStorage con sus imágenes de IndexedDB (ver lib/almacen). */
 export function readStoredJson<T>(newKey: string, legacyKey: string): T | null {
-  try {
-    const raw = window.localStorage.getItem(newKey) ?? window.localStorage.getItem(legacyKey);
-    return raw ? JSON.parse(raw) as T : null;
-  } catch {
-    return null;
-  }
+  return leerConImagenes<T>(newKey, legacyKey);
 }
 
 

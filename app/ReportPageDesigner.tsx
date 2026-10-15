@@ -24,6 +24,7 @@ import { PieDeReporte } from "./PieDeReporte";
 import { SimilarityReportMain, type SimilarityReportPayload } from "./SimilarityReport";
 import { PIEZAS_FICHA, PiezaSuelta, esPieza, opcionesDePieza, type ContextoFicha } from "./PiezasFicha";
 import { t, tDefault, tf } from "@/lib/i18n";
+import { guardarConImagenes, leerConImagenes } from "@/lib/almacen";
 import {
   clampReportBlockHeight,
   clampReportBlockSpan,
@@ -201,8 +202,8 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
   useEffect(() => {
     const timer = window.setTimeout(() => {
       try {
-        const stored = window.localStorage.getItem("fos-scout-page-designer-v1");
-        const saved = stored ? JSON.parse(stored) as DesignerState : {};
+        // Con sus imágenes de IndexedDB: las de las páginas visuales pesan.
+        const saved = leerConImagenes<DesignerState>("fos-scout-page-designer-v1") ?? {};
         // Cada página se repone con su plantilla si no existe todavía en el
         // diseño guardado; así funcionan las páginas 4, 5, 6… recién creadas.
         // Los diseños guardados con la rejilla vieja (1-3 columnas) se
@@ -223,7 +224,7 @@ export function ReportPageDesigner({ pageNumber, player, team, position, theme, 
     // Las instancias montadas solo para imprimir no escriben: varias páginas
     // simultáneas se pisarían la clave compartida con snapshots desfasados.
     if (!loaded || !persist) return;
-    try { window.localStorage.setItem("fos-scout-page-designer-v1", JSON.stringify(pages)); } catch { /* Sin persistencia si el navegador la bloquea. */ }
+    guardarConImagenes("fos-scout-page-designer-v1", pages, t("las páginas visuales"));
   }, [loaded, pages, persist]);
 
   useEffect(() => {
