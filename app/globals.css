@@ -6625,3 +6625,22 @@ body.print-layout-check .legal-page-shell:has([data-hoja-vacia]) { display: none
   }
 }
 
+/* =====================================================================
+   Look Night · títulos en minúscula
+   =====================================================================
+   "Títulos en minúscula normal (sentence case), no en mayúsculas", en
+   Geist con el tracking apretado de los tamaños grandes. Los nombres
+   vienen bien escritos y basta con no forzarlos; los rótulos guardados en
+   mayúsculas se pasan a minúscula con la primera letra en mayúscula. Los
+   rótulos pequeños (ELABORADO POR, BASE ANALIZADA) siguen en versalitas,
+   que el diseño reserva para chips y antetítulos. */
+.app-shell[data-informe="oscuro"] :is(.dossier-info > h2, .visual-page-identity h2, .duel-header-copy > b, .duel-header-player b, .comparison-player-copy h3) {
+  font-family: var(--font-geist), "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+  font-weight: 700; letter-spacing: -.02em; text-transform: none;
+}
+.app-shell[data-informe="oscuro"] :is(.dossier-info > h2, .visual-page-identity h2) { font-size: clamp(30px, 3.4vw, 44px); line-height: 1.02; }
+.app-shell[data-informe="oscuro"] .duel-header-copy > b { font-size: 17px; }
+.app-shell[data-informe="oscuro"] .competition-copy span { font-family: var(--font-geist), "Avenir Next", Arial, sans-serif; font-size: 15px; font-weight: 700; letter-spacing: -.01em; text-transform: none; }
+.app-shell[data-informe="oscuro"] .similarity-metric-head b { text-transform: lowercase; letter-spacing: 0; font-family: var(--font-geist), "Avenir Next", Arial, sans-serif; }
+.app-shell[data-informe="oscuro"] .similarity-metric-head b::first-letter { text-transform: uppercase; }
+
