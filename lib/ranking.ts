@@ -168,6 +168,17 @@ export const nivelDeFila = (fila: FilaRanking) => fila.aNivel ?? fila.puntuacion
  * liga (con la regla aditiva de Opta, la diferencia no depende de qué liga se
  * tome de referencia). Y se dice si supera el margen de los minutos de los dos:
  * +5 con 600′ no se distingue de cero.
+ *
+ * El encaje de estilo NO entra en el orden. Validado el 15 de octubre de 2026
+ * con los jugadores que cambiaron de club entre 2025 y 2026 en doce ligas
+ * (252 con 900′ o más en las dos temporadas; 379 con 600′): sobre el modelo
+ * de contracción más nivel de liga, el encaje entre el club de origen y el de
+ * destino no predice el índice del año siguiente —efecto de 0,04 puntos por
+ * punto de encaje, IC 95 % de −0,02 a 0,12; el error en validación cruzada
+ * empeora un poco con él (8,66 frente a 8,60)—. Con encaje de 80 o más hay
+ * un indicio a favor (+7 de residuo), pero con doce jugadores no sostiene
+ * nada. Se enseña para decidir, no para ordenar; vale repetirlo con más
+ * temporadas.
  */
 export function candidatosParaEquipo(
   filas: FilaRanking[],

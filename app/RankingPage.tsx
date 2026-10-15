@@ -456,6 +456,7 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
         </li>)}
       </ol> : <p className="rank-empty">{t("Ningún candidato pasa los filtros.")}</p>}
       <p className="rank-pie">{tf("Ordenados por cuánto mejoran al titular de {equipo}: la diferencia de índices al mismo nivel de liga (Opta). En verde, la que supera el margen de los minutos de los dos; en gris, la que todavía no se distingue de cero. Encaje: cuánto se parece el estilo de su club al de {equipo}; la otra columna, cuánto se parece a lo que {equipo} pide en el puesto.", { equipo: destino })}</p>
+      <p className="rank-pie">{t("El encaje no ordena: con 252 jugadores que cambiaron de club entre 2025 y 2026, el parecido de estilo entre su club de origen y el de destino no predijo cómo rindieron al año siguiente. Sirve para decidir entre candidatos parecidos, no para ponerlos por delante.")}</p>
     </div>}
 
     {vista === "arquetipos" && (arquetipos.length > 0 ? <div className="rank-arq-grid">

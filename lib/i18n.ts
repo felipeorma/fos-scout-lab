@@ -1658,6 +1658,7 @@ const EN: Record<string, string> = {
   "Incluir la temporada anterior": "Include the previous season",
   "Al cargar ligas de la API entra también la temporada anterior, y la ficha mide a cada jugador con las dos. Con Wyscout, sube los dos archivos a la vez con el año en el nombre (CPL 2025.xlsx, CPL 2026.xlsx).": "Loading leagues from the API also brings in the previous season, and the card measures each player over both. With Wyscout, upload both files together with the year in the name (CPL 2025.xlsx, CPL 2026.xlsx).",
   "Temporada anterior": "Previous season",
+  "El encaje no ordena: con 252 jugadores que cambiaron de club entre 2025 y 2026, el parecido de estilo entre su club de origen y el de destino no predijo cómo rindieron al año siguiente. Sirve para decidir entre candidatos parecidos, no para ponerlos por delante.": "Fit doesn't sort the list: across 252 players who changed clubs between 2025 and 2026, how similar their old and new clubs played did not predict how they performed the next season. Use it to choose between similar candidates, not to rank them.",
   "Para un equipo": "For a team",
   "Titular de {equipo} · {puesto}": "{equipo}'s starter · {puesto}",
   "índice {n} · {m}′": "index {n} · {m}′",
