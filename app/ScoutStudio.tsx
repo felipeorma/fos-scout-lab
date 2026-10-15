@@ -30,7 +30,6 @@ import { Interruptor } from "./Interruptor";
 import { FilaDeMenu, GrupoDeMenu, MenuFlotante } from "./MenuFlotante";
 import { ESCUDOS, RETRATO } from "./Imagenes";
 import {
-  aggregateDatasets,
   buildPlayerReport,
   defaultMetricLabels,
   metricCatalogue,
@@ -56,6 +55,7 @@ import { MINUTOS_FIABLES, margenDelIndice } from "@/lib/fiabilidad";
 import { alFallarElGuardado, guardarConImagenes, leerConImagenes, migrarImagenesViejas, precargarImagenes } from "@/lib/almacen";
 import { MomentoDeImpresion, ocultarComoAlImprimir } from "./medidaDeImpresion";
 import { lineaDeDatos } from "@/lib/fechasDelInforme";
+import { cruzarEnSegundoPlano } from "@/lib/cruceEnSegundoPlano";
 import { FECHA_NIVEL_RESPALDO, LIGA_DE_REFERENCIA, PUNTOS_POR_RATING, indiceANivel, nivelDeLiga, ratingDeTramos, type EntradaOpta } from "@/lib/nivelDeLiga";
 import { METRIC_SOURCE_COLORS, SIMILARITY_METRIC_GROUPS, similarityMetricGroup } from "@/lib/similarityMetricGroups";
 import { numberLocale, setActiveLang, t, tDefault, tf, type Lang } from "@/lib/i18n";
@@ -189,6 +189,38 @@ function readWorkbook(file: File): Promise<SourceDataset> {
  */
 function inicioDe(temporada: TemporadaDeJugador) {
   return anioDeInicio(temporada.etiqueta) || temporada.anio;
+}
+
+/** Cuántos cruces por temporada se recuerdan: los de los últimos jugadores vistos. */
+const CRUCES_RECORDADOS = 6;
+
+/**
+ * El cruce de las bases de unos años (`clave`, "2026,2025"), hecho en el
+ * worker. Mientras llega devuelve null y la ficha usa la fila de la base
+ * entera; al volver a un jugador con los mismos años sale de lo recordado.
+ * Se olvida todo cuando cambian las bases encendidas.
+ */
+function useCruceDeAnios(basesActivas: SourceDataset[], clave: string): DataRow[] | null {
+  const [hechos, setHechos] = useState<{ fuente: SourceDataset[]; filas: Map<string, DataRow[] | null> }>(() => ({ fuente: basesActivas, filas: new Map() }));
+  const vigentes = hechos.fuente === basesActivas ? hechos.filas : null;
+  const pendiente = Boolean(clave) && !vigentes?.has(clave);
+  useEffect(() => {
+    if (!pendiente) return;
+    const anios = clave.split(",").map(Number);
+    const bases = basesActivas.filter((dataset) => anios.includes(dataset.season));
+    let vivo = true;
+    const guardar = (filas: DataRow[] | null) => {
+      if (!vivo) return;
+      setHechos((antes) => {
+        const filasPrevias = antes.fuente === basesActivas ? [...antes.filas].slice(-(CRUCES_RECORDADOS - 1)) : [];
+        return { fuente: basesActivas, filas: new Map([...filasPrevias, [clave, filas]]) };
+      });
+    };
+    (bases.length ? cruzarEnSegundoPlano(bases).then((resultado) => resultado.rows) : Promise.resolve(null))
+      .then(guardar, () => guardar(null));
+    return () => { vivo = false; };
+  }, [pendiente, clave, basesActivas]);
+  return clave ? vigentes?.get(clave) ?? null : null;
 }
 
 function horaActual() {
@@ -507,6 +539,8 @@ export default function ScoutStudio() {
   const [assetSourceStatus, setAssetSourceStatus] = useState("");
   const reportInputRef = useRef<HTMLInputElement>(null);
   const printFileNameRef = useRef("");
+  /** Cada cruce de la base toma un turno; el que llega tarde no pisa al siguiente. */
+  const turnoDelCruce = useRef(0);
 
   // El idioma activo alimenta t()/tf() en todo el árbol; debe fijarse antes
   // de calcular cualquier texto del render.
@@ -662,13 +696,7 @@ export default function ScoutStudio() {
   const basesActivas = useMemo(() => sourceDatasets.filter((dataset) => !ligasApagadas.includes(dataset.fileName)), [sourceDatasets, ligasApagadas]);
   const claveDelCruce = temporadasDeLaFila.length > 1 && basesActivas.some((dataset) => !aniosDelInforme.includes(dataset.season))
     ? aniosDelInforme.join(",") : "";
-  const cruceDeTemporadas = useMemo(() => {
-    if (!claveDelCruce) return null;
-    const anios = claveDelCruce.split(",").map(Number);
-    const bases = basesActivas.filter((dataset) => anios.includes(dataset.season));
-    if (!bases.length) return null;
-    try { return aggregateDatasets(bases).rows; } catch { return null; }
-  }, [claveDelCruce, basesActivas]);
+  const cruceDeTemporadas = useCruceDeAnios(basesActivas, claveDelCruce);
   const indiceEnElCruce = useMemo(() => {
     if (!cruceDeTemporadas || !filaElegida) return -1;
     const nombre = String(filaElegida.Player ?? "");
@@ -688,13 +716,8 @@ export default function ScoutStudio() {
   const aniosAbiertos = paginasAbiertas.join(",");
   const anioDeReferencia = temporadaDeReferencia?.anio ?? null;
   const conVariasTemporadas = temporadasDeLaFila.length > 1;
-  const cruceDeLaTemporada = useMemo(() => {
-    const conPiezas = aniosAbiertos.split(",").map(Number).some((pagina) => pagina === SNAPSHOT_PAGE || pagina >= FIRST_VISUAL_PAGE && pagina < CONTEXT_PAGE);
-    if (!conPiezas || anioDeReferencia === null || !conVariasTemporadas) return null;
-    const bases = basesActivas.filter((dataset) => dataset.season === anioDeReferencia);
-    if (!bases.length) return null;
-    try { return aggregateDatasets(bases).rows; } catch { return null; }
-  }, [aniosAbiertos, anioDeReferencia, conVariasTemporadas, basesActivas]);
+  const conPiezas = aniosAbiertos.split(",").map(Number).some((pagina) => pagina === SNAPSHOT_PAGE || pagina >= FIRST_VISUAL_PAGE && pagina < CONTEXT_PAGE);
+  const cruceDeLaTemporada = useCruceDeAnios(basesActivas, conPiezas && anioDeReferencia !== null && conVariasTemporadas ? String(anioDeReferencia) : "");
   const indiceEnLaTemporada = useMemo(() => {
     if (!cruceDeLaTemporada || !filaElegida) return -1;
     const nombre = String(filaElegida.Player ?? "");
@@ -834,7 +857,7 @@ export default function ScoutStudio() {
     setReportError("");
     try {
       const nuevas = await Promise.all(faltan.map((competicion) => fetchStatsbombDataset(competicion)));
-      applyDatasets([...sourceDatasets, ...nuevas], (filas) => {
+      await applyDatasets([...sourceDatasets, ...nuevas], (filas) => {
         const indice = filas.findIndex((fila) => String(fila.Player ?? "") === nombre
           && (!nacimiento || !fila["Birth date"] || String(fila["Birth date"]) === nacimiento));
         return indice >= 0 ? indice : selectedPlayer;
@@ -1352,7 +1375,7 @@ export default function ScoutStudio() {
     // Apagarlas todas dejaría la plataforma sin nada que mirar.
     if (!activos.length) return;
     setLigasApagadas(siguiente);
-    aplicarActivos(activos);
+    void aplicarActivos(activos).catch((error) => setReportError(error instanceof Error ? error.message : String(error)));
   }
 
   /**
@@ -1363,7 +1386,7 @@ export default function ScoutStudio() {
    * leen el nombre nuevo, las apagadas siguen apagadas y no vuelve a saltar
    * la oferta de SkillCorner. Se sigue en el mismo jugador.
    */
-  function renombrarBases(archivos: string[], nombre: NombreDeBase) {
+  async function renombrarBases(archivos: string[], nombre: NombreDeBase) {
     const actual = reportRows[selectedPlayer];
     const jugador = String(actual?.Player ?? "");
     const club = String(actual?.Team ?? "");
@@ -1381,7 +1404,9 @@ export default function ScoutStudio() {
     setSourceDatasets(inventario);
     if (inventario.length === 1) setReportFileName(inventario[0].fileName.replace(/\.(xlsx|xls|csv)$/i, ""));
     const activos = inventario.filter((dataset) => !apagadas.includes(dataset.fileName));
-    const result = aggregateDatasets(activos);
+    const turno = ++turnoDelCruce.current;
+    const result = await cruzarEnSegundoPlano(activos);
+    if (turno !== turnoDelCruce.current) return;
     setReportRows(result.rows);
     setReportSourceCount(activos.length);
     const mismo = result.rows.findIndex((fila) => String(fila.Player ?? "") === jugador && String(fila.Team ?? "") === club);
@@ -1430,7 +1455,7 @@ export default function ScoutStudio() {
         guardarNombre(dataset, nombreDeEsta);
         return aplicarNombre(dataset, nombreDeEsta);
       });
-      applyDatasets([...inventario, nueva], (filas) => {
+      await applyDatasets([...inventario, nueva], (filas) => {
         const indice = filas.findIndex((fila) => String(fila.Player ?? "") === nombre
           && (!nacimiento || !fila["Birth date"] || String(fila["Birth date"]) === nacimiento));
         return indice >= 0 ? indice : 0;
@@ -1443,8 +1468,10 @@ export default function ScoutStudio() {
   }
 
   /** Rehace el cruce con las bases encendidas, sin tocar el inventario. */
-  function aplicarActivos(activos: SourceDataset[]) {
-    const result = aggregateDatasets(activos);
+  async function aplicarActivos(activos: SourceDataset[]) {
+    const turno = ++turnoDelCruce.current;
+    const result = await cruzarEnSegundoPlano(activos);
+    if (turno !== turnoDelCruce.current) return;
     setReportRows(result.rows);
     setReportSourceCount(activos.length);
     const seleccion = firstPlayerSelection(result.rows);
@@ -1466,7 +1493,7 @@ export default function ScoutStudio() {
     const quedan = sourceDatasets.filter((dataset) => !archivos.includes(dataset.fileName));
     if (!quedan.length) { resetReport(); return; }
     setLigasApagadas((apagadas) => apagadas.filter((archivo) => !archivos.includes(archivo)));
-    applyDatasets(quedan);
+    void applyDatasets(quedan).catch((error) => setReportError(error instanceof Error ? error.message : String(error)));
   }
 
   /**
@@ -1474,14 +1501,19 @@ export default function ScoutStudio() {
    *   sabe. Leerlo del estado no servía: dentro de una carga asíncrona el
    *   estado es el de antes, y el nombre nuevo se pisaba con el viejo.
    */
-  function applyDatasets(entrantes: SourceDataset[], seleccionPedida?: number | ((filas: DataRow[]) => number), nombre?: string) {
+  async function applyDatasets(entrantes: SourceDataset[], seleccionPedida?: number | ((filas: DataRow[]) => number), nombre?: string) {
     // Una base, una vez. Dos copias del mismo archivo no son dos temporadas:
     // el cruce las sumaba como si lo fueran y todos los minutos salían dobles.
     // Si llega repetida, manda la última, que es la más reciente.
     // Por su archivo original: dos Excel distintos pueden llevar el mismo
     // nombre de liga y temporada (Wyscout parte las exportaciones grandes).
     const datasets = [...new Map(entrantes.map((dataset) => [identidadDeBase(dataset), dataset] as const)).values()];
-    const result = aggregateDatasets(datasets);
+    // En un Web Worker: con todas las ligas son segundos, y en el hilo de la
+    // pantalla la app se quedaba congelada.
+    const turno = ++turnoDelCruce.current;
+    const result = await cruzarEnSegundoPlano(datasets);
+    // Si mientras tanto se pidió otro cruce, manda ese: este llegó tarde.
+    if (turno !== turnoDelCruce.current) return result;
     // Una búsqueda, para seguir en el mismo jugador cuando el cruce cambia los índices.
     const seleccion = typeof seleccionPedida === "function" ? seleccionPedida(result.rows) : seleccionPedida;
     // Toda base sin datos físicos dispara la oferta de enlace con SkillCorner;
@@ -1510,6 +1542,7 @@ export default function ScoutStudio() {
     setTransfermarktUrl(restored.url);
     setBackgroundRemovalStatus("");
     setAssetSourceStatus("");
+    return result;
   }
 
   /**
@@ -1612,7 +1645,7 @@ export default function ScoutStudio() {
       if (!datasets.length) throw new Error(t("Ninguna competición devolvió jugadores."));
       setCargaTotal(t("Cruzando las bases…"));
       const finales = sumar ? [...sourceDatasets, ...datasets] : datasets;
-      applyDatasets(finales, undefined, tf("Todas las ligas · {anio}", { anio: [...new Set(finales.map((d) => d.season).filter(Boolean))].sort().join(" + ") }));
+      await applyDatasets(finales, undefined, tf("Todas las ligas · {anio}", { anio: [...new Set(finales.map((d) => d.season).filter(Boolean))].sort().join(" + ") }));
       const avisos = [
         fallidas.length ? tf("No se pudieron cargar: {ligas}.", { ligas: fallidas.join(", ") }) : "",
         sinFisicos.length ? tf("Sin datos físicos de SkillCorner (aún no los publica o falló la descarga; vuelve a cargar más tarde): {ligas}.", { ligas: sinFisicos.join(", ") }) : "",
@@ -1674,7 +1707,7 @@ export default function ScoutStudio() {
         : await fetchSkillcornerDataset(competition);
       const previa = await previaPendiente;
       const nuevos = previa ? [dataset, previa] : [dataset];
-      applyDatasets(mode === "append"
+      await applyDatasets(mode === "append"
         ? [...sourceDatasets, ...nuevos.filter((base) => !presentes.has(base.fileName))]
         : nuevos,
       undefined,
@@ -1820,7 +1853,9 @@ export default function ScoutStudio() {
       const scName = dataset.fileName.replace(/\.(xlsx|xls|csv)$/i, "");
       // Un jugador queda "enlazado" cuando sus fuentes incluyen SkillCorner y
       // al menos otra plataforma o archivo.
-      const linked = aggregateDatasets(combined).rows.filter((row) => {
+      // El cruce se hace una vez, en el worker, y de él sale también la cuenta.
+      const cruce = await applyDatasets(combined);
+      const linked = cruce.rows.filter((row) => {
         const sources = String(row["Data sources"] ?? "");
         return sources.includes(scName) && sources.replace(scName, "").replace(/[,\s]/g, "").length > 0;
       }).length;
@@ -1829,7 +1864,6 @@ export default function ScoutStudio() {
       // pero su radar no muestra ni una métrica de SkillCorner.
       const scColumns = dataset.headers.filter((header) => header.includes("(SC)"));
       const filled = scColumns.filter((header) => dataset.rows.some((row) => row[header] !== "" && row[header] !== null && row[header] !== undefined)).length;
-      applyDatasets(combined);
       setScLink({ stage: "done", candidates: scLink.candidates, selection: scLink.selection, linked, total: baseCount, filled, columns: scColumns.length });
     } catch (error) {
       setScLink({ ...scLink, stage: "offer", error: error instanceof Error ? error.message : String(error) });
@@ -1853,7 +1887,7 @@ export default function ScoutStudio() {
     setReportError("");
     try {
       const datasets = await Promise.all(list.map(readWorkbook));
-      applyDatasets(espacio === "cavalry" ? conNombresGuardados(datasets) : datasets);
+      await applyDatasets(espacio === "cavalry" ? conNombresGuardados(datasets) : datasets);
     } catch (error) {
       setReportError(error instanceof Error ? error.message : t("No se pudieron leer los archivos."));
     } finally {
@@ -2065,7 +2099,7 @@ export default function ScoutStudio() {
 
       <section className="dossier-season-strip">
         <div className="season-source"><span><InlineText editKey={`label-${report.player}`} value={ETIQUETAS_DE_BASE.includes(analysisLabel) ? "" : tDefault(analysisLabel)} fallback={!variasTemporadas && (basesDeLaFicha?.cuantas ?? reportSourceCount) > 1 ? t("BASES ANALIZADAS") : t("BASE ANALIZADA")} onCommit={setAnalysisLabel} /></span><b>{basesPrincipales.length === 1 && !analysisSourceTitle.trim()
-          ? <EditorDeNombreDeBase actual={nombreActual(basesPrincipales[0])} onGuardar={(nombre) => renombrarBases(basesPrincipales.map((dataset) => dataset.fileName), nombre)}>{tituloPrincipal}</EditorDeNombreDeBase>
+          ? <EditorDeNombreDeBase actual={nombreActual(basesPrincipales[0])} onGuardar={(nombre) => void renombrarBases(basesPrincipales.map((dataset) => dataset.fileName), nombre)}>{tituloPrincipal}</EditorDeNombreDeBase>
           : <InlineText editKey={`source-${report.player}`} value={tDefault(analysisSourceTitle)} fallback={tituloPrincipal} onCommit={updateAnalysisSourceName} />}</b><small>{basesDeLaFicha?.plataformas ? `${basesDeLaFicha.plataformas} · ` : ""}{temporadasDelJugador.length && (variasTemporadas || baseConVariasTemporadas)
           ? tf("Temporada {s} · cohorte {c} · mín. {m}′", { s: temporadasDelJugador[0].etiqueta, c: cohortLabel(report.cohort), m: minimumMinutes })
           : tf("Cohorte {c} · mín. {m}′", { c: cohortLabel(report.cohort), m: minimumMinutes })}</small></div>
@@ -2085,7 +2119,7 @@ export default function ScoutStudio() {
               const texto = [temporada.etiqueta, temporada.ligas.join(" + ")].filter(Boolean).join(" · ");
               const suyas = basesDeArchivoDe(temporada);
               return suyas.length === 1
-                ? <EditorDeNombreDeBase actual={nombreActual(suyas[0])} onGuardar={(nombre) => renombrarBases(suyas.map((dataset) => dataset.fileName), nombre)}>{texto}</EditorDeNombreDeBase>
+                ? <EditorDeNombreDeBase actual={nombreActual(suyas[0])} onGuardar={(nombre) => void renombrarBases(suyas.map((dataset) => dataset.fileName), nombre)}>{texto}</EditorDeNombreDeBase>
                 : texto;
             })()}</b>
             <small>{temporada.equipo}</small>

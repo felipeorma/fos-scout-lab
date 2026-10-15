@@ -631,6 +631,17 @@ export function temporadasDeFila(fila: DataRow | undefined): TemporadaDeJugador[
   return (fila && temporadasPorFila.get(fila)) || [];
 }
 
+/**
+ * Vuelve a colgar las temporadas de cada fila. El cruce corre en un Web
+ * Worker y sus filas llegan copiadas, como objetos nuevos: sin esto la ficha
+ * no sabría en qué temporadas aparece cada jugador.
+ */
+export function registrarTemporadas(filas: DataRow[], temporadas: TemporadaDeJugador[][]) {
+  filas.forEach((fila, indice) => {
+    if (temporadas[indice]?.length) temporadasPorFila.set(fila, temporadas[indice]);
+  });
+}
+
 export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult {
   if (datasets.length < 1) throw new Error(t("Selecciona al menos un archivo de datos."));
   const allHeaders = [...new Set(datasets.flatMap((dataset) => dataset.headers))];
