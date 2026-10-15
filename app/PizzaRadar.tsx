@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { METRIC_SOURCE_ORDER, type RadarMetric } from "@/lib/scouting";
-import { METRIC_SOURCE_COLORS, similarityMetricGroup } from "@/lib/similarityMetricGroups";
+import { METRIC_SOURCE_COLORS, similarityMetricGroup, tonosDe } from "@/lib/similarityMetricGroups";
 import { sitioDelValor } from "@/lib/radar";
 import { t, tf, type Lang } from "@/lib/i18n";
 
@@ -118,7 +118,14 @@ export function PizzaRadar({ metrics, score, cohort, lang = "es", colorMode = "g
         ctx.lineTo(ex + Math.cos(end) * inner, ey + Math.sin(end) * inner);
         ctx.arc(ex, ey, inner, end, start, true);
         ctx.closePath();
-        ctx.fillStyle = metricGroups[index].color;
+        // De oscuro a claro a lo largo de TODA la pista (no de la cuña): así
+        // el tono dice el percentil, y una cuña corta se queda apagada.
+        const { bajo, alto } = tonosDe(metricGroups[index].color);
+        const degradado = ctx.createRadialGradient(ex, ey, inner, ex, ey, outer);
+        degradado.addColorStop(0, bajo);
+        degradado.addColorStop(0.55, metricGroups[index].color);
+        degradado.addColorStop(1, alto);
+        ctx.fillStyle = degradado;
         ctx.globalAlpha = 0.94;
         ctx.fill();
         ctx.globalAlpha = 1;

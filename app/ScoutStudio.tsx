@@ -1941,9 +1941,9 @@ export default function ScoutStudio() {
 
       <section className="metric-breakdown" style={{ "--metric-columns": metricBreakdownColumns } as React.CSSProperties}>
         {metricBreakdown.map(({ group, metrics }) => (
-          <div className="metric-group" style={{ "--metric-group-color": group.color } as React.CSSProperties} key={group.id}>
+          <div className="metric-group" style={{ "--metric-group-color": group.color, "--metric-group-bajo": group.bajo, "--metric-group-alto": group.alto } as React.CSSProperties} key={group.id}>
             <h3>{t(group.label)}</h3>
-            {metrics.slice(0, 4).map((metric) => <div className="metric-row" key={metric.key}><div><span>{t(metric.label)}</span><b>{formatCell(metric.value)} <small>· P{metric.percentile}</small></b></div><i><em style={{ width: `${metric.percentile}%` }} /></i></div>)}
+            {metrics.slice(0, 4).map((metric) => <div className="metric-row" key={metric.key}><div><span>{t(metric.label)}</span><b>{formatCell(metric.value)} <small>· P{metric.percentile}</small></b></div><i><em style={{ width: `${metric.percentile}%`, backgroundSize: `${10000 / Math.max(metric.percentile, 2)}% 100%` }} /></i></div>)}
           </div>
         ))}
       </section>

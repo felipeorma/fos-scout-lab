@@ -50,3 +50,17 @@ test("el par de antes habría fallado esta prueba", () => {
   // #cd2b2b contra #e95b3f, que es lo que había: diez grados.
   assert.ok(separacion("#cd2b2b", "#e95b3f") < 15);
 });
+
+test("cada conjunto va de un tono apagado a uno claro, y los de plataforma igual", async () => {
+  const { SIMILARITY_METRIC_GROUPS, tonosDe } = await import("../lib/similarityMetricGroups.ts");
+  const luz = (hex) => [1, 3, 5].reduce((suma, i) => suma + parseInt(hex.slice(i, i + 2), 16), 0);
+  for (const grupo of SIMILARITY_METRIC_GROUPS) {
+    assert.deepEqual(tonosDe(grupo.color), { bajo: grupo.bajo, alto: grupo.alto });
+    assert.ok(luz(grupo.bajo) < luz(grupo.color) && luz(grupo.color) < luz(grupo.alto), grupo.id);
+  }
+  // Los de plataforma salen con la misma regla que los aprobados: el bajo de
+  // Finalización es su color con el 35 % de #3A3A45.
+  const statsbomb = tonosDe("#b0243a");
+  assert.ok(luz(statsbomb.bajo) < luz("#b0243a") && luz("#b0243a") < luz(statsbomb.alto));
+  assert.deepEqual(tonosDe("rgb(1,2,3)"), { bajo: "rgb(1,2,3)", alto: "rgb(1,2,3)" });
+});
