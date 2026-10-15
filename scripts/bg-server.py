@@ -1062,6 +1062,19 @@ def _en_area(p):
     return p[0] >= 102 and 18 <= p[1] <= 62
 
 
+def _punto(p):
+    """Una coordenada usable: dos números, o None.
+
+    StatsBomb trae a veces una coordenada a medias —[None, 40.0]— y restarla
+    tumbaba el partido entero con un TypeError: la liga se quedaba sin roles
+    en la ficha ampliada. Ahora el evento sin coordenada se ignora y el resto
+    del partido cuenta.
+    """
+    if isinstance(p, (list, tuple)) and len(p) >= 2 and all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in p[:2]):
+        return (float(p[0]), float(p[1]))
+    return None
+
+
 def _rol_de_intervencion(eventos, primera: bool):
     """El rol de una intervención: los eventos seguidos de un jugador en una secuencia.
 
@@ -1072,30 +1085,34 @@ def _rol_de_intervencion(eventos, primera: bool):
     atrás) > enlace (juega hacia delante) > control (la juega de lado o
     atrás). Si recibe y la pierde sin hacer nada, no cuenta: None.
     """
-    recibe = next((e for e in eventos if e["t"] == "Ball Receipt*" and e.get("l")), None)
-    if any(e["t"] == "Shot" for e in eventos) or (recibe and _en_area(recibe["l"])):
+    recibe = next((e for e in eventos if e["t"] == "Ball Receipt*" and _punto(e.get("l"))), None)
+    donde_recibe = _punto(recibe["l"]) if recibe else None
+    if any(e["t"] == "Shot" for e in eventos) or (donde_recibe and _en_area(donde_recibe)):
         return "remate"
     if primera:
         return "iniciador"
-    pase = next((e for e in reversed(eventos) if e["t"] == "Pass" and e.get("l") and e.get("e")), None)
+    pase = next((e for e in reversed(eventos) if e["t"] == "Pass" and _punto(e.get("l")) and _punto(e.get("e"))), None)
     if pase:
-        dx = pase["e"][0] - pase["l"][0]
-        largo = ((pase["e"][0] - pase["l"][0]) ** 2 + (pase["e"][1] - pase["l"][1]) ** 2) ** 0.5
+        desde, hasta = _punto(pase["l"]), _punto(pase["e"])
+        dx = hasta[0] - desde[0]
+        largo = ((hasta[0] - desde[0]) ** 2 + (hasta[1] - desde[1]) ** 2) ** 0.5
         if largo >= 30 and dx >= 20:
             return "vertical"
-        if not pase.get("o") and dx >= 8 and _a_porteria(pase["e"]) <= 0.75 * _a_porteria(pase["l"]):
+        if not pase.get("o") and dx >= 8 and _a_porteria(hasta) <= 0.75 * _a_porteria(desde):
             return "progresor"
     for e in eventos:
-        if e["t"] == "Carry" and e.get("l") and e.get("e"):
-            if e["e"][0] - e["l"][0] >= 10 and _a_porteria(e["e"]) <= 0.75 * _a_porteria(e["l"]):
+        inicio, fin = _punto(e.get("l")), _punto(e.get("e"))
+        if e["t"] == "Carry" and inicio and fin:
+            if fin[0] - inicio[0] >= 10 and _a_porteria(fin) <= 0.75 * _a_porteria(inicio):
                 return "conductor"
         if e["t"] == "Dribble" and e.get("o") == "Complete":
             return "conductor"
     if not pase:
         return None
-    if recibe and recibe.get("de") and recibe["l"][0] - recibe["de"][0] <= 2:
+    de_donde = _punto(recibe.get("de")) if recibe else None
+    if donde_recibe and de_donde and donde_recibe[0] - de_donde[0] <= 2:
         return "apoyo"
-    if pase["e"][0] - pase["l"][0] > 2:
+    if _punto(pase["e"])[0] - _punto(pase["l"])[0] > 2:
         return "enlace"
     return "control"
 
