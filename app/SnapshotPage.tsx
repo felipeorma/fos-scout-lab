@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { PieDeReporte } from "./PieDeReporte";
+import { Antetitulo } from "./KitNight";
 import { PiezaFicha, useDatosFicha, type ContextoFicha, type IdPieza } from "./PiezasFicha";
 import { t, tf } from "@/lib/i18n";
 import type { DataRow, PlayerReport } from "@/lib/scouting";
@@ -53,7 +54,7 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
 
   const cabecera = (hoja: number) => <header className={hoja > 1 ? "snap-cabecera-continuacion" : undefined}>
     <div>
-      <span>{hoja > 1 ? tf("STATSBOMB · FICHA AMPLIADA · {n} DE {total}", { n: hoja, total: totalHojas }) : t("STATSBOMB · FICHA AMPLIADA")}</span>
+      <Antetitulo>{hoja > 1 ? tf("STATSBOMB · FICHA AMPLIADA · {n} DE {total}", { n: hoja, total: totalHojas }) : t("STATSBOMB · FICHA AMPLIADA")}</Antetitulo>
       <h2>{datos.jugador}</h2>
       <p>{tf("Familias contra {n} {grupo} de la base cargada, con al menos {m} minutos.", { n: datos.grupo.indices.length, grupo: datos.nombreGrupo.toLowerCase(), m: minutosMin })}</p>
     </div>

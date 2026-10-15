@@ -6704,3 +6704,40 @@ body.print-layout-check .legal-page-shell:has([data-hoja-vacia]) { display: none
 .app-shell[data-tema] .run-map-legend i.run-map-recibida { background: radial-gradient(circle, transparent 2.4px, #f5f5f7 2.6px, #f5f5f7 3.4px, transparent 3.6px), #0e2a1f; }
 .app-shell[data-tema] .runs-side .run-mix .n-fila:first-child { padding-top: 2px; }
 .runs-lista .pool-cuerpo .n-barra { height: 4px; margin: 5px 0 4px; max-width: 320px; }
+
+/* ---- Ficha ampliada en el look Night ---- */
+.app-shell[data-tema] .snap-page > header span.n-antetitulo { color: var(--acento-claro, #ff3b30); font-size: 10px; letter-spacing: .12em; }
+/* Las canchas sobre césped (también impreso: es un dibujo) con líneas de cal. */
+.app-shell[data-tema] .snap-cancha { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.app-shell[data-tema] .snap-lineas { stroke: rgba(230, 240, 234, .4); stroke-width: .4; }
+/* Tiros: rojo sin gol, estrella verde con borde blanco el gol (mapa de remates del diseño). */
+.app-shell[data-tema] .snap-tiro { fill: #ff4d43; fill-opacity: .9; stroke: #0a2018; stroke-width: .35; }
+.app-shell[data-tema] .snap-tiro.gol { fill: #2fb65a; fill-opacity: 1; stroke: #fff; stroke-width: .45; }
+.app-shell[data-tema] .snap-ocasion circle { fill: #f5f5f7; stroke: #0a2018; stroke-width: .3; }
+.app-shell[data-tema] .snap-l.gol { background: #2fb65a; } .app-shell[data-tema] .snap-l.tiro { background: #ff4d43; box-shadow: none; }
+.app-shell[data-tema] .snap-l.juego { background: #2f96e0; } .app-shell[data-tema] .snap-l.centro { background: #f2b01e; }
+.app-shell[data-tema] .snap-l.parado { background: #e08cbb; } .app-shell[data-tema] .snap-l.asistencia { background: #2fb65a; } .app-shell[data-tema] .snap-l.fallo { background: #ff6b5e; }
+.app-shell[data-tema] .snap-regate.bien { fill: #32d583; stroke: #0a2018; stroke-width: .3; } .app-shell[data-tema] .snap-regate.mal { fill: #ff6b5e; stroke: #0a2018; stroke-width: .3; }
+/* Puestos: la rampa de la red de pases con halo del césped. */
+.app-shell[data-tema] .snap-puesto { fill-opacity: 1; stroke: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.snap-puesto-halo { fill: #0a2018; opacity: .85; }
+.app-shell[data-tema] .snap-puesto-pct { fill: #0b0b0f; }
+.app-shell[data-tema] .snap-puesto-codigo { fill: #f5f5f7; font-weight: 700; }
+/* Dónde recibe: densidad por zonas debajo de los puntos. */
+.snap-zona { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.snap-zona-pct { fill: #f5f5f7; font-size: 3.4px; font-weight: 800; text-anchor: middle; paint-order: stroke; stroke: #0a2018; stroke-width: .9px; stroke-linejoin: round; }
+.app-shell[data-tema] .snap-recepcion { fill-opacity: .72; stroke: #0a2018; stroke-width: .12; }
+/* Familias: filas de métrica agrupadas por conjunto. */
+.app-shell[data-tema] .snap-tabla.n-familias { padding: 10px 14px 12px; }
+.n-familias > p.snap-tabla-titulo { margin: 0; color: var(--muted); font-size: 10.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.n-grupo-titulo { margin: 10px 0 0; color: color-mix(in srgb, var(--n-grupo) 82%, #fff); font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; }
+.app-shell[data-tema="claro"] .n-grupo-titulo { color: color-mix(in srgb, var(--n-grupo) 70%, #000); }
+.n-familias .n-fila { padding: 5px 0 6px; }
+.n-familias .n-fila-etiqueta { font-size: 11.5px; }
+.n-familias .snap-fuente-sc { margin-left: 5px; font-size: 8px; font-style: normal; font-weight: 700; color: #12c48b; }
+/* Roles. */
+.n-roles { display: block; margin: 4px 0 0; padding: 0; }
+.n-roles > div + div > .n-fila { border-top: .7px solid color-mix(in srgb, var(--line) 60%, transparent); }
+/* Listas con su barra. */
+.app-shell[data-tema] .snap-parecidos li > .n-barra { grid-column: 2 / -1; height: 3px; margin: 1px 0 2px; }
+.app-shell[data-tema] .snap-top li > b > .n-barra { height: 3px; margin-top: 4px; }
