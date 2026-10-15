@@ -45,3 +45,26 @@ export function encogerHaciaLaMedia(valores: number[], soportes: number[]): numb
     return (soporte * valor + METRICAS_PARA_CONFIAR * media) / (soporte + METRICAS_PARA_CONFIAR);
   });
 }
+
+/**
+ * Los candidatos de una búsqueda de parecidos, ordenados por el parecido
+ * corregido por cobertura (`ajustado`).
+ *
+ * Sin esto el buscador miente de forma sistemática: un candidato de una liga
+ * con pocas métricas se compara en menos dimensiones, y menos dimensiones son
+ * menos ocasiones de diferir. En una prueba con dos ligas idénticas salvo por
+ * la cobertura, los de la liga pobre salían al 100% con 67% de cobertura, por
+ * encima de los de la liga rica que coincidían en todo al 96%.
+ *
+ * Se corrige sobre TODOS los candidatos y solo después se filtra: la
+ * corrección encoge hacia la media del conjunto, así que filtrando antes,
+ * tachar una liga movería el parecido de todos los demás.
+ */
+export function ordenarPorCobertura<T extends { similarity: number; coverage: number }>(candidatos: T[], totalMetricas: number): Array<T & { ajustado: number }> {
+  if (!candidatos.length) return [];
+  const usadas = candidatos.map((c) => Math.max(0, Math.round((c.coverage / 100) * totalMetricas)));
+  const ajustados = encogerHaciaLaMedia(candidatos.map((c) => c.similarity), usadas);
+  return candidatos
+    .map((candidato, i) => ({ ...candidato, ajustado: Math.round(ajustados[i]) }))
+    .sort((a, b) => b.ajustado - a.ajustado || b.coverage - a.coverage);
+}

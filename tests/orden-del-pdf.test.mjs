@@ -22,7 +22,7 @@ function ordenDelRender() {
     ["CARD_PAGE", 'className="legal-page-shell">{reportArticleNode}'],
     ["SIMILARITY_PAGE", "similarity-page-host"],
     ["VISUALES", "visualPages.filter((page) => printRun"],
-    ...["SNAPSHOT_PAGE", "CONTEXT_PAGE", "RUNS_PAGE", "RANK_PAGE", "POOL_PAGE", "STYLE_PAGE", "FLOW_PAGE"].map((p) => [p, `claseHoja(${p})`]),
+    ...["SNAPSHOT_PAGE", "CONTEXT_PAGE", "RUNS_PAGE", "RANK_PAGE", "STYLE_PAGE", "FLOW_PAGE"].map((p) => [p, `claseHoja(${p})`]),
   ];
   return marcas.map(([pagina, marca]) => ({ pagina, en: render.indexOf(marca) }))
     .filter(({ en }) => en >= 0)

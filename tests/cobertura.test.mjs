@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildSimilaritySearch } from "../lib/similarity.ts";
-import { METRICAS_PARA_CONFIAR, encogerHaciaLaMedia } from "../lib/cobertura.ts";
+import { METRICAS_PARA_CONFIAR, encogerHaciaLaMedia, ordenarPorCobertura } from "../lib/cobertura.ts";
 
 /**
  * El sesgo por cobertura, que apareció al montar el buscador entre ligas.
@@ -12,20 +12,8 @@ import { METRICAS_PARA_CONFIAR, encogerHaciaLaMedia } from "../lib/cobertura.ts"
  * hacia la media ponderado por métricas; esto fija las dos mitades del asunto.
  */
 
-/*
- * La misma corrección que aplica la pantalla, llamando al cálculo de verdad.
- * Antes esto era una copia del algoritmo escrita para la prueba, así que
- * verificaba una réplica y no el código que corre en producción: podían
- * separarse sin que nada lo avisara.
- */
-function conCobertura(candidatos, totalMetricas) {
-  if (!candidatos.length) return [];
-  const usadas = candidatos.map((c) => Math.max(0, Math.round((c.coverage / 100) * totalMetricas)));
-  const ajustados = encogerHaciaLaMedia(candidatos.map((c) => c.similarity), usadas);
-  return candidatos
-    .map((c, i) => ({ ...c, ajustado: Math.round(ajustados[i]) }))
-    .sort((a, b) => b.ajustado - a.ajustado || b.coverage - a.coverage);
-}
+// La misma función que ordena la lista de Similitud: se prueba el código que corre, no una copia.
+const conCobertura = ordenarPorCobertura;
 
 /*
  * Las métricas de Wyscout varían con el jugador, como en una base de verdad:

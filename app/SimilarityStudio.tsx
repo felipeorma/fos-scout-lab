@@ -29,6 +29,14 @@ import { t, tf, numberLocale, type Lang } from "@/lib/i18n";
 import { guardarConImagenes } from "@/lib/almacen";
 import { AutorDelInforme } from "./FirmaDelInforme";
 import { clavesDeSimilitud, coincidenciasYDiferencias, duelosDeSimilitud } from "@/lib/similitudClaves";
+import { ordenarPorCobertura } from "@/lib/cobertura";
+import { nivelDeLiga, type EntradaOpta } from "@/lib/nivelDeLiga";
+import { EQUIPO_PROPIO, crearEncaje, perfilesDeEstilo } from "@/lib/estiloEquipo";
+import { useEstilos } from "./useEstilos";
+import { equiposParaEncaje, useEncajeDeLista } from "./useEncajeDeLista";
+import { CeldaEncaje } from "./CeldaEncaje";
+import { CeldaEncajeEquipo } from "./CeldaEncajeEquipo";
+import { BotonExportar } from "./BotonExportar";
 
 type TargetOption = { index: number; player: string; team: string };
 type ProfileSide = "target" | "candidate";
@@ -50,6 +58,16 @@ type SimilarityStudioProps = {
    * percentiles contra la propia liga.
    */
   procedenciaPorFila?: Array<{ ligas: string[]; anios: number[]; claves?: string[] }> | null;
+  /** Los Opta Power Rankings, para el nivel de la liga de cada candidato. */
+  feedOpta?: EntradaOpta[] | null;
+  /**
+   * Las columnas de encaje (estilo del club con el nuestro y, si se elige, con
+   * un equipo): solo en Cavalry y cuando se mira la página, porque piden las
+   * estadísticas de equipo de todas las ligas.
+   */
+  conEncaje?: boolean;
+  /** Si la ficha mide contra su liga ("Comparar con"): entonces Similitud empieza en "Su liga y su año". */
+  medirEnSuLiga?: boolean;
   targets: TargetOption[];
   theme: ReportTheme;
   targetProfile: TransfermarktProfile;
@@ -111,7 +129,7 @@ function blobToDataUrl(blob: Blob) {
   });
 }
 
-export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es", aiControlsHidden = false, metricLabels = null, minimumMinutes: minutosBase, onMinimumMinutes, reportCohort = "AUTO", procedenciaPorFila = null, targets, theme, targetProfile, recipientName, recipientLogoUrl, onSelectTarget, onTargetProfileChange, onRecipientNameChange, onRecipientLogoChange, onOpenReports }: SimilarityStudioProps) {
+export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es", aiControlsHidden = false, metricLabels = null, minimumMinutes: minutosBase, onMinimumMinutes, reportCohort = "AUTO", procedenciaPorFila = null, feedOpta = null, conEncaje = false, medirEnSuLiga = false, targets, theme, targetProfile, recipientName, recipientLogoUrl, onSelectTarget, onTargetProfileChange, onRecipientNameChange, onRecipientLogoChange, onOpenReports }: SimilarityStudioProps) {
   const [query, setQuery] = useState("");
   const [ageMin, setAgeMin] = useState("");
   const [ageMax, setAgeMax] = useState("");
@@ -150,7 +168,10 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
    */
   const [rolMetricas, setRolMetricas] = useState("");
 
-  const [baseDePercentiles, setBaseDePercentiles] = useState<"combinado" | "liga">("combinado");
+  // Empieza como "Comparar con" de la ficha: si allí se mide contra su liga,
+  // aquí también. Tocar el interruptor manda sobre eso en esta sesión.
+  const [modoElegido, setBaseDePercentiles] = useState<"combinado" | "liga" | null>(null);
+  const baseDePercentiles = modoElegido ?? (medirEnSuLiga ? "liga" : "combinado");
   /* Para MEDIR se usa la clave liga+año, no la liga sola: si no, dos
      temporadas de la misma competición caerían en el mismo grupo y comparar a
      un jugador con su propia versión del año pasado los mediría a los dos
@@ -344,10 +365,29 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
    * nadie: filtrando antes, cerrar una competición movería el parecido de
    * todos los demás, porque el grupo de referencia sería otro.
    */
+  /*
+   * Ordenados por el parecido corregido por cobertura, como hacía Entre ligas:
+   * sin la corrección, un candidato de una liga con pocas métricas se compara
+   * en menos dimensiones y sube por tener peores datos, no por parecerse más.
+   * Se corrige sobre todos y después se filtra (ver lib/cobertura).
+   */
   const candidates = useMemo(
-    () => (search?.candidates ?? []).filter((candidate) => encaja(candidate.index, ligaCandidato, anioCandidato)),
+    () => (search ? ordenarPorCobertura(search.candidates, search.target.metrics.length) : [])
+      .filter((candidate) => encaja(candidate.index, ligaCandidato, anioCandidato)),
     [search, encaja, ligaCandidato, anioCandidato],
   );
+  // Lo que traía Entre ligas: el encaje de estilo del club de cada candidato
+  // con el nuestro y, si se elige, el encaje con un equipo concreto.
+  const estilos = useEstilos(conEncaje);
+  const encaje = useMemo(() => crearEncaje(estilos.filas ? perfilesDeEstilo(estilos.filas) : [], EQUIPO_PROPIO), [estilos.filas]);
+  const [equipoEncaje, setEquipoEncaje] = useState("");
+  const equiposEncaje = useMemo(() => (conEncaje ? equiposParaEncaje(rows) : []), [conEncaje, rows]);
+  const encajeEquipo = useEncajeDeLista(rows, Number(minimumMinutes) || 0, conEncaje ? equipoEncaje : "");
+  const ligasDeFila = (indice: number) => procedenciaPorFila?.[indice]?.ligas ?? [];
+  const opta = (liga: string) => {
+    const nivel = nivelDeLiga(feedOpta, liga);
+    return nivel ? nivel.rating.toLocaleString(numberLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : null;
+  };
   const activeMetricWeights = search?.target.metrics.filter((metric) => (metricWeights[metric.key] ?? 1) !== 1).length ?? 0;
   const selectedCandidate = candidates.find((candidate) => candidate.index === selectedCandidateIndex) ?? candidates[0] ?? null;
 
@@ -892,7 +932,29 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
       <div className="similarity-workspace">
         <main className="similarity-results">
           <section className="similarity-ranking-card">
-            <div className="similarity-results-head"><div><span>{t("LISTADO DE JUGADORES")}</span><h2>{t("Ranking de similitud")}</h2></div><small>{tf("{n} coincidencias", { n: candidates.length })}</small></div>
+            <div className="similarity-results-head"><div><span>{t("LISTADO DE JUGADORES")}</span><h2>{t("Ranking de similitud")}</h2></div><div className="similarity-results-acciones"><small>{tf("{n} coincidencias", { n: candidates.length })}</small>
+              {/* El CSV lleva todos los que pasan los filtros, con las dos cifras de parecido y la cobertura: un 90% con 55% de cobertura no es un 90% con 100. */}
+              <BotonExportar
+                nombre={[t("parecidos-a"), search?.target.player, ligaCandidato || null, anioCandidato || null]}
+                columnas={[t("#"), t("Jugador"), t("Equipo"), t("Liga"), t("Nivel Opta"), t("Año"), t("Edad"), t("Min"), t("Pasaporte"), t("Parecido"), t("Bruto"), t("Cobertura"),
+                  ...(conEncaje ? [tf("Encaje de estilo con {equipo}", { equipo: EQUIPO_PROPIO })] : []),
+                  ...(encajeEquipo.activo ? [tf("Encaje con {equipo}: puesto", { equipo: equipoEncaje }), tf("Encaje con {equipo}: lugar en la plantilla", { equipo: equipoEncaje }), tf("Encaje con {equipo}: % de partidos con su puesto", { equipo: equipoEncaje })] : [])]}
+                cuantas={candidates.length}
+                filas={() => candidates.map((candidato, posicion) => [
+                  posicion + 1, candidato.name, candidato.team,
+                  ligasDeFila(candidato.index).join(" · "),
+                  ligasDeFila(candidato.index).map(opta).filter(Boolean).join(" · ") || null,
+                  (procedenciaPorFila?.[candidato.index]?.anios ?? []).join(" · "),
+                  candidato.age ?? null, Math.round(candidato.minutes), candidato.passport,
+                  candidato.ajustado, candidato.similarity, candidato.coverage,
+                  ...(conEncaje ? [encaje(candidato.team)?.valor ?? null] : []),
+                  ...(encajeEquipo.activo ? (() => {
+                    const suyo = encajeEquipo.para(candidato.index);
+                    return [suyo?.puesto ?? null, suyo?.lugar ? `${suyo.lugar.lugar}/${suyo.lugar.de}` : null, suyo?.sitio ?? null];
+                  })() : []),
+                ])}
+              />
+            </div></div>
             <div className="filtros-barra similarity-filtros" role="group" aria-label={t("Filtros")}>
               <label className="campo-busqueda"><Search size={14} /><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("Escribe un nombre…")} aria-label={t("Buscar jugador o club")} /></label>
               <div className="filtros-chips">
@@ -926,6 +988,12 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
                 <Desplegable etiqueta={t("Lado")} valor={side === "left" ? t("Izquierdo (L)") : side === "right" ? t("Derecho (R)") : t("Cualquiera")} activo={Boolean(side)}>
                   <select aria-label={t("Lado del campo · prefijo L / R")} value={side} onChange={(event) => setSide(event.target.value as "" | "left" | "right")}><option value="">{t("Cualquiera")}</option><option value="left">{t("Izquierdo (L)")}</option><option value="right">{t("Derecho (R)")}</option></select>
                 </Desplegable>
+                {conEncaje && <Desplegable etiqueta={t("Encaje con")} valor={equipoEncaje || t("No mostrar")} activo={Boolean(equipoEncaje)}>
+                  <select aria-label={t("Encaje con un equipo")} value={equipoEncaje} onChange={(event) => setEquipoEncaje(event.target.value)}>
+                    <option value="">{t("No mostrar")}</option>
+                    {equiposEncaje.map((equipo) => <option key={equipo} value={equipo}>{equipo}</option>)}
+                  </select>
+                </Desplegable>}
               </div>
               <div className="filtros-barra-cola"><button type="button" onClick={resetFilters}>{t("Restablecer filtros")}</button></div>
             </div>
@@ -959,7 +1027,14 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
                 </div>
               </>}
             </section>
-            {candidates.length ? <div className="similarity-table-wrap"><table className="similarity-table"><thead><tr><th>#</th><th>{t("Jugador")}</th><th>{t("Posiciones")}</th><th>{t("Edad")}</th><th>{t("Minutos")}</th><th>{t("Pasaporte")}</th><th>{t("Similitud")}</th><th /></tr></thead><tbody>{candidates.slice(0, 150).map((candidate, index) => <tr key={candidate.index} className={selectedCandidate?.index === candidate.index ? "selected" : ""}><td>{String(index + 1).padStart(2, "0")}</td><td><b>{candidate.name}</b><small>{candidate.team}</small></td><td><PositionRoles positions={candidate.positions} /></td><td>{candidate.age ?? "—"}</td><td>{Math.round(candidate.minutes).toLocaleString(numberLocale())}</td><td>{candidate.passport}</td><td><span className="similarity-score-pill">{candidate.similarity}%</span></td><td><button onClick={() => chooseCandidate(candidate)}>{t("Comparar")}</button></td></tr>)}</tbody></table></div> : <div className="similarity-no-results"><Search size={24} /><b>{t("No hay jugadores con estos filtros")}</b><span>{t("Reduce los requisitos de edad, minutos, pasaporte o posición.")}</span></div>}
+            {candidates.length ? <div className="similarity-table-wrap"><table className="similarity-table"><thead><tr><th>#</th><th>{t("Jugador")}</th><th>{t("Posiciones")}</th><th>{t("Edad")}</th><th>{t("Minutos")}</th><th>{t("Pasaporte")}</th>{conEncaje && <th title={tf("Cuánto se parece el estilo de su club al de {equipo}", { equipo: EQUIPO_PROPIO })}>{t("Encaje")}</th>}{encajeEquipo.activo && <th>{equipoEncaje}</th>}<th title={t("Parecido corregido por cobertura; debajo, el bruto y la cobertura")}>{t("Similitud")}</th><th /></tr></thead><tbody>{candidates.slice(0, 150).map((candidate, index) => <tr key={candidate.index} className={selectedCandidate?.index === candidate.index ? "selected" : ""}>
+              <td>{String(index + 1).padStart(2, "0")}</td>
+              <td><b>{candidate.name}</b><small>{[candidate.team, ...ligasDeFila(candidate.index).map((liga) => (opta(liga) ? `${liga} · Opta ${opta(liga)}` : liga))].join(" · ")}</small></td>
+              <td><PositionRoles positions={candidate.positions} /></td><td>{candidate.age ?? "—"}</td><td>{Math.round(candidate.minutes).toLocaleString(numberLocale())}</td><td>{candidate.passport}</td>
+              {conEncaje && <td><CeldaEncaje encaje={encaje(candidate.team)} cargando={estilos.cargando} /></td>}
+              {encajeEquipo.activo && <td><CeldaEncajeEquipo encaje={encajeEquipo.para(candidate.index)} cargandoSitio={encajeEquipo.cargandoSitio} /></td>}
+              <td><span className="similarity-score-pill">{candidate.ajustado}%</span><small className={candidate.coverage < 60 ? "similarity-bruto baja" : "similarity-bruto"}>{tf("bruto {n}% · cobertura {c}%", { n: candidate.similarity, c: candidate.coverage })}</small></td>
+              <td><button onClick={() => chooseCandidate(candidate)}>{t("Comparar")}</button></td></tr>)}</tbody></table></div> : <div className="similarity-no-results"><Search size={24} /><b>{t("No hay jugadores con estos filtros")}</b><span>{t("Reduce los requisitos de edad, minutos, pasaporte o posición.")}</span></div>}
             <p className="similarity-motor-nota"><b>{t("Motor actual: baseline")}</b> {t("Esta comparación es explicable y funciona con Excel agregados. RisingBALLER–Wyscout podrá reemplazar el vector cuando existan datos por partido.")}</p>
           </section>
 

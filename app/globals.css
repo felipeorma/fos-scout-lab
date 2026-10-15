@@ -6859,9 +6859,12 @@ body.print-layout-check .legal-page-shell:has([data-hoja-vacia]) { display: none
 
 /* Marco "su liga" de Contexto y Entre ligas: el texto dice contra quién y con qué nivel; en ámbar, cuando su liga no da y se vuelve a todas. */
 .ctx-ligas > em.ctx-marco { color: var(--pl-ink, var(--ink)); font-variant-numeric: tabular-nums; }
-.ctx-ligas > em.ctx-marco.aviso,
-.pool-marco.aviso { color: var(--aviso-tinta, #f0b45a); }
-.pool-marco { margin: 12px 0 14px; color: var(--muted); font-size: 12.5px; line-height: 1.45; }
-.pool-opta { margin-left: 5px; color: var(--muted); font-style: normal; font-size: .92em; font-variant-numeric: tabular-nums; opacity: .85; }
+.ctx-ligas > em.ctx-marco.aviso { color: var(--aviso-tinta, #f0b45a); }
+/* Similitud: el parecido corregido por cobertura en la píldora; debajo, el bruto y la cobertura (en ámbar si es baja). */
+.similarity-table td .similarity-bruto { display: block; margin-top: 3px; color: var(--muted); font-size: 7px; white-space: nowrap; }
+.similarity-table td .similarity-bruto.baja { color: var(--aviso-tinta, #f0b45a); }
+.similarity-table td .celda-encaje { min-width: 0; }
 .app-shell[data-tema="claro"] .ctx-ligas > em.ctx-marco.aviso,
-.app-shell[data-tema="claro"] .pool-marco.aviso { color: #8a5300; }
+.app-shell[data-tema="claro"] .similarity-table td .similarity-bruto.baja { color: #8a5300; }
+.similarity-results-acciones { display: flex; align-items: center; gap: 12px; }
+.similarity-results-acciones > small { color: var(--muted); font-size: 8px; }

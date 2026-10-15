@@ -7,7 +7,6 @@ import { ContextPage } from "./ContextPage";
 import { ScoutingBoard } from "./ScoutingBoard";
 import { RunsPage } from "./RunsPage";
 import { RankingPage } from "./RankingPage";
-import { PoolPage } from "./PoolPage";
 import { EstiloPage } from "./EstiloPage";
 import { FlujoPage } from "./FlujoPage";
 import { SnapshotPage } from "./SnapshotPage";
@@ -79,8 +78,8 @@ const RUNS_PAGE = 92;
 const FLOW_PAGE = 93;
 // Ranking de la base por posición: quién es el mejor de cada puesto.
 const RANK_PAGE = 94;
-// Buscador entre ligas de la API: fondo multi-competición.
-const POOL_PAGE = 95;
+// 95 era "Entre ligas": su lista vive ahora en Similitud, que usa el mismo
+// motor. El número no se reutiliza.
 // La base activa: qué hay cargado y cómo cambiarlo. Cargar ligas estaba
 // repartido en tres botones distintos —la portada, "Conectar API" y
 // "Reemplazar archivos"— y cada uno hacía una parte; ahora es una etapa.
@@ -104,7 +103,6 @@ const NOMBRE_DE_SECCION: Record<number, string> = {
   [BOARD_PAGE]: "Mesa de detección",
   [RUNS_PAGE]: "Carreras",
   [RANK_PAGE]: "Ranking",
-  [POOL_PAGE]: "Entre ligas",
   [DATA_PAGE]: "Base activa",
   [STYLE_PAGE]: "Estilo de juego",
   [FLOW_PAGE]: "Flujo de posesión",
@@ -2096,16 +2094,15 @@ export default function ScoutStudio() {
       { page: CONTEXT_PAGE, title: t("Contexto"), hint: t("Dónde destaca y por qué") },
       { page: RUNS_PAGE, title: t("Carreras"), hint: t("Mapa sin balón") },
       { page: RANK_PAGE, title: t("Ranking"), hint: t("Los mejores por puesto") },
-      { page: POOL_PAGE, title: t("Entre ligas"), hint: t("Buscar parecidos") },
       { page: STYLE_PAGE, title: t("Estilo de juego"), hint: t("Cómo juega cada equipo") },
       { page: FLOW_PAGE, title: t("Flujo de posesión"), hint: t("Rutas del balón por equipo") },
       ...visualPages.map((page, index) => ({ page, title: tf("Visuales {n}", { n: index + 1 }), hint: t("Mapas, imágenes y texto") })),
     ];
   const todasMarcadas = paginasParaImprimir.every(({ page }) => printPages.includes(page));
-  const paginasQuePidenElegir: ReportPage[] = [POOL_PAGE, RUNS_PAGE, FLOW_PAGE, STYLE_PAGE];
+  const paginasQuePidenElegir: ReportPage[] = [RUNS_PAGE, FLOW_PAGE, STYLE_PAGE];
   useEffect(() => {
     if (!printDialogOpen) return;
-    setPaginasVacias([POOL_PAGE, RUNS_PAGE, FLOW_PAGE, STYLE_PAGE, RANK_PAGE].filter((page) => (
+    setPaginasVacias([RUNS_PAGE, FLOW_PAGE, STYLE_PAGE, RANK_PAGE].filter((page) => (
       (paginasQuePidenElegir.includes(page) && !paginasAbiertas.includes(page))
       || Boolean(document.querySelector(`.hoja-${page} [data-hoja-vacia]`))
     )));
@@ -2405,8 +2402,6 @@ export default function ScoutStudio() {
                   <div className="seccion-lista">
                     <FilaSeccion activa={reportPage === RANK_PAGE} onClick={() => setReportPage(RANK_PAGE)}
                       icono={<Trophy size={16} />} titulo={t("Ranking")} detalle={t("Los mejores por puesto")} />
-                    <FilaSeccion activa={reportPage === POOL_PAGE} onClick={() => setReportPage(POOL_PAGE)}
-                      icono={<Search size={16} />} titulo={t("Entre ligas")} detalle={t("Buscar parecidos")} api />
                     <FilaSeccion activa={reportPage === STYLE_PAGE} onClick={() => setReportPage(STYLE_PAGE)}
                       icono={<ShieldCheck size={16} />} titulo={t("Estilo de juego")} detalle={t("Cómo juega cada equipo")} api />
                     <FilaSeccion activa={reportPage === FLOW_PAGE} onClick={() => setReportPage(FLOW_PAGE)}
@@ -2718,6 +2713,9 @@ export default function ScoutStudio() {
                 <SimilarityStudio
                   aiControlsHidden={aiControlsHidden}
                   procedenciaPorFila={origenes}
+                  feedOpta={feedOpta}
+                  medirEnSuLiga={medirContra === "liga"}
+                  conEncaje={espacio === "cavalry" && (reportPage === SIMILARITY_PAGE || Boolean(printRun?.includes(SIMILARITY_PAGE)))}
                   metricLabels={report ? metricPicks[report.cohort] ?? null : null}
                   minimumMinutes={minimumMinutes}
                   onMinimumMinutes={setMinimumMinutes}
@@ -2771,10 +2769,6 @@ export default function ScoutStudio() {
               {espacio === "cavalry" && report && paginaMontada(RANK_PAGE) && (
                 <div className={claseHoja(RANK_PAGE)}><RankingPage onSelectPlayer={(indice) => { selectPlayer(indice); setReportPage(CARD_PAGE); }} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl}
                   medirEnSuLiga={medirContra === "liga"} nivel={nivelDelRanking} /></div>
-              )}
-              {espacio === "cavalry" && paginaMontada(POOL_PAGE) && (
-                <div className={claseHoja(POOL_PAGE)}><PoolPage onAbrirJugador={(indice) => { selectPlayer(indice); setReportPage(CARD_PAGE); }} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl}
-                  medirEnSuLiga={medirContra === "liga"} feedOpta={feedOpta} /></div>
               )}
               {espacio === "cavalry" && paginaMontada(STYLE_PAGE) && (
                 <EstiloPage claseHoja={claseHoja(STYLE_PAGE)} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} />
