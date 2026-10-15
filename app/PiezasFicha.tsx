@@ -10,7 +10,7 @@ import { Escudo } from "./Escudo";
 import { buildSimilaritySearch, type SimilarityFilters, type SimilarityPlayer } from "@/lib/similarity";
 import { PERFILES } from "@/lib/perfiles";
 import { primaryPositionRole } from "@/lib/positions";
-import type { DataRow, PlayerReport } from "@/lib/scouting";
+import { temporadasDeFila, type DataRow, type PlayerReport } from "@/lib/scouting";
 import type { TransfermarktProfile } from "@/lib/transfermarkt";
 import {
   AGRUPACIONES_RECEPCION,
@@ -58,6 +58,8 @@ export type ContextoFicha = {
   perfilTm?: Partial<TransfermarktProfile>;
   minutosMin: number;
   onAbrirJugador?: (indice: number) => void;
+  /** La temporada que se mira en la ficha ("2026", "2025/2026"); sin ella, la más reciente del jugador. */
+  temporada?: string;
 };
 
 export type IdPieza =
@@ -215,8 +217,10 @@ export function useDatosFicha(contexto: ContextoFicha, conEventos: boolean, conR
   const { rows, indice, informe, minutosMin } = contexto;
   const fila = rows[indice];
   const jugador = String(fila?.Player ?? informe.player);
-  const equipo = String(fila?.Team ?? informe.team);
-  const fuente = fuenteStatsbomb(fila?.["Data sources"]);
+  const fuente = fuenteStatsbomb(fila?.["Data sources"], contexto.temporada);
+  // El club de ESA temporada y liga, no el actual: es con el que jugó esos partidos.
+  const temporadaDeLaFuente = fuente ? temporadasDeFila(fila).find((temporada) => temporada.etiqueta === fuente.temporada) : undefined;
+  const equipo = (fuente && temporadaDeLaFuente?.equipoPorLiga[fuente.liga]) || String(fila?.Team ?? informe.team);
   const clave = fuente ? `${fuente.liga}|${fuente.temporada}|${equipo}|${jugador}` : "";
   const { eventos, estado } = useEventos(clave, conEventos, equipo);
   const { roles: rolesLiga, estado: estadoRoles } = useRoles(fuente?.liga ?? "", fuente?.temporada ?? "", conRoles);
@@ -512,10 +516,12 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
         <dl>
           <div><dt>{t("Posición")}</dt><dd>{informe.position || "—"}</dd></div>
           <div><dt>{t("Edad")}</dt><dd>{informe.age || "—"}</dd></div>
-          <div><dt>{t("Minutos")}</dt><dd>{num(informe.minutes)}</dd></div>
+          {/* Los de la temporada que enseña la ficha ampliada, no la suma de
+              las dos que puede llevar el radar de la ficha. */}
+          <div><dt>{t("Minutos")}</dt><dd>{num(Number(rows[indice]?.["Minutes played"]) || informe.minutes)}</dd></div>
           <div><dt>{t("País")}</dt><dd>{informe.passport || "—"}</dd></div>
           <div><dt>{t("Dorsal")}</dt><dd>{eventos?.dorsal || perfilTm?.number || "—"}</dd></div>
-          <div><dt>{t("Liga")}</dt><dd>{fuente?.liga ?? "—"}</dd></div>
+          <div><dt>{t("Liga")}</dt><dd>{fuente ? `${fuente.liga} · ${fuente.temporada}` : "—"}</dd></div>
         </dl>
       </div>;
 

@@ -540,15 +540,29 @@ export function carriles(
   return { posiciones: salida, total: ocupados.length };
 }
 
-/** De la columna "Data sources", la competición y temporada de StatsBomb del jugador. */
-export function fuenteStatsbomb(fuentes: unknown): { liga: string; temporada: string } | null {
+/**
+ * De la columna "Data sources", la competición y temporada de StatsBomb del
+ * jugador: la pedida si la tiene, y si no la MÁS RECIENTE.
+ *
+ * Devolvía la primera de la lista, y la lista va de la temporada más vieja a
+ * la más nueva: con dos temporadas, la ficha ampliada enseñaba la anterior.
+ * Y como el club que se pedía era el actual, a quien cambió de equipo no se
+ * le encontraba ningún partido —Sean Young: CPL 2025 con Pacific, USL 2026
+ * con Loudoun; se pedía "CPL 2025 · Loudoun United"— y los mapas salían vacíos.
+ */
+export function fuenteStatsbomb(fuentes: unknown, temporadaPedida?: string): { liga: string; temporada: string } | null {
+  const todas: Array<{ liga: string; temporada: string }> = [];
   for (const parte of String(fuentes ?? "").split(",")) {
     const limpia = parte.trim();
     if (!limpia.startsWith("StatsBomb · ")) continue;
     const resto = limpia.slice("StatsBomb · ".length).trim();
     const corte = resto.lastIndexOf(" ");
     if (corte < 0) continue;
-    return { liga: resto.slice(0, corte), temporada: resto.slice(corte + 1) };
+    todas.push({ liga: resto.slice(0, corte), temporada: resto.slice(corte + 1) });
   }
-  return null;
+  if (!todas.length) return null;
+  const pedida = temporadaPedida ? todas.find((fuente) => fuente.temporada === temporadaPedida) : undefined;
+  if (pedida) return pedida;
+  const inicio = (temporada: string) => Number(temporada.match(/\d{4}/)?.[0] ?? 0);
+  return [...todas].sort((a, b) => inicio(b.temporada) - inicio(a.temporada))[0];
 }

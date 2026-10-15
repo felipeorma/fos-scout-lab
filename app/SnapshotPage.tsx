@@ -20,7 +20,9 @@ import type { TransfermarktProfile } from "@/lib/transfermarkt";
  * Cada gráfico es una pieza de PiezasFicha: los mismos que Visuales ofrece
  * sueltos para montar una hoja a medida.
  */
-export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, destinatario = "", logoDestinatario = "", onAbrirJugador, claseHoja = "legal-page-shell", equipoEncaje: equipoDeFuera, onEquipoEncaje, sinHojaDeEncaje = false }: {
+export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, destinatario = "", logoDestinatario = "", onAbrirJugador, claseHoja = "legal-page-shell", equipoEncaje: equipoDeFuera, onEquipoEncaje, sinHojaDeEncaje = false, temporada }: {
+  /** La temporada que se mira en la ficha; sin ella, la más reciente del jugador. */
+  temporada?: string;
   rows: DataRow[];
   indice: number;
   informe: PlayerReport;
@@ -37,7 +39,7 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
   /** Sin la tercera hoja: en el PDF el encaje es opcional. En pantalla siempre está. */
   sinHojaDeEncaje?: boolean;
 }) {
-  const contexto: ContextoFicha = { rows, indice, informe, perfilTm, minutosMin, onAbrirJugador };
+  const contexto: ContextoFicha = { rows, indice, informe, perfilTm, minutosMin, onAbrirJugador, temporada };
   const datos = useDatosFicha(contexto, true, true);
   const [familiaTop, setFamiliaTop] = useState("progresion");
   // El mapa de recepciones y su reparto se agrupan igual: cambiar uno cambia los dos.

@@ -565,9 +565,12 @@ export default function ScoutStudio() {
   const jugadoresVisibles = useMemo(() => {
     const { anio, liga } = base.filtros;
     return players.filter((player) => base.pasaFiltros(player.index)).map((player) => {
-      if (!anio) return player;
+      if (!anio && liga === "TODAS") return player;
+      // La temporada más reciente que encaja con el filtro: con solo la liga,
+      // la última suya en esa liga (quien pasó de la USL a la MLS Next Pro
+      // sale, filtrando por la USL, con su club de la USL).
       const temporada = temporadasDeFila(reportRows[player.index])
-        .find((t) => inicioDe(t) === anio && (liga === "TODAS" || t.ligas.includes(liga)));
+        .find((t) => (!anio || inicioDe(t) === anio) && (liga === "TODAS" || t.ligas.includes(liga)));
       const equipo = temporada ? (liga !== "TODAS" ? temporada.equipoPorLiga[liga] : "") || temporada.equipo : "";
       return equipo ? { ...player, team: equipo } : player;
     });
@@ -632,16 +635,18 @@ export default function ScoutStudio() {
    */
   const [soloTemporadaActual, setSoloTemporadaActual] = useState(false);
   /** La temporada elegida a mano y con qué filtro de año se eligió: si el filtro cambia, manda el filtro. */
-  const [temporadaElegida, setTemporadaElegida] = useState<{ anio: number; conFiltro: number } | null>(null);
+  const [temporadaElegida, setTemporadaElegida] = useState<{ anio: number; conFiltro: string } | null>(null);
   const filaElegida = reportRows[selectedPlayer];
   const temporadasDeLaFila = temporadasDeFila(filaElegida);
   const indiceDeReferencia = (() => {
-    if (temporadaElegida && temporadaElegida.conFiltro === base.filtros.anio) {
+    if (temporadaElegida && temporadaElegida.conFiltro === `${base.filtros.liga}|${base.filtros.anio}`) {
       const elegida = temporadasDeLaFila.findIndex((temporada) => temporada.anio === temporadaElegida.anio);
       if (elegida >= 0) return elegida;
     }
-    if (base.filtros.anio) {
-      const delFiltro = temporadasDeLaFila.findIndex((temporada) => inicioDe(temporada) === base.filtros.anio);
+    const { anio, liga } = base.filtros;
+    if (anio || liga !== "TODAS") {
+      const delFiltro = temporadasDeLaFila.findIndex((temporada) => (!anio || inicioDe(temporada) === anio)
+        && (liga === "TODAS" || temporada.ligas.includes(liga)));
       if (delFiltro >= 0) return delFiltro;
     }
     return 0;
@@ -671,6 +676,40 @@ export default function ScoutStudio() {
   }, [cruceDeTemporadas, filaElegida]);
   const filasDelInforme = cruceDeTemporadas && indiceEnElCruce >= 0 ? cruceDeTemporadas : reportRows;
   const indiceDelInforme = cruceDeTemporadas && indiceEnElCruce >= 0 ? indiceEnElCruce : selectedPlayer;
+  /*
+   * La ficha ampliada y las páginas visuales enseñan UNA temporada —la de
+   * referencia, por defecto la última—, no la suma: sus mapas son de los
+   * partidos de esa temporada, y con la fila fusionada los minutos y las
+   * familias mezclaban dos clubes y dos ligas. Solo se calcula si alguna de
+   * esas páginas está abierta.
+   */
+  const aniosAbiertos = paginasAbiertas.join(",");
+  const anioDeReferencia = temporadaDeReferencia?.anio ?? null;
+  const conVariasTemporadas = temporadasDeLaFila.length > 1;
+  const cruceDeLaTemporada = useMemo(() => {
+    const conPiezas = aniosAbiertos.split(",").map(Number).some((pagina) => pagina === SNAPSHOT_PAGE || pagina >= FIRST_VISUAL_PAGE && pagina < CONTEXT_PAGE);
+    if (!conPiezas || anioDeReferencia === null || !conVariasTemporadas) return null;
+    const bases = basesActivas.filter((dataset) => dataset.season === anioDeReferencia);
+    if (!bases.length) return null;
+    try { return aggregateDatasets(bases).rows; } catch { return null; }
+  }, [aniosAbiertos, anioDeReferencia, conVariasTemporadas, basesActivas]);
+  const indiceEnLaTemporada = useMemo(() => {
+    if (!cruceDeLaTemporada || !filaElegida) return -1;
+    const nombre = String(filaElegida.Player ?? "");
+    const nacimiento = String(filaElegida["Birth date"] ?? "");
+    return cruceDeLaTemporada.findIndex((fila) => String(fila.Player ?? "") === nombre
+      && (!nacimiento || !fila["Birth date"] || String(fila["Birth date"]) === nacimiento));
+  }, [cruceDeLaTemporada, filaElegida]);
+  const filasDeLasPiezas = cruceDeLaTemporada && indiceEnLaTemporada >= 0 ? cruceDeLaTemporada : reportRows;
+  const indiceDeLasPiezas = cruceDeLaTemporada && indiceEnLaTemporada >= 0 ? indiceEnLaTemporada : selectedPlayer;
+  /** Un jugador de las filas de las piezas, en la base entera (para abrir su ficha). */
+  const enLaBase = (indice: number) => {
+    if (filasDeLasPiezas === reportRows) return indice;
+    const fila = filasDeLasPiezas[indice];
+    const nombre = String(fila?.Player ?? "");
+    const nacimiento = String(fila?.["Birth date"] ?? "");
+    return reportRows.findIndex((otra) => String(otra.Player ?? "") === nombre && (!nacimiento || !otra["Birth date"] || String(otra["Birth date"]) === nacimiento));
+  };
   /*
    * Contra quién se mide la ficha. Por defecto, contra los de su puesto en su
    * misma liga y temporada: con dieciséis ligas cargadas, un jugador de la CPL
@@ -1791,7 +1830,10 @@ export default function ScoutStudio() {
   }
 
   function selectPlayer(index: number) {
-    const option = players.find((player) => player.index === index);
+    // El club como sale en la lista filtrada —el de esa liga y año—, y si no
+    // está en ella, el actual. Con el actual, quien jugó la USL con Loudoun
+    // dejaba el selector de club en blanco al filtrar por la USL.
+    const option = jugadoresVisibles.find((player) => player.index === index) ?? players.find((player) => player.index === index);
     if (option) setSelectedTeam(option.team);
     setSelectedPlayer(index);
     const restored = restoreProfile(buildPlayerReport(reportRows, index, minimumMinutes, cohort));
@@ -2500,7 +2542,7 @@ export default function ScoutStudio() {
                       año del panel la elige también. */}
                   {report && temporadaDeReferencia && temporadasDeLaFila.length > 1 && <label className="field-group temporada-previa">
                     <FieldLabel>{t("Temporada")}</FieldLabel>
-                    <span className="select-wrap simple"><select value={temporadaDeReferencia.anio} onChange={(event) => setTemporadaElegida({ anio: Number(event.target.value), conFiltro: base.filtros.anio })}>
+                    <span className="select-wrap simple"><select value={temporadaDeReferencia.anio} onChange={(event) => setTemporadaElegida({ anio: Number(event.target.value), conFiltro: `${base.filtros.liga}|${base.filtros.anio}` })}>
                       {temporadasDeLaFila.map((temporada) => <option key={temporada.anio} value={temporada.anio}>{tf("{s} · {liga} · {equipo} · {m}′", {
                         s: temporada.etiqueta, liga: temporada.ligas.join(" + "), equipo: temporada.equipo, m: numberFormat(temporada.minutos),
                       })}</option>)}
@@ -2671,8 +2713,8 @@ export default function ScoutStudio() {
                   aunque el diálogo los pusiera terceros. Lo vigila
                   tests/orden-del-pdf.test.mjs. */}
               {espacio === "cavalry" && report && paginaMontada(SNAPSHOT_PAGE) && (
-                <SnapshotPage rows={reportRows} indice={selectedPlayer} informe={report} perfilTm={profile} minutosMin={minimumMinutes} claseHoja={claseHoja(SNAPSHOT_PAGE)}
-                  destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} onAbrirJugador={(indice) => selectPlayer(indice)}
+                <SnapshotPage rows={filasDeLasPiezas} indice={indiceDeLasPiezas} informe={report} perfilTm={profile} minutosMin={minimumMinutes} claseHoja={claseHoja(SNAPSHOT_PAGE)} temporada={temporadaDeReferencia?.etiqueta}
+                  destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} onAbrirJugador={(indice) => { const enBase = enLaBase(indice); if (enBase >= 0) selectPlayer(enBase); }}
                   equipoEncaje={equipoEncaje} onEquipoEncaje={setEquipoEncaje} sinHojaDeEncaje={Boolean(printRun) && !pdfConEncaje} />
               )}
               {report && paginaMontada(CONTEXT_PAGE) && (
@@ -2704,7 +2746,7 @@ export default function ScoutStudio() {
               )}
               {report ? visualPages.filter((page) => printRun ? printRun.includes(page) : reportPage === page).map((page) => (
                 <ReportPageDesigner key={page} pageNumber={page} persist={!printRun || reportPage === page} player={report.player} team={profile.club || report.team} position={formatPlayerPositions(profile.position || report.position)} theme={reportTheme} onThemeChange={setReportTheme} recipientName={recipientName} recipientLogoUrl={reportRecipientLogoUrl} aiFacts={aiControlsHidden ? undefined : () => ({ lang, player: aiPlayerFacts(report), metrics: aiMetricFacts(report) })}
-                  ficha={{ rows: reportRows, indice: selectedPlayer, informe: report, perfilTm: profile, minutosMin: minimumMinutes }} />
+                  ficha={{ rows: filasDeLasPiezas, indice: indiceDeLasPiezas, informe: report, perfilTm: profile, minutosMin: minimumMinutes, temporada: temporadaDeReferencia?.etiqueta }} />
               )) : !printRun && reportPage >= FIRST_VISUAL_PAGE ? <div className="empty-preview">{t("Selecciona un jugador para diseñar las páginas.")}</div> : null}
               {report && paginaMontada(BOARD_PAGE) && (
                 <div className={claseHoja(BOARD_PAGE)}><ScoutingBoard rows={reportRows} minimumMinutes={minimumMinutes} onSelectPlayer={(indice) => { selectPlayer(indice); setBoardPreviewOpen(true); }} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>

@@ -773,7 +773,11 @@ body { color-scheme: dark; background: radial-gradient(circle at 74% 9%, rgba(25
 .dossier-meta-grid b { display: block; margin-top: 3px; overflow: hidden; color: var(--report-ink); font-size: 10.5px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .dossier-season-strip { min-height: 106px; padding: 17px 27px; display: grid; grid-template-columns: minmax(155px,1.65fr) repeat(4,.55fr) 72px; align-items: center; gap: 5px; border-bottom: 1px solid var(--report-line); background: var(--report-surface); }
 .season-source { min-width: 0; }
-.season-source span { color: var(--report-accent); font-size: 7.5px; font-weight: 700; letter-spacing: .12em; }
+/* Solo el rótulo ("BASE ANALIZADA", "TEMPORADA ANTERIOR"), no el título: el
+   título editable lleva un span dentro, y esta regla lo dejaba a 7,5 px y en
+   rojo, más pequeño que el de la temporada anterior. */
+.season-source > span { color: var(--report-accent); font-size: 7.5px; font-weight: 700; letter-spacing: .12em; }
+.season-source > b span:not(.nombre-base-lapiz) { color: inherit; font: inherit; letter-spacing: inherit; }
 .season-source b { max-width: 220px; margin-top: 4px; display: block; overflow: hidden; color: var(--report-ink); font-family: var(--font-oswald),var(--font-barlow-condensed),sans-serif; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
 .season-source small { display: block; margin-top: 3px; color: var(--report-muted); font-size: 8px; }
 .dossier-stat { min-height: 50px; padding-left: 12px; display: flex; flex-direction: column; justify-content: center; border-left: 1px solid var(--report-line); text-align: center; }
