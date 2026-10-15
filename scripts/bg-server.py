@@ -189,7 +189,43 @@ from pathlib import Path
 import requests as _requests
 
 _CREDENTIALS_FILE = Path.home() / ".fos-scouting" / "credentials.json"
-_cache: dict = {}
+
+
+class _CacheAcotada(dict):
+    """Un diccionario que no crece sin fin: pasado el tope, sale lo menos usado.
+
+    Las cachés de respuestas del puente nunca soltaban nada —ni siquiera lo
+    caducado, que se quedaba hasta que alguien lo volviera a pedir— y el
+    proceso llegó a 727 MB. Se usa igual que un dict (`get`, `[clave] =`);
+    leer una entrada la marca como reciente.
+    """
+
+    def __init__(self, maximo: int):
+        super().__init__()
+        import threading as _threading_cache
+        self._maximo = maximo
+        self._cerrojo = _threading_cache.Lock()
+
+    def get(self, clave, defecto=None):
+        with self._cerrojo:
+            if clave not in self:
+                return defecto
+            valor = super().pop(clave)
+            super().__setitem__(clave, valor)
+            return valor
+
+    def __setitem__(self, clave, valor):
+        with self._cerrojo:
+            if clave in self:
+                super().pop(clave)
+            super().__setitem__(clave, valor)
+            while len(self) > self._maximo:
+                super().pop(next(iter(self)))
+
+
+# Respuestas de StatsBomb y SkillCorner: catálogos, partidos y estadísticas por
+# competición. Cuatrocientas cubren con holgura las dieciséis ligas cargadas.
+_cache: dict = _CacheAcotada(400)
 _keychain_cache: dict = {}
 
 
@@ -730,6 +766,42 @@ _SB_EVENTS_CACHE_DIR = Path.home() / ".fos-scouting" / "sb-events-cache"
 # 2: cada recepción lleva el pase que la origina (altura, tipo, quién la da).
 # 3: cada evento lleva su posesión y su equipo, para los roles en la secuencia.
 _SB_COMPACTO_VERSION = 3
+
+# Los eventos recortados de cada partido (m-*.json, medio mega cada uno) iban
+# a disco sin tope y llegaron a 2,3 GB. Por encima del tope —3 GB por defecto,
+# FOS_CACHE_EVENTOS_GB para cambiarlo— se borran los que hace más tiempo que
+# nadie mira; leer uno lo marca como reciente. Los derivados (formaciones,
+# alineaciones, flujo, PPDA) pesan poco y se quedan.
+_TOPE_EVENTOS_BYTES = int(float(os.environ.get("FOS_CACHE_EVENTOS_GB", "3")) * 1024 ** 3)
+_escrituras_desde_poda = 0
+
+
+def _podar_cache_eventos(tope: int = None):
+    tope = _TOPE_EVENTOS_BYTES if tope is None else tope
+    try:
+        archivos = [(ruta.stat().st_mtime, ruta.stat().st_size, ruta) for ruta in _SB_EVENTS_CACHE_DIR.glob("m-*.json")]
+    except Exception:
+        return 0
+    total = sum(tamano for _, tamano, _ in archivos)
+    if total <= tope:
+        return 0
+    borrados = 0
+    # Hasta el 90 % del tope, para no podar en cada escritura.
+    for _, tamano, ruta in sorted(archivos):
+        if total <= tope * 0.9:
+            break
+        try:
+            ruta.unlink()
+            total -= tamano
+            borrados += 1
+        except Exception:
+            pass
+    return borrados
+
+
+# Al arrancar, en segundo plano: no frena la primera petición.
+import threading as _threading_poda
+_threading_poda.Thread(target=_podar_cache_eventos, daemon=True).start()
 # Lo que dibuja la ficha ampliada. Presiones y demás se quedan fuera: una
 # temporada de un equipo son 30 partidos y así cada uno pesa ~250 KB, no 2,7 MB.
 _SB_TIPOS_FICHA = {"Shot", "Pass", "Carry", "Dribble", "Duel", "Ball Recovery", "Interception", "Clearance", "Block", "Ball Receipt*"}
@@ -763,6 +835,10 @@ def _sb_partido_compacto(match_id: int, auth):
         try:
             guardado = _json.loads(ruta.read_text(encoding="utf-8"))
             if guardado.get("v") == _SB_COMPACTO_VERSION:
+                try:
+                    os.utime(ruta, None)  # reciente: la poda borra primero lo que nadie mira
+                except Exception:
+                    pass
                 return guardado
         except Exception:
             pass
@@ -826,6 +902,11 @@ def _sb_partido_compacto(match_id: int, auth):
     compacto = {"v": _SB_COMPACTO_VERSION, "fin": round(fin, 2), "eventos": salida, "alineacion": alineacion}
     try:
         _escribir_atomico(ruta, _json.dumps(compacto, ensure_ascii=False))
+        global _escrituras_desde_poda
+        _escrituras_desde_poda += 1
+        if _escrituras_desde_poda >= 25:
+            _escrituras_desde_poda = 0
+            _podar_cache_eventos()
     except OSError:
         pass
     return compacto
@@ -2860,7 +2941,7 @@ def logos_estado():
 _ESPEJO_BASE = "https://felipeorma.github.io/fos-scout-lab/"
 # ruta → (momento, contenido, tipo). Los bundles de Next llevan su hash en el
 # nombre, así que se pueden guardar mucho rato; la página, poco.
-_espejo_cache = {}
+_espejo_cache = _CacheAcotada(300)
 
 
 def _espejo_ttl(ruta: str) -> int:
@@ -2918,7 +2999,7 @@ def espejo_app(ruta: str = ""):
 # retrato. La nacionalidad sale de la selección, que en esta API es un club con
 # `isNationalTeam`. No manda cabeceras CORS, así que tiene que pasar por aquí.
 _TMAPI = "https://tmapi-alpha.transfermarkt.technology"
-_tmapi_cache = {}
+_tmapi_cache = _CacheAcotada(1000)
 
 
 def _tmapi(ruta: str):
