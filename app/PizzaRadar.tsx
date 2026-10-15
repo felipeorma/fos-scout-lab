@@ -17,12 +17,21 @@ function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, width:
   ctx.closePath();
 }
 
-export function PizzaRadar({ metrics, score, cohort, lang = "es", colorMode = "groups" }: { metrics: RadarMetric[]; score: number; cohort: string; lang?: Lang; colorMode?: "groups" | "platform" }) {
+/** Los colores que no son de las métricas: sobre papel claro o sobre la tarjeta oscura del look Night. */
+const TINTAS = {
+  claro: { anillo: "rgba(26, 43, 56, .1)", baseDelAnillo: "rgba(18, 36, 49, .14)", etiqueta: "#445366", disco: "#122431", indice: "#9fb0bb", pista: "" },
+  oscuro: { anillo: "rgba(255, 255, 255, .07)", baseDelAnillo: "rgba(255, 255, 255, .06)", etiqueta: "#b7b7c2", disco: "#08080a", indice: "#858592", pista: "rgba(255, 255, 255, .035)" },
+};
+
+export function PizzaRadar({ metrics, score, cohort, lang = "es", colorMode = "groups", oscuro = false }: { metrics: RadarMetric[]; score: number; cohort: string; lang?: Lang; colorMode?: "groups" | "platform"; oscuro?: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !metrics.length) return;
+    const tinta = oscuro ? TINTAS.oscuro : TINTAS.claro;
+    // En el look Night, la letra de la página (Geist); en claro, como siempre.
+    const familia = oscuro ? getComputedStyle(canvas).fontFamily || "Arial" : "Arial";
     const draw = () => {
       const size = Math.max(420, Math.min(680, canvas.clientWidth * 2));
       const ratio = window.devicePixelRatio || 1;
@@ -66,7 +75,7 @@ export function PizzaRadar({ metrics, score, cohort, lang = "es", colorMode = "g
         return similarityMetricGroup(metric, cohort);
       });
 
-      ctx.strokeStyle = "rgba(26, 43, 56, .1)";
+      ctx.strokeStyle = tinta.anillo;
       ctx.lineWidth = 1;
       [0.25, 0.5, 0.75, 1].forEach((fraction) => {
         ctx.beginPath();
@@ -81,7 +90,7 @@ export function PizzaRadar({ metrics, score, cohort, lang = "es", colorMode = "g
       ctx.lineCap = "round";
       ctx.beginPath();
       ctx.arc(cx, cy, groupRingRadius, 0, Math.PI * 2);
-      ctx.strokeStyle = "rgba(18, 36, 49, .14)";
+      ctx.strokeStyle = tinta.baseDelAnillo;
       ctx.lineWidth = groupRingWidth + Math.max(3, size * 0.005);
       ctx.stroke();
 
@@ -112,6 +121,17 @@ export function PizzaRadar({ metrics, score, cohort, lang = "es", colorMode = "g
         const ex = cx + Math.cos(middle) * explode;
         const ey = cy + Math.sin(middle) * explode;
         const radius = Math.max(inner + 8, outer * Math.max(0.08, metric.percentile / 100));
+        if (tinta.pista) {
+          // La pista entera de la cuña, tenue: deja ver cuánto le falta al percentil.
+          ctx.beginPath();
+          ctx.moveTo(ex + Math.cos(start) * inner, ey + Math.sin(start) * inner);
+          ctx.arc(ex, ey, outer, start, end);
+          ctx.lineTo(ex + Math.cos(end) * inner, ey + Math.sin(end) * inner);
+          ctx.arc(ex, ey, inner, end, start, true);
+          ctx.closePath();
+          ctx.fillStyle = tinta.pista;
+          ctx.fill();
+        }
         ctx.beginPath();
         ctx.moveTo(ex + Math.cos(start) * inner, ey + Math.sin(start) * inner);
         ctx.arc(ex, ey, radius, start, end);
@@ -132,7 +152,7 @@ export function PizzaRadar({ metrics, score, cohort, lang = "es", colorMode = "g
 
         const value = String(metric.percentile);
         const valueFontSize = Math.max(9, size * [0.019, 0.016, 0.0135][density]);
-        ctx.font = `800 ${valueFontSize}px Arial`;
+        ctx.font = `800 ${valueFontSize}px ${familia}`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         // La píldora se dibuja SIEMPRE, también en los percentiles bajos. Antes
@@ -174,9 +194,9 @@ export function PizzaRadar({ metrics, score, cohort, lang = "es", colorMode = "g
         const labelRadius = outer + size * [0.065, 0.075, 0.08][density] + explode * 0.4;
         const lx = cx + Math.cos(middle) * labelRadius;
         const ly = cy + Math.sin(middle) * labelRadius;
-        ctx.fillStyle = "#445366";
+        ctx.fillStyle = tinta.etiqueta;
         const labelFontSize = Math.max(8, size * [0.017, 0.0145, 0.012][density]);
-        ctx.font = `600 ${labelFontSize}px Arial`;
+        ctx.font = `600 ${labelFontSize}px ${familia}`;
         ctx.textAlign = Math.cos(middle) > 0.18 ? "left" : Math.cos(middle) < -0.18 ? "right" : "center";
         const label = t(metric.label).replace(/\s*\/90/g, "").replace(/,\s*%$/, " %");
         let lines = [label];
@@ -207,18 +227,20 @@ export function PizzaRadar({ metrics, score, cohort, lang = "es", colorMode = "g
 
       ctx.beginPath();
       ctx.arc(cx, cy, inner - 2, 0, Math.PI * 2);
-      ctx.fillStyle = "#122431";
+      ctx.fillStyle = tinta.disco;
       ctx.fill();
       ctx.fillStyle = "#ffffff";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.font = `800 ${size * 0.042}px Arial`;
+      ctx.font = `800 ${size * 0.042}px ${familia}`;
       ctx.fillText(String(score), cx, cy - size * 0.008);
-      ctx.fillStyle = "#9fb0bb";
-      ctx.font = `700 ${size * 0.013}px Arial`;
+      ctx.fillStyle = tinta.indice;
+      ctx.font = `700 ${size * 0.013}px ${familia}`;
       ctx.fillText(t("ÍNDICE"), cx, cy + size * 0.032);
     };
     draw();
+    // Con Geist, otra vez cuando la letra termine de cargar.
+    if (oscuro) void document.fonts?.ready.then(draw);
     // Al mover la ventana entre monitores con distinta densidad (1x ↔ Retina)
     // el tamaño CSS no cambia y ResizeObserver no dispara: se escucha el
     // cambio de devicePixelRatio con matchMedia y se re-registra tras cada uno.
@@ -239,7 +261,7 @@ export function PizzaRadar({ metrics, score, cohort, lang = "es", colorMode = "g
       observer.disconnect();
       dprMedia?.removeEventListener("change", onDprChange);
     };
-  }, [cohort, metrics, score, lang, colorMode]);
+  }, [cohort, metrics, score, lang, colorMode, oscuro]);
 
   return (
     <canvas

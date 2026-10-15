@@ -1919,7 +1919,7 @@ export default function ScoutStudio() {
   const baseConVariasTemporadas = new Set(sourceDatasets.map((dataset) => dataset.season || dataset.fileName)).size > 1;
   const cifra = (valor: number) => (Number.isFinite(valor) ? numberFormat(valor) : "—");
   const reportArticleNode = report ? (
-    <article className="scout-report jordhy-report" style={reportThemeStyle(reportTheme)}>
+    <article className="scout-report jordhy-report" data-oscuro={reportTheme.oscuro ? "" : undefined} style={reportThemeStyle(reportTheme)}>
       <header className="dossier-header">
         <div className="dossier-portrait">
           <span className="portrait-glow" />
@@ -1992,7 +1992,7 @@ export default function ScoutStudio() {
       ))}
 
       <section className="dossier-radar-row">
-        <div className="dossier-radar">{report.metrics.length ? <PizzaRadar metrics={report.metrics} score={report.score} cohort={report.cohort} lang={lang} colorMode={radarColorMode} /> : <div className="empty-radar"><BarChart3 size={34} /><b>{motivoSinRadar}</b>{report.minutes > 0 && <span>{t("Prueba con otra cohorte o revisa qué bases están cargadas.")}</span>}</div>}</div>
+        <div className="dossier-radar">{report.metrics.length ? <PizzaRadar metrics={report.metrics} score={report.score} cohort={report.cohort} lang={lang} colorMode={radarColorMode} oscuro={Boolean(reportTheme.oscuro)} /> : <div className="empty-radar"><BarChart3 size={34} /><b>{motivoSinRadar}</b>{report.minutes > 0 && <span>{t("Prueba con otra cohorte o revisa qué bases están cargadas.")}</span>}</div>}</div>
         <aside className="dossier-reading">
           <div className="average-percentile"><strong>{report.score}</strong><small>{t("percentil")}<br />{t("medio")}{margenDelIndice(report.minutes) !== null && <><br />
             <span className="margen-del-indice" title={tf("Lo que se mueve de una temporada a otra el número de un jugador con {m}′, medido en doce ligas. Dos jugadores a menos de {n} puntos no se distinguen con estos datos.", { m: numberFormat(report.minutes), n: margenDelIndice(report.minutes) ?? "" })}>± {margenDelIndice(report.minutes)}</span></>}</small></div>

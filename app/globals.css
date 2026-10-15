@@ -853,6 +853,17 @@ body { color-scheme: dark; background: transparent; color: #f5f5f7; font-family:
 .metric-breakdown > .metric-group { flex: 0 1 calc((100% - (var(--metric-columns) - 1) * 18px) / var(--metric-columns)); min-width: 0; }
 .metric-group h3 { margin: 0 0 10px; padding-bottom: 7px; border-bottom: 2px solid; font-family: var(--font-barlow-condensed),sans-serif; font-size: 10px; letter-spacing: .065em; text-transform: uppercase; }
 .metric-group h3 { border-color: color-mix(in srgb,var(--metric-group-color) 34%,var(--report-line)); color: color-mix(in srgb,var(--metric-group-color) 62%,#000); }
+/* ---- Ficha en el look Night (tema oscuro del informe) ----
+   Tarjeta grafito con degradado vertical y filete, sin sombra; cabeceras de
+   grupo y barras como en la maqueta aprobada (propuesta-radar-night.html). */
+.jordhy-report[data-oscuro] { border: .9px solid var(--report-line); border-radius: 21px; background: linear-gradient(180deg, var(--report-paper-top), var(--report-paper-bottom)); box-shadow: none; }
+.jordhy-report[data-oscuro] .metric-group h3 { border-color: color-mix(in srgb,var(--metric-group-color) 45%,var(--report-track)); color: color-mix(in srgb,var(--metric-group-color) 82%,#fff); }
+.jordhy-report[data-oscuro] .metric-row span { color: var(--report-muted); }
+.jordhy-report[data-oscuro] .metric-row b small { color: var(--report-faint); }
+.jordhy-report[data-oscuro] .metric-row > i { background: var(--report-track); }
+.jordhy-report[data-oscuro] .dossier-season-strip { background: color-mix(in srgb, var(--report-surface) 70%, transparent); }
+.jordhy-report[data-oscuro] .quick-reading { background: color-mix(in srgb, var(--report-surface) 80%, transparent); }
+.jordhy-report[data-oscuro] .market-transfermarkt-logo { border-color: transparent; }
 .metric-row { margin-top: 9px; }.metric-row > div { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }.metric-row span { color: var(--report-ink); font-size: 8.5px; }.metric-row b { color: var(--report-ink); font-family: var(--font-oswald),var(--font-barlow-condensed),sans-serif; font-size: 10px; white-space: nowrap; }.metric-row b small { color: var(--report-muted); font-size: 8px; }.metric-row > i { height: 4px; margin-top: 3px; display: block; overflow: hidden; border-radius: 4px; background: var(--report-line); }.metric-row > i em { height: 100%; display: block; border-radius: 4px; background: var(--metric-group-color); background-image: linear-gradient(90deg, var(--metric-group-bajo, var(--metric-group-color)), var(--metric-group-color) 55%, var(--metric-group-alto, var(--metric-group-color))); background-repeat: no-repeat; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .dossier-footer { min-height: 78px; padding: 16px 30px 20px; display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; border-top: 1px solid var(--report-line); }
 .dossier-footer > p { max-width: 430px; margin: 0; color: var(--report-muted); font-size: 8px; line-height: 1.5; }
