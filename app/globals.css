@@ -6546,7 +6546,14 @@ body.print-layout-check .legal-page-shell:has([data-hoja-vacia]) { display: none
 .anadir-wyscout-form legend { padding: 0 4px; color: var(--muted, #8b95a5); font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .anadir-wyscout-form label { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .anadir-wyscout-form label > span { color: var(--muted, #8b95a5); font-size: 10px; }
-.anadir-wyscout-form input { min-width: 0; padding: 6px 8px; border: 1px solid var(--line, rgba(255,255,255,.14)); border-radius: 8px; color: inherit; background: rgba(255,255,255,.04); font: inherit; font-size: 12px; }
+.anadir-wyscout-form input, .anadir-wyscout-form select { min-width: 0; padding: 6px 8px; border: 1px solid var(--line, rgba(255,255,255,.14)); border-radius: 8px; color: inherit; background: rgba(255,255,255,.04); font: inherit; font-size: 12px; }
+.anadir-wyscout-form select { width: 100%; }
+.anadir-wyscout-form label.ancho { grid-column: 1 / -1; }
+/* Las tres vías para añadir la temporada anterior a mano. */
+.previa-via { display: flex; flex-direction: column; gap: 6px; }
+.previa-via + .previa-via { padding-top: 9px; border-top: 1px solid var(--line, rgba(255,255,255,.1)); }
+.previa-via-titulo { color: var(--ink, #f4f7fb); font-size: 11px; font-weight: 700; }
+.previa-via > .button.compact { align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; }
 .anadir-wyscout-error { color: #f0a35e; font-size: 11px; }
 .anadir-wyscout-acciones { display: flex; gap: 8px; }
 
