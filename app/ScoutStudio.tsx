@@ -32,14 +32,12 @@ import { ESCUDOS, RETRATO } from "./Imagenes";
 import {
   buildPlayerReport,
   metricCatalogue,
-  detectCoreColumns,
   extractSeason,
   formatCell,
   temporadasDeFila,
   type DataRow,
   type PlayerReport,
   type SourceDataset,
-  type TemporadaDeJugador,
 } from "@/lib/scouting";
 import { anioDeInicio, dosTemporadas, temporadaAnterior, temporadasDelAnio } from "@/lib/temporadas";
 import { fuenteStatsbomb } from "@/lib/snapshot";
@@ -48,16 +46,17 @@ import { formatPlayerPositions, selectedCohortPosition } from "@/lib/positions";
 import { removePlayerImageBackground } from "@/lib/playerImageBackground";
 import { fetchAiSummary, type AiMetricFact, type AiPlayerFacts, fetchOptaLeagueMeta, fetchSkillcornerCompetitions, fetchSkillcornerDataset, fetchSourcesStatus, fetchStatsbombCompetitions, fetchStatsbombDataset, fetchTransfermarktProfile, temporadasUtiles, type ApiCompetition, type SourcesStatus } from "@/lib/remoteData";
 import { reportExportBaseName } from "@/lib/reportExportName";
-import { canonicalizeRow } from "@/lib/wyscoutHeaders";
-import { leerFilasDeArchivo } from "@/lib/lecturaDeArchivos";
 import { MINUTOS_FIABLES, margenDelIndice } from "@/lib/fiabilidad";
 import { alFallarElGuardado, guardarConImagenes, leerConImagenes, migrarImagenesViejas, precargarImagenes } from "@/lib/almacen";
 import { MomentoDeImpresion, ocultarComoAlImprimir } from "./medidaDeImpresion";
 import { lineaDeDatos } from "@/lib/fechasDelInforme";
 import { cruzarEnSegundoPlano } from "@/lib/cruceEnSegundoPlano";
+import { FieldLabel, FilaSeccion, InlineText, MenuDeCompeticiones, ReportImage } from "./estudio/piezas";
+import { useCruceDeAnios } from "./estudio/useCruceDeAnios";
+import { alphabeticCollator, blobToDataUrl, cohortLabel, firstPlayerSelection, horaActual, inicioDe, numberFormat, playerOptionsFor, profileFromReport, readWorkbook } from "./estudio/datos";
 import { FECHA_NIVEL_RESPALDO, LIGA_DE_REFERENCIA, PUNTOS_POR_RATING, indiceANivel, nivelDeLiga, ratingDeTramos, type EntradaOpta } from "@/lib/nivelDeLiga";
 import { METRIC_SOURCE_COLORS, SIMILARITY_METRIC_GROUPS, similarityMetricGroup } from "@/lib/similarityMetricGroups";
-import { numberLocale, setActiveLang, t, tDefault, tf, type Lang } from "@/lib/i18n";
+import { setActiveLang, t, tDefault, tf, type Lang } from "@/lib/i18n";
 
 // Página 1 = ficha del jugador · Página 2 = comparación de similitud ·
 // Página 3 en adelante = páginas libres de visualizaciones que el usuario agrega.
@@ -109,31 +108,6 @@ const NOMBRE_DE_SECCION: Record<number, string> = {
 };
 
 /**
- * Una fila del panel de secciones, al modo de las listas de Ajustes de iOS.
- *
- * Antes cada destino era un botón de solo texto —título en negrita y una
- * línea pequeña debajo— y todos se parecían: había que leerlos para
- * distinguirlos. La baldosa con el icono deja reconocer la fila por su forma,
- * y el galón de la derecha dice sin palabras que pulsarla lleva a otro sitio.
- */
-function FilaSeccion({ activa, onClick, icono, titulo, detalle, api }: {
-  activa: boolean;
-  onClick: () => void;
-  icono: React.ReactNode;
-  titulo: string;
-  detalle?: string;
-  /** Pide datos al servidor local: se avisa porque sin él no carga. */
-  api?: boolean;
-}) {
-  return <button type="button" className={activa ? "seccion-fila activa" : "seccion-fila"}
-    aria-current={activa ? "page" : undefined} onClick={onClick}>
-    <span className="seccion-icono" aria-hidden="true">{icono}</span>
-    <span className="seccion-texto"><b>{titulo}</b>{detalle && <small>{detalle}</small>}</span>
-    {api && <i className="seccion-api">API</i>}
-    <ChevronRight size={14} className="seccion-chevron" />
-  </button>;
-}
-/**
  * Quién firma el informe. Hay una firma guardada por encargo —Cavalry y
  * Maldonado son clientes distintos y no se firman igual— más una temporal
  * para el trabajo suelto que no es de ninguno de los dos.
@@ -159,237 +133,8 @@ const PROFILE_ASSETS: Array<{ field: ProfileAssetField; label: string; linkLabel
   { field: "leagueLogo", label: "Logo de la liga", linkLabel: "Liga" },
 ];
 
-function readWorkbook(file: File): Promise<SourceDataset> {
-  return file.arrayBuffer().then((buffer) => {
-    // Codificación, separador decimal y fechas se resuelven en
-    // lib/lecturaDeArchivos, que tiene sus pruebas.
-    const { hoja, filas } = leerFilasDeArchivo(buffer, file.name);
-    if (!hoja) throw new Error(tf("El archivo {name} no contiene hojas.", { name: file.name }));
-    // Wyscout exporta la misma plantilla en varios idiomas: las cabeceras se
-    // llevan al nombre inglés canónico para que un archivo en español y otro
-    // en inglés se lean igual y puedan combinarse entre sí.
-    const rows = filas.map((row) => canonicalizeRow(row) as DataRow);
-    const headers = rows.length ? Object.keys(rows[0]) : [];
-    if (!rows.length || !headers.length) throw new Error(tf("El archivo {name} está vacío.", { name: file.name }));
-    return { fileName: file.name, season: extractSeason(file.name), headers, rows, cargadoEl: Date.now() };
-  });
-}
-
-/**
- * La hora, fuera del componente. Solo la llama `startPrint`, desde el clic de
- * Imprimir; el compilador de React no puede demostrarlo en un componente de
- * este tamaño y marcaría el `Date.now()` como si corriera en el render.
- */
-/**
- * El año de una temporada del jugador tal como lo cuentan los filtros: el de
- * inicio. Cada base guarda el último ("2025/2026" → 2026) y el filtro de año
- * el primero (2025); comparar uno con otro dejaba fuera a las ligas de año
- * cruzado.
- */
-function inicioDe(temporada: TemporadaDeJugador) {
-  return anioDeInicio(temporada.etiqueta) || temporada.anio;
-}
-
-/** Cuántos cruces por temporada se recuerdan: los de los últimos jugadores vistos. */
-const CRUCES_RECORDADOS = 6;
-
-/**
- * El cruce de las bases de unos años (`clave`, "2026,2025"), hecho en el
- * worker. Mientras llega devuelve null y la ficha usa la fila de la base
- * entera; al volver a un jugador con los mismos años sale de lo recordado.
- * Se olvida todo cuando cambian las bases encendidas.
- */
-function useCruceDeAnios(basesActivas: SourceDataset[], clave: string): DataRow[] | null {
-  const [hechos, setHechos] = useState<{ fuente: SourceDataset[]; filas: Map<string, DataRow[] | null> }>(() => ({ fuente: basesActivas, filas: new Map() }));
-  const vigentes = hechos.fuente === basesActivas ? hechos.filas : null;
-  const pendiente = Boolean(clave) && !vigentes?.has(clave);
-  useEffect(() => {
-    if (!pendiente) return;
-    const anios = clave.split(",").map(Number);
-    const bases = basesActivas.filter((dataset) => anios.includes(dataset.season));
-    let vivo = true;
-    const guardar = (filas: DataRow[] | null) => {
-      if (!vivo) return;
-      setHechos((antes) => {
-        const filasPrevias = antes.fuente === basesActivas ? [...antes.filas].slice(-(CRUCES_RECORDADOS - 1)) : [];
-        return { fuente: basesActivas, filas: new Map([...filasPrevias, [clave, filas]]) };
-      });
-    };
-    (bases.length ? cruzarEnSegundoPlano(bases).then((resultado) => resultado.rows) : Promise.resolve(null))
-      .then(guardar, () => guardar(null));
-    return () => { vivo = false; };
-  }, [pendiente, clave, basesActivas]);
-  return clave ? vigentes?.get(clave) ?? null : null;
-}
-
-function horaActual() {
-  return Date.now();
-}
-
-function numberFormat(value: number) {
-  return new Intl.NumberFormat(numberLocale(), { maximumFractionDigits: 0 }).format(value);
-}
-
-/**
- * Las competiciones agrupadas por liga, para el desplegable de la API.
- *
- * La suscripción pasó de tres competiciones a dieciséis (setenta y una
- * entradas contando temporadas), y la lista plana en el orden que devuelve la
- * API dejó de servir: obligaba a recorrer setenta líneas y ponía la temporada
- * más antigua arriba, cuando la que se quiere casi siempre es la última.
- *
- * Se conserva el índice original de cada entrada porque es lo que guarda la
- * selección; aquí solo cambia el orden en que se dibujan.
- */
-function competicionesAgrupadas(lista: ApiCompetition[]) {
-  const grupos = new Map<string, Array<{ competition: ApiCompetition; indice: number }>>();
-  lista.forEach((competition, indice) => {
-    const clave = competition.country ? `${competition.name} · ${competition.country}` : competition.name;
-    grupos.set(clave, [...(grupos.get(clave) ?? []), { competition, indice }]);
-  });
-  return [...grupos.entries()]
-    .map(([nombre, entradas]) => ({
-      nombre,
-      // Temporada más reciente primero: es la que se busca a diario.
-      entradas: [...entradas].sort((a, b) => String(b.competition.season).localeCompare(String(a.competition.season), "en", { numeric: true })),
-    }))
-    .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
-}
-
-/** El menú de competiciones del diálogo: cada liga con su logo y, debajo, sus temporadas. */
-function MenuDeCompeticiones({ lista, elegida, onElegir }: { lista: ApiCompetition[]; elegida: string; onElegir: (indice: string) => void }) {
-  const grupos = competicionesAgrupadas(lista);
-  const ligaDe = new Map(grupos.map((grupo) => [grupo.nombre, grupo.entradas[0]?.competition.name ?? ""]));
-  const actual = elegida ? lista[Number(elegida)] : undefined;
-  return <MenuDesplegable variante="campo" etiqueta={t("Competición")} marcador={`${t("Elegir competición")}…`}
-    valor={actual ? `${actual.name} · ${actual.season}` : ""}
-    icono={actual ? <LogoLiga liga={actual.name} tamano={16} /> : null}
-    opciones={grupos.flatMap((grupo) => grupo.entradas.map(({ competition, indice }) => ({
-      valor: String(indice), texto: String(competition.season), grupo: grupo.nombre,
-    })))}
-    iconoDeGrupo={(grupo) => <LogoLiga liga={ligaDe.get(grupo) ?? ""} tamano={20} hueco />}
-    elegida={elegida} onElegir={onElegir} />;
-}
-
-const COHORT_LABELS: Record<string, string> = {
-  GK: "Porteros",
-  CB: "Centrales",
-  FB: "Laterales",
-  MID: "Pivotes / mediocentros",
-  DMF: "Pivotes / mediocentros",
-  B2B: "Interiores (box-to-box)",
-  WING: "Extremos",
-  DWING: "Extremos directos",
-  AM: "Mediapuntas",
-  CF: "Delanteros",
-  OTHER: "Otros perfiles",
-};
-
-function cohortLabel(cohort: string) {
-  const label = COHORT_LABELS[cohort];
-  return label ? t(label) : cohort;
-}
-
-const alphabeticCollator = new Intl.Collator("es", { sensitivity: "base", numeric: true });
-
-type PlayerOption = {
-  index: number;
-  player: string;
-  team: string;
-};
-
-function playerOptionsFor(rows: DataRow[]): PlayerOption[] {
-  const headers = [...new Set(rows.flatMap((row) => Object.keys(row)))];
-  const core = detectCoreColumns(headers);
-  const teamColumn = headers.find((header) => /team within|equipo durante/i.test(header))
-    ?? headers.find((header) => /^(team|equipo)$/i.test(header))
-    ?? "";
-
-  return rows.map((row, index) => ({
-    index,
-    player: String(row[core.player] ?? tf("Jugador {n}", { n: index + 1 })).trim(),
-    // Sin fallback traducido aquí: el valor "" es estable entre idiomas y la
-    // etiqueta visible se traduce recién en el <option>.
-    team: String(row[teamColumn] ?? "").trim(),
-  })).sort((a, b) => alphabeticCollator.compare(a.team, b.team) || alphabeticCollator.compare(a.player, b.player));
-}
-
 /** Los rótulos que la ficha pone sola; cualquier otro lo escribió el usuario y se respeta. */
 const ETIQUETAS_DE_BASE = ["BASE ANALIZADA", "BASES ANALIZADAS"];
-
-function firstPlayerSelection(rows: DataRow[]) {
-  return playerOptionsFor(rows)[0] ?? { index: 0, team: "" };
-}
-
-function FieldLabel({ children }: { children: React.ReactNode }) {
-  return <span className="field-label">{children}</span>;
-}
-
-// Texto del informe editable con clic directo sobre la vista previa.
-// No controlado a propósito: el estado se confirma al salir del campo (blur)
-// para que el cursor no salte mientras se escribe.
-function InlineText({ value, fallback, onCommit, multiline = false, editKey }: { value: string; fallback: string; onCommit: (next: string) => void; multiline?: boolean; editKey: string }) {
-  return <span
-    key={editKey}
-    className="inline-editable"
-    contentEditable
-    suppressContentEditableWarning
-    role="textbox"
-    aria-multiline={multiline}
-    spellCheck={false}
-    title={t("Haz clic para editar")}
-    onKeyDown={(event) => {
-      if (!multiline && event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); }
-      if (event.key === "Escape") { event.currentTarget.textContent = value || fallback; event.currentTarget.blur(); }
-    }}
-    onBlur={(event) => {
-      const next = (event.currentTarget.innerText ?? "").replace(/\n{3,}/g, "\n\n").trim();
-      onCommit(next === fallback.trim() ? "" : next);
-    }}
-  >{value || fallback}</span>;
-}
-
-function profileFromReport(report: PlayerReport | null): TransfermarktProfile {
-  return {
-    sourceUrl: "",
-    name: report?.player ?? "",
-    number: "",
-    playerImage: "",
-    clubLogo: "",
-    leagueLogo: "",
-    club: report?.team ?? "",
-    league: "",
-    marketValue: report?.marketValue === "—" ? "" : report?.marketValue ?? "",
-    birthDate: "",
-    age: report?.age === "—" ? "" : report?.age ?? "",
-    birthPlace: "",
-    citizenship: report?.passport === "—" ? "" : report?.passport ?? "",
-    height: "",
-    position: report?.position === "—" ? "" : report?.position ?? "",
-    foot: report?.foot === "—" ? "" : report?.foot ?? "",
-    agent: "",
-    nationalTeam: "",
-    capsGoals: "",
-    contract: report?.contract === "—" ? "" : report?.contract ?? "",
-    joined: "",
-    lastUpdate: "",
-  };
-}
-
-function ReportImage({ src, alt, className }: { src: string; alt: string; className: string }) {
-  // Los recursos se cargan desde Transfermarkt o desde archivos locales elegidos por el usuario.
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img src={src} alt={alt} className={className} />;
-}
-
-function blobToDataUrl(blob: Blob) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result ?? ""));
-    reader.onerror = () => reject(new Error(t("No se pudo convertir la imagen procesada.")));
-    reader.readAsDataURL(blob);
-  });
-}
 
 export default function ScoutStudio() {
   const [lang, setLang] = useState<Lang>("es");
