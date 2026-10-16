@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { emparejar, encoger, mediasDeDuelo, mejorParaElDuelo, probabilidadAerea, probabilidadDeRegate, tasas } from "../lib/duelos.ts";
+import { emparejar, encoger, mediasDeDuelo, mejorParaElDuelo, probabilidadAerea, probabilidadDeRegate, regateMedio, tasas, VALIDACION_DUELOS } from "../lib/duelos.ts";
 import { DIBUJOS } from "../lib/pizarra.ts";
 
 /** Los duelos de la pizarra: log5 con tasas encogidas hacia su liga. */
@@ -10,7 +10,13 @@ const LIGA = { regate: 0.5, frena: 0.6, aereo: 0.5 };
 
 test("con todo en la media, el duelo es la media de la liga", () => {
   assert.ok(Math.abs(probabilidadDeRegate(perfil(), LIGA, perfil(), LIGA) - 0.5) < 1e-9);
+  assert.equal(regateMedio({ ...LIGA, regate: 0.58 }), 0.58, "la referencia para la ventaja");
   assert.ok(Math.abs(probabilidadAerea(perfil(), LIGA, perfil(), LIGA) - 0.5) < 1e-9);
+});
+
+test("la validación con duelos reales queda escrita: el aéreo predice, el regate apenas", () => {
+  assert.ok(VALIDACION_DUELOS.aereo.mejora > VALIDACION_DUELOS.regate.mejora * 5);
+  assert.ok(VALIDACION_DUELOS.aereo.gana > VALIDACION_DUELOS.aereo.umbral);
 });
 
 test("un buen regateador contra un defensor que frena poco gana más; contra uno que frena mucho, menos", () => {
@@ -24,8 +30,8 @@ test("un buen regateador contra un defensor que frena poco gana más; contra uno
 });
 
 test("pocos intentos: la tasa vuelve a la media", () => {
-  assert.equal(encoger(1, 0, 0.5), 0.5);
-  assert.ok(Math.abs(encoger(1, 3, 0.5) - 0.6) < 1e-9, "tres de tres no es un 100%");
+  assert.equal(encoger(1, 0, 0.5, 12), 0.5);
+  assert.ok(Math.abs(encoger(1, 3, 0.5, 12) - 0.6) < 1e-9, "tres de tres no es un 100%");
   const pocos = perfil({ minutos: 90, regates90: 3, regatePct: 1 });
   assert.ok(tasas(pocos, LIGA).regate < 0.7);
 });

@@ -6993,6 +6993,20 @@ body.print-layout-check .legal-page-shell:has([data-hoja-vacia]) { display: none
 .app-shell[data-tema] .partido-reciente li.resultado-P > i { background: #c62828; }
 .app-shell[data-tema] .partido-reciente li span small, .app-shell[data-tema] .partido-reciente li b small { display: block; color: var(--muted); font-size: 10.5px; font-weight: 500; }
 .app-shell[data-tema] .partido-reciente li b { text-align: right; font-variant-numeric: tabular-nums; }
+/* Lo que cambió en sus últimos 5: flecha, métrica y antes → ahora. */
+.app-shell[data-tema] .partido-cambios { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.app-shell[data-tema] .partido-cambios h5 { margin: 0 0 6px; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.app-shell[data-tema] .partido-cambio-dibujo { margin: 0 0 6px; padding: 6px 9px; border-radius: 8px; background: color-mix(in srgb, var(--acento-claro) 12%, transparent); color: var(--ink); font-size: 12.5px; font-weight: 600; }
+.app-shell[data-tema] .partido-cambios ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.app-shell[data-tema] .partido-cambios li { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; align-items: baseline; gap: 8px; color: var(--ink); font-size: 12.5px; }
+.app-shell[data-tema] .partido-cambios li > i { font-style: normal; font-size: 10px; color: var(--muted); }
+.app-shell[data-tema] .partido-cambios li.mejora > i { color: #32d583; }
+.app-shell[data-tema] .partido-cambios li.empeora > i { color: #ff6961; }
+.app-shell[data-tema="claro"] .partido-cambios li.mejora > i { color: #1f9d55; }
+.app-shell[data-tema="claro"] .partido-cambios li.empeora > i { color: #c62828; }
+.app-shell[data-tema] .partido-cambios li > b { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.app-shell[data-tema] .partido-cambios li > b small { margin: 0 5px; color: var(--muted); font-weight: 500; }
+.app-shell[data-tema] .partido-cambios-nada { margin: 0; color: var(--muted); font-size: 12px; }
 @media (max-width: 760px) {
   .app-shell[data-tema] .pizarra-bancas { grid-template-columns: 1fr; }
   .app-shell[data-tema] .pizarra-ficha { width: 48px; transform: translate(-50%, -16px); }
@@ -7029,8 +7043,14 @@ body.print-layout-check .legal-page-shell:has([data-hoja-vacia]) { display: none
 .app-shell[data-tema] .pizarra-duelos li.suyo { box-shadow: inset 3px 0 0 #ff6961; }
 .app-shell[data-tema] .pizarra-duelos li b { display: flex; justify-content: space-between; gap: 8px; color: var(--ink); font-size: 12.5px; }
 .app-shell[data-tema] .pizarra-duelos li b em { font-style: normal; font-variant-numeric: tabular-nums; }
+.app-shell[data-tema] .pizarra-duelos li b em small { margin-left: 6px; padding: 1px 5px; border-radius: 5px; background: color-mix(in srgb, currentColor 14%, transparent); font-size: 10.5px; font-weight: 700; }
 .app-shell[data-tema] .pizarra-duelos li.nuestro b em { color: #32d583; }
 .app-shell[data-tema] .pizarra-duelos li.suyo b em { color: #ff6961; }
+/* El aéreo, que sí predice, lleva su propio punto de color. */
+.app-shell[data-tema] .pizarra-duelos .duelo-aereo::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: rgba(245,245,247,.35); vertical-align: 1px; }
+.app-shell[data-tema] .pizarra-duelos .duelo-aereo.nuestro::before { background: #32d583; }
+.app-shell[data-tema] .pizarra-duelos .duelo-aereo.suyo::before { background: #ff6961; }
+.app-shell[data-tema="claro"] .pizarra-duelos .duelo-aereo.igual::before { background: rgba(18,36,49,.3); }
 .app-shell[data-tema] .pizarra-duelos li span { color: var(--muted); font-size: 11px; line-height: 1.4; }
 .app-shell[data-tema] .pizarra-sugerencia { align-self: flex-start; margin-top: 3px; padding: 4px 10px; border: 1px solid color-mix(in srgb, #32d583 50%, transparent); border-radius: 999px; background: color-mix(in srgb, #32d583 12%, transparent); color: var(--ink); font-family: inherit; font-size: 11.5px; cursor: pointer; }
 .app-shell[data-tema="claro"] .pizarra-duelo.igual { stroke: rgba(11, 19, 27, .4); }

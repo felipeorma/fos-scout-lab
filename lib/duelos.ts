@@ -12,6 +12,19 @@
  * Lo que NO hace: decir cuántas veces se enfrentarán, ni ajustar por nivel
  * de liga cuando los dos juegan en ligas distintas (cada tasa es contra los
  * rivales de su liga, y la pantalla lo dice).
+ *
+ * Validado contra los duelos reales de 2026 (VALIDACION_DUELOS): 1.119
+ * partidos de cinco ligas, cada jugador con sus números de 2025 (fuera de
+ * muestra). El aéreo funciona: con 60 % o más para uno, gana el 67 % (el
+ * modelo decía 68 %). El regate depende poco de quién encara a quién: mejora
+ * la media de la liga un 0,6 % en log loss, aunque cuando el atacante sale
+ * con 65 % o más gana el 67 %. Por eso el regate pide más intentos antes de
+ * creerse un número (PESO_REGATE) y la pantalla lo da como tendencia.
+ *
+ * El % de regate de StatsBomb de una temporada coincide con lo que pasa en
+ * sus duelos (2026: 58,8 % en la CPL contra 58,2 % en los pares de eventos),
+ * pero entre temporadas se mueve (en 2025 rondaba el 53 %): por eso cada
+ * jugador se mide contra la media de su liga en esa misma temporada.
  */
 
 import { distanciaDePuesto, SITIO } from "./pizarra.ts";
@@ -31,8 +44,25 @@ export type PerfilDeDuelo = {
 
 export type MediasDeDuelo = { regate: number; frena: number; aereo: number };
 
-/** Intentos que sostienen el número: sin ellos el número vuelve a la media de su liga. */
-export const INTENTOS_DE_PESO = 12;
+/**
+ * Intentos que sostienen el número: sin ellos vuelve a la media de su liga.
+ * Los que mejor predicen en la validación: el regate (y frenarlo) necesita
+ * muchos más que el aéreo, porque depende menos del jugador.
+ */
+export const PESO_REGATE = 50;
+export const PESO_AEREO = 20;
+
+/** Lo que salió al probar el modelo con los duelos reales de 2026 (ver arriba). */
+export const VALIDACION_DUELOS = {
+  partidos: 1119,
+  ligas: 5,
+  regates: 25703,
+  aereos: 27713,
+  /** Con ≥ 60 % para uno en el aéreo, cuántas veces lo gana. */
+  aereo: { umbral: 0.6, gana: 0.672, mejora: 0.038 },
+  /** Con ≥ 65 % para el atacante, cuántas veces completa el regate; y cuánto mejora la media de la liga. */
+  regate: { umbral: 0.65, gana: 0.673, mejora: 0.006 },
+} as const;
 
 const odds = (p: number) => p / (1 - p);
 const deOdds = (o: number) => o / (1 + o);
@@ -49,7 +79,7 @@ function muestras(perfil: PerfilDeDuelo) {
 }
 
 /** La tasa encogida hacia la media de su liga, según cuántos intentos la sostienen. */
-export function encoger(tasa: number, intentos: number, media: number, peso = INTENTOS_DE_PESO) {
+export function encoger(tasa: number, intentos: number, media: number, peso: number) {
   if (!Number.isFinite(tasa) || !(intentos > 0)) return media;
   return (tasa * intentos + media * peso) / (intentos + peso);
 }
@@ -71,9 +101,9 @@ export function mediasDeDuelo(perfiles: PerfilDeDuelo[]): MediasDeDuelo {
 export function tasas(perfil: PerfilDeDuelo, liga: MediasDeDuelo) {
   const m = muestras(perfil);
   return {
-    regate: encoger(perfil.regatePct, m.intentosRegate, liga.regate),
-    frena: encoger(perfil.frenaPct, m.encarados, liga.frena),
-    aereo: encoger(perfil.aereoPct, m.aereos, liga.aereo),
+    regate: encoger(perfil.regatePct, m.intentosRegate, liga.regate, PESO_REGATE),
+    frena: encoger(perfil.frenaPct, m.encarados, liga.frena, PESO_REGATE),
+    aereo: encoger(perfil.aereoPct, m.aereos, liga.aereo, PESO_AEREO),
     intentosRegate90: perfil.minutos > 0 ? (m.intentosRegate * 90) / perfil.minutos : 0,
     muestras: m,
   };
@@ -88,6 +118,15 @@ export function probabilidadDeRegate(atacante: PerfilDeDuelo, ligaAtacante: Medi
   const deja = 1 - tasas(defensor, ligaDefensor).frena;
   const dejaMedia = 1 - ligaDefensor.frena;
   return deOdds(odds(acotar(pa)) * odds(acotar(deja)) / odds(acotar(dejaMedia)));
+}
+
+/**
+ * El regate entre un atacante y un defensor normales de su liga (≈ 58 % en
+ * 2026): la referencia para decir quién tiene ventaja, porque un 58 % no es
+ * ventaja de nadie.
+ */
+export function regateMedio(ligaAtacante: MediasDeDuelo) {
+  return acotar(ligaAtacante.regate);
 }
 
 /** Probabilidad de que A gane el aéreo contra B. */

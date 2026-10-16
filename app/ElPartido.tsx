@@ -7,35 +7,11 @@ import { numberLocale, t, tf } from "@/lib/i18n";
 import { fetchPartidosDeLiga } from "@/lib/remoteData";
 import { METRICAS_ESTILO, mismoEquipo, type PerfilEquipo } from "@/lib/estiloEquipo";
 import { nivelDeLiga } from "@/lib/nivelDeLiga";
-import {
-  MEJORA_MINIMA,
-  PREDICCION_CALIBRADA,
-  choqueDeDibujos,
-  crucesDeEstilo,
-  enfrentamientos,
-  estructuraDe,
-  formacionLegible,
-  formacionProbable,
-  fuertesYFlojos,
-  lineaDefensiva,
-  mediasDeLiga,
-  mejoraDelModelo,
-  onceTipico,
-  partidosDe,
-  perfilesDeDimension,
-  prediccionDelPartido,
-  rendimientoPorLinea,
-  ventajas,
-  type ChoqueDeZona,
-  type CruceDeEstilo,
-  type LigaPartidos,
-  type MetricaPartido,
-  type PartidoDeEquipo,
-} from "@/lib/partido";
-import { FASES, fasesDeLiga, formaReciente, lecturaDe, lecturaDeFases, type LecturaDeMetrica, type MetricaDeFase } from "@/lib/fases";
+import { cambioDeDibujo, choqueDeDibujos, type ChoqueDeZona, type CruceDeEstilo, crucesDeEstilo, enfrentamientos, estructuraDe, formacionLegible, formacionProbable, fuertesYFlojos, type LigaPartidos, lineaDefensiva, mediasDeLiga, MEJORA_MINIMA, mejoraDelModelo, type MetricaPartido, onceTipico, type PartidoDeEquipo, partidosDe, perfilesDeDimension, PREDICCION_CALIBRADA, prediccionDelPartido, rendimientoPorLinea, ventajas } from "@/lib/partido";
+import { cambiosRecientes, FASES, fasesDeLiga, formaReciente, lecturaDe, lecturaDeFases, type LecturaDeMetrica, type MetricaDeFase } from "@/lib/fases";
 import { DIBUJOS, SITIO, consejosDePizarra, oncePara, puestosDe, type Consejo } from "@/lib/pizarra";
 import { normalizarNombre, useCatalogo, useFormaDeLiga, usePlantelDeLiga, type JugadorDePlantel } from "./useTemporadaDeLiga";
-import { emparejar, mediasDeDuelo, mejorParaElDuelo, probabilidadAerea, probabilidadDeRegate, sitioEnPizarra, tasas, type PerfilDeDuelo } from "@/lib/duelos";
+import { emparejar, mediasDeDuelo, mejorParaElDuelo, probabilidadAerea, probabilidadDeRegate, regateMedio, sitioEnPizarra, tasas, VALIDACION_DUELOS, type PerfilDeDuelo } from "@/lib/duelos";
 
 /**
  * El partido: el informe de un rival como lo prepara un cuerpo técnico.
@@ -101,6 +77,8 @@ const formatoFase = (metrica: MetricaDeFase, valor: number) => (
 );
 const ordinal = (n: number, de: number) => tf("{n}º de {de}", { n, de });
 const apellido = (nombre: string) => nombre.trim().split(/\s+/).slice(-1)[0] ?? nombre;
+/** El color de un duelo: cinco puntos de ventaja sobre dos jugadores normales de su liga. */
+const tonoDeDuelo = (ventaja: number) => (!Number.isFinite(ventaja) ? "igual" : ventaja >= 0.05 ? "nuestro" : ventaja <= -0.05 ? "suyo" : "igual");
 
 // ---- Los datos de cada lado ----------------------------------------------------------------
 
@@ -126,6 +104,9 @@ function useLadoDelPartido(perfil: PerfilEquipo) {
       fuertes: fuertesYFlojos(dimensiones),
       lineas: rendimientoPorLinea(suyos),
       reciente: formaReciente(liga, partes.equipo),
+      // Lo que se movió de verdad en sus últimos cinco, y si cambió de dibujo.
+      cambios: cambiosRecientes(liga, forma.datos, partes.equipo),
+      dibujo: cambioDeDibujo(suyos),
     };
   }, [liga, forma.datos, partes.equipo]);
   const jugadores = useMemo(() => {
@@ -354,8 +335,13 @@ export function ElPartido({ a, b, claseHoja = "legal-page-shell", pie = null }: 
         (perfil) => 1 - probabilidadDeRegate(da, ladoB.mediasDuelo, perfil, ladoA.mediasDuelo)) : null);
     // Para A: lo que gana en el duelo (si ataca, su regate; si defiende, frenar el del rival).
     const paraA = Number.isFinite(regate) ? (atacaA ? regate : 1 - regate) : Number.NaN;
+    // La ventaja es contra dos jugadores normales de su liga: el atacante gana ≈ 58 %
+    // de los regates, así que un 58 % no es ventaja de nadie.
+    const medio = regateMedio(ladoAtaca.mediasDuelo);
+    const ventajaA = Number.isFinite(regate) ? (atacaA ? regate - medio : medio - regate) : Number.NaN;
+    const aereoA = Number.isFinite(aereo) ? (atacaA ? aereo : 1 - aereo) : Number.NaN;
     return {
-      par, atacaA, atacante, defensor, nombreAtacante, nombreDefensor, regate, aereo, paraA, sugerencia,
+      par, atacaA, atacante, defensor, nombreAtacante, nombreDefensor, regate, aereo, paraA, ventajaA, aereoA, sugerencia,
       tasaAtacante: da ? tasas(da, ladoAtaca.mediasDuelo) : null,
       tasaDefensor: dd ? tasas(dd, ladoDefiende.mediasDuelo) : null,
       mediaAtacante: ladoAtaca.mediasDuelo, mediaDefensor: ladoDefiende.mediasDuelo,
@@ -580,8 +566,7 @@ export function ElPartido({ a, b, claseHoja = "legal-page-shell", pie = null }: 
           {duelos.map((d, i) => {
             const [x1, y1] = sitioEnPizarra((d.atacaA ? puestosA : puestosB)[d.par.puestoAtacante], d.atacaA ? "a" : "b");
             const [x2, y2] = sitioEnPizarra((d.atacaA ? puestosB : puestosA)[d.par.puestoDefensor], d.atacaA ? "b" : "a");
-            const tono = !Number.isFinite(d.paraA) ? "igual" : d.paraA >= 0.55 ? "nuestro" : d.paraA <= 0.45 ? "suyo" : "igual";
-            return <line key={i} className={`pizarra-duelo ${tono}`} x1={x1} y1={y1} x2={x2} y2={y2} />;
+            return <line key={i} className={`pizarra-duelo ${tonoDeDuelo(d.ventajaA)}`} x1={x1} y1={y1} x2={x2} y2={y2} />;
           })}
         </svg>
         {(["b", "a"] as const).map((cual) => {
@@ -606,8 +591,8 @@ export function ElPartido({ a, b, claseHoja = "legal-page-shell", pie = null }: 
       <div className="pizarra-duelos">
         <h5>{t("Duelos clave")}</h5>
         <ol>
-          {[...duelos].filter((d) => Number.isFinite(d.paraA)).sort((x, y) => Math.abs(y.paraA - 0.5) - Math.abs(x.paraA - 0.5)).map((d, i) => {
-            const tono = d.paraA >= 0.55 ? "nuestro" : d.paraA <= 0.45 ? "suyo" : "igual";
+          {[...duelos].filter((d) => Number.isFinite(d.paraA)).sort((x, y) => Math.abs(y.ventajaA) - Math.abs(x.ventajaA)).map((d, i) => {
+            const tono = tonoDeDuelo(d.ventajaA);
             const atac = d.nombreAtacante ?? "—";
             const def = d.nombreDefensor ?? "—";
             const puestoNuestro = d.atacaA ? d.par.puestoAtacante : d.par.puestoDefensor;
@@ -615,14 +600,14 @@ export function ElPartido({ a, b, claseHoja = "legal-page-shell", pie = null }: 
               <b>{d.atacaA
                 ? tf("{x} encara a {y}", { x: apellido(atac), y: apellido(def) })
                 : tf("{y} frena a {x}", { x: apellido(atac), y: apellido(def) })}
-                <em>{pct(d.paraA)}</em></b>
+                <em>{pct(d.paraA)}<small title={t("Frente a dos jugadores normales de su liga")}>{`${d.ventajaA >= 0 ? "+" : "−"}${Math.abs(Math.round(d.ventajaA * 100))}`}</small></em></b>
               <span>{tf("Regate: {x} completa el {pa} (su liga {la}); {y} frena el {pd} (su liga {ld}). Intenta ≈{n} por partido.", {
                 x: apellido(atac), y: apellido(def),
                 pa: pct(d.tasaAtacante?.regate ?? Number.NaN), la: pct(d.mediaAtacante.regate),
                 pd: pct(d.tasaDefensor?.frena ?? Number.NaN), ld: pct(d.mediaDefensor.frena),
                 n: decimal(d.tasaAtacante?.intentosRegate90 ?? Number.NaN),
               })}</span>
-              {Number.isFinite(d.aereo) && <span>{tf("Juego aéreo: {p} para {x} ({pa} contra {pd} de aéreos ganados).", {
+              {Number.isFinite(d.aereo) && <span className={`duelo-aereo ${d.aereoA >= 0.6 ? "nuestro" : d.aereoA <= 0.4 ? "suyo" : "igual"}`}>{tf("Juego aéreo: {p} para {x} ({pa} contra {pd} de aéreos ganados).", {
                 p: pct(d.aereo), x: apellido(atac), pa: pct(d.tasaAtacante?.aereo ?? Number.NaN), pd: pct(d.tasaDefensor?.aereo ?? Number.NaN),
               })}</span>}
               {d.sugerencia && <button type="button" className="pizarra-sugerencia"
@@ -634,6 +619,10 @@ export function ElPartido({ a, b, claseHoja = "legal-page-shell", pie = null }: 
         </ol>
         <p className="partido-nota">{[
           t("Cada atacante contra el defensor que le queda enfrente en la pizarra. La probabilidad es para tu equipo: ganar el regate si ataca, frenarlo si defiende. Log5 con las tasas de cada uno en su temporada, encogidas hacia la media de su liga según los intentos que las sostienen. «Probar a» propone a quien del plantel lo haría mejor en ese duelo (450′ o más y su puesto habitual cerca); un toque lo pone."),
+          tf("Probado con {n} partidos reales de 2026 en {l} ligas: en el aéreo, quien sale con {u} o más lo gana el {g}; el regate depende poco de quién encara a quién (el atacante gana ≈58 % de los regates en estas ligas), así que el color marca la ventaja sobre la media de su liga y conviene leerlo como tendencia.", {
+            n: VALIDACION_DUELOS.partidos, l: VALIDACION_DUELOS.ligas,
+            u: pct(VALIDACION_DUELOS.aereo.umbral), g: pct(VALIDACION_DUELOS.aereo.gana),
+          }),
           !mismaLiga ? t("De ligas o temporadas distintas: la tasa de cada uno es contra rivales de su liga, sin ajustar por nivel.") : "",
         ].filter(Boolean).join(" ")}</p>
       </div>
@@ -704,8 +693,26 @@ export function ElPartido({ a, b, claseHoja = "legal-page-shell", pie = null }: 
             <b>{`${p.gf}–${p.gc}`}<small>{tf("xG {f}–{c}", { f: decimal(p.xg, 2), c: decimal(p.xgContra, 2) })}</small></b>
           </li>)}
         </ol>
+        <div className="partido-cambios">
+          <h5>{t("Lo que cambió en sus últimos 5")}</h5>
+          {datos.dibujo && <p className="partido-cambio-dibujo">{datos.dibujo.tipo === "linea"
+            ? tf("Defiende con línea de {ahora} en los últimos {n} ({d}); antes, con línea de {antes}.", { ahora: datos.dibujo.ahora, antes: datos.dibujo.antes, n: datos.dibujo.partidos, d: formacionLegible(datos.dibujo.dibujoAhora) })
+            : tf("Los últimos {n}, con {ahora}; antes, sobre todo {antes}.", { n: datos.dibujo.partidos, ahora: formacionLegible(datos.dibujo.ahora), antes: formacionLegible(datos.dibujo.antes) })}</p>}
+          {datos.cambios.length ? <ul>
+            {datos.cambios.slice(0, 5).map((c) => {
+              const sube = c.reciente > c.antes;
+              const bueno = c.metrica.mejor ? (c.metrica.mejor === "alto") === sube : null;
+              return <li key={c.metrica.id} className={bueno === null ? "neutro" : bueno ? "mejora" : "empeora"} title={c.metrica.ayuda ? t(c.metrica.ayuda) : undefined}>
+                <i aria-hidden="true">{sube ? "▲" : "▼"}</i>
+                <span>{t(c.metrica.etiqueta)}</span>
+                <b>{formatoFase(c.metrica, c.antes)}<small>→</small>{formatoFase(c.metrica, c.reciente)}</b>
+              </li>;
+            })}
+          </ul> : !datos.dibujo && <p className="partido-cambios-nada">{t("Sin cambios claros: sus últimos 5 se parecen al resto de su temporada.")}</p>}
+        </div>
       </div>)}
     </div>
+    <p className="partido-nota">{t("Cambios: la media de sus últimos 5 partidos frente al resto de su temporada (antes → ahora), solo lo que se mueve más de dos errores típicos con su propia variación partido a partido. Verde, a mejor para ese equipo; rojo, a peor. Se miran unas treinta métricas, así que uno por equipo puede ser azar. Dibujo: los últimos 3 con la misma línea o el mismo dibujo, distinto del que más usó antes.")}</p>
 
   </section>)}
   {hoja(4, <section className="partido">
