@@ -7223,3 +7223,14 @@ body.print-layout-check .legal-page-shell:has([data-hoja-vacia]) { display: none
 .app-shell .similarity-aviso .similarity-aviso-rol p { margin: 0; padding: 0 12px 10px 28px; line-height: 1.6; }
 .app-shell[data-tema="claro"] .similarity-aviso .similarity-aviso-rol summary { color: #8a5a00; }
 @media (prefers-reduced-motion: reduce) { .app-shell .similarity-aviso .similarity-aviso-rol summary::before { transition: none; } }
+
+/* El recuadro de la foto, el dorsal y el escudo: un filo blanco fino, el
+   mismo blanco del sticker pero discreto. Va en un ::before por encima de
+   todo (la foto y el degradado de abajo lo taparían) y con la esquina de la
+   tarjeta, para que el filo no se corte donde la tarjeta redondea. */
+.jordhy-report .dossier-portrait { border-top-left-radius: 20.5px; }
+.jordhy-report .dossier-portrait::before,
+.snap-retrato::before { content: ""; position: absolute; inset: 0; z-index: 5; border: 1.5px solid rgba(255, 255, 255, .92); border-radius: inherit; pointer-events: none; }
+@media (max-width: 680px) { .jordhy-report .dossier-portrait { border-top-right-radius: 20.5px; } }
+/* En Ficha ampliada el retrato es hijo directo de la tarjeta: toma su esquina. */
+.snap-ficha > .snap-retrato { border-top-left-radius: inherit; }
