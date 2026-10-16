@@ -7,10 +7,11 @@ import { numberLocale, t, tf } from "@/lib/i18n";
 import { fetchPartidosDeLiga } from "@/lib/remoteData";
 import { METRICAS_ESTILO, mismoEquipo, type PerfilEquipo } from "@/lib/estiloEquipo";
 import { nivelDeLiga } from "@/lib/nivelDeLiga";
-import { cambioDeDibujo, choqueDeDibujos, type ChoqueDeZona, type CruceDeEstilo, crucesDeEstilo, enfrentamientos, estructuraDe, formacionLegible, formacionProbable, fuertesYFlojos, type LigaPartidos, lineaDefensiva, mediasDeLiga, MEJORA_MINIMA, mejoraDelModelo, type MetricaPartido, onceTipico, type PartidoDeEquipo, partidosDe, perfilesDeDimension, PREDICCION_CALIBRADA, prediccionDelPartido, rendimientoPorLinea, ventajas } from "@/lib/partido";
+import { cambioDeDibujo, type ChoqueDeZona, type CruceDeEstilo, crucesDeEstilo, enfrentamientos, equiposDeLiga, estructuraDe, formacionLegible, formacionProbable, fuertesYFlojos, type LigaPartidos, lineaDefensiva, zonasDelChoque, mediasDeLiga, MEJORA_MINIMA, mejoraDelModelo, type MetricaPartido, onceTipico, type PartidoDeEquipo, partidosDe, perfilesDeDimension, PREDICCION_CALIBRADA, prediccionDelPartido, rendimientoPorLinea, ventajas } from "@/lib/partido";
 import { cambiosRecientes, FASES, fasesDeLiga, formaReciente, lecturaDe, lecturaDeFases, type LecturaDeMetrica, type MetricaDeFase } from "@/lib/fases";
 import { DIBUJOS, SITIO, consejosDePizarra, oncePara, puestosDe, type Consejo } from "@/lib/pizarra";
-import { normalizarNombre, useCatalogo, useFormaDeLiga, usePlantelDeLiga, type JugadorDePlantel } from "./useTemporadaDeLiga";
+import { normalizarNombre, useCatalogo, useFormaDeLiga, usePlantelDeLiga, useSkillcornerDeLiga, type JugadorDePlantel } from "./useTemporadaDeLiga";
+import { buscadorDeFisico, conSkillcorner, valoresSkillcorner } from "@/lib/skillcornerPartido";
 import { emparejar, mediasDeDuelo, mejorParaElDuelo, probabilidadAerea, probabilidadDeRegate, regateMedio, sitioEnPizarra, tasas, VALIDACION_DUELOS, type PerfilDeDuelo } from "@/lib/duelos";
 
 /**
@@ -73,10 +74,14 @@ const decimal = (valor: number, digitos = 1) => (Number.isFinite(valor)
 const pct = (valor: number) => (Number.isFinite(valor) ? `${Math.round(valor * 100)}%` : "—");
 const formato = (metrica: MetricaPartido, valor: number) => (metrica.formato === "pct" ? pct(valor) : decimal(valor, metrica.formato === "n2" ? 2 : 1));
 const formatoFase = (metrica: MetricaDeFase, valor: number) => (
-  metrica.formato === "pct" ? pct(valor) : metrica.formato === "m" ? `${decimal(valor)} m` : decimal(valor, metrica.formato === "n2" ? 2 : 1)
+  // Los porcentajes pequeños (le ganan la espalda: 0,6 %) con un decimal: redondeados salían "0 %" y "1 %".
+  metrica.formato === "pct" ? (Number.isFinite(valor) && Math.abs(valor) < 0.1 ? `${decimal(valor * 100, 1)}%` : pct(valor))
+    : metrica.formato === "m" ? `${decimal(valor)} m` : decimal(valor, metrica.formato === "n2" ? 2 : 1)
 );
 const ordinal = (n: number, de: number) => tf("{n}º de {de}", { n, de });
 const apellido = (nombre: string) => nombre.trim().split(/\s+/).slice(-1)[0] ?? nombre;
+/** Una fila de la tarjeta de duelo: el nuestro a la izquierda, el suyo a la derecha. */
+type FilaDeDuelo = { etiqueta: string; a: number; b: number; texto: (v: number) => string; escala: [number, number] };
 /** El color de un duelo: cinco puntos de ventaja sobre dos jugadores normales de su liga. */
 const tonoDeDuelo = (ventaja: number) => (!Number.isFinite(ventaja) ? "igual" : ventaja >= 0.05 ? "nuestro" : ventaja <= -0.05 ? "suyo" : "igual");
 
@@ -90,11 +95,16 @@ function useLadoDelPartido(perfil: PerfilEquipo) {
   const { liga, error, cargando } = usePartidosDeLiga(partes.competicion, partes.temporada);
   const forma = useFormaDeLiga(partes.competicion, partes.temporada);
   const plantel = usePlantelDeLiga(competicion);
+  const sc = useSkillcornerDeLiga(competicion);
   const datos = useMemo(() => {
     if (!liga) return null;
     const suyos = partidosDe(liga, partes.equipo);
     if (!suyos.length) return null;
-    const lecturas = lecturaDeFases(fasesDeLiga(liga, forma.datos), partes.equipo);
+    // SkillCorner, si su liga lo publica: game intelligence por equipo y el físico de sus jugadores.
+    const deSkillcorner = sc.datos
+      ? valoresSkillcorner(equiposDeLiga(liga).map((e) => ({ id: e.equipo, nombre: e.nombre })), sc.datos.equipos, sc.datos.jugadores)
+      : new Map<number, Record<string, number>>();
+    const lecturas = lecturaDeFases(conSkillcorner(fasesDeLiga(liga, forma.datos), deSkillcorner), partes.equipo);
     const dimensiones = perfilesDeDimension(liga).get(partes.equipo) ?? [];
     return {
       suyos,
@@ -108,7 +118,7 @@ function useLadoDelPartido(perfil: PerfilEquipo) {
       cambios: cambiosRecientes(liga, forma.datos, partes.equipo),
       dibujo: cambioDeDibujo(suyos),
     };
-  }, [liga, forma.datos, partes.equipo]);
+  }, [liga, forma.datos, partes.equipo, sc.datos]);
   const jugadores = useMemo(() => {
     const deSuEquipo = (plantel.datos ?? []).filter((j) => mismoEquipo(j.equipo, perfil.equipo));
     // Los que salieron de titulares y no están en las estadísticas (pocos minutos) también caben.
@@ -126,8 +136,11 @@ function useLadoDelPartido(perfil: PerfilEquipo) {
     () => mediasDeDuelo((plantel.datos ?? []).map((j) => j.duelo).filter((d): d is PerfilDeDuelo => d !== null)),
     [plantel.datos],
   );
+  // El físico de cada jugador (SkillCorner), por nombre: para los duelos y la pizarra.
+  const fisicoDe = useMemo(() => buscadorDeFisico(sc.datos?.jugadores ?? []), [sc.datos]);
   return {
-    partes, liga, datos, jugadores, error, cargando, mediasDuelo,
+    partes, liga, datos, jugadores, error, cargando, mediasDuelo, fisicoDe, conSkillcorner: Boolean(sc.datos),
+    conJuegoSc: Boolean(sc.datos?.equipos.length),
     formaCargando: forma.cargando, con360: (forma.datos?.con360 ?? 0) > 0, formaError: forma.error,
     plantelCargando: plantel.cargando,
   };
@@ -182,6 +195,13 @@ const ZONA: Record<ChoqueDeZona["zona"], string> = {
   salida_b: "Salida de {b}: sus centrales contra las puntas de {a}",
   medio: "Centro del campo: pivotes, interiores y mediapuntas",
   bandas: "Cada banda: laterales, carrileros y extremos",
+  banda_izq: "Banda izquierda de {a}: sus laterales y extremos contra los de la derecha de {b}",
+  banda_der: "Banda derecha de {a}: sus laterales y extremos contra los de la izquierda de {b}",
+};
+
+/** Dónde va cada zona en el dibujo (A ataca a la derecha): x, y, ancho, alto, en el campo de 120 × 80. */
+const RECTANGULO_DE_ZONA: Record<string, [number, number, number, number]> = {
+  banda_izq: [8, 0, 104, 19], salida_a: [8, 19, 33, 42], medio: [41, 19, 38, 42], salida_b: [79, 19, 33, 42], banda_der: [8, 61, 104, 19],
 };
 
 function lecturaDeZona(zona: ChoqueDeZona, a: string, b: string) {
@@ -195,9 +215,13 @@ function lecturaDeZona(zona: ChoqueDeZona, a: string, b: string) {
     return tf("{equipo} sale en inferioridad: le esperan más puntas que centrales tiene.", { equipo: sale });
   }
   if (!quien) return t("Igualados en número: decide quién gana los duelos y quién se mueve mejor.");
-  return zona.zona === "medio"
-    ? tf("{equipo} tiene uno más por dentro: puede tener el balón y girar entre líneas.", { equipo: quien })
-    : tf("{equipo} tiene más gente por fuera: puede doblar en banda y llegar con centros.", { equipo: quien });
+  if (zona.zona === "medio") return tf("{equipo} tiene uno más por dentro: puede tener el balón y girar entre líneas.", { equipo: quien });
+  if (zona.zona === "banda_izq" || zona.zona === "banda_der") {
+    return tf("{equipo} tiene {n} contra {m} en esta banda: puede doblar y llegar con centros; el otro tendrá que bascular.", {
+      equipo: quien, n: Math.max(zona.a, zona.b), m: Math.min(zona.a, zona.b),
+    });
+  }
+  return tf("{equipo} tiene más gente por fuera: puede doblar en banda y llegar con centros.", { equipo: quien });
 }
 
 const CRUCE: Record<CruceDeEstilo["id"], string> = {
@@ -232,6 +256,7 @@ const ICONO_DE_CONSEJO: Record<string, string> = {
   parado: "parado", su_parado: "parado",
   su_contra: "contra", carrileros_espalda: "contra", estrecho: "contra", linea5_espacios: "contra",
   lado_debil: "cambio", dos_puntas: "escudo", pivote: "escudo", su_balon_largo: "largo",
+  presionar_salida: "presion", superar_presion: "presion", sus_rupturas: "espalda", carrera: "espalda", su_velocidad: "escudo",
 };
 function IconoDeConsejo({ id }: { id: string }) {
   return <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">{ICONOS[ICONO_DE_CONSEJO[id] ?? "medio"]}</svg>;
@@ -340,8 +365,11 @@ export function ElPartido({ a, b, claseHoja = "legal-page-shell", pie = null }: 
     const medio = regateMedio(ladoAtaca.mediasDuelo);
     const ventajaA = Number.isFinite(regate) ? (atacaA ? regate - medio : medio - regate) : Number.NaN;
     const aereoA = Number.isFinite(aereo) ? (atacaA ? aereo : 1 - aereo) : Number.NaN;
+    // El físico de cada uno (SkillCorner), si su liga lo publica: contexto de la carrera, no entra en el %.
+    const fisAtacante = nombreAtacante ? ladoAtaca.fisicoDe(nombreAtacante) : null;
+    const fisDefensor = nombreDefensor ? ladoDefiende.fisicoDe(nombreDefensor) : null;
     return {
-      par, atacaA, atacante, defensor, nombreAtacante, nombreDefensor, regate, aereo, paraA, ventajaA, aereoA, sugerencia,
+      par, atacaA, atacante, defensor, nombreAtacante, nombreDefensor, regate, aereo, paraA, ventajaA, aereoA, sugerencia, fisAtacante, fisDefensor,
       tasaAtacante: da ? tasas(da, ladoAtaca.mediasDuelo) : null,
       tasaDefensor: dd ? tasas(dd, ladoDefiende.mediasDuelo) : null,
       mediaAtacante: ladoAtaca.mediasDuelo, mediaDefensor: ladoDefiende.mediasDuelo,
@@ -353,7 +381,7 @@ export function ElPartido({ a, b, claseHoja = "legal-page-shell", pie = null }: 
     a: (id) => (ladoA.datos ? lecturaDe(ladoA.datos.lecturas, id) : null),
     b: (id) => (ladoB.datos ? lecturaDe(ladoB.datos.lecturas, id) : null),
   }, formB), [puestosA, puestosB, ladoA.datos, ladoB.datos, formB]);
-  const choque = useMemo(() => choqueDeDibujos(estructuraDe(puestosA), estructuraDe(puestosB)), [puestosA, puestosB]);
+  const choque = useMemo(() => zonasDelChoque(puestosA, puestosB), [puestosA, puestosB]);
   const delMismo = useMemo(() => {
     if (!mismaLiga || !ladoA.liga || !ladoA.datos || !ladoB.datos) return null;
     return {
@@ -370,6 +398,8 @@ export function ElPartido({ a, b, claseHoja = "legal-page-shell", pie = null }: 
   const pruebasDe = (consejo: Consejo) => consejo.pruebas.map((p) => ({
     texto: textoDePrueba(p.equipo === "a" ? a.equipo : b.equipo, p.lectura, ESTIMADAS.has(p.lectura.metrica.id) && !(p.equipo === "a" ? ladoA.con360 : ladoB.con360)),
     apoya: p.apoya,
+    // Lo que viene del tracking de SkillCorner lleva su sello: StatsBomb no lo ve.
+    skillcorner: p.lectura.metrica.fuente === "skillcorner" || p.lectura.metrica.fuente === "fisico",
   }));
 
   const cabecera = <header className="partido-cabecera">
@@ -446,7 +476,7 @@ export function ElPartido({ a, b, claseHoja = "legal-page-shell", pie = null }: 
       {c.estado === "pizarra" && <em className="recomendacion-origen">{t("pizarra")}</em>}
       {pruebasDe(c).length > 0 && <span className="recomendacion-datos">
         {pruebasDe(c).map((p) => <span key={p.texto} className={p.apoya === true ? "apoya" : p.apoya === false ? "contradice" : undefined}>
-          {p.apoya === true ? "✓ " : p.apoya === false ? "✗ " : ""}{p.texto}
+          {p.apoya === true ? "✓ " : p.apoya === false ? "✗ " : ""}{p.skillcorner && <i className="sello-sc" title="SkillCorner">SC</i>}{p.texto}
         </span>)}
       </span>}
     </div>
@@ -596,20 +626,49 @@ export function ElPartido({ a, b, claseHoja = "legal-page-shell", pie = null }: 
             const atac = d.nombreAtacante ?? "—";
             const def = d.nombreDefensor ?? "—";
             const puestoNuestro = d.atacaA ? d.par.puestoAtacante : d.par.puestoDefensor;
-            return <li key={i} className={tono}>
-              <b>{d.atacaA
-                ? tf("{x} encara a {y}", { x: apellido(atac), y: apellido(def) })
-                : tf("{y} frena a {x}", { x: apellido(atac), y: apellido(def) })}
-                <em>{pct(d.paraA)}<small title={t("Frente a dos jugadores normales de su liga")}>{`${d.ventajaA >= 0 ? "+" : "−"}${Math.abs(Math.round(d.ventajaA * 100))}`}</small></em></b>
-              <span>{tf("Regate: {x} completa el {pa} (su liga {la}); {y} frena el {pd} (su liga {ld}). Intenta ≈{n} por partido.", {
-                x: apellido(atac), y: apellido(def),
-                pa: pct(d.tasaAtacante?.regate ?? Number.NaN), la: pct(d.mediaAtacante.regate),
-                pd: pct(d.tasaDefensor?.frena ?? Number.NaN), ld: pct(d.mediaDefensor.frena),
-                n: decimal(d.tasaAtacante?.intentosRegate90 ?? Number.NaN),
-              })}</span>
-              {Number.isFinite(d.aereo) && <span className={`duelo-aereo ${d.aereoA >= 0.6 ? "nuestro" : d.aereoA <= 0.4 ? "suyo" : "igual"}`}>{tf("Juego aéreo: {p} para {x} ({pa} contra {pd} de aéreos ganados).", {
-                p: pct(d.aereo), x: apellido(atac), pa: pct(d.tasaAtacante?.aereo ?? Number.NaN), pd: pct(d.tasaDefensor?.aereo ?? Number.NaN),
-              })}</span>}
+            // Siempre el nuestro a la izquierda y el suyo a la derecha, ataque quien ataque.
+            const nuestro = d.atacaA ? { nombre: atac, tasa: d.tasaAtacante, fis: d.fisAtacante, puesto: puestosA[d.par.puestoAtacante] } : { nombre: def, tasa: d.tasaDefensor, fis: d.fisDefensor, puesto: puestosA[d.par.puestoDefensor] };
+            const suyo = d.atacaA ? { nombre: def, tasa: d.tasaDefensor, fis: d.fisDefensor, puesto: puestosB[d.par.puestoDefensor] } : { nombre: atac, tasa: d.tasaAtacante, fis: d.fisAtacante, puesto: puestosB[d.par.puestoAtacante] };
+            const todas: FilaDeDuelo[] = [
+              { etiqueta: d.atacaA ? t("Regate · completa / frena") : t("Regate · frena / completa"),
+                a: (d.atacaA ? d.tasaAtacante?.regate : d.tasaDefensor?.frena) ?? Number.NaN, b: (d.atacaA ? d.tasaDefensor?.frena : d.tasaAtacante?.regate) ?? Number.NaN, texto: pct, escala: [0.3, 0.9] },
+              { etiqueta: t("Aéreos ganados"), a: nuestro.tasa?.aereo ?? Number.NaN, b: suyo.tasa?.aereo ?? Number.NaN, texto: pct, escala: [0.2, 0.8] },
+              { etiqueta: t("Velocidad punta (km/h)"), a: nuestro.fis?.psv99 ?? Number.NaN, b: suyo.fis?.psv99 ?? Number.NaN, texto: (v) => decimal(v, 1), escala: [26, 34] },
+              { etiqueta: t("Sprints por 90′"), a: nuestro.fis?.sprints ?? Number.NaN, b: suyo.fis?.sprints ?? Number.NaN, texto: (v) => decimal(v, 1), escala: [0, 30] },
+              { etiqueta: t("Rupturas por 30′"), a: nuestro.fis?.rupturas ?? Number.NaN, b: suyo.fis?.rupturas ?? Number.NaN, texto: (v) => decimal(v, 1), escala: [0, 3] },
+            ];
+            const filas = todas.filter((f) => Number.isFinite(f.a) || Number.isFinite(f.b));
+            const ancho = (v: number, [lo, hi]: [number, number]) => (Number.isFinite(v) ? Math.max(4, Math.min(100, ((v - lo) / (hi - lo)) * 100)) : 0);
+            const carrera = d.fisAtacante && d.fisDefensor ? d.fisAtacante.psv99 - d.fisDefensor.psv99 : Number.NaN;
+            return <li key={i} className={`tarjeta-duelo ${tono}`}>
+              <header>
+                <span className="lado-a"><b>{apellido(nuestro.nombre)}</b><small>{nuestro.puesto}</small></span>
+                <em>{d.atacaA ? t("ataca") : t("defiende")}</em>
+                <span className="lado-b"><b>{apellido(suyo.nombre)}</b><small>{suyo.puesto}</small></span>
+              </header>
+              <div className="duelo-veredicto">
+                <strong>{pct(d.paraA)}</strong>
+                <span>{d.atacaA ? tf("de completar el regate para {x}", { x: apellido(atac) }) : tf("de frenar el regate de {x}", { x: apellido(atac) })}</span>
+                <small title={t("Frente a dos jugadores normales de su liga")}>{`${d.ventajaA >= 0 ? "+" : "−"}${Math.abs(Math.round(d.ventajaA * 100))}`}</small>
+              </div>
+              <ul className="duelo-barras">
+                {filas.map((f) => {
+                  const ganaA = Number.isFinite(f.a) && Number.isFinite(f.b) && f.a > f.b;
+                  const ganaB = Number.isFinite(f.a) && Number.isFinite(f.b) && f.b > f.a;
+                  return <li key={f.etiqueta}>
+                    <span className={ganaA ? "valor gana" : "valor"}>{Number.isFinite(f.a) ? f.texto(f.a) : "—"}</span>
+                    <i className="barra a"><u style={{ width: `${ancho(f.a, f.escala)}%` }} /></i>
+                    <small>{f.etiqueta}</small>
+                    <i className="barra b"><u style={{ width: `${ancho(f.b, f.escala)}%` }} /></i>
+                    <span className={ganaB ? "valor gana" : "valor"}>{Number.isFinite(f.b) ? f.texto(f.b) : "—"}</span>
+                  </li>;
+                })}
+              </ul>
+              <p className="duelo-lectura">
+                {Number.isFinite(d.aereo) && <span className={`duelo-aereo ${d.aereoA >= 0.6 ? "nuestro" : d.aereoA <= 0.4 ? "suyo" : "igual"}`}>{tf("Aéreo: {p} para {x}.", { p: pct(d.aereoA), x: apellido(nuestro.nombre) })}</span>}
+                {Number.isFinite(carrera) && Math.abs(carrera) >= 0.5 && <span className="duelo-carrera">{tf("Carrera: {x} es {v} km/h más rápido.", { x: apellido(carrera > 0 ? atac : def), v: decimal(Math.abs(carrera), 1) })}</span>}
+                <span className="duelo-intentos">{tf("{x} intenta ≈{n} regates por partido.", { x: apellido(atac), n: decimal(d.tasaAtacante?.intentosRegate90 ?? Number.NaN) })}</span>
+              </p>
               {d.sugerencia && <button type="button" className="pizarra-sugerencia"
                 onClick={() => mover("a", { lado: "a", origen: "banca", valor: d.sugerencia!.jugador.nombre }, { tipo: "puesto", indice: puestoNuestro })}>
                 {tf("Probar a {j}: {p} ({g})", { j: d.sugerencia.jugador.nombre, p: pct(d.sugerencia.valor), g: `+${Math.round(d.sugerencia.ganancia * 100)}` })}
@@ -623,6 +682,7 @@ export function ElPartido({ a, b, claseHoja = "legal-page-shell", pie = null }: 
             n: VALIDACION_DUELOS.partidos, l: VALIDACION_DUELOS.ligas,
             u: pct(VALIDACION_DUELOS.aereo.umbral), g: pct(VALIDACION_DUELOS.aereo.gana),
           }),
+          t("Velocidad, sprints y rupturas son de SkillCorner (si su liga lo publica): dicen quién gana la carrera a la espalda, pero no entran en el %, porque en 20.029 duelos reales de 2026 la velocidad punta no cambió quién ganaba el regate ni el aéreo."),
           !mismaLiga ? t("De ligas o temporadas distintas: la tasa de cada uno es contra rivales de su liga, sin ajustar por nivel.") : "",
         ].filter(Boolean).join(" ")}</p>
       </div>
@@ -641,10 +701,44 @@ export function ElPartido({ a, b, claseHoja = "legal-page-shell", pie = null }: 
 
     <div className="partido-bloque">
       <h4>{t("El choque de dibujos")}</h4>
+      {/* Los dos onces sobre el campo y, en cada zona, quién tiene más gente:
+          en el color de A si es A, en blanco si es B, sin color si empatan. */}
+      <div className="choque-campo">
+        <svg viewBox="-2 -2 124 84" role="img" aria-label={t("El choque de dibujos")}>
+          <Cesped ancho={120} largo={80} vertical={false} franja={10} />
+          <rect x={0} y={0} width={120} height={80} {...CAL} />
+          <line x1={60} y1={0} x2={60} y2={80} {...CAL} />
+          <circle cx={60} cy={40} r={9.15} {...CAL} />
+          <rect x={0} y={18} width={18} height={44} {...CAL} />
+          <rect x={102} y={18} width={18} height={44} {...CAL} />
+          {choque.map((zona) => {
+            const [x, y, w, h] = RECTANGULO_DE_ZONA[zona.zona] ?? [0, 0, 0, 0];
+            return <rect key={zona.zona} x={x + 0.6} y={y + 0.6} width={w - 1.2} height={h - 1.2} rx={2}
+              className={`choque-zona ${zona.ventaja ? `ventaja-${zona.ventaja}` : "igual"}`} />;
+          })}
+          {(["a", "b"] as const).map((cual) => (cual === "a" ? puestosA : puestosB).map((codigo, i) => {
+            const [x, y] = sitioEnPizarra(codigo, cual);
+            return <circle key={`${cual}-${i}`} cx={x} cy={y} r={2.1} className={`choque-jugador ${cual}`} />;
+          }))}
+          {/* Las cifras, encima de los jugadores, en una píldora: arriba en las zonas del medio, al centro en las bandas. */}
+          {choque.map((zona) => {
+            const [x, y, w, h] = RECTANGULO_DE_ZONA[zona.zona] ?? [0, 0, 0, 0];
+            const enBanda = zona.zona.startsWith("banda");
+            const cx = x + w / 2, cy = enBanda ? y + h / 2 : y + 5;
+            return <g key={zona.zona} className={`choque-etiqueta ${zona.ventaja ? `ventaja-${zona.ventaja}` : "igual"}`}>
+              <rect x={cx - 8.5} y={cy - 3.6} width={17} height={7.2} rx={3.6} />
+              <text x={cx} y={cy + 2.1} className="choque-cifra">
+                <tspan className="a">{zona.a}</tspan><tspan className="contra">{" – "}</tspan><tspan className="b">{zona.b}</tspan>
+              </text>
+            </g>;
+          })}
+        </svg>
+        <p className="choque-leyenda"><span className="a">{a.equipo}</span><span className="b">{b.equipo}</span><small>{tf("{a} ataca hacia la derecha.", { a: a.equipo })}</small></p>
+      </div>
       <ol className="partido-zonas">
         {choque.map((zona) => <li key={zona.zona} className={zona.ventaja ? `ventaja-${zona.ventaja}` : undefined}>
           <span>{tf(ZONA[zona.zona], { a: a.equipo, b: b.equipo })}</span>
-          <b>{`${decimal(zona.a, zona.a % 1 ? 1 : 0)} – ${decimal(zona.b, zona.b % 1 ? 1 : 0)}`}</b>
+          <b>{`${zona.a} – ${zona.b}`}</b>
           <small>{lecturaDeZona(zona, a.equipo, b.equipo)}</small>
         </li>)}
       </ol>

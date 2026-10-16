@@ -183,7 +183,7 @@ export function onceTipico(partidos: PartidoDeEquipo[], formacion: string): stri
 export const lineaDefensiva = (e: Estructura): 3 | 4 => (e.centrales >= 3 ? 3 : 4);
 
 export type ChoqueDeZona = {
-  zona: "salida_a" | "salida_b" | "medio" | "bandas";
+  zona: "salida_a" | "salida_b" | "medio" | "bandas" | "banda_izq" | "banda_der";
   /** Jugadores de A y de B en la zona. */
   a: number;
   b: number;
@@ -209,6 +209,29 @@ export function choqueDeDibujos(a: Estructura, b: Estructura): ChoqueDeZona[] {
     zona("salida_b", a.delanteros, b.centrales),
     zona("medio", centroDelCampo(a), centroDelCampo(b)),
     zona("bandas", porBanda(a), porBanda(b)),
+  ];
+}
+
+const BANDA_IZQUIERDA = new Set(["LB", "LWB", "LM", "LW"]);
+const BANDA_DERECHA = new Set(["RB", "RWB", "RM", "RW"]);
+
+/**
+ * El choque en cinco zonas del campo, con cada banda por separado: la
+ * izquierda de A es la derecha de B (B ataca hacia el otro lado), y un 4-4-2
+ * contra un 3-5-2 no está igual en las dos. Para el dibujo de la pizarra.
+ */
+export function zonasDelChoque(puestosA: string[], puestosB: string[]): ChoqueDeZona[] {
+  const a = estructuraDe(puestosA), b = estructuraDe(puestosB);
+  const zona = (nombre: ChoqueDeZona["zona"], na: number, nb: number): ChoqueDeZona => ({
+    zona: nombre, a: na, b: nb, ventaja: na > nb ? "a" : nb > na ? "b" : null,
+  });
+  const cuenta = (puestos: string[], banda: Set<string>) => puestos.filter((p) => banda.has(p)).length;
+  return [
+    zona("banda_izq", cuenta(puestosA, BANDA_IZQUIERDA), cuenta(puestosB, BANDA_DERECHA)),
+    zona("salida_a", a.centrales, b.delanteros),
+    zona("medio", centroDelCampo(a), centroDelCampo(b)),
+    zona("salida_b", a.delanteros, b.centrales),
+    zona("banda_der", cuenta(puestosA, BANDA_DERECHA), cuenta(puestosB, BANDA_IZQUIERDA)),
   ];
 }
 

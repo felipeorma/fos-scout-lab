@@ -232,9 +232,16 @@ export function consejosDePizarra(puestosA: string[], puestosB: string[], lectur
 
   // ---- Lo que dicen sus datos: dónde defiende y cómo presiona ----
   const alturaB = lecturas.b("altura_defensa");
+  // La carrera a la espalda: sus centrales contra nuestros puntas (SkillCorner, km/h).
+  const carrera = [...prueba("b", "fis_vel_centrales", "bajo"), ...prueba("a", "fis_vel_ataque", "alto")];
   if (tercio(alturaB) === 0) {
-    oportunidades.push({ id: "espalda", texto: "{b} defiende alto para su liga: hay espacio a la espalda de su línea para desmarques de ruptura y balón al espacio.", pruebas: [conDato("b", alturaB!), ...prueba("a", "balon_largo", "alto")] });
-  } else if (tercio(alturaB) === 2) {
+    oportunidades.push({ id: "espalda", texto: "{b} defiende alto para su liga: hay espacio a la espalda de su línea para desmarques de ruptura y balón al espacio.", pruebas: [
+      conDato("b", alturaB!), ...prueba("a", "balon_largo", "alto"), ...prueba("a", "sc_rupturas", "alto"), ...prueba("b", "sc_superado_movimiento", "alto"), ...carrera,
+    ] });
+  } else if (tercio(lecturas.b("fis_vel_centrales")) === 2 && tercio(lecturas.a("fis_vel_ataque")) === 0) {
+    oportunidades.push({ id: "carrera", texto: "Tus puntas son más rápidos que sus centrales: cada balón a la espalda es una carrera que ganas.", pruebas: carrera });
+  }
+  if (tercio(alturaB) === 2) {
     oportunidades.push({ id: "bloque_bajo", texto: "{b} se repliega en bloque bajo: el espacio está delante de su defensa. Llega con segunda línea y tira desde la frontal.", pruebas: [conDato("b", alturaB!)] });
   }
   const largoB = lecturas.b("largo_bloque");
@@ -243,7 +250,32 @@ export function consejosDePizarra(puestosA: string[], puestosB: string[], lectur
   if (tercio(anchoB) === 2) oportunidades.push({ id: "lado_debil", texto: "Su bloque es estrecho: el cambio de orientación encuentra el lado débil.", pruebas: [conDato("b", anchoB!), ...prueba("a", "cambios", "alto")] });
   const presionB = lecturas.b("altura_presion");
   if (tercio(presionB) === 0 || tercio(lecturas.b("ppda")) === 2) {
-    riesgos.push({ id: "su_presion", texto: "{b} presiona arriba: si sales en corto, prepara el tercer hombre o el balón largo al punta para saltar su primera línea.", pruebas: [...prueba("b", "altura_presion", "alto"), ...prueba("b", "ppda", "bajo"), ...prueba("a", "salida_corta", "alto")] });
+    riesgos.push({ id: "su_presion", texto: "{b} presiona arriba: si sales en corto, prepara el tercer hombre o el balón largo al punta para saltar su primera línea.", pruebas: [
+      ...prueba("b", "altura_presion", "alto"), ...prueba("b", "ppda", "bajo"), ...prueba("a", "salida_corta", "alto"),
+      ...prueba("b", "sc_presiones", "alto"), ...prueba("b", "sc_cadenas", "alto"), ...prueba("a", "sc_retencion", "bajo"),
+    ] });
+  }
+
+  // ---- SkillCorner: lo que el tracking ve de su presión y de sus desmarques ----
+  if (tercio(lecturas.b("sc_retencion")) === 2) {
+    oportunidades.push({ id: "presionar_salida", texto: "{b} pierde el balón cuando le presionan: presiona su salida en bloque y espera el error.", pruebas: [
+      ...prueba("b", "sc_retencion", "bajo"), ...prueba("a", "sc_presiones", "alto"), ...prueba("a", "sc_cadenas", "alto"),
+    ] });
+  }
+  if (tercio(lecturas.b("sc_superado_movimiento")) === 0) {
+    oportunidades.push({ id: "superar_presion", texto: "A la presión de {b} se la gana con un desmarque: cuando salten, apoyo de cara y tercer hombre a la espalda del que presiona.", pruebas: [
+      ...prueba("b", "sc_superado_movimiento", "alto"), ...prueba("a", "sc_rompe_lineas", "alto"),
+    ] });
+  }
+  if (tercio(lecturas.b("sc_rupturas")) === 0 || tercio(lecturas.b("sc_rupturas_peligrosas")) === 0) {
+    riesgos.push({ id: "sus_rupturas", texto: "{b} ataca la espalda con desmarques de ruptura: presión al pasador antes que línea alta, y el central del lado contrario cerrando.", pruebas: [
+      ...prueba("b", "sc_rupturas", "alto"), ...prueba("b", "sc_rupturas_peligrosas", "alto"), ...prueba("a", "altura_defensa", "alto"), ...prueba("a", "fis_vel_centrales", "bajo"),
+    ] });
+  }
+  if (tercio(lecturas.b("fis_vel_ataque")) === 0 && tercio(lecturas.a("fis_vel_centrales")) === 2) {
+    riesgos.push({ id: "su_velocidad", texto: "Sus puntas son más rápidos que tus centrales: no les regales metros a la espalda; defiende unos metros más abajo o con un central de cobertura.", pruebas: [
+      ...prueba("b", "fis_vel_ataque", "alto"), ...prueba("a", "fis_vel_centrales", "bajo"),
+    ] });
   }
   if (tercio(lecturas.b("amplitud")) === 0) riesgos.push({ id: "su_amplitud", texto: "{b} ataca muy abierto: tus laterales tendrán duelos 1 contra 1. Que el extremo ayude atrás.", pruebas: prueba("b", "amplitud", "alto") });
   if (tercio(lecturas.b("balon_largo")) === 0) riesgos.push({ id: "su_balon_largo", texto: "{b} juega largo: gana el duelo aéreo y, sobre todo, la segunda jugada.", pruebas: prueba("b", "balon_largo", "alto") });

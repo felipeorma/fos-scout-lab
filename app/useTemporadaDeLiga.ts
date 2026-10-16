@@ -5,6 +5,7 @@ import { t } from "@/lib/i18n";
 import {
   fetchFormaDeLiga,
   fetchSkillcornerCompetitions,
+  fetchSkillcornerDataset,
   fetchSkillcornerTeamStats,
   fetchStatsbombCompetitions,
   fetchStatsbombDataset,
@@ -77,6 +78,26 @@ export function useEquiposDeTemporada(competicion: ApiCompetition | null) {
     } catch {
       return filas;
     }
+  });
+}
+
+/**
+ * SkillCorner de una liga y temporada, si lo publica: su game intelligence
+ * por equipo (vacío fuera de CPL y MLS Next Pro 2026) y el físico de cada
+ * jugador. Null si SkillCorner no tiene esa edición.
+ */
+export type SkillcornerDeLiga = { equipos: Array<Record<string, unknown>>; jugadores: Array<Record<string, unknown>> };
+export function useSkillcornerDeLiga(competicion: ApiCompetition | null) {
+  const clave = competicion ? `sc:${competicion.competition_id}:${competicion.season_id}` : null;
+  return useRecurso<SkillcornerDeLiga | null>(clave, async () => {
+    const catalogoSc = await fetchSkillcornerCompetitions();
+    const hermana = catalogoSc.find((edicion) => sinTildes(edicion.name) === sinTildes(competicion!.name) && String(edicion.season ?? "") === String(competicion!.season ?? ""));
+    if (!hermana) return null;
+    const [equipos, jugadores] = await Promise.all([
+      fetchSkillcornerTeamStats(hermana).catch(() => [] as Array<Record<string, unknown>>),
+      fetchSkillcornerDataset(hermana).then((base) => base.rows as Array<Record<string, unknown>>).catch(() => [] as Array<Record<string, unknown>>),
+    ]);
+    return { equipos, jugadores };
   });
 }
 

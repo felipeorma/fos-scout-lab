@@ -37,7 +37,13 @@ export type FormaEquipoPartido = {
 
 export type LigaForma = { partidos: Array<{ partido: number; fecha: string; equipos: Record<string, FormaEquipoPartido> }>; con360: number; fallidos: number };
 
-export type Fuente = "stats" | "forma" | "inclinacion";
+/**
+ * De dónde sale cada número. "skillcorner" y "fisico" son de la temporada
+ * entera, no de cada partido (SkillCorner por equipo; el físico, de sus
+ * jugadores): no entran en las medias por partido ni en "cómo viene", y
+ * lib/skillcornerPartido.ts los añade a las medias de la liga.
+ */
+export type Fuente = "stats" | "forma" | "inclinacion" | "skillcorner" | "fisico";
 
 export type MetricaDeFase = {
   id: string;
@@ -54,7 +60,7 @@ export type MetricaDeFase = {
   ayuda?: string;
 };
 
-export type Fase = { id: "con" | "perdida" | "sin" | "robo" | "parado"; nombre: string; metricas: MetricaDeFase[] };
+export type Fase = { id: "con" | "perdida" | "sin" | "robo" | "parado" | "fisico"; nombre: string; metricas: MetricaDeFase[] };
 
 const ALTO_MEDIO_BAJO: [string, string, string] = ["alta", "media", "baja"];
 const MUCHO_POCO: [string, string, string] = ["mucho", "normal", "poco"];
@@ -72,6 +78,13 @@ export const FASES: Fase[] = [
     { id: "centros", etiqueta: "Centros al área", fuente: "stats", campo: "crosses_into_box", formato: "n1", palabras: MUCHO_POCO },
     { id: "xg_juego", etiqueta: "xG en juego abierto", fuente: "stats", campo: "op_xg", formato: "n2", palabras: MUCHO_POCO, mejor: "alto" },
     { id: "xg_tiro", etiqueta: "xG por tiro", fuente: "stats", campo: "np_xg_per_shot", formato: "n2", palabras: ["buenas", "normales", "lejanas"], mejor: "alto" },
+    // SkillCorner (game intelligence): solo en las ligas que lo publican.
+    { id: "sc_rupturas", etiqueta: "Desmarques de ruptura a la espalda (SkillCorner, por 30′ con balón)", fuente: "skillcorner", campo: "behindrun_count", formato: "n2", palabras: MUCHO_POCO,
+      ayuda: "Carreras sin balón que atacan la espalda de la última línea rival, se sirvan o no." },
+    { id: "sc_rupturas_peligrosas", etiqueta: "Rupturas peligrosas (SkillCorner, por 30′ con balón)", fuente: "skillcorner", campo: "behindrun_count_dangerous", formato: "n2", palabras: MUCHO_POCO, mejor: "alto" },
+    { id: "sc_sirve_rupturas", etiqueta: "Rupturas que se le sirven %", fuente: "skillcorner", campo: "behindrun_count_targeted", formato: "pct", palabras: ["las busca", "a veces", "no las busca"] },
+    { id: "sc_rompe_lineas", etiqueta: "Pases que rompen líneas (SkillCorner, por 30′ con balón)", fuente: "skillcorner", campo: "pass_count_linebreak_completed", formato: "n2", palabras: MUCHO_POCO, mejor: "alto" },
+    { id: "sc_retencion", etiqueta: "Conserva el balón cuando le presionan %", fuente: "skillcorner", campo: "possession_pct_drawnpressure_retained", formato: "pct", palabras: ["lo conserva", "normal", "lo pierde"], mejor: "alto" },
   ] },
   { id: "perdida", nombre: "Tras perder el balón", metricas: [
     { id: "contrapresiones", etiqueta: "Contrapresiones", fuente: "forma", campo: "contrapresiones", formato: "n1", palabras: MUCHO_POCO },
@@ -86,6 +99,13 @@ export const FASES: Fase[] = [
     { id: "ancho_bloque", etiqueta: "Ancho del bloque", fuente: "forma", campo: "ancho", formato: "m", palabras: ["abierto", "medio", "estrecho"] },
     { id: "recuperacion_alta", etiqueta: "Recuperaciones en campo rival", fuente: "forma", campo: "recuperacionesCampoRival", formato: "pct", palabras: ALTO_MEDIO_BAJO, mejor: "alto" },
     { id: "xg_contra", etiqueta: "xG concedido en juego abierto", fuente: "stats", campo: "op_xg_conceded", formato: "n2", palabras: MUCHO_POCO, mejor: "bajo" },
+    { id: "sc_presiones", etiqueta: "Presiones sobre el balón (SkillCorner, por 30′ sin balón)", fuente: "skillcorner", campo: "onballengagement_count", formato: "n1", palabras: MUCHO_POCO },
+    { id: "sc_cadenas", etiqueta: "Presiones en cadena %", fuente: "skillcorner", campo: "onballengagement_count_pressingchain", formato: "pct", palabras: ["coordinada", "normal", "suelta"],
+      ayuda: "Presiones que forman parte de una cadena: varios jugadores saltan juntos para encerrar al rival." },
+    { id: "sc_hacia_atras", etiqueta: "Obliga a jugar hacia atrás %", fuente: "skillcorner", campo: "onballengagement_pct_forcedbackward", formato: "pct", palabras: MUCHO_POCO, mejor: "alto" },
+    { id: "sc_superado_movimiento", etiqueta: "Le ganan la espalda con un desmarque %", fuente: "skillcorner", campo: "onballengagement_pct_beatenbymovement", formato: "pct", palabras: MUCHO_POCO, mejor: "bajo",
+      ayuda: "De sus presiones, las que el rival supera con un desmarque antes de recibir." },
+    { id: "sc_peligro_cortado", etiqueta: "Peligro que corta al presionar %", fuente: "skillcorner", campo: "onballengagement_pct_dangermitigated", formato: "pct", palabras: MUCHO_POCO, mejor: "alto" },
   ] },
   { id: "robo", nombre: "Tras robar el balón", metricas: [
     { id: "contragolpe", etiqueta: "Tiros al contragolpe", fuente: "stats", campo: "counter_attacking_shots", formato: "n2", palabras: MUCHO_POCO, mejor: "alto" },
@@ -98,6 +118,13 @@ export const FASES: Fase[] = [
     { id: "corners", etiqueta: "Córners", fuente: "stats", campo: "corners", formato: "n1", palabras: MUCHO_POCO },
     { id: "xg_corner", etiqueta: "xG por córner", fuente: "stats", campo: "xg_per_corner", formato: "n2", palabras: ["peligroso", "normal", "inofensivo"], mejor: "alto" },
   ] },
+  // Físico (SkillCorner): de sus jugadores con 300′ o más, ponderado por minutos.
+  { id: "fisico", nombre: "Físico", metricas: [
+    { id: "fis_vel_ataque", etiqueta: "Velocidad punta de sus delanteros y extremos (km/h, PSV-99)", fuente: "fisico", campo: "ataque", formato: "n1", palabras: ["rápidos", "normales", "lentos"] },
+    { id: "fis_vel_centrales", etiqueta: "Velocidad punta de sus centrales (km/h, PSV-99)", fuente: "fisico", campo: "centrales", formato: "n1", palabras: ["rápidos", "normales", "lentos"] },
+    { id: "fis_hsr", etiqueta: "Metros a alta intensidad por jugador (más de 20 km/h, por 90′)", fuente: "fisico", campo: "hsr", formato: "n1", palabras: MUCHO_POCO },
+    { id: "fis_sprints", etiqueta: "Sprints por jugador (más de 25 km/h, por 90′)", fuente: "fisico", campo: "sprints", formato: "n1", palabras: MUCHO_POCO },
+  ] },
 ];
 
 const media = (xs: number[]) => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : Number.NaN);
@@ -105,6 +132,8 @@ const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : N
 
 /** Lo que vale cada métrica de cada equipo en un partido. */
 export function valorEnPartido(metrica: MetricaDeFase, stats: Record<string, number>, forma: FormaEquipoPartido | undefined, formaRival: FormaEquipoPartido | undefined) {
+  // De la temporada entera: no hay valor de cada partido.
+  if (metrica.fuente === "skillcorner" || metrica.fuente === "fisico") return Number.NaN;
   if (metrica.fuente === "stats") {
     const v = num(stats[metrica.campo]);
     // StatsBomb da la proporción de saques largos del portero: aquí se cuenta la de cortos.
