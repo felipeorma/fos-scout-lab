@@ -7024,3 +7024,8 @@ body.print-layout-check .legal-page-shell:has([data-hoja-vacia]) { display: none
 .app-shell[data-tema="claro"] .consejo-contradicho .partido-estado-consejo { color: #8a5300; }
 .app-shell[data-tema] .partido-prueba.apoya { box-shadow: inset 2px 0 0 #32d583; }
 .app-shell[data-tema] .partido-prueba.contradice { box-shadow: inset 2px 0 0 #ff9f0a; }
+@media screen {
+  /* El partido y el flujo en pantalla: seguidos, sin el pie entre hojas. */
+  body:not(.print-layout-check) :is(.partido-hoja-1, .partido-hoja-2, .partido-hoja-3, .estilo-hoja-flujo) > .visual-page-footer { display: none; }
+  body:not(.print-layout-check) .app-shell[data-tema] .estilo-page.estilo-hoja-partido { margin-top: 0; margin-bottom: 0; padding-top: 6px; padding-bottom: 6px; }
+}

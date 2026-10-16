@@ -236,7 +236,14 @@ function textoDePrueba(equipo: string, lectura: LecturaDeMetrica, estimada: bool
 
 // ---- La sección ----------------------------------------------------------------------------
 
-export function ElPartido({ a, b }: { a: PerfilEquipo; b: PerfilEquipo }) {
+export function ElPartido({ a, b, claseHoja = "legal-page-shell", pie = null }: {
+  a: PerfilEquipo;
+  b: PerfilEquipo;
+  /** La clase de cada hoja de impresión: El partido sale en tres. */
+  claseHoja?: string;
+  /** El pie de la página, al final de cada hoja impresa. */
+  pie?: ReactNode;
+}) {
   const ladoA = useLadoDelPartido(a);
   const ladoB = useLadoDelPartido(b);
   const mismaLiga = ladoA.partes.competicion === ladoB.partes.competicion && ladoA.partes.temporada === ladoB.partes.temporada;
@@ -338,13 +345,29 @@ export function ElPartido({ a, b }: { a: PerfilEquipo; b: PerfilEquipo }) {
     </p>
   </header>;
 
+  /*
+   * Tres hojas, como la ficha ampliada: en una Legal no cabe todo y reducido
+   * no se lee. En pantalla se leen seguidas; la cabecera de continuación y el
+   * pie de las dos primeras solo salen al imprimir.
+   */
+  const hoja = (n: number, contenido: ReactNode) => <div className={claseHoja}>
+    <section className={`estilo-page estilo-hoja-partido partido-hoja-${n}`}>
+      {n > 1 && <header className="estilo-cabecera-continuacion"><div>
+        <span>{tf("EL PARTIDO · {n} DE 3", { n })}</span>
+        <h2>{`${a.equipo} · ${b.equipo}`}</h2>
+      </div></header>}
+      {contenido}
+      {pie}
+    </section>
+  </div>;
+
   if (!ladoA.datos || !ladoB.datos) {
     const fallo = ladoA.error || ladoB.error;
-    return <section className="partido">{cabecera}
+    return hoja(1, <section className="partido">{cabecera}
       <p className="partido-estado" role="status">{fallo || (ladoA.cargando || ladoB.cargando
         ? tf("Leyendo los partidos de {liga}… la primera vez tarda unos minutos.", { liga: ladoA.cargando ? `${a.competicion} ${a.temporada}` : `${b.competicion} ${b.temporada}` })
         : t("No hay partidos jugados de los dos en esas temporadas."))}</p>
-    </section>;
+    </section>);
   }
 
   const datosA = ladoA.datos;
@@ -396,7 +419,7 @@ export function ElPartido({ a, b }: { a: PerfilEquipo; b: PerfilEquipo }) {
     b: { perfil: b, lado: ladoB, puestos: puestosB, once: onceB, form: formB, setForm: setElegidaB, opciones: opcionesDeDibujo(ladoB) },
   };
 
-  return <section className="partido">
+  return <>{hoja(1, <section className="partido">
     {cabecera}
 
     {/* ---- Las claves ---- */}
@@ -414,7 +437,9 @@ export function ElPartido({ a, b }: { a: PerfilEquipo; b: PerfilEquipo }) {
         })}</li>}
         {xg && <li>{tf("xG esperado sin penaltis: {xa} – {xb}.", { xa: decimal(xg.a, 2), xb: decimal(xg.b, 2) })}</li>}
         <li>{tf("Cómo vienen (últimos 5, del más reciente): {a} {ra} · {b} {rb}.", { a: a.equipo, b: b.equipo, ra: racha(datosA), rb: racha(datosB) })}</li>
-        {!mismaLiga && <li>{t("De ligas distintas: cada número se lee contra su propia liga, con el nivel de Opta de cada una al lado. Lo esperado partido a partido solo se calcula entre equipos de la misma liga.")}</li>}
+        {!mismaLiga && <li>{ladoA.partes.competicion === ladoB.partes.competicion
+          ? t("De temporadas distintas: cada número se lee contra su propia temporada. Lo esperado partido a partido solo se calcula entre equipos de la misma liga y temporada.")
+          : t("De ligas distintas: cada número se lee contra su propia liga, con el nivel de Opta de cada una al lado. Lo esperado partido a partido solo se calcula entre equipos de la misma liga.")}</li>}
       </ul>
       <div className="partido-dos">
         <div><p className="partido-etiqueta bueno">{tf("Para hacer daño a {b}", { b: b.equipo })}</p>
@@ -482,6 +507,8 @@ export function ElPartido({ a, b }: { a: PerfilEquipo; b: PerfilEquipo }) {
       </div>
     </div>
 
+  </section>)}
+  {hoja(2, <section className="partido">
     {/* ---- Lo que aconseja el cruce ---- */}
     <div className="partido-bloque partido-dos partido-consejos">
       <div>
@@ -536,6 +563,8 @@ export function ElPartido({ a, b }: { a: PerfilEquipo; b: PerfilEquipo }) {
       ].filter(Boolean).join(" ")}</p>
     </div>
 
+  </section>)}
+  {hoja(3, <section className="partido">
     {/* ---- Cómo vienen ---- */}
     <div className="partido-bloque partido-dos">
       {[{ perfil: a, datos: datosA }, { perfil: b, datos: datosB }].map(({ perfil, datos }) => <div key={perfil.clave}>
@@ -614,5 +643,5 @@ export function ElPartido({ a, b }: { a: PerfilEquipo; b: PerfilEquipo }) {
         }),
       }))} />
     </div>}
-  </section>;
+  </section>)}</>;
 }

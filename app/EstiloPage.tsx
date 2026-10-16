@@ -391,12 +391,7 @@ export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", lo
   </section>
   </div>
 
-  {elegido && rival && <div className={claseHoja}>
-  <section className="estilo-page estilo-hoja-partido">
-    <ElPartido a={elegido} b={rival} />
-    {pie}
-  </section>
-  </div>}
+  {elegido && rival && <ElPartido a={elegido} b={rival} claseHoja={claseHoja} pie={pie} />}
 
   {elegido && partesElegido && <div className={claseHoja}>
   <section className="estilo-page estilo-hoja-flujo">
