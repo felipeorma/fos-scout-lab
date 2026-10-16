@@ -296,7 +296,7 @@ export function SimilarityReportMain({ payload }: { payload: SimilarityReportPay
     <div className="similarity-report-body">
       <div className={extra ? "similarity-showdown con-lado" : "similarity-showdown radar-only"}>
         <div className="similarity-radar-column">
-          <ComparisonRadar metrics={metrics} metricCohort={payload.metricCohort} targetName={target.name} candidateName={candidate.name} targetColor={target.color} candidateColor={candidate.color} targetLabelColor={target.labelColor} candidateLabelColor={candidate.labelColor} targetLabelTransparency={target.labelTransparency} candidateLabelTransparency={candidate.labelTransparency} />
+          <ComparisonRadar metrics={metrics} metricCohort={payload.metricCohort} targetName={target.name} candidateName={candidate.name} targetColor={target.color} candidateColor={candidate.color} targetLabelColor={target.labelColor} candidateLabelColor={candidate.labelColor} targetLabelTransparency={target.labelTransparency} candidateLabelTransparency={candidate.labelTransparency} similarity={payload.similarity} />
           <MetricGroupLegend metrics={metrics} cohort={payload.metricCohort} />
         </div>
         {extra && <div className="sim-lado">

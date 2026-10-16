@@ -265,6 +265,10 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
   // elección se recuerda.
   // Plegado de entrada: es calibración fina, no el camino normal.
   const [pesosVisibles, setPesosVisibles] = useState(false);
+  const barraDeLaHojaRef = useRef<HTMLDivElement | null>(null);
+  const rankingRef = useRef<HTMLElement | null>(null);
+  /** La pestaña abierta de "Personalizar la hoja". */
+  const [ajusteDeHoja, setAjusteDeHoja] = useState<"texto" | "fotos" | "colores">("texto");
   useEffect(() => {
     // Plegados salvo que se hayan abierto a propósito. Con "!== off" arrancaban
     // abiertos para todo el que no los hubiera cerrado nunca —el comentario
@@ -410,7 +414,8 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
         metrics: targetMetrics,
         candidate: facts(selectedCandidate.name, selectedCandidate.team, selectedCandidate.position, search.target.cohortSize),
         candidateMetrics,
-        similarity: Math.round(selectedCandidate.similarity * 100),
+        // Ya viene en % (0-100): multiplicarlo mandaba "8200%" al texto.
+        similarity: selectedCandidate.similarity,
       });
       setComparisonNote(text);
     } catch (error) {
@@ -534,11 +539,20 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     targetProfile,
   ]);
 
-  function chooseCandidate(candidate: SimilarityPlayer) {
+  function chooseCandidate(candidate: SimilarityPlayer, irALaHoja = false) {
     setSelectedCandidateIndex(candidate.index);
     setCandidateProfileState(loadStoredProfile(candidate));
     setCandidateProfileKey(profileStorageKey(candidate.name, candidate.team));
     setProfileStatus((current) => ({ ...current, candidate: "" }));
+    // Al elegir en la lista, la hoja: estaba 1.500 px más abajo y no se veía que había cambiado.
+    if (irALaHoja) requestAnimationFrame(() => irA(barraDeLaHojaRef.current));
+  }
+
+  /** Desplaza hasta un bloque; sin animación si el sistema pide menos movimiento. */
+  function irA(elemento: HTMLElement | null) {
+    if (!elemento) return;
+    const quieto = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    elemento.scrollIntoView({ behavior: quieto ? "auto" : "smooth", block: "start" });
   }
 
   function chooseTarget(index: number) {
@@ -909,17 +923,21 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
         <p className="similarity-modelo"><Sparkles size={13} /><b>{porLiga ? t("Parecido de rol") : t("Baseline estadístico")}</b><span>{porLiga ? t("Cada uno contra su liga") : t("Percentiles + contexto de edad y rol")}</span></p>
       </section>
 
-      {porLiga && comparativaDeModo && <p className="similarity-efecto-modo">
+      {/* Un solo aviso: lo que cambia al medir contra su liga arriba, y el
+          porqué —largo— plegado debajo, para quien lo quiera leer. */}
+      {porLiga && <div className="similarity-aviso">
+        {comparativaDeModo && <p className="similarity-efecto-modo">
         {comparativaDeModo.medio < 3 && comparativaDeModo.nuevos === 0
           ? t("Medir contra su liga apenas cambia nada aquí, y eso ya dice algo: este jugador ocupa el mismo sitio en su competición que entre todas. Suele pasar con los que están muy arriba, porque no les queda margen para subir.")
           : tf("Contra su liga, el perfil del jugador se mueve {medio} puntos de percentil de media y hasta {maximo} en una métrica; {nuevos} de los diez primeros son distintos.", {
             medio: comparativaDeModo.medio, maximo: comparativaDeModo.maximo, nuevos: comparativaDeModo.nuevos,
           })}
-      </p>}
-
-      {porLiga && <p className="similarity-aviso-rol">
-        {t("Cada jugador se mide contra los de SU liga en su puesto, no contra los de todas. Eso responde a “quién hace el mismo papel donde juega”, pero esconde el nivel: un percentil 90 de la Canadian Premier League y uno de la MLS salen idénticos y no lo son. Por eso esto es parecido de rol, no parecido a secas. Quedan fuera los jugadores cuya liga no llegue a diez en su puesto, porque ahí un percentil no dice nada.")}
-      </p>}
+        </p>}
+        <details className="similarity-aviso-rol">
+          <summary>{t("Por qué es parecido de rol y no de nivel")}</summary>
+          <p>{t("Cada jugador se mide contra los de SU liga en su puesto, no contra los de todas. Eso responde a “quién hace el mismo papel donde juega”, pero esconde el nivel: un percentil 90 de la Canadian Premier League y uno de la MLS salen idénticos y no lo son. Por eso esto es parecido de rol, no parecido a secas. Quedan fuera los jugadores cuya liga no llegue a diez en su puesto, porque ahí un percentil no dice nada.")}</p>
+        </details>
+      </div>}
 
       <Paso numero={2}>Dónde buscas, y quién sale</Paso>
       {/* Una sola columna. Los filtros vivían en una columna lateral de 250 px
@@ -931,7 +949,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
           del motor y el destinatario del informe— que se van a su sitio. */}
       <div className="similarity-workspace">
         <main className="similarity-results">
-          <section className="similarity-ranking-card">
+          <section ref={rankingRef} className="similarity-ranking-card">
             <div className="similarity-results-head"><div><span>{t("LISTADO DE JUGADORES")}</span><h2>{t("Ranking de similitud")}</h2></div><div className="similarity-results-acciones"><small>{tf("{n} coincidencias", { n: candidates.length })}</small>
               {/* El CSV lleva todos los que pasan los filtros, con las dos cifras de parecido y la cobertura: un 90% con 55% de cobertura no es un 90% con 100. */}
               <BotonExportar
@@ -1027,30 +1045,28 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
                 </div>
               </>}
             </section>
-            {candidates.length ? <div className="similarity-table-wrap"><table className="similarity-table"><thead><tr><th>#</th><th>{t("Jugador")}</th><th>{t("Posiciones")}</th><th>{t("Edad")}</th><th>{t("Minutos")}</th><th>{t("Pasaporte")}</th>{conEncaje && <th title={tf("Cuánto se parece el estilo de su club al de {equipo}", { equipo: EQUIPO_PROPIO })}>{t("Encaje")}</th>}{encajeEquipo.activo && <th>{equipoEncaje}</th>}<th title={t("Parecido corregido por cobertura; debajo, el bruto y la cobertura")}>{t("Similitud")}</th><th /></tr></thead><tbody>{candidates.slice(0, 150).map((candidate, index) => <tr key={candidate.index} className={selectedCandidate?.index === candidate.index ? "selected" : ""}>
+            {candidates.length ? <div className="similarity-table-wrap"><table className="similarity-table"><thead><tr><th>#</th><th>{t("Jugador")}</th><th>{t("Posiciones")}</th><th>{t("Edad")}</th><th>{t("Minutos")}</th><th>{t("Pasaporte")}</th>{conEncaje && <th title={tf("Cuánto se parece el estilo de su club al de {equipo}", { equipo: EQUIPO_PROPIO })}>{t("Encaje")}</th>}{encajeEquipo.activo && <th>{equipoEncaje}</th>}<th title={t("Parecido corregido por cobertura; debajo, el bruto y la cobertura")}>{t("Similitud")}</th><th /></tr></thead><tbody>{candidates.slice(0, 150).map((candidate, index) => <tr key={candidate.index} className={selectedCandidate?.index === candidate.index ? "selected" : ""} onClick={() => chooseCandidate(candidate, true)}>
               <td>{String(index + 1).padStart(2, "0")}</td>
               <td><b>{candidate.name}</b><small>{[candidate.team, ...ligasDeFila(candidate.index).map((liga) => (opta(liga) ? `${liga} · Opta ${opta(liga)}` : liga))].join(" · ")}</small></td>
               <td><PositionRoles positions={candidate.positions} /></td><td>{candidate.age ?? "—"}</td><td>{Math.round(candidate.minutes).toLocaleString(numberLocale())}</td><td>{candidate.passport}</td>
               {conEncaje && <td><CeldaEncaje encaje={encaje(candidate.team)} cargando={estilos.cargando} /></td>}
               {encajeEquipo.activo && <td><CeldaEncajeEquipo encaje={encajeEquipo.para(candidate.index)} cargandoSitio={encajeEquipo.cargandoSitio} /></td>}
               <td><span className="similarity-score-pill">{candidate.ajustado}%</span><small className={candidate.coverage < 60 ? "similarity-bruto baja" : "similarity-bruto"}>{tf("bruto {n}% · cobertura {c}%", { n: candidate.similarity, c: candidate.coverage })}</small></td>
-              <td><button onClick={() => chooseCandidate(candidate)}>{t("Comparar")}</button></td></tr>)}</tbody></table></div> : <div className="similarity-no-results"><Search size={24} /><b>{t("No hay jugadores con estos filtros")}</b><span>{t("Reduce los requisitos de edad, minutos, pasaporte o posición.")}</span></div>}
+              <td>{/* El clic sube a la fila: con teclado, el botón es el que la elige. */}<button type="button" aria-pressed={selectedCandidate?.index === candidate.index}>{selectedCandidate?.index === candidate.index ? t("Comparando") : t("Comparar")}</button></td></tr>)}</tbody></table></div> : <div className="similarity-no-results"><Search size={24} /><b>{t("No hay jugadores con estos filtros")}</b><span>{t("Reduce los requisitos de edad, minutos, pasaporte o posición.")}</span></div>}
             <p className="similarity-motor-nota"><b>{t("Motor actual: baseline")}</b> {t("Esta comparación es explicable y funciona con Excel agregados. RisingBALLER–Wyscout podrá reemplazar el vector cuando existan datos por partido.")}</p>
           </section>
 
           {selectedCandidate && <>
             <Paso numero={3}>El informe de la comparación</Paso>
-            <section className="similarity-enrichment-grid">
-              <ProfileEnrichment side="target" label={t("Jugador objetivo")} player={search.target.player} color={targetColor} profile={targetProfile} busy={profileBusy === "target"} backgroundBusy={backgroundBusy === "target"} locked={profileBusy !== null || backgroundBusy !== null} canRestore={Boolean(backgroundOriginals[profileStorageKey(search.target.player, search.target.team)])} status={profileStatus.target} onExtract={(url) => extractProfile("target", url)} onImageUrl={(url) => applyPlayerImageUrl("target", url)} onImageFile={(file) => loadPlayerImage("target", file)} onRemoveBackground={() => removePlayerBackground("target")} onRestoreBackground={() => restorePlayerBackground("target")} onDownload={downloadAsset} />
-              <ProfileEnrichment side="candidate" label={t("Jugador comparable")} player={selectedCandidate.name} color={candidateColor} profile={candidateProfile} busy={profileBusy === "candidate"} backgroundBusy={backgroundBusy === "candidate"} locked={profileBusy !== null || backgroundBusy !== null} canRestore={Boolean(backgroundOriginals[profileStorageKey(selectedCandidate.name, selectedCandidate.team)])} status={profileStatus.candidate} onExtract={(url) => extractProfile("candidate", url)} onImageUrl={(url) => applyPlayerImageUrl("candidate", url)} onImageFile={(file) => loadPlayerImage("candidate", file)} onRemoveBackground={() => removePlayerBackground("candidate")} onRestoreBackground={() => restorePlayerBackground("candidate")} onDownload={downloadAsset} />
-            </section>
-
-            <section className="similarity-color-panel">
-              <div className="similarity-color-heading"><span>{t("PALETA DE COMPARACIÓN")}</span><b>{t("Personaliza jugadores y labels")}</b><small>{t("Define el color del jugador, el color del label de percentil y la transparencia de su fondo.")}</small></div>
-              <PalettePicker label={t("Jugador objetivo")} player={search.target.player} color={targetColor} labelColor={targetLabelColor} labelTransparency={targetLabelTransparency} photoScale={targetPhotoScale} photoFit={targetPhotoFit} onPhotoFitChange={setTargetPhotoFit} colors={paletteColors} onChange={setTargetColorChoice} onLabelColorChange={setTargetLabelColorChoice} onLabelTransparencyChange={setTargetLabelTransparency} onPhotoScaleChange={setTargetPhotoScale} />
-              <PalettePicker label={t("Jugador comparable")} player={selectedCandidate.name} color={candidateColor} labelColor={candidateLabelColor} labelTransparency={candidateLabelTransparency} photoScale={candidatePhotoScale} photoFit={candidatePhotoFit} onPhotoFitChange={setCandidatePhotoFit} colors={paletteColors} onChange={setCandidateColorChoice} onLabelColorChange={setCandidateLabelColorChoice} onLabelTransparencyChange={setCandidateLabelTransparency} onPhotoScaleChange={setCandidatePhotoScale} />
-            </section>
-
+            {/* La hoja va justo después del ranking, con su barra encima: a quién
+                compara, volver a la lista y descargar. Lo que la personaliza
+                —fotos, colores, destinatario y comentarios— pasa a pestañas
+                debajo: antes eran tres paneles que la empujaban 900 px abajo. */}
+            <div ref={barraDeLaHojaRef} className="similarity-hoja-barra">
+              <p><span>{t("Comparando")}</span><b>{search.target.player}</b><i aria-hidden="true">↔</i><b>{selectedCandidate.name}</b><em title={t("Parecido corregido por cobertura; debajo, el bruto y la cobertura")}>{`${selectedCandidate.ajustado}%`}</em><small>{tf("bruto {n}% · cobertura {c}%", { n: selectedCandidate.similarity, c: selectedCandidate.coverage })}</small></p>
+              <button type="button" className="similarity-volver" onClick={() => irA(rankingRef.current)}>{t("↑ Volver al ranking")}</button>
+              <div className="comparison-actions"><button className="button secondary" onClick={() => void downloadComparison()} disabled={exportBusy}><ArrowDownToLine size={16} /> {exportBusy ? t("Preparando…") : t("Descargar PNG")}</button><button className="button secondary" onClick={() => void downloadComparisonPdf()} disabled={exportBusy}><Printer size={16} /> {exportBusy ? t("Preparando…") : t("Descargar PDF")}</button></div>
+            </div>
             {/* La hoja de similitud en el mismo marco de impresión que Ficha y
                 radar: Legal, 8 mm de margen y el ajuste a la hoja de las demás.
                 En pantalla, .legal-page-shell es transparente (display: contents). */}
@@ -1061,24 +1077,46 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
                 <footer className="dossier-footer similarity-report-footer"><p>{tf("Percentiles P0–P100 · métricas comunes {n}% · {w}.", { n: selectedCandidate.coverage, w: activeMetricWeights ? tf("{n} ponderaciones personalizadas activas", { n: activeMetricWeights }) : t("pesos métricos uniformes") })}</p><div className="report-signatures"><AutorDelInforme /><div className="report-recipient">{recipientLogoReady ? <ReportImage src={recipientLogoUrl.trim()} alt={reportRecipient} className="dossier-footer-club-logo" /> : <span className="dossier-footer-club-fallback">{reportRecipient.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span>}<div><span>{t("REPORTE GENERADO PARA")}</span><b>{reportRecipient}</b></div></div></div></footer>
               </section>
             </div>
-
-            <div className="similarity-recipient-editor">
-              <span>{t("REPORTE GENERADO PARA")}</span>
-              <input value={recipientName} onChange={(event) => onRecipientNameChange(event.target.value)} placeholder={t("Nombre del club")} aria-label={t("Nombre del club destinatario")} />
-              <input type="url" value={recipientLogoUrl} onChange={(event) => onRecipientLogoChange(event.target.value)} placeholder="https://logo-del-club.png" aria-label={t("Link del logo del club destinatario")} />
-              <small>{recipientLogoReady ? t("✓ Logo aplicado a la comparación.") : t("El logo es independiente de los clubes comparados.")}</small>
-            </div>
-            <div className="similarity-note-editor">
-              <label>
-                <span>{t("Comentarios")}{!aiControlsHidden && <button type="button" className="reading-ai" disabled={comparisonAiLoading} onClick={() => void writeComparisonNote()}><Sparkles size={11} /> {comparisonAiLoading ? t("Escribiendo…") : t("Escribir con IA")}</button>}</span>
-                <textarea value={comparisonNote} rows={3} placeholder={t("Escribe tu lectura de la comparación: contexto, rol y recomendación.")} onChange={(event) => setComparisonNote(event.target.value)} />
-                {comparisonAiError && !aiControlsHidden && <small className="inline-error ai-error"><span>{comparisonAiError}</span><button type="button" onClick={() => setComparisonAiError("")} aria-label={t("Ocultar aviso")}>×</button></small>}
-              </label>
-              <small>{t("Aparece dentro de la hoja, debajo de la comparación, respetando los márgenes de la página.")}</small>
-            </div>
-
-            <div className="comparison-actions"><button className="button secondary" onClick={() => void downloadComparison()} disabled={exportBusy}><ArrowDownToLine size={16} /> {exportBusy ? t("Preparando…") : t("Descargar PNG")}</button><button className="button secondary" onClick={() => void downloadComparisonPdf()} disabled={exportBusy}><Printer size={16} /> {exportBusy ? t("Preparando…") : t("Descargar PDF")}</button></div>
             {exportStatus && <p className="similarity-export-status" aria-live="polite">{exportStatus}</p>}
+
+            <section className="similarity-ajustes" aria-label={t("Personalizar la hoja")}>
+              <div className="similarity-ajustes-pestanas" role="tablist">
+                {([["texto", t("Destinatario y comentarios")], ["fotos", t("Fotos y perfil")], ["colores", t("Colores y etiquetas")]] as const).map(([id, nombre]) => (
+                  <button key={id} type="button" role="tab" id={`ajuste-${id}`} aria-selected={ajusteDeHoja === id} aria-controls="ajuste-panel" onClick={() => setAjusteDeHoja(id)}>{nombre}</button>
+                ))}
+              </div>
+              <div id="ajuste-panel" role="tabpanel" aria-labelledby={`ajuste-${ajusteDeHoja}`} className={`similarity-ajustes-panel ${ajusteDeHoja}`}>
+                {ajusteDeHoja === "texto" && <>
+                <div className="similarity-recipient-editor">
+                  <span>{t("REPORTE GENERADO PARA")}</span>
+                  <input value={recipientName} onChange={(event) => onRecipientNameChange(event.target.value)} placeholder={t("Nombre del club")} aria-label={t("Nombre del club destinatario")} />
+                  <input type="url" value={recipientLogoUrl} onChange={(event) => onRecipientLogoChange(event.target.value)} placeholder="https://logo-del-club.png" aria-label={t("Link del logo del club destinatario")} />
+                  <small>{recipientLogoReady ? t("✓ Logo aplicado a la comparación.") : t("El logo es independiente de los clubes comparados.")}</small>
+                </div>
+                <div className="similarity-note-editor">
+                  <label>
+                    <span>{t("Comentarios")}{!aiControlsHidden && <button type="button" className="reading-ai" disabled={comparisonAiLoading} onClick={() => void writeComparisonNote()}><Sparkles size={11} /> {comparisonAiLoading ? t("Escribiendo…") : t("Escribir con IA")}</button>}</span>
+                    <textarea value={comparisonNote} rows={3} placeholder={t("Escribe tu lectura de la comparación: contexto, rol y recomendación.")} onChange={(event) => setComparisonNote(event.target.value)} />
+                    {comparisonAiError && !aiControlsHidden && <small className="inline-error ai-error"><span>{comparisonAiError}</span><button type="button" onClick={() => setComparisonAiError("")} aria-label={t("Ocultar aviso")}>×</button></small>}
+                  </label>
+                  <small>{t("Aparece dentro de la hoja, debajo de la comparación, respetando los márgenes de la página.")}</small>
+                </div>
+                </>}
+                {ajusteDeHoja === "fotos" && <>
+                <section className="similarity-enrichment-grid">
+                  <ProfileEnrichment side="target" label={t("Jugador objetivo")} player={search.target.player} color={targetColor} profile={targetProfile} busy={profileBusy === "target"} backgroundBusy={backgroundBusy === "target"} locked={profileBusy !== null || backgroundBusy !== null} canRestore={Boolean(backgroundOriginals[profileStorageKey(search.target.player, search.target.team)])} status={profileStatus.target} onExtract={(url) => extractProfile("target", url)} onImageUrl={(url) => applyPlayerImageUrl("target", url)} onImageFile={(file) => loadPlayerImage("target", file)} onRemoveBackground={() => removePlayerBackground("target")} onRestoreBackground={() => restorePlayerBackground("target")} onDownload={downloadAsset} />
+                  <ProfileEnrichment side="candidate" label={t("Jugador comparable")} player={selectedCandidate.name} color={candidateColor} profile={candidateProfile} busy={profileBusy === "candidate"} backgroundBusy={backgroundBusy === "candidate"} locked={profileBusy !== null || backgroundBusy !== null} canRestore={Boolean(backgroundOriginals[profileStorageKey(selectedCandidate.name, selectedCandidate.team)])} status={profileStatus.candidate} onExtract={(url) => extractProfile("candidate", url)} onImageUrl={(url) => applyPlayerImageUrl("candidate", url)} onImageFile={(file) => loadPlayerImage("candidate", file)} onRemoveBackground={() => removePlayerBackground("candidate")} onRestoreBackground={() => restorePlayerBackground("candidate")} onDownload={downloadAsset} />
+                </section>
+                </>}
+                {ajusteDeHoja === "colores" && <>
+                <section className="similarity-color-panel">
+                  <div className="similarity-color-heading"><span>{t("PALETA DE COMPARACIÓN")}</span><b>{t("Personaliza jugadores y labels")}</b><small>{t("Define el color del jugador, el color del label de percentil y la transparencia de su fondo.")}</small></div>
+                  <PalettePicker label={t("Jugador objetivo")} player={search.target.player} color={targetColor} labelColor={targetLabelColor} labelTransparency={targetLabelTransparency} photoScale={targetPhotoScale} photoFit={targetPhotoFit} onPhotoFitChange={setTargetPhotoFit} colors={paletteColors} onChange={setTargetColorChoice} onLabelColorChange={setTargetLabelColorChoice} onLabelTransparencyChange={setTargetLabelTransparency} onPhotoScaleChange={setTargetPhotoScale} />
+                  <PalettePicker label={t("Jugador comparable")} player={selectedCandidate.name} color={candidateColor} labelColor={candidateLabelColor} labelTransparency={candidateLabelTransparency} photoScale={candidatePhotoScale} photoFit={candidatePhotoFit} onPhotoFitChange={setCandidatePhotoFit} colors={paletteColors} onChange={setCandidateColorChoice} onLabelColorChange={setCandidateLabelColorChoice} onLabelTransparencyChange={setCandidateLabelTransparency} onPhotoScaleChange={setCandidatePhotoScale} />
+                </section>
+                </>}
+              </div>
+            </section>
           </>}
         </main>
       </div>

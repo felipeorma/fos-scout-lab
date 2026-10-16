@@ -1490,6 +1490,9 @@ body.print-layout-check .similarity-star-visual > svg { transform: none !importa
   .similarity-empty,
   .similarity-note-editor,
   .comparison-actions,
+  .similarity-hoja-barra,
+  .similarity-ajustes,
+  .similarity-aviso,
   .similarity-export-status { display: none !important; }
 
   .similarity-page .similarity-workspace { display: block !important; margin: 0 !important; padding: 0 !important; }
@@ -3858,39 +3861,48 @@ table, .rank-list, .arq-card ol, .rank-arq-card ol, .board-variacion-cols,
    estrecha una columna fija se come el contenido. */
 
 /* =====================================================================
-   El radar: relleno con cuerpo y entrada que crece
+   La pizza comparativa: los efectos del radar de la ficha
    =====================================================================
-   Las dos áreas eran planas, del mismo peso y con el borde duro, así que
-   superpuestas costaba ver dónde acababa una y empezaba la otra. Ahora el
-   relleno es un degradado radial —más denso en el centro— con un halo
-   suave por fuera: cada figura se lee como un cuerpo y la de delante deja
-   ver la de detrás.
+   Cada métrica son dos cuñas juntas (objetivo a la izquierda, comparable a
+   la derecha) sobre su pista tenue, en degradado de oscuro a claro según el
+   percentil, con el anillo de conjuntos por fuera y el parecido en el disco
+   del centro. Los colores son los de cada jugador (Paleta de comparación).
 
-   Y crece desde el centro al aparecer. No es adorno: el radar cambia entero
+   Y crecen desde el centro al aparecer. No es adorno: el radar cambia entero
    al elegir otro candidato, y sin transición el salto es tan brusco que no
    se ve qué se movió. Medio segundo basta para seguirlo con la vista. */
-.app-shell .comparison-radar-area {
-  stroke-width: 2.5;
-  stroke-linejoin: round;
+.comparison-radar-anillo { fill: none; stroke: var(--report-line); stroke-width: 1; }
+.comparison-radar-anillo.mediana { stroke-dasharray: 4 4; }
+.comparison-radar-anillo-base { fill: none; stroke: color-mix(in srgb, var(--report-ink) 7%, transparent); stroke-width: 12; }
+.comparison-pizza-pista { fill: color-mix(in srgb, var(--report-ink) 4%, transparent); }
+.comparison-pizza-objetivo { fill: color-mix(in srgb, var(--comparison-target) 13%, transparent); }
+.comparison-pizza-cuna { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+.comparison-pizza-linea-halo { fill: none; stroke: rgba(8, 8, 10, .75); stroke-width: 7; }
+.comparison-pizza-linea { fill: none; stroke: var(--comparison-target); stroke-width: 3.5; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+.similarity-report-theme:not([data-oscuro]) .comparison-pizza-linea-halo { stroke: rgba(255, 255, 255, .85); }
+.comparison-pizza-disco { fill: #08080a; stroke: color-mix(in srgb, var(--report-ink) 10%, transparent); }
+.similarity-report-theme:not([data-oscuro]) .comparison-pizza-disco { fill: #122431; stroke: none; }
+.comparison-pizza-parecido { fill: #fff; font-family: var(--font-space-grotesk), sans-serif; font-size: 26px; font-weight: 800; letter-spacing: -.02em; }
+.comparison-pizza-parecido-label { fill: #9a9aa6; font-size: 8px; font-weight: 700; letter-spacing: .14em; }
+/* Las etiquetas, más grandes; las métricas donde se separan 20 puntos o más, a pleno, y el resto un punto más suave. */
+.comparison-pizza .comparison-radar-label { font-size: 12.5px; }
+.comparison-pizza .comparison-radar-metrica:not(.lejos) .comparison-radar-label { opacity: .78; }
+.comparison-radar-legend span { font-size: 9.5px; letter-spacing: .04em; }
+.comparison-radar-legend .target i { width: 16px; height: 3px; border-radius: 2px; background: var(--comparison-target); }
+.comparison-radar-legend .candidate i { width: 12px; height: 12px; border-radius: 2px 2px 6px 6px; background: linear-gradient(0deg, color-mix(in srgb, var(--comparison-candidate) 65%, #3a3a45), var(--comparison-candidate)); }
+.app-shell .comparison-pizza-cuna {
   transform-origin: 400px 350px;
   animation: radar-crece .5s var(--curva) both;
 }
-.app-shell .comparison-radar-area.target { stroke: var(--comparison-target); }
-.app-shell .comparison-radar-area.candidate { stroke: var(--comparison-candidate); animation-delay: .08s; }
+.app-shell .comparison-pizza-linea, .app-shell .comparison-pizza-linea-halo, .app-shell .comparison-pizza-objetivo { transform-origin: 400px 350px; animation: radar-crece .5s var(--curva) both; animation-delay: .08s; }
 
 @keyframes radar-crece {
   from { transform: scale(.72); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
 }
 
-/* Los vértices se marcan al final, cuando la figura ya está puesta. */
-.app-shell .comparison-radar :is(circle, rect) { animation: radar-punto .3s var(--curva) both; animation-delay: .38s; }
-@keyframes radar-punto { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: none; } }
-.app-shell .comparison-radar :is(circle, rect) { transform-box: fill-box; transform-origin: center; }
-
 @media (prefers-reduced-motion: reduce) {
-  .app-shell .comparison-radar-area,
-  .app-shell .comparison-radar :is(circle, rect) { animation: none; }
+  .app-shell :is(.comparison-pizza-cuna, .comparison-pizza-linea, .comparison-pizza-linea-halo, .comparison-pizza-objetivo) { animation: none; }
 }
 
 /* Los campos que viven SOBRE el papel del informe llevan su propia tinta.
@@ -4512,20 +4524,20 @@ button.menu-fila:active { transform: scale(.985); }
 .app-shell .similarity-motor-nota b { color: var(--ink); font-weight: 600; }
 
 /* El destinatario, ya junto al informe al que pertenece. */
-.app-shell[data-tema] .similarity-results > .similarity-recipient-editor {
+.app-shell[data-tema] .similarity-results .similarity-recipient-editor {
   padding: 14px 16px;
   display: grid; gap: 8px;
   border: 1px solid var(--line); border-radius: var(--r-tarjeta, 16px);
   background: var(--paper);
 }
-.app-shell[data-tema] .similarity-results > .similarity-recipient-editor > span { color: var(--muted); font-size: 9.5px; font-weight: 700; letter-spacing: .07em; }
-.app-shell[data-tema] .similarity-results > .similarity-recipient-editor > input {
+.app-shell[data-tema] .similarity-results .similarity-recipient-editor > span { color: var(--muted); font-size: 9.5px; font-weight: 700; letter-spacing: .07em; }
+.app-shell[data-tema] .similarity-results .similarity-recipient-editor > input {
   min-height: 34px; padding: 0 10px;
   border: 1px solid var(--line); border-radius: 10px;
   color: var(--ink); background: color-mix(in srgb, var(--ink) 4%, transparent);
   font: inherit; font-size: 12px;
 }
-.app-shell[data-tema] .similarity-results > .similarity-recipient-editor > small { color: var(--muted); font-size: 10.5px; }
+.app-shell[data-tema] .similarity-results .similarity-recipient-editor > small { color: var(--muted); font-size: 10.5px; }
 
 @media print {
   .similarity-recipient-editor, .similarity-pesos-fila, .similarity-motor-nota, .similarity-modelo { display: none !important; }
@@ -7164,3 +7176,50 @@ body.print-layout-check .legal-page-shell:has([data-hoja-vacia]) { display: none
 .snap-retrato-anillo b { color: var(--ink); font-size: 17px; font-weight: 800; line-height: 1; }
 .snap-retrato-anillo span { margin-top: 1px; font-size: 6.5px; }
 .app-shell[data-tema="claro"] .snap-retrato { background: linear-gradient(180deg, #2a2a31, #15151a); }
+
+/* ---- Similitud: la hoja con su barra y los ajustes en pestañas ----
+   La hoja va justo tras el ranking; encima, a quién compara, volver a la
+   lista y descargar. Debajo, lo que la personaliza en tres pestañas. */
+.app-shell .similarity-hoja-barra { margin: 0 0 12px; padding: 10px 12px 10px 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; border-radius: 12px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); scroll-margin-top: 76px; }
+.app-shell .similarity-hoja-barra > p { margin: 0; min-width: 0; flex: 1 1 320px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; color: var(--ink); font-size: 14px; }
+.app-shell .similarity-hoja-barra > p span { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.app-shell .similarity-hoja-barra > p b { font-weight: 650; }
+.app-shell .similarity-hoja-barra > p i { color: var(--muted); font-style: normal; }
+.app-shell .similarity-hoja-barra > p small { color: var(--muted); font-size: 11.5px; }
+.app-shell .similarity-hoja-barra > p em { padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--acento-claro) 16%, transparent); color: var(--acento-claro); font-style: normal; font-size: 12.5px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.app-shell .similarity-hoja-barra .comparison-actions { margin: 0; }
+.app-shell .similarity-volver { padding: 7px 11px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.app-shell .similarity-volver:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.app-shell .similarity-volver:focus-visible { outline: 2px solid var(--acento-borde); outline-offset: 2px; }
+.app-shell .similarity-ranking-card { scroll-margin-top: 76px; }
+
+.app-shell .similarity-ajustes { margin-top: 18px; border-radius: 14px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); overflow: hidden; }
+.app-shell .similarity-ajustes-pestanas { display: flex; gap: 2px; padding: 6px 6px 0; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.app-shell .similarity-ajustes-pestanas button { position: relative; padding: 10px 14px 11px; border: 0; border-radius: 8px 8px 0 0; background: transparent; color: var(--muted); font: inherit; font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.app-shell .similarity-ajustes-pestanas button:hover { color: var(--ink); }
+.app-shell .similarity-ajustes-pestanas button[aria-selected="true"] { color: var(--ink); }
+.app-shell .similarity-ajustes-pestanas button[aria-selected="true"]::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: -1px; height: 2px; border-radius: 2px; background: var(--acento-claro); }
+.app-shell .similarity-ajustes-pestanas button:focus-visible { outline: 2px solid var(--acento-borde); outline-offset: -2px; }
+.app-shell .similarity-ajustes-panel { padding: 16px; }
+.app-shell .similarity-ajustes-panel.texto { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 18px; align-items: start; }
+.app-shell[data-tema] .similarity-ajustes-panel .similarity-recipient-editor,
+.app-shell[data-tema] .similarity-ajustes-panel .similarity-note-editor { margin: 0; padding: 0; border: 0; border-radius: 0; background: none; }
+.app-shell[data-tema] .similarity-ajustes-panel .similarity-color-panel { padding: 0; border: 0; background: none; box-shadow: none; }
+@media (max-width: 760px) { .app-shell .similarity-ajustes-panel.texto { grid-template-columns: 1fr; } }
+
+/* Las filas del ranking se eligen enteras. */
+.app-shell .similarity-table tbody tr { cursor: pointer; }
+.app-shell .similarity-table tbody tr:hover td { background: color-mix(in srgb, var(--ink) 3.5%, transparent); }
+.app-shell .similarity-table tbody tr.selected button { color: var(--acento-claro); border-color: var(--acento-borde); }
+
+/* Su liga: un aviso, con el porqué plegado. */
+.app-shell .similarity-aviso { display: flex; flex-direction: column; gap: 8px; margin: var(--sp-3, 12px) 0 14px; }
+.app-shell .similarity-aviso .similarity-efecto-modo { margin: 0; }
+.app-shell .similarity-aviso .similarity-aviso-rol { margin: 0; padding: 0; font-size: 12px; }
+.app-shell .similarity-aviso .similarity-aviso-rol summary { padding: 8px 12px; cursor: pointer; list-style: none; color: #e0c48a; font-weight: 600; }
+.app-shell .similarity-aviso .similarity-aviso-rol summary::-webkit-details-marker { display: none; }
+.app-shell .similarity-aviso .similarity-aviso-rol summary::before { content: "›"; display: inline-block; margin-right: 8px; transition: transform .15s ease; }
+.app-shell .similarity-aviso .similarity-aviso-rol[open] summary::before { transform: rotate(90deg); }
+.app-shell .similarity-aviso .similarity-aviso-rol p { margin: 0; padding: 0 12px 10px 28px; line-height: 1.6; }
+.app-shell[data-tema="claro"] .similarity-aviso .similarity-aviso-rol summary { color: #8a5a00; }
+@media (prefers-reduced-motion: reduce) { .app-shell .similarity-aviso .similarity-aviso-rol summary::before { transition: none; } }
