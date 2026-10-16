@@ -26,6 +26,8 @@ export type LadoPartido = {
   cambios: number;
   /** Los puestos del once inicial, de la alineación: ["CF", "GK", "LB", ...]. */
   once: string[];
+  /** El once inicial con nombres: [["GK", "Marco Carducci"], ...]. */
+  titulares?: Array<[string, string]>;
   /** Estadísticas de equipo del partido, sin el prefijo team_match_. */
   stats: Record<string, number>;
 };
@@ -57,6 +59,7 @@ export type PartidoDeEquipo = {
   formacionRival: string | null;
   once: string[];
   onceRival: string[];
+  titulares: Array<[string, string]>;
   cambios: number;
   propios: Record<string, number>;
   delRival: Record<string, number>;
@@ -75,7 +78,7 @@ export function partidosDe(liga: LigaPartidos, equipo: number): PartidoDeEquipo[
         fecha: p.fecha, enCasa, rival: otro.nombre, rivalId: otro.equipo,
         gf: suyo.goles, gc: otro.goles,
         formacion: suyo.formacion, formacionRival: otro.formacion,
-        once: suyo.once ?? [], onceRival: otro.once ?? [], cambios: suyo.cambios ?? 0,
+        once: suyo.once ?? [], onceRival: otro.once ?? [], titulares: suyo.titulares ?? [], cambios: suyo.cambios ?? 0,
         propios: suyo.stats ?? {}, delRival: otro.stats ?? {},
       };
     });

@@ -6878,31 +6878,6 @@ body.print-layout-check .legal-page-shell:has([data-hoja-vacia]) { display: none
 .app-shell[data-tema] :is(.partido-intro, .partido-estado) { margin: 0; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
 .app-shell[data-tema] .partido-resumen { margin: 0; padding: 12px 16px 12px 30px; border-radius: 12px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); color: var(--ink); font-size: 13.5px; line-height: 1.55; }
 .app-shell[data-tema] .partido-resumen li + li { margin-top: 3px; }
-.app-shell[data-tema] .partido-dibujos { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 14px; align-items: start; }
-.app-shell[data-tema] .partido-pizarra { margin: 0; }
-.app-shell[data-tema] .partido-pizarra svg { width: 100%; height: auto; display: block; border-radius: 10px; }
-.app-shell[data-tema] .pizarra-ficha circle { stroke-width: .5; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-.app-shell[data-tema] .pizarra-ficha.a circle { fill: var(--partido-a); stroke: color-mix(in srgb, #fff 55%, var(--partido-a)); }
-.app-shell[data-tema] .pizarra-ficha.b circle { fill: #f5f5f7; stroke: #0b131b; }
-.app-shell[data-tema] .pizarra-ficha text { font-size: 2.3px; font-weight: 700; letter-spacing: -.02em; }
-.app-shell[data-tema] .pizarra-ficha.a text { fill: #fff; }
-.app-shell[data-tema] .pizarra-ficha.b text { fill: #0b131b; }
-.app-shell[data-tema] .partido-pizarra figcaption { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 14px; color: var(--muted); font-size: 11px; }
-.app-shell[data-tema] .partido-pizarra figcaption i { width: 9px; height: 9px; margin-right: 6px; display: inline-block; border-radius: 50%; vertical-align: -1px; }
-.app-shell[data-tema] .partido-pizarra figcaption i.a { background: var(--partido-a); }
-.app-shell[data-tema] .partido-pizarra figcaption i.b { background: #f5f5f7; box-shadow: 0 0 0 1px var(--line); }
-.app-shell[data-tema] .partido-formaciones { display: flex; flex-direction: column; gap: 10px; }
-.app-shell[data-tema] .partido-formacion { padding: 10px 12px; border-radius: 12px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); }
-.app-shell[data-tema] .partido-formacion > b { color: var(--ink); font-size: 13px; }
-.app-shell[data-tema] .partido-formacion ol { margin: 8px 0 6px; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 5px; }
-.app-shell[data-tema] .partido-formacion li { display: grid; grid-template-columns: 64px minmax(0, 1fr) 38px; align-items: center; gap: 8px; font-size: 12px; }
-.app-shell[data-tema] .partido-formacion li span { color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; }
-.app-shell[data-tema] .partido-formacion li i { height: 7px; overflow: hidden; border-radius: 4px; background: color-mix(in srgb, var(--ink) 8%, transparent); }
-.app-shell[data-tema] .partido-formacion li u { height: 100%; display: block; border-radius: 4px; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-.app-shell[data-tema] .partido-formacion.a li u { background: var(--partido-a); }
-.app-shell[data-tema] .partido-formacion.b li u { background: var(--partido-b); }
-.app-shell[data-tema] .partido-formacion li em { color: var(--ink); font-style: normal; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
-.app-shell[data-tema] .partido-formacion small { color: var(--muted); font-size: 10.5px; }
 .app-shell[data-tema] .partido-nota { margin: 6px 2px 0; color: var(--muted); font-size: 10.5px; line-height: 1.45; }
 .app-shell[data-tema] .partido-bloque > h4, .app-shell[data-tema] .partido-dos h4 { margin: 0 0 8px; color: var(--ink); font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
 .app-shell[data-tema] .partido-zonas { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
@@ -6938,10 +6913,8 @@ body.print-layout-check .legal-page-shell:has([data-hoja-vacia]) { display: none
 .app-shell[data-tema] .estilo-proximo { margin: 6px 4px 0; color: var(--muted); font-size: 12px; }
 .app-shell[data-tema] .flujo-fijado .flujo-titulo-seccion { margin: 6px 0 0; color: var(--ink); font-size: 18px; font-weight: 700; letter-spacing: -.01em; }
 @media (max-width: 760px) {
-  .app-shell[data-tema] :is(.partido-dibujos, .partido-dos, .partido-zonas) { grid-template-columns: 1fr; }
 }
 @media print {
-  .partido :is(.partido-bloque, .partido-dibujos, .partido-resumen) { break-inside: avoid; }
 }
 /* Las tablas de El partido no heredan las mayúsculas ni los fondos de las tablas de la app. */
 .app-shell[data-tema] .partido :is(.partido-esperado, .partido-lineas) :is(tbody th, td) { background: none; text-transform: none; letter-spacing: normal; font-size: 12.5px; }
@@ -6973,3 +6946,81 @@ body.print-layout-check .legal-page-shell:has([data-hoja-vacia]) { display: none
   .app-shell[data-tema] .rank-titular { grid-template-columns: 1fr; }
   .app-shell[data-tema] .rank-pareto { grid-column: 1; grid-row: auto; max-width: none; }
 }
+
+/* ---- El partido: selectores de cada lado, claves, pizarra interactiva, fases ---- */
+.app-shell[data-tema] .estilo-controles { display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+.app-shell[data-tema] .estilo-lado-selector { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.app-shell[data-tema] .estilo-lado-etiqueta { min-width: 58px; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.app-shell[data-tema] .partido-ligas { margin: 6px 0 0; display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--muted); font-size: 12px; }
+.app-shell[data-tema] .partido-claves { padding: 14px 16px; border-radius: 14px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); display: flex; flex-direction: column; gap: 10px; }
+.app-shell[data-tema] .partido-claves > h4 { margin: 0; color: var(--ink); font-size: 15px; font-weight: 600; }
+.app-shell[data-tema] .partido-claves .partido-resumen { padding: 0 0 0 18px; border-radius: 0; background: none; box-shadow: none; }
+.app-shell[data-tema] .partido-claves .partido-dos > div { background: none; box-shadow: none; padding: 0; }
+.app-shell[data-tema] .partido-claves .partido-dos ul { padding-left: 18px; list-style: disc; gap: 5px; }
+.app-shell[data-tema] .pizarra-controles { margin-bottom: 10px; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+.app-shell[data-tema] .pizarra-dibujo { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); }
+.app-shell[data-tema] .pizarra-dibujo select { min-width: 150px; height: 32px; padding: 0 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--paper); color: var(--ink); font-family: inherit; font-size: 13px; font-weight: 600; }
+.app-shell[data-tema] .pizarra-dibujo.a select { box-shadow: inset 3px 0 0 var(--partido-a); }
+.app-shell[data-tema] .pizarra-reiniciar { height: 32px; padding: 0 14px; border: 1px solid var(--line); border-radius: 999px; background: none; color: var(--ink); font-family: inherit; font-size: 12px; cursor: pointer; }
+.app-shell[data-tema] .pizarra-campo { position: relative; width: 100%; aspect-ratio: 124 / 84; border-radius: 12px; overflow: hidden; }
+.app-shell[data-tema] .pizarra-campo > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.app-shell[data-tema] .pizarra-ficha { position: absolute; z-index: 1; width: 64px; margin: 0; padding: 0; border: 0; background: none; transform: translate(-50%, -22px); display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: grab; font-family: inherit; }
+.app-shell[data-tema] .pizarra-ficha > i { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-style: normal; font-weight: 800; font-variant-numeric: tabular-nums; box-shadow: 0 2px 6px rgba(0,0,0,.45); print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+.app-shell[data-tema] .pizarra-ficha.a > i { background: var(--partido-a); color: #fff; box-shadow: 0 0 0 1.5px color-mix(in srgb, #fff 55%, var(--partido-a)), 0 2px 6px rgba(0,0,0,.45); }
+.app-shell[data-tema] .pizarra-ficha.b > i { background: #f5f5f7; color: #0b131b; box-shadow: 0 0 0 1.5px #0b131b, 0 2px 6px rgba(0,0,0,.45); }
+.app-shell[data-tema] .pizarra-ficha.vacia > i { opacity: .55; font-size: 9px; }
+.app-shell[data-tema] .pizarra-ficha > span { max-width: 64px; overflow: hidden; padding: 1px 5px; border-radius: 4px; background: rgba(6, 12, 10, .72); color: #f5f5f7; font-size: 9.5px; font-weight: 600; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.app-shell[data-tema] .pizarra-ficha.elegida > i { outline: 3px solid #ffd60a; outline-offset: 2px; }
+.app-shell[data-tema] .pizarra-ficha:focus-visible > i { outline: 2px solid var(--ink); outline-offset: 2px; }
+.app-shell[data-tema] .pizarra-bancas { margin-top: 10px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.app-shell[data-tema] .pizarra-banca { min-height: 80px; padding: 10px 12px; border-radius: 12px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); }
+.app-shell[data-tema] .pizarra-banca > b { display: block; margin-bottom: 6px; color: var(--ink); font-size: 12.5px; }
+.app-shell[data-tema] .pizarra-banca > small { color: var(--muted); font-size: 11px; }
+.app-shell[data-tema] .pizarra-banca ul { max-height: 220px; margin: 0; padding: 0; overflow: auto; list-style: none; }
+.app-shell[data-tema] .pizarra-banca li button { width: 100%; padding: 5px 6px; border: 0; border-radius: 8px; background: none; color: var(--ink); display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 8px; font-family: inherit; font-size: 12px; text-align: left; cursor: grab; }
+.app-shell[data-tema] .pizarra-banca li button:hover, .app-shell[data-tema] .pizarra-banca li button.elegida { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.app-shell[data-tema] .pizarra-banca li button.elegida { box-shadow: inset 0 0 0 1.5px #ffd60a; }
+.app-shell[data-tema] .pizarra-banca-puesto { color: var(--muted); font-size: 10.5px; font-weight: 700; }
+.app-shell[data-tema] .pizarra-banca-nombre { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-shell[data-tema] .pizarra-banca-cifras { font-weight: 700; font-variant-numeric: tabular-nums; }
+.app-shell[data-tema] .pizarra-banca-cifras small { margin-left: 6px; color: var(--muted); font-size: 10.5px; font-weight: 500; }
+.app-shell[data-tema] .pizarra-banca.a .pizarra-banca-cifras { color: var(--partido-a); }
+.app-shell[data-tema] .partido-consejos li b { font-weight: 500; }
+.app-shell[data-tema] .partido-prueba { margin-top: 3px; padding: 2px 7px; border-radius: 6px; background: color-mix(in srgb, var(--ink) 6%, transparent); display: inline-block !important; font-size: 10.5px !important; font-variant-numeric: tabular-nums; }
+.app-shell[data-tema] .partido-prueba + .partido-prueba { margin-left: 4px; }
+.app-shell[data-tema] .partido-fases { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.app-shell[data-tema] .partido .partido-fases :is(th, td) { padding: 6px 8px; border-bottom: 1px solid var(--line); background: none; color: var(--ink); text-transform: none; letter-spacing: normal; text-align: left; }
+.app-shell[data-tema] .partido .partido-fases thead th { color: var(--muted); font-size: 10.5px; font-weight: 600; }
+.app-shell[data-tema] .partido .partido-fases tbody th { width: 46%; color: var(--muted); font-weight: 500; font-size: 12px; }
+.app-shell[data-tema] .partido .partido-fases tr.partido-fase-titulo th { padding-top: 14px; color: var(--ink); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.app-shell[data-tema] .partido-fases td b { display: block; font-size: 14px; }
+.app-shell[data-tema] .partido-fases td small { color: var(--muted); font-size: 10.5px; }
+.app-shell[data-tema] .partido-fases td.tercio-0.mejor-alto b, .app-shell[data-tema] .partido-fases td.tercio-2.mejor-bajo b { color: #32d583; }
+.app-shell[data-tema] .partido-fases td.tercio-2.mejor-alto b, .app-shell[data-tema] .partido-fases td.tercio-0.mejor-bajo b { color: #ff6961; }
+.app-shell[data-tema="claro"] .partido-fases td.tercio-0.mejor-alto b, .app-shell[data-tema="claro"] .partido-fases td.tercio-2.mejor-bajo b { color: #1a7f37; }
+.app-shell[data-tema="claro"] .partido-fases td.tercio-2.mejor-alto b, .app-shell[data-tema="claro"] .partido-fases td.tercio-0.mejor-bajo b { color: #c62828; }
+.app-shell[data-tema] .partido-reciente { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.app-shell[data-tema] .partido-reciente li { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: 10px; font-size: 12.5px; color: var(--ink); }
+.app-shell[data-tema] .partido-reciente li > i { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; font-size: 11px; font-style: normal; font-weight: 800; color: #fff; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+.app-shell[data-tema] .partido-reciente li.resultado-G > i { background: #1f9d55; }
+.app-shell[data-tema] .partido-reciente li.resultado-E > i { background: #6f747c; }
+.app-shell[data-tema] .partido-reciente li.resultado-P > i { background: #c62828; }
+.app-shell[data-tema] .partido-reciente li span small, .app-shell[data-tema] .partido-reciente li b small { display: block; color: var(--muted); font-size: 10.5px; font-weight: 500; }
+.app-shell[data-tema] .partido-reciente li b { text-align: right; font-variant-numeric: tabular-nums; }
+@media (max-width: 760px) {
+  .app-shell[data-tema] .pizarra-bancas { grid-template-columns: 1fr; }
+  .app-shell[data-tema] .pizarra-ficha { width: 48px; transform: translate(-50%, -16px); }
+  .app-shell[data-tema] .pizarra-ficha > i { width: 22px; height: 22px; font-size: 9px; }
+  .app-shell[data-tema] .pizarra-ficha > span { max-width: 48px; font-size: 8px; }
+}
+@media print {
+  .pizarra-bancas, .pizarra-controles button, .estilo-controles { display: none !important; }
+}
+.app-shell[data-tema] .partido-estado-consejo { margin: 3px 0 2px; display: block; color: var(--muted); font-size: 10px; font-style: normal; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.app-shell[data-tema] .consejo-respaldado .partido-estado-consejo { color: #32d583; }
+.app-shell[data-tema] .consejo-contradicho { opacity: .62; }
+.app-shell[data-tema] .consejo-contradicho .partido-estado-consejo { color: #ff9f0a; }
+.app-shell[data-tema="claro"] .consejo-respaldado .partido-estado-consejo { color: #1a7f37; }
+.app-shell[data-tema="claro"] .consejo-contradicho .partido-estado-consejo { color: #8a5300; }
+.app-shell[data-tema] .partido-prueba.apoya { box-shadow: inset 2px 0 0 #32d583; }
+.app-shell[data-tema] .partido-prueba.contradice { box-shadow: inset 2px 0 0 #ff9f0a; }

@@ -1164,6 +1164,239 @@ def _sb_stats_partido(match_id: int, auth):
     return salida
 
 
+def _sb_titulares_partido(match_id: int, auth):
+    """El once inicial de cada equipo con nombres: {team_id: [[código, jugador], ...]}. Guardado en disco."""
+    import json as _json
+    ruta = _SB_EVENTS_CACHE_DIR / f"tit-{int(match_id)}.json"
+    if ruta.exists():
+        try:
+            return {int(k): v for k, v in _json.loads(ruta.read_text(encoding="utf-8")).items()}
+        except Exception:
+            pass
+    try:
+        r = _requests.get(f"https://data.statsbomb.com/api/v4/lineups/{int(match_id)}", auth=auth, timeout=60)
+        if r.status_code != 200:
+            return None
+        equipos = r.json()
+    except Exception:
+        return None
+    salida = {}
+    for equipo in equipos if isinstance(equipos, list) else []:
+        once = []
+        for jugador in equipo.get("lineup", []):
+            for tramo in jugador.get("positions") or []:
+                if (_reloj(tramo.get("from")) or 0.0) == 0.0 and tramo.get("start_reason") in (None, "Starting XI"):
+                    codigo = _SB_POS_ALINEACION.get(tramo.get("position"))
+                    if codigo:
+                        once.append([codigo, jugador.get("player_name")])
+                    break
+        salida[int(equipo.get("team_id"))] = once
+    try:
+        _SB_EVENTS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        _escribir_atomico(ruta, _json.dumps(salida, ensure_ascii=False))
+    except OSError:
+        pass
+    return salida
+
+
+# ---- La forma de cada equipo en un partido -----------------------------------------
+# Con balón y sin él: dónde defiende, dónde presiona, cuánto mide su bloque a
+# lo largo y a lo ancho, dónde recupera, por dónde ataca. Con StatsBomb 360
+# (la posición de los jugadores visibles en cada evento) la forma del bloque
+# es la real: la última línea y el largo y el ancho de sus diez de campo. Sin
+# 360 se estima con dónde hace sus acciones defensivas y de presión, y el
+# resultado lo dice ("fuente").
+_FORMA_VERSION = 1
+_YARDA = 0.9144
+_DEFENSIVAS = {"Interception", "Ball Recovery", "Block", "Clearance", "Foul Committed"}
+_SIN_JUEGO = {"Goal Kick", "Corner", "Free Kick", "Throw-in", "Kick Off"}
+_sin_360 = set()  # competiciones sin 360 en la suscripción: no se vuelve a pedir
+
+
+def _cuantil(xs, q):
+    if not xs:
+        return None
+    xs = sorted(xs)
+    i = (len(xs) - 1) * q
+    a, b = int(i), min(int(i) + 1, len(xs) - 1)
+    return xs[a] + (xs[b] - xs[a]) * (i - a)
+
+
+def _forma_de_eventos(eventos, frames):
+    import statistics
+    datos = {}
+
+    def de(team_id):
+        return datos.setdefault(team_id, {"dx": [], "dy": [], "px": [], "py": [], "contrapresion": 0, "recup": [], "pases": 0,
+                                          "largos": 0, "cambios": 0, "f3": 0, "px_pos": [], "recep": 0, "recep_banda": 0,
+                                          "linea": {0: [], 1: [], 2: []}, "largo": {0: [], 1: [], 2: []}, "ancho": {0: [], 1: [], 2: []}})
+    equipo_de_evento = {}
+    for e in eventos:
+        tipo = (e.get("type") or {}).get("name")
+        equipo = (e.get("team") or {}).get("id")
+        if equipo is None:
+            continue
+        equipo_de_evento[e.get("id")] = (equipo, e.get("location"))
+        loc = e.get("location")
+        if not loc or len(loc) < 2:
+            continue
+        x, y = loc[0], loc[1]
+        d = de(equipo)
+        if tipo == "Pressure":
+            d["px"].append(x); d["py"].append(y)
+            if e.get("counterpress"):
+                d["contrapresion"] += 1
+        elif tipo in _DEFENSIVAS or (tipo == "Duel" and ((e.get("duel") or {}).get("type") or {}).get("name") == "Tackle"):
+            if tipo == "Ball Recovery" and (e.get("ball_recovery") or {}).get("recovery_failure"):
+                continue
+            d["dx"].append(x); d["dy"].append(y)
+            if tipo in ("Ball Recovery", "Interception"):
+                d["recup"].append(x)
+        elif tipo == "Pass" and equipo == (e.get("possession_team") or {}).get("id"):
+            pase = e.get("pass") or {}
+            if (pase.get("type") or {}).get("name") in _SIN_JUEGO:
+                continue
+            d["pases"] += 1
+            d["px_pos"].append(x)
+            if (pase.get("length") or 0) >= 32:
+                d["largos"] += 1
+            if pase.get("switch"):
+                d["cambios"] += 1
+            if x >= 80:
+                d["f3"] += 1
+        elif tipo == "Ball Receipt*" and not (e.get("ball_receipt") or {}).get("outcome"):
+            if x >= 60:
+                d["recep"] += 1
+                if y < 18 or y > 62:
+                    d["recep_banda"] += 1
+
+    # 360: por cada evento con su foto, la forma del equipo que NO lo hace (el que defiende).
+    equipos = list(datos.keys())
+    for frame in frames or []:
+        dueno = equipo_de_evento.get(frame.get("event_uuid"))
+        if not dueno or not dueno[1]:
+            continue
+        atacante, loc = dueno
+        rival = next((t for t in equipos if t != atacante), None)
+        if rival is None:
+            continue
+        defensores = [p.get("location") for p in frame.get("freeze_frame") or []
+                      if not p.get("teammate") and not p.get("keeper") and p.get("location")]
+        if len(defensores) < 9:
+            continue
+        # Del marco del atacante al del que defiende: su portería en x = 0.
+        xs = [120 - p[0] for p in defensores]
+        ys = [p[1] for p in defensores]
+        zona = 0 if loc[0] < 40 else 1 if loc[0] < 80 else 2  # balón en la salida del rival, en el medio, cerca de su área
+        d = datos[rival]
+        d["linea"][zona].append(min(xs))
+        d["largo"][zona].append(max(xs) - min(xs))
+        d["ancho"][zona].append(max(ys) - min(ys))
+
+    salida = {}
+    for equipo, d in datos.items():
+        todas_x = d["dx"] + d["px"]
+        todas_y = d["dy"] + d["py"]
+        m = lambda v: round(v * _YARDA, 1) if v is not None else None
+        fila = {
+            "alturaDefensa": m(statistics.fmean(d["dx"])) if d["dx"] else None,
+            "alturaPresion": m(statistics.fmean(d["px"])) if d["px"] else None,
+            "largoEstimado": m(_cuantil(todas_x, .75) - _cuantil(todas_x, .25)) if len(todas_x) >= 20 else None,
+            "anchoEstimado": m(_cuantil(todas_y, .75) - _cuantil(todas_y, .25)) if len(todas_y) >= 20 else None,
+            "recuperacionesAltas": round(sum(1 for x in d["recup"] if x >= 80) / len(d["recup"]), 3) if d["recup"] else None,
+            "recuperacionesCampoRival": round(sum(1 for x in d["recup"] if x >= 60) / len(d["recup"]), 3) if d["recup"] else None,
+            "contrapresiones": d["contrapresion"],
+            "balonLargo": round(d["largos"] / d["pases"], 3) if d["pases"] else None,
+            "cambiosDeOrientacion": d["cambios"],
+            "alturaPosesion": m(statistics.fmean(d["px_pos"])) if d["px_pos"] else None,
+            "amplitud": round(d["recep_banda"] / d["recep"], 3) if d["recep"] else None,
+            "pasesUltimoTercio": d["f3"],
+        }
+        con360 = sum(len(v) for v in d["linea"].values())
+        if con360 >= 30:
+            todas = lambda clave: [v for z in (0, 1, 2) for v in d[clave][z]]
+            med = lambda xs: m(statistics.median(xs)) if len(xs) >= 10 else None
+            fila.update({
+                "lineaReal": med(todas("linea")), "largoReal": med(todas("largo")), "anchoReal": med(todas("ancho")),
+                "lineaPorZona": [med(d["linea"][z]) for z in (0, 1, 2)],
+                "largoPorZona": [med(d["largo"][z]) for z in (0, 1, 2)],
+                "anchoPorZona": [med(d["ancho"][z]) for z in (0, 1, 2)],
+                "fotos360": con360,
+            })
+        salida[equipo] = fila
+    return salida
+
+
+def _sb_forma_partido(match_id: int, competition_id: int, auth):
+    """La forma de los dos equipos en un partido: {team_id: {...}}. Baja eventos (y 360) una vez y guarda solo el resumen."""
+    import json as _json
+    ruta = _SB_EVENTS_CACHE_DIR / f"forma-{int(match_id)}.json"
+    if ruta.exists():
+        try:
+            guardado = _json.loads(ruta.read_text(encoding="utf-8"))
+            if guardado.get("v") == _FORMA_VERSION:
+                return {int(k): v for k, v in guardado["equipos"].items()}
+        except Exception:
+            pass
+    try:
+        r = _requests.get(f"https://data.statsbomb.com/api/v8/events/{int(match_id)}", auth=auth, timeout=120)
+        if r.status_code != 200:
+            return None
+        eventos = r.json()
+    except Exception:
+        return None
+    frames = None
+    if competition_id not in _sin_360:
+        try:
+            r3 = _requests.get(f"https://data.statsbomb.com/api/v2/360-frames/{int(match_id)}", auth=auth, timeout=120)
+            if r3.status_code == 200:
+                frames = r3.json()
+            elif r3.status_code in (401, 403, 404):
+                _sin_360.add(competition_id)
+        except Exception:
+            frames = None
+    # Ya con los eventos, lo que también sale de ellos se guarda de paso.
+    _sb_guardar_formaciones(match_id, eventos)
+    _sb_guardar_flujo(match_id, eventos)
+    equipos = _forma_de_eventos(eventos, frames)
+    try:
+        _SB_EVENTS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        _escribir_atomico(ruta, _json.dumps({"v": _FORMA_VERSION, "con360": bool(frames), "equipos": equipos}))
+    except OSError:
+        pass
+    return equipos
+
+
+@app.get("/api/statsbomb/team-shape")
+def statsbomb_team_shape(competition_id: int, season_id: int):
+    """La forma de cada equipo en cada partido jugado de una liga y temporada.
+
+    {"partidos": [{"partido": id, "equipos": {team_id: {...}}}], "con360": n, "fallidos": n}.
+    La primera vez baja los eventos (y el 360 si la suscripción lo trae) de
+    todos los partidos: varios minutos en una liga entera. Se guarda solo el
+    resumen de cada partido, unos cientos de bytes.
+    """
+    import json as _json
+    from concurrent.futures import ThreadPoolExecutor
+    auth = _statsbomb_auth()
+    if not auth:
+        return Response('{"error": "sin credenciales"}', status_code=503, media_type="application/json", headers=cors_headers())
+    partidos = _cached_get(f"sb:matches6:{competition_id}:{season_id}",
+                           f"https://data.statsbomb.com/api/v6/competitions/{competition_id}/seasons/{season_id}/matches", auth, ttl_seconds=1800)
+    jugados = [p for p in partidos if p.get("home_score") is not None and p.get("away_score") is not None]
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        formas = list(pool.map(lambda p: _sb_forma_partido(p["match_id"], competition_id, auth), jugados))
+    salida, fallidos, con360 = [], 0, 0
+    for p, forma in zip(jugados, formas):
+        if not forma:
+            fallidos += 1
+            continue
+        if any("lineaReal" in v for v in forma.values()):
+            con360 += 1
+        salida.append({"partido": p.get("match_id"), "fecha": p.get("match_date"), "equipos": forma})
+    return Response(_json.dumps({"partidos": salida, "con360": con360, "fallidos": fallidos}), media_type="application/json", headers=cors_headers())
+
+
 @app.get("/api/statsbomb/team-matches")
 def statsbomb_team_matches(competition_id: int, season_id: int):
     """Todos los partidos jugados de una liga y temporada, de los dos lados.
@@ -1187,8 +1420,9 @@ def statsbomb_team_matches(competition_id: int, season_id: int):
         stats = list(pool.map(lambda p: _sb_stats_partido(p["match_id"], auth), jugados))
         formaciones = list(pool.map(lambda p: _sb_formaciones_partido(p["match_id"], auth), jugados))
         alineaciones = list(pool.map(lambda p: _sb_alineacion_partido(p["match_id"], auth), jugados))
+        titulares = list(pool.map(lambda p: _sb_titulares_partido(p["match_id"], auth), jugados))
 
-    def lado(p, campo, st, fo, al):
+    def lado(p, campo, st, fo, al, ti):
         equipo = p.get(f"{campo}_team") or {}
         team_id = equipo.get(f"{campo}_team_id")
         inicio = next((c["formacion"] for c in (fo or {}).get("cambios", []) if c.get("equipo") == team_id and c.get("inicio")), None)
@@ -1200,19 +1434,20 @@ def statsbomb_team_matches(competition_id: int, season_id: int):
             "formacion": inicio,
             "cambios": sum(1 for c in (fo or {}).get("cambios", []) if c.get("equipo") == team_id and not c.get("inicio")),
             "once": once,
+            "titulares": (ti or {}).get(team_id) or [],
             "stats": (st or {}).get(team_id) or {},
         }
 
     salida, fallidos = [], 0
-    for p, st, fo, al in zip(jugados, stats, formaciones, alineaciones):
+    for p, st, fo, al, ti in zip(jugados, stats, formaciones, alineaciones, titulares):
         if not st:
             fallidos += 1
         salida.append({
             "partido": p.get("match_id"),
             "fecha": p.get("match_date"),
             "jornada": p.get("match_week"),
-            "local": lado(p, "home", st, fo, al),
-            "visita": lado(p, "away", st, fo, al),
+            "local": lado(p, "home", st, fo, al, ti),
+            "visita": lado(p, "away", st, fo, al, ti),
         })
     salida.sort(key=lambda x: str(x.get("fecha") or ""))
     # Los que faltan por jugar, para saber quién es el próximo rival.

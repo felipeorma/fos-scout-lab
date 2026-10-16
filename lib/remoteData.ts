@@ -163,6 +163,7 @@ import { extractSeason, type DataRow, type SourceDataset } from "./scouting";
 import { OPTA_URL, type FotoMensual, type OptaLiga } from "./maldonado";
 import type { FilaEquipo } from "./estiloEquipo";
 import type { LigaPartidos } from "./partido";
+import type { LigaForma } from "./fases";
 import type { EventosJugador } from "./snapshot";
 
 const LOCAL_BRIDGE = "http://127.0.0.1:7001";
@@ -315,6 +316,15 @@ export function fetchFlujoDePosesion(competicion: ApiCompetition) {
  */
 export function fetchPartidosDeLiga(competicion: number, temporada: number) {
   return bridgeJson<LigaPartidos>(`/api/statsbomb/team-matches?competition_id=${competicion}&season_id=${temporada}`, 1_800_000);
+}
+
+/**
+ * La forma de cada equipo en cada partido de una liga y temporada: dónde
+ * defiende y presiona, cuánto mide su bloque, dónde recupera, por dónde
+ * ataca (lib/fases.ts). La primera vez baja los eventos de toda la liga.
+ */
+export function fetchFormaDeLiga(competicion: number, temporada: number) {
+  return bridgeJson<LigaForma>(`/api/statsbomb/team-shape?competition_id=${competicion}&season_id=${temporada}`, 1_800_000);
 }
 
 export type ExtrasDeEquipo = {
