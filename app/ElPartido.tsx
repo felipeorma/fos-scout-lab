@@ -10,7 +10,8 @@ import { nivelDeLiga } from "@/lib/nivelDeLiga";
 import { cambioDeDibujo, type ChoqueDeZona, type CruceDeEstilo, crucesDeEstilo, enfrentamientos, equiposDeLiga, estructuraDe, formacionLegible, formacionProbable, fuertesYFlojos, type LigaPartidos, lineaDefensiva, zonasDelChoque, mediasDeLiga, MEJORA_MINIMA, mejoraDelModelo, type MetricaPartido, onceTipico, type PartidoDeEquipo, partidosDe, perfilesDeDimension, PREDICCION_CALIBRADA, prediccionDelPartido, rendimientoPorLinea, ventajas } from "@/lib/partido";
 import { cambiosRecientes, FASES, fasesDeLiga, formaReciente, lecturaDe, lecturaDeFases, type LecturaDeMetrica, type MetricaDeFase } from "@/lib/fases";
 import { DIBUJOS, SITIO, consejosDePizarra, oncePara, puestosDe, type Consejo } from "@/lib/pizarra";
-import { normalizarNombre, useCatalogo, useFormaDeLiga, usePlantelDeLiga, useSkillcornerDeLiga, type JugadorDePlantel } from "./useTemporadaDeLiga";
+import { normalizarNombre, useBalonParadoDeLiga, useCatalogo, useFormaDeLiga, usePlantelDeLiga, useSkillcornerDeLiga, type JugadorDePlantel } from "./useTemporadaDeLiga";
+import { balonParadoDe, balonParadoDeLaLiga, lecturasDeParado, type PerfilDeParado, type Resumen as ResumenDeParado } from "@/lib/balonParado";
 import { buscadorDeFisico, conSkillcorner, valoresSkillcorner, type FisicoDeJugador } from "@/lib/skillcornerPartido";
 import { emparejar, mediasDeDuelo, mejorParaElDuelo, probabilidadAerea, probabilidadDeRegate, regateMedio, sitioEnPizarra, tasas, VALIDACION_DUELOS, type PerfilDeDuelo } from "@/lib/duelos";
 
@@ -96,6 +97,7 @@ function useLadoDelPartido(perfil: PerfilEquipo) {
   const forma = useFormaDeLiga(partes.competicion, partes.temporada);
   const plantel = usePlantelDeLiga(competicion);
   const sc = useSkillcornerDeLiga(competicion);
+  const parado = useBalonParadoDeLiga(partes.competicion, partes.temporada);
   const datos = useMemo(() => {
     if (!liga) return null;
     const suyos = partidosDe(liga, partes.equipo);
@@ -136,10 +138,16 @@ function useLadoDelPartido(perfil: PerfilEquipo) {
     () => mediasDeDuelo((plantel.datos ?? []).map((j) => j.duelo).filter((d): d is PerfilDeDuelo => d !== null)),
     [plantel.datos],
   );
+  // Su balón parado y el de su liga, de referencia.
+  const balonParado = useMemo(() => (parado.datos ? {
+    perfil: balonParadoDe(parado.datos, partes.equipo),
+    liga: balonParadoDeLaLiga(parado.datos),
+  } : null), [parado.datos, partes.equipo]);
   // El físico de cada jugador (SkillCorner), por nombre: para los duelos y la pizarra.
   const fisicoDe = useMemo(() => buscadorDeFisico(sc.datos?.jugadores ?? []), [sc.datos]);
   return {
     partes, liga, datos, jugadores, error, cargando, mediasDuelo, fisicoDe, conSkillcorner: Boolean(sc.datos),
+    balonParado, paradoCargando: parado.cargando, paradoError: parado.error,
     conJuegoSc: Boolean(sc.datos?.equipos.length),
     formaCargando: forma.cargando, con360: (forma.datos?.con360 ?? 0) > 0, formaError: forma.error,
     plantelCargando: plantel.cargando,
@@ -279,6 +287,89 @@ function textoDePrueba(equipo: string, lectura: LecturaDeMetrica, estimada: bool
   // "Altura de la presión" se escribe en minúscula dentro de la frase; "PPDA" y "xG", no.
   const nombre = /^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]/.test(etiqueta) ? etiqueta[0].toLowerCase() + etiqueta.slice(1) : etiqueta;
   return `${equipo}: ${nombre} ${estimada ? "≈" : ""}${formatoFase(lectura.metrica, lectura.valor)}${lectura.palabra ? ` · ${t(lectura.palabra)}` : ""} · ${ordinal(lectura.puesto, lectura.equipos)}`;
+}
+
+// ---- El balón parado -----------------------------------------------------------------------
+
+/**
+ * El área vista desde el que saca, con la portería arriba y el córner desde la
+ * izquierda: el primer palo queda a la izquierda. En cada zona, una burbuja
+ * con la parte de sus córners al área que cae ahí; el aro discontinuo es lo
+ * normal en su liga. "En corto", junto a la esquina.
+ */
+function AreaDeParado({ resumen, liga, lado }: { resumen: ResumenDeParado; liga: ResumenDeParado; lado: Lado }) {
+  // 2 unidades por metro: el área mide 44 × 18; el área chica, 20 × 6; la portería, 7,32.
+  // Cada burbuja en su zona y la etiqueta fija debajo, dentro de la zona: con el 70 % al centro la burbuja tapaba las demás.
+  const ZONAS: Array<{ id: keyof ResumenDeParado["zonas"]; x: number; y: number; etiqueta: string }> = [
+    { id: "primer_palo", x: 14.5, y: 10.5, etiqueta: t("Primer palo") },
+    { id: "centro", x: 44, y: 10.5, etiqueta: t("Centro") },
+    { id: "segundo_palo", x: 73.5, y: 10.5, etiqueta: t("Segundo palo") },
+    { id: "borde", x: 44, y: 29.5, etiqueta: t("Borde del área") },
+  ];
+  const radio = (p: number) => (Number.isFinite(p) ? 2 + Math.sqrt(Math.max(0, p)) * 8.5 : 0);
+  const radioBorde = (p: number) => Math.min(4.6, radio(p));
+  return <svg viewBox="-14 -6 116 50" className={`area-parado ${lado}`} role="img" aria-label={t("Adónde van sus córners")}>
+    <rect x={-14} y={-6} width={116} height={50} className="area-parado-cesped" />
+    <line x1={-14} y1={0} x2={102} y2={0} className="area-parado-linea" />
+    <rect x={0} y={0} width={88} height={36} className="area-parado-linea" />
+    <rect x={24} y={0} width={40} height={12} className="area-parado-linea" />
+    <rect x={36.7} y={-3} width={14.6} height={3} className="area-parado-porteria" />
+    <path d="M -14 4 A 4 4 0 0 0 -10 0" className="area-parado-linea" />
+    <line x1={29.3} y1={0} x2={29.3} y2={24} className="area-parado-guia" />
+    <line x1={58.7} y1={0} x2={58.7} y2={24} className="area-parado-guia" />
+    <line x1={0} y1={24} x2={88} y2={24} className="area-parado-guia" />
+    {ZONAS.map((z) => {
+      const p = resumen.zonas[z.id], l = liga.zonas[z.id];
+      const r = z.id === "borde" ? radioBorde : radio;
+      return <g key={z.id}>
+        <circle cx={z.x} cy={z.y} r={r(l)} className="area-parado-liga" />
+        <circle cx={z.x} cy={z.y} r={r(p)} className="area-parado-burbuja" />
+        <text x={z.x} y={z.y + 1.3} className="area-parado-pct">{pct(p)}</text>
+        <text x={z.id === "borde" ? z.x + 12 : z.x} y={z.id === "borde" ? z.y + 1 : 22.6} className={z.id === "borde" ? "area-parado-zona izquierda" : "area-parado-zona"}>{z.etiqueta}</text>
+      </g>;
+    })}
+    <g>
+      <circle cx={-6.5} cy={9} r={Math.min(6, radio(resumen.enCorto))} className="area-parado-burbuja corto" />
+      <text x={-6.5} y={10.3} className="area-parado-pct">{pct(resumen.enCorto)}</text>
+      <text x={-6.5} y={18.5} className="area-parado-zona">{t("En corto")}</text>
+    </g>
+  </svg>;
+}
+
+/** Una fila métrica | equipo | liga, con la del equipo resaltada si se separa. */
+function FilaDeParado({ etiqueta, valor, liga, formato = "pct", masEsPeor = false }: { etiqueta: string; valor: number; liga: number; formato?: "pct" | "n1" | "n3"; masEsPeor?: boolean }) {
+  const texto = (v: number) => (formato === "pct" ? pct(v) : decimal(v, formato === "n3" ? 3 : 1));
+  const diferencia = Number.isFinite(valor) && Number.isFinite(liga) && liga !== 0 ? valor / liga - 1 : 0;
+  const tono = Math.abs(diferencia) < 0.15 ? "" : (diferencia > 0) !== masEsPeor ? "alto" : "bajo";
+  return <tr><th scope="row">{etiqueta}</th><td className={tono}>{texto(valor)}</td><td>{texto(liga)}</td></tr>;
+}
+
+function ColumnaDeParado({ titulo, perfil, liga, lado, rival }: { titulo: string; perfil: PerfilDeParado; liga: ResumenDeParado; lado: Lado; rival: PerfilDeParado | null }) {
+  const f = perfil.favor;
+  return <div className="parado-columna">
+    <h5>{titulo}</h5>
+    <AreaDeParado resumen={f} liga={liga} lado={lado} />
+    <table className="parado-tabla">
+      <thead><tr><th /><th>{t("Él")}</th><th>{t("Su liga")}</th></tr></thead>
+      <tbody>
+        <FilaDeParado etiqueta={t("Córners por partido")} valor={f.cornersPorPartido} liga={liga.cornersPorPartido} formato="n1" />
+        <FilaDeParado etiqueta={t("Cerrados, hacia la portería")} valor={f.rosca.cerrada} liga={liga.rosca.cerrada} />
+        <FilaDeParado etiqueta={t("Gana el primer contacto")} valor={f.primerContacto} liga={liga.primerContacto} />
+        <FilaDeParado etiqueta={t("Acaban en remate")} valor={f.remate} liga={liga.remate} />
+        <FilaDeParado etiqueta={t("xG por córner")} valor={f.xgPorCorner} liga={liga.xgPorCorner} formato="n3" />
+        {rival && <FilaDeParado etiqueta={t("xG por córner que concede el rival")} valor={rival.contra.xgPorCorner} liga={liga.xgPorCorner} formato="n3" />}
+      </tbody>
+    </table>
+    <p className="parado-goles">{tf("{g} goles a balón parado en {n} partidos ({c} córners, {fa} faltas al área).", { g: f.goles, n: perfil.partidos, c: f.corners, fa: f.faltas })}</p>
+    <dl className="parado-quienes">
+      <dt>{t("Los saca")}</dt>
+      <dd>{perfil.lanzadores.map((l) => tf("{x} ({n}, {lado}, {c} cerrados)", { x: apellido(l.nombre), n: l.corners, lado: t(l.lado === "los dos" ? "las dos bandas" : l.lado === "izquierda" ? "desde la izquierda" : "desde la derecha"), c: pct(l.cerrada) })).join(" · ") || "—"}</dd>
+      <dt>{t("Gana el primer contacto")}</dt>
+      <dd>{perfil.primeros.map((p) => `${apellido(p.nombre)} (${p.veces})`).join(" · ") || "—"}</dd>
+      <dt>{t("Remata")}</dt>
+      <dd>{perfil.rematadores.map((r) => tf("{x} ({n} jugadas con remate, {g} goles, xG {xg})", { x: apellido(r.nombre), n: r.remates, g: r.goles, xg: decimal(r.xg, 2) })).join(" · ") || "—"}</dd>
+    </dl>
+  </div>;
 }
 
 // ---- La sección ----------------------------------------------------------------------------
@@ -425,15 +516,15 @@ export function ElPartido({ a, b, claseHoja = "legal-page-shell", pie = null }: 
   </header>;
 
   /*
-   * Cuatro hojas, como la ficha ampliada: en una Legal no cabe todo y
-   * reducido no se lee. Claves y recomendaciones; pizarra y duelos; fases y
-   * cómo vienen; el resto. En pantalla se leen seguidas; la cabecera de
+   * Cinco hojas: en una Legal no cabe todo y reducido no se lee. Claves y
+   * recomendaciones; pizarra y duelos; fases y cómo vienen; lo esperado y el
+   * resto; el balón parado. En pantalla se leen seguidas; la cabecera de
    * continuación y el pie de las primeras solo salen al imprimir.
    */
   const hoja = (n: number, contenido: ReactNode) => <div className={claseHoja}>
     <section className={`estilo-page estilo-hoja-partido partido-hoja-${n}`}>
       {n > 1 && <header className="estilo-cabecera-continuacion"><div>
-        <span>{tf("EL PARTIDO · {n} DE 4", { n })}</span>
+        <span>{tf("EL PARTIDO · {n} DE 5", { n })}</span>
         <h2>{`${a.equipo} · ${b.equipo}`}</h2>
       </div></header>}
       {contenido}
@@ -882,5 +973,27 @@ export function ElPartido({ a, b, claseHoja = "legal-page-shell", pie = null }: 
         }),
       }))} />
     </div>}
+  </section>)}
+  {hoja(5, <section className="partido">
+    {/* ---- El balón parado ---- */}
+    <div className="partido-bloque">
+      <h4>{t("Balón parado")}</h4>
+      {(ladoA.paradoCargando || ladoB.paradoCargando) && <p className="partido-estado" role="status">{t("Leyendo cada córner y falta al área de la liga… la primera vez tarda unos minutos.")}</p>}
+      {(ladoA.paradoError || ladoB.paradoError) && <p className="partido-estado" role="status">{ladoA.paradoError || ladoB.paradoError}</p>}
+      {ladoB.balonParado?.perfil && ladoA.balonParado?.perfil && (() => {
+        const suyo = ladoB.balonParado.perfil!, nuestro = ladoA.balonParado.perfil!;
+        const lecturas = lecturasDeParado(suyo, mismaLiga ? nuestro : null, ladoB.balonParado.liga);
+        return <>
+          {lecturas.length > 0 && <ul className="parado-lecturas">
+            {lecturas.slice(0, 5).map((l, i) => <li key={i}>{tf(t(l.texto), l.valores)}</li>)}
+          </ul>}
+          <div className="parado-dos">
+            <ColumnaDeParado titulo={tf("Lo que tienes que defender: los córners de {b}", { b: b.equipo })} perfil={suyo} liga={ladoB.balonParado.liga} lado="b" rival={null} />
+            <ColumnaDeParado titulo={tf("Lo tuyo contra su defensa: los córners de {a}", { a: a.equipo })} perfil={nuestro} liga={ladoA.balonParado.liga} lado="a" rival={mismaLiga ? suyo : null} />
+          </div>
+        </>;
+      })()}
+      <p className="partido-nota">{t("De los eventos de StatsBomb: cada córner y cada falta lateral al área. Las zonas son desde el que saca, con el córner desde la izquierda: el primer palo es el del lado del saque. Burbuja, la parte de sus córners al área que cae ahí; aro discontinuo, lo normal en su liga. Una frase arriba solo si se separa de su liga lo bastante (diez puntos con al menos 25 córners detrás).")}</p>
+    </div>
   </section>)}</>;
 }

@@ -1,3 +1,4 @@
+import type { LigaDeParado } from "./balonParado";
 import {
   isTransfermarktUrl,
   parseTransfermarktProfile,
@@ -325,6 +326,15 @@ export function fetchPartidosDeLiga(competicion: number, temporada: number) {
  */
 export function fetchFormaDeLiga(competicion: number, temporada: number) {
   return bridgeJson<LigaForma>(`/api/statsbomb/team-shape?competition_id=${competicion}&season_id=${temporada}`, 1_800_000);
+}
+
+/**
+ * Cada córner y falta al área de una liga y temporada (lib/balonParado.ts).
+ * Sale de los mismos resúmenes por partido que los duelos: la primera vez
+ * baja los eventos de toda la liga.
+ */
+export function fetchBalonParado(competicion: number, temporada: number) {
+  return bridgeJson<LigaDeParado>(`/api/statsbomb/set-pieces?competition_id=${competicion}&season_id=${temporada}`, 1_800_000);
 }
 
 export type ExtrasDeEquipo = {

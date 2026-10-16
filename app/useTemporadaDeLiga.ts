@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { t } from "@/lib/i18n";
 import {
+  fetchBalonParado,
   fetchFormaDeLiga,
   fetchSkillcornerCompetitions,
   fetchSkillcornerDataset,
@@ -15,6 +16,7 @@ import {
 import { fusionarSkillcorner, type FilaEquipo } from "@/lib/estiloEquipo";
 import { aggregateDatasets, buildPlayerReport, numeric, type CellValue } from "@/lib/scouting";
 import type { LigaForma } from "@/lib/fases";
+import type { LigaDeParado } from "@/lib/balonParado";
 import type { PerfilDeDuelo } from "@/lib/duelos";
 
 /*
@@ -99,6 +101,12 @@ export function useSkillcornerDeLiga(competicion: ApiCompetition | null) {
     ]);
     return { equipos, jugadores };
   });
+}
+
+/** Cada córner y falta al área de una liga y temporada (lib/balonParado.ts). */
+export function useBalonParadoDeLiga(competicion: number | null, temporada: number | null) {
+  const clave = competicion !== null && temporada !== null ? `parado:${competicion}:${temporada}` : null;
+  return useRecurso<LigaDeParado>(clave, () => fetchBalonParado(competicion!, temporada!));
 }
 
 /** La forma de cada equipo en cada partido de una liga y temporada. */

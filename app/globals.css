@@ -7038,7 +7038,7 @@ body.print-layout-check .legal-page-shell:has([data-hoja-vacia]) { display: none
 .app-shell[data-tema] .partido-prueba.contradice { box-shadow: inset 2px 0 0 #ff9f0a; }
 @media screen {
   /* El partido y el flujo en pantalla: seguidos, sin el pie entre hojas. */
-  body:not(.print-layout-check) :is(.partido-hoja-1, .partido-hoja-2, .partido-hoja-3, .partido-hoja-4, .estilo-hoja-flujo) > .visual-page-footer { display: none; }
+  body:not(.print-layout-check) :is(.partido-hoja-1, .partido-hoja-2, .partido-hoja-3, .partido-hoja-4, .partido-hoja-5, .estilo-hoja-flujo) > .visual-page-footer { display: none; }
   body:not(.print-layout-check) .app-shell[data-tema] .estilo-page.estilo-hoja-partido { margin-top: 0; margin-bottom: 0; padding-top: 6px; padding-bottom: 6px; }
 }
 
@@ -7342,3 +7342,43 @@ body.print-layout-check .legal-page-shell:has([data-hoja-vacia]) { display: none
 /* La velocidad punta (SkillCorner) bajo el nombre de cada ficha de la pizarra. */
 .app-shell[data-tema] .pizarra-ficha > small.pizarra-velocidad { margin-top: 1px; padding: 0 4px; border-radius: 3px; background: rgba(18, 196, 139, .9); color: #04130d; font-size: 8px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.35; white-space: nowrap; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
 @media screen and (max-width: 640px) { .app-shell[data-tema] .pizarra-ficha > small.pizarra-velocidad { display: none; } }
+
+/* =====================================================================
+   El balón parado
+   ===================================================================== */
+.app-shell[data-tema] .parado-lecturas { margin: 0 0 12px; padding: 10px 14px 10px 30px; border-radius: 12px; background: color-mix(in srgb, var(--acento-claro) 9%, transparent); box-shadow: inset 3px 0 0 var(--acento-claro); color: var(--ink); font-size: 13px; line-height: 1.5; }
+.app-shell[data-tema] .parado-lecturas li + li { margin-top: 3px; }
+.app-shell[data-tema] .parado-dos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+@media screen and (max-width: 900px) { body:not(.print-layout-check) .app-shell[data-tema] .parado-dos { grid-template-columns: 1fr; } }
+.app-shell[data-tema] .parado-columna { min-width: 0; padding: 12px 14px; border-radius: 12px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); }
+.app-shell[data-tema] .parado-columna h5 { margin: 0 0 8px; color: var(--ink); font-size: 13.5px; font-weight: 600; }
+.app-shell[data-tema] .area-parado { width: 100%; height: auto; display: block; border-radius: 8px; overflow: hidden; }
+.app-shell[data-tema] .area-parado-cesped { fill: #1d3a2b; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+.app-shell[data-tema] .area-parado-linea { fill: none; stroke: rgba(255, 255, 255, .55); stroke-width: .4; }
+.app-shell[data-tema] .area-parado-porteria { fill: rgba(255, 255, 255, .25); stroke: rgba(255, 255, 255, .7); stroke-width: .4; }
+.app-shell[data-tema] .area-parado-guia { stroke: rgba(255, 255, 255, .22); stroke-width: .3; stroke-dasharray: 1.2 1.2; }
+.app-shell[data-tema] .area-parado-liga { fill: none; stroke: rgba(255, 255, 255, .7); stroke-width: .4; stroke-dasharray: 1 .9; }
+.app-shell[data-tema] .area-parado-burbuja { opacity: .88; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+.app-shell[data-tema] .area-parado.a .area-parado-burbuja { fill: var(--partido-a); }
+.app-shell[data-tema] .area-parado.b .area-parado-burbuja { fill: #f5f5f7; }
+.app-shell[data-tema] .area-parado-burbuja.corto { opacity: .6; }
+.app-shell[data-tema] .area-parado-pct { font-size: 3.6px; font-weight: 800; text-anchor: middle; }
+.app-shell[data-tema] .area-parado.a .area-parado-pct { fill: #fff; }
+.app-shell[data-tema] .area-parado.b .area-parado-pct { fill: #0b131b; }
+.app-shell[data-tema] .area-parado-zona { fill: rgba(255, 255, 255, .85); font-size: 2.8px; font-weight: 600; text-anchor: middle; }
+.app-shell[data-tema] .area-parado-zona.izquierda { text-anchor: start; }
+.app-shell[data-tema] .area-parado-pct { font-size: 3.2px; }
+.app-shell[data-tema] .parado-tabla { width: 100%; margin-top: 10px; border-collapse: collapse; font-size: 12px; }
+.app-shell[data-tema] .parado-tabla th, .app-shell[data-tema] .parado-tabla td { padding: 4px 6px; border-bottom: 1px solid var(--line); text-align: right; font-variant-numeric: tabular-nums; }
+.app-shell[data-tema] .parado-tabla th[scope="row"] { color: var(--ink); font-weight: 500; text-align: left; }
+.app-shell[data-tema] .parado-tabla thead th { color: var(--muted); font-size: 10.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.app-shell[data-tema] .parado-tabla td { color: var(--muted); }
+.app-shell[data-tema] .parado-tabla td:nth-child(2) { color: var(--ink); font-weight: 700; }
+.app-shell[data-tema] .parado-tabla td.alto { color: #32d583; }
+.app-shell[data-tema] .parado-tabla td.bajo { color: #ff6961; }
+.app-shell[data-tema="claro"] .parado-tabla td.alto { color: #1a7f37; }
+.app-shell[data-tema="claro"] .parado-tabla td.bajo { color: #c62828; }
+.app-shell[data-tema] .parado-goles { margin: 8px 0 0; color: var(--muted); font-size: 11.5px; }
+.app-shell[data-tema] .parado-quienes { margin: 8px 0 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; font-size: 12px; line-height: 1.4; }
+.app-shell[data-tema] .parado-quienes dt { color: var(--muted); font-weight: 600; }
+.app-shell[data-tema] .parado-quienes dd { margin: 0; color: var(--ink); }
