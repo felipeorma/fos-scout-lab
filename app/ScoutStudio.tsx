@@ -23,7 +23,6 @@ import { ProveedorDeBase, useEstadoDeBase } from "./BaseActiva";
 import { BarraDeFiltros } from "./BarraDeFiltros";
 import { MenuDeLigas, MenuDesplegable, type OpcionDeMenu } from "./MenuDesplegable";
 import { contextoDeLectura } from "@/lib/lecturaIA";
-import { EQUIPO_PROPIO, mismoEquipo } from "@/lib/estiloEquipo";
 import { Escudo, LogoLiga } from "./Escudo";
 import { DatosPage } from "./DatosPage";
 import { Interruptor } from "./Interruptor";
@@ -188,11 +187,6 @@ export default function ScoutStudio() {
    * elegir algo y nunca se abrieron están vacías por fuerza.
    */
   const [paginasVacias, setPaginasVacias] = useState<ReportPage[]>([]);
-  // El encaje de la ficha ampliada: con qué equipo se mide (vacío, Cavalry) y
-  // si su hoja va en el PDF. Fuera por defecto: un informe que sale del club
-  // no siempre debe decir para quién se mira al jugador. Se recuerda.
-  const [equipoEncaje, setEquipoEncaje] = useState("");
-  const [pdfConEncaje, setPdfConEncaje] = useState(false);
   // Con la temporada anterior por defecto: la ficha mide al jugador con sus dos
   // últimas temporadas cuando existen. Se recuerda; se apaga en Base activa.
   const [conTemporadaAnterior, setConTemporadaAnterior] = useState(true);
@@ -1149,20 +1143,12 @@ export default function ScoutStudio() {
     setPrintRun([...imprimibles].sort((a, b) => a - b));
   }
 
-  function alternarEncajeEnPdf() {
-    setPdfConEncaje((actual) => {
-      try { window.localStorage.setItem("fos-pdf-encaje-v1", actual ? "no" : "si"); } catch { /* preferencia opcional */ }
-      return !actual;
-    });
-  }
-
   function togglePrintPage(page: ReportPage) {
     setPrintPages((current) => current.includes(page) ? current.filter((item) => item !== page) : [...current, page]);
   }
 
   useEffect(() => {
     try { setAiControlsHidden(window.localStorage.getItem("fos-scout-ai-controls-v2") !== "shown"); } catch { /* preferencia opcional */ }
-    try { setPdfConEncaje(window.localStorage.getItem("fos-pdf-encaje-v1") === "si"); } catch { /* preferencia opcional */ }
     try { setConTemporadaAnterior(window.localStorage.getItem("fos-temporada-anterior-v1") !== "no"); } catch { /* preferencia opcional */ }
     try {
       const stored = window.localStorage.getItem("fos-scout-metric-picks-v1");
@@ -2113,10 +2099,6 @@ export default function ScoutStudio() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [printDialogOpen]);
   const cuantasImprimibles = printPages.filter((page) => !paginasVacias.includes(page)).length;
-  // El nombre del equipo del encaje, como lo elige la propia hoja: el elegido o, si no, el nuestro.
-  const nombreEquipoEncaje = equipoEncaje
-    || [...new Set(reportRows.map((fila) => String(fila.Team ?? "").trim()))].find((equipo) => mismoEquipo(equipo, EQUIPO_PROPIO))
-    || EQUIPO_PROPIO;
 
   return (
     <ProveedorDeBase valor={base}>
@@ -2750,8 +2732,7 @@ export default function ScoutStudio() {
               {espacio === "cavalry" && report && paginaMontada(SNAPSHOT_PAGE) && (
                 <SnapshotPage rows={filasDeLasPiezas} indice={indiceDeLasPiezas} informe={report} perfilTm={profile} minutosMin={minimumMinutes} claseHoja={claseHoja(SNAPSHOT_PAGE)} temporada={temporadaDeReferencia?.etiqueta}
                   clavesPorFila={clavesDeLasPiezas} ligasDeFila={ligasDeLasPiezas} feedOpta={feedOpta}
-                  destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} onAbrirJugador={(indice) => { const enBase = enLaBase(indice); if (enBase >= 0) selectPlayer(enBase); }}
-                  equipoEncaje={equipoEncaje} onEquipoEncaje={setEquipoEncaje} sinHojaDeEncaje={Boolean(printRun) && !pdfConEncaje} />
+                  destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} onAbrirJugador={(indice) => { const enBase = enLaBase(indice); if (enBase >= 0) selectPlayer(enBase); }} />
               )}
               {report && paginaMontada(CONTEXT_PAGE) && (
                 <ContextPage claseHoja={claseHoja(CONTEXT_PAGE)} report={report} rows={reportRows} bases={sourceDatasets} minutosFiltro={minimumMinutes} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl}
@@ -2846,17 +2827,11 @@ export default function ScoutStudio() {
                         <span className="impresion-marca" aria-hidden="true">{elegida && <Check size={14} />}</span>
                         <span className="impresion-fila-texto"><b>{title}</b><small>{vacia
                           ? t("Vacía ahora: ábrela y elige qué mostrar para que salga en el PDF.")
-                          : page === SNAPSHOT_PAGE ? (pdfConEncaje ? t("3 hojas: familias, mapas y encaje") : t("2 hojas: familias y mapas"))
+                          : page === SNAPSHOT_PAGE ? t("1 hoja: familias, acciones y mapas")
                           : page === CONTEXT_PAGE ? t("2 hojas: el jugador y la comparación")
                           : hint}</small></span>
                       </label>;
-                      // El encaje va colgado de la ficha ampliada: solo se ofrece si ella sale.
-                      if (page !== SNAPSHOT_PAGE || !elegida) return fila;
-                      return [fila, <label key="encaje" className={pdfConEncaje ? "impresion-fila impresion-subfila elegida" : "impresion-fila impresion-subfila"}>
-                        <input type="checkbox" className="impresion-casilla" checked={pdfConEncaje} onChange={alternarEncajeEnPdf} />
-                        <span className="impresion-marca" aria-hidden="true">{pdfConEncaje && <Check size={14} />}</span>
-                        <span className="impresion-fila-texto"><b>{tf("Añadir el encaje con {equipo}", { equipo: nombreEquipoEncaje })}</b><small>{t("Tercera hoja de la ficha ampliada")}</small></span>
-                      </label>];
+                      return fila;
                     })}
                   </div>
                   <div className="impresion-archivo">

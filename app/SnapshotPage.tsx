@@ -12,17 +12,20 @@ import type { TransfermarktProfile } from "@/lib/transfermarkt";
 /**
  * Ficha ampliada: la página 2 del dossier ("Player Snapshot") con StatsBomb.
  *
- * Arriba, quién es y en qué destaca: la ficha, las trece familias en tabla,
- * un top 10 y dónde ha jugado. El radar no va: ya tiene su página en Ficha y
- * radar, y aquí repetía lo mismo. En medio, con quién se parece y qué hace
- * con el balón —tiros, ocasiones, regates—. Después, dónde lo hace —pases,
- * mapa de calor, defensa—, dónde y cómo le llega el balón, y cómo queda
- * frente a su grupo.
+ * Una sola hoja, como Ficha y radar: quién es y en qué destaca (la ficha,
+ * las familias, el Top 10 y dónde juega), con quién se parece y qué hace con
+ * el balón —tiros, ocasiones, regates y cómo participa en la jugada—, y
+ * dónde lo hace —pases, mapa de calor, defensa y cómo le llega el balón—.
+ * Las piezas se reparten en columnas para que no quede hueco: debajo del
+ * Top 10, sus pases; debajo de los puestos, quién se la da; debajo de tiros
+ * y ocasiones, la jugada. "Frente a su grupo", "Construcción frente a
+ * asociación" y el encaje con un equipo salieron de esta página (siguen en
+ * Visuales, sueltos).
  *
  * Cada gráfico es una pieza de PiezasFicha: los mismos que Visuales ofrece
  * sueltos para montar una hoja a medida.
  */
-export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, destinatario = "", logoDestinatario = "", onAbrirJugador, claseHoja = "legal-page-shell", equipoEncaje: equipoDeFuera, onEquipoEncaje, sinHojaDeEncaje = false, temporada, clavesPorFila = null, feedOpta = null, ligasDeFila = null }: {
+export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, destinatario = "", logoDestinatario = "", onAbrirJugador, claseHoja = "legal-page-shell", temporada, clavesPorFila = null, feedOpta = null, ligasDeFila = null }: {
   /** Las claves "liga año" de cada fila cuando se mide contra su liga. */
   clavesPorFila?: string[][] | null;
   /** Las claves "liga año" de cada fila, siempre: acotan el Top 10 y los parecidos. */
@@ -38,13 +41,8 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
   destinatario?: string;
   logoDestinatario?: string;
   onAbrirJugador?: (indice: number) => void;
-  /** La clase de cada hoja de impresión: la ficha ampliada ocupa dos. */
+  /** La clase de la hoja de impresión. */
   claseHoja?: string;
-  /** El equipo del encaje, si lo lleva quien monta la página (el diálogo de imprimir lo nombra). */
-  equipoEncaje?: string;
-  onEquipoEncaje?: (equipo: string) => void;
-  /** Sin la tercera hoja: en el PDF el encaje es opcional. En pantalla siempre está. */
-  sinHojaDeEncaje?: boolean;
 }) {
   // El Top 10 y los parecidos: su liga, y las que se añadan.
   const [ligasExtra, setLigasExtra] = useState<string[]>([]);
@@ -60,23 +58,18 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
   const [familiaTop, setFamiliaTop] = useState("progresion");
   // El mapa de recepciones y su reparto se agrupan igual: cambiar uno cambia los dos.
   const [agruparRecepciones, setAgruparRecepciones] = useState("tipo");
-  // El equipo con el que se mide el encaje; vacío, Cavalry.
-  const [equipoPropio, setEquipoPropio] = useState("");
-  const equipoEncaje = onEquipoEncaje ? equipoDeFuera ?? "" : equipoPropio;
-  const setEquipoEncaje = onEquipoEncaje ?? setEquipoPropio;
-  const totalHojas = sinHojaDeEncaje ? 2 : 3;
   const pieza = (id: IdPieza) => <PiezaFicha pieza={id} datos={datos} />;
 
-  const cabecera = (hoja: number) => <header className={hoja > 1 ? "snap-cabecera-continuacion" : undefined}>
+  const cabecera = <header>
     <div>
-      <Antetitulo>{hoja > 1 ? tf("STATSBOMB · FICHA AMPLIADA · {n} DE {total}", { n: hoja, total: totalHojas }) : t("STATSBOMB · FICHA AMPLIADA")}</Antetitulo>
+      <Antetitulo>{t("STATSBOMB · FICHA AMPLIADA")}</Antetitulo>
       <h2>{datos.jugador}</h2>
       <p>{datos.marco?.modo === "liga"
         ? tf("Familias contra {n} {grupo} de su liga y temporada ({marco}), con al menos {m} minutos.", { n: datos.grupo.indices.length, grupo: datos.nombreGrupo.toLowerCase(), m: minutosMin, marco: datos.marco.texto })
         : datos.marco
           ? tf("Familias contra {n} {grupo} de la base cargada, con al menos {m} minutos: su liga ({marco}) solo tiene {k} de su puesto, pocos para un grupo propio.", { n: datos.grupo.indices.length, grupo: datos.nombreGrupo.toLowerCase(), m: minutosMin, marco: datos.marco.texto, k: datos.marco.enSuLiga })
           : tf("Familias contra {n} {grupo} de la base cargada, con al menos {m} minutos.", { n: datos.grupo.indices.length, grupo: datos.nombreGrupo.toLowerCase(), m: minutosMin })}</p>
-      {hoja === 1 && susLigas.length > 0 && otrasLigas.length > 0 && <div className="snap-ligas" role="group" aria-label={t("Ligas del Top 10 y de los parecidos")}>
+      {susLigas.length > 0 && otrasLigas.length > 0 && <div className="snap-ligas" role="group" aria-label={t("Ligas del Top 10 y de los parecidos")}>
         <span>{t("Top 10 y parecidos")}</span>
         <b className="snap-liga propia">{marcoConNivel(susLigas, feedOpta)}</b>
         {ligasExtra.map((liga) => <button key={liga} type="button" className="snap-liga" onClick={() => setLigasExtra((actuales) => actuales.filter((x) => x !== liga))}
@@ -91,75 +84,53 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
   </header>;
   const pie = <PieDeReporte asunto={datos.jugador} destinatario={destinatario} logo={logoDestinatario} />;
 
-  // Tres hojas: con las recepciones, todo junto no cabe en una Legal ni
-  // reducido al mínimo legible. En pantalla se leen seguidas —la cabecera de
-  // la segunda y el pie de la primera solo salen al imprimir—; en el PDF, cada
-  // una con su marco y su pie, como Ficha y radar.
-  return <>
-    <div className={claseHoja}>
-      <section className="snap-page snap-hoja-1">
-        {cabecera(1)}
-        {datos.estado && <p className="snap-estado" role="status">{datos.estado}</p>}
 
-        <div className="snap-fila snap-fila-1">
-          <div className="snap-columna">
-            {pieza("ficha")}
-            {pieza("tabla")}
-          </div>
+  return <div className={claseHoja}>
+    <section className="snap-page snap-hoja-unica">
+      {cabecera}
+      {datos.estado && <p className="snap-estado" role="status">{datos.estado}</p>}
+
+      {/* Quién es: la ficha y sus familias; el Top 10 con sus pases debajo; dónde juega y quién se la da. */}
+      <div className="snap-fila snap-una-1">
+        <div className="snap-columna">
+          {pieza("ficha")}
+          {pieza("tabla")}
+        </div>
+        <div className="snap-columna">
           <PiezaFicha pieza="top10" datos={datos} opcion={familiaTop} onOpcion={setFamiliaTop} />
+          <div className="snap-pareja">
+            {pieza("pases_inicio")}
+            {pieza("pases_fin")}
+          </div>
+        </div>
+        <div className="snap-columna">
           {pieza("puestos")}
-        </div>
-
-        <div className="snap-fila snap-fila-2">
-          {pieza("parecidos")}
-          {pieza("tiros")}
-          {pieza("ocasiones")}
-          {pieza("regates")}
-        </div>
-
-        <div className="snap-fila snap-fila-roles">
-          {pieza("roles")}
-        </div>
-        {pie}
-      </section>
-    </div>
-
-    <div className={claseHoja}>
-      <section className="snap-page snap-hoja-2">
-        {cabecera(2)}
-        <div className="snap-fila snap-fila-3">
-          {pieza("pases_inicio")}
-          {pieza("pases_fin")}
-          {pieza("calor")}
-          {pieza("defensa")}
-        </div>
-
-        <div className="snap-fila snap-fila-3 snap-fila-recepciones">
-          <PiezaFicha pieza="recepciones" datos={datos} opcion={agruparRecepciones} onOpcion={setAgruparRecepciones} />
-          <PiezaFicha pieza="recepciones_tipo" datos={datos} opcion={agruparRecepciones} onOpcion={setAgruparRecepciones} />
-          {pieza("recepciones_origen")}
           {pieza("recepciones_pasadores")}
         </div>
+      </div>
 
-        <div className="snap-fila snap-fila-4">
-          {pieza("enjambres")}
-          {pieza("dispersion")}
+      {/* Qué hace con el balón: tiros y ocasiones con la jugada debajo, y los regates. */}
+      <div className="snap-fila snap-una-2">
+        {pieza("parecidos")}
+        <div className="snap-columna snap-acciones">
+          <div className="snap-pareja">
+            {pieza("tiros")}
+            {pieza("ocasiones")}
+          </div>
+          {pieza("roles")}
         </div>
-        {pie}
-      </section>
-    </div>
+        {pieza("regates")}
+      </div>
 
-    {/* Tercera hoja: si encaja en un equipo. Es la conclusión de las otras
-        dos, así que va al final. En el PDF es opcional: un informe que sale
-        hacia fuera no siempre debe decir para qué equipo se mira al jugador. */}
-    {!sinHojaDeEncaje && <div className={claseHoja}>
-      <section className="snap-page snap-hoja-3">
-        {cabecera(3)}
-        <div className="snap-fila snap-fila-encaje">
-          <PiezaFicha pieza="encaje" datos={datos} opcion={equipoEncaje} onOpcion={setEquipoEncaje} />
-        </div>
-        {pie}
-      </section>
-    </div>}
-  </>;
+      {/* Dónde lo hace y cómo le llega. */}
+      <div className="snap-fila snap-una-3">
+        {pieza("calor")}
+        {pieza("defensa")}
+        <PiezaFicha pieza="recepciones" datos={datos} opcion={agruparRecepciones} onOpcion={setAgruparRecepciones} />
+        <PiezaFicha pieza="recepciones_tipo" datos={datos} opcion={agruparRecepciones} onOpcion={setAgruparRecepciones} />
+        {pieza("recepciones_origen")}
+      </div>
+      {pie}
+    </section>
+  </div>;
 }

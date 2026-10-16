@@ -602,7 +602,13 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
        */
       const dorsal = eventos?.dorsal || perfilTm?.number || "";
       const iniciales = jugador.split(/\s+/).map((p) => p[0]).slice(0, 2).join("");
-      const minutosTemporada = Number(rows[indice]?.["Minutes played"]) || informe.minutes;
+      // Todo de la temporada que se mira: el informe puede sumar dos temporadas
+      // (el radar se mide con las dos) y salía "54 partidos · 2.451 minutos".
+      const deLaTemporada = (columna: string, respaldo: number) => {
+        const valor = Number(rows[indice]?.[columna]);
+        return Number.isFinite(valor) && rows[indice]?.[columna] !== "" ? valor : respaldo;
+      };
+      const minutosTemporada = deLaTemporada("Minutes played", informe.minutes);
       const dato = (valor: unknown) => (valor === undefined || valor === null || valor === "" || valor === "—" ? "—" : String(valor));
       return <div className="snap-ficha">
         <div className="snap-retrato">
@@ -636,10 +642,10 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
           </dl>
         </div>
         <div className="snap-retrato-franja">
-          <div><b>{num(informe.matches)}</b><span>{t("Partidos")}</span></div>
+          <div><b>{num(deLaTemporada("Matches played", informe.matches))}</b><span>{t("Partidos")}</span></div>
           <div><b>{num(minutosTemporada)}</b><span>{t("Minutos")}</span></div>
-          <div className="goles"><b>{num(informe.goals)}</b><span>{t("Goles")}</span></div>
-          <div className="asistencias"><b>{num(informe.assists)}</b><span>{t("Asist.")}</span></div>
+          <div className="goles"><b>{num(deLaTemporada("Goals", informe.goals))}</b><span>{t("Goles")}</span></div>
+          <div className="asistencias"><b>{num(deLaTemporada("Assists", informe.assists))}</b><span>{t("Asist.")}</span></div>
           <div className="snap-retrato-anillo" style={{ "--score": `${informe.score * 3.6}deg` } as CSSProperties}><b>{informe.score}</b><span>{t("Índice")}</span></div>
         </div>
       </div>;
@@ -963,6 +969,7 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
           <ul className="snap-roles-leyenda">
             {ROLES_SECUENCIA.map((rol) => <li key={rol.id}><b>{t(rol.etiqueta)}</b> {t(rol.descripcion)}</li>)}
           </ul>
+          <p className="snap-roles-clave">{t("Tamaño: qué parte de su juego es ese papel · color y cifra: su percentil frente a los de su puesto.")}</p>
           <p className="snap-roles-nota">{t("Cada vez que toca el balón en una jugada de su equipo cuenta un solo papel, el primero que cumple: remate, inicio, pase largo, progresión, conducción, apoyo, enlace, control. Tamaño: qué parte de su juego es ese papel. Color y cifra: su percentil en ese papel frente a los de su puesto.")}</p>
         </>}
       </Tarjeta>;
