@@ -11,7 +11,7 @@ import { cambioDeDibujo, type ChoqueDeZona, type CruceDeEstilo, crucesDeEstilo, 
 import { cambiosRecientes, FASES, fasesDeLiga, formaReciente, lecturaDe, lecturaDeFases, type LecturaDeMetrica, type MetricaDeFase } from "@/lib/fases";
 import { DIBUJOS, SITIO, consejosDePizarra, oncePara, puestosDe, type Consejo } from "@/lib/pizarra";
 import { normalizarNombre, useCatalogo, useFormaDeLiga, usePlantelDeLiga, useSkillcornerDeLiga, type JugadorDePlantel } from "./useTemporadaDeLiga";
-import { buscadorDeFisico, conSkillcorner, valoresSkillcorner } from "@/lib/skillcornerPartido";
+import { buscadorDeFisico, conSkillcorner, valoresSkillcorner, type FisicoDeJugador } from "@/lib/skillcornerPartido";
 import { emparejar, mediasDeDuelo, mejorParaElDuelo, probabilidadAerea, probabilidadDeRegate, regateMedio, sitioEnPizarra, tasas, VALIDACION_DUELOS, type PerfilDeDuelo } from "@/lib/duelos";
 
 /**
@@ -154,16 +154,24 @@ type Arrastre = { lado: Lado; origen: "banca" | "puesto"; valor: string | number
 /** El nombre de la plantilla, contra el de los titulares: StatsBomb a veces los escribe distinto. */
 const mismoJugador = (x: string, y: string) => normalizarNombre(x) === normalizarNombre(y);
 
-function FichaDeJugador({ lado, codigo, nombre, jugador, x, y, seleccionada, onTocar, onSoltar, onArrastrar }: {
+function FichaDeJugador({ lado, codigo, nombre, jugador, fisico, x, y, seleccionada, onTocar, onSoltar, onArrastrar }: {
   lado: Lado; codigo: string; nombre: string | null; jugador: JugadorDePlantel | null; x: number; y: number;
+  /** Su físico de SkillCorner, si su liga lo publica: la velocidad punta va bajo el nombre. */
+  fisico: FisicoDeJugador | null;
   seleccionada: boolean; onTocar: () => void; onSoltar: (evento: DragEvent) => void; onArrastrar: (evento: DragEvent) => void;
 }) {
+  const extras = fisico ? [
+    `${t("velocidad punta")} ${decimal(fisico.psv99, 1)} km/h`,
+    Number.isFinite(fisico.sprints) ? `${decimal(fisico.sprints, 1)} ${t("sprints/90")}` : "",
+    Number.isFinite(fisico.rupturas) ? `${decimal(fisico.rupturas, 1)} ${t("rupturas/30")}` : "",
+  ].filter(Boolean).join(" · ") : "";
   return <button type="button" className={`pizarra-ficha ${lado}${seleccionada ? " elegida" : ""}${nombre ? "" : " vacia"}`}
     style={{ left: `${(x + 2) / 124 * 100}%`, top: `${(y + 2) / 84 * 100}%` } as CSSProperties}
     draggable={Boolean(nombre)} onDragStart={onArrastrar} onDragOver={(evento) => evento.preventDefault()} onDrop={onSoltar} onClick={onTocar}
-    title={nombre ? `${nombre} · ${codigo}${jugador?.minutos ? ` · ${Math.round(jugador.minutos)}′` : ""}${jugador?.indice != null ? ` · ${t("índice")} ${jugador.indice}` : ""}` : codigo}>
+    title={nombre ? `${nombre} · ${codigo}${jugador?.minutos ? ` · ${Math.round(jugador.minutos)}′` : ""}${jugador?.indice != null ? ` · ${t("índice")} ${jugador.indice}` : ""}${extras ? ` · ${extras}` : ""}` : codigo}>
     <i>{jugador?.indice != null ? jugador.indice : codigo}</i>
     <span>{nombre ? apellido(nombre) : codigo}</span>
+    {fisico && nombre && <small className="pizarra-velocidad">{`${decimal(fisico.psv99, 1)} km/h`}</small>}
   </button>;
 }
 
@@ -606,7 +614,7 @@ export function ElPartido({ a, b, claseHoja = "legal-page-shell", pie = null }: 
             const x = codigo === "GK" ? (cual === "a" ? 3 : 117) : cual === "a" ? 10 + d : 110 - d;
             const y = cual === "a" ? w : 80 - w;
             const nombre = l.once[i] ?? null;
-            return <FichaDeJugador key={`${cual}-${i}`} lado={cual} codigo={codigo} nombre={nombre} jugador={jugadorDe(l.lado, nombre)} x={x} y={y}
+            return <FichaDeJugador key={`${cual}-${i}`} lado={cual} codigo={codigo} nombre={nombre} jugador={jugadorDe(l.lado, nombre)} fisico={nombre ? l.lado.fisicoDe(nombre) : null} x={x} y={y}
               seleccionada={seleccion?.lado === cual && seleccion.origen === "puesto" && seleccion.valor === i}
               onArrastrar={(evento) => empezar(evento, { lado: cual, origen: "puesto", valor: i })}
               onSoltar={(evento) => { evento.preventDefault(); const origen = leerArrastre(evento); if (origen && origen.lado === cual) mover(cual, origen, { tipo: "puesto", indice: i }); }}
@@ -617,7 +625,7 @@ export function ElPartido({ a, b, claseHoja = "legal-page-shell", pie = null }: 
           });
         })}
       </div>
-      <p className="partido-nota">{tf("{a} ataca hacia la derecha y {b} hacia la izquierda: los delanteros de uno caen sobre los centrales del otro. En cada ficha, su índice en su liga. Arrastra un jugador del plantel a un puesto (o tócalo y luego toca el puesto); dos fichas se cambian entre sí; arrastrar una ficha al plantel la saca.", { a: a.equipo, b: b.equipo })}</p>
+      <p className="partido-nota">{tf("{a} ataca hacia la derecha y {b} hacia la izquierda: los delanteros de uno caen sobre los centrales del otro. En cada ficha, su índice en su liga y, en verde, su velocidad punta de SkillCorner si su liga lo publica. Arrastra un jugador del plantel a un puesto (o tócalo y luego toca el puesto); dos fichas se cambian entre sí; arrastrar una ficha al plantel la saca.", { a: a.equipo, b: b.equipo })}</p>
       <div className="pizarra-duelos">
         <h5>{t("Duelos clave")}</h5>
         <ol>

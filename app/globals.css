@@ -7338,3 +7338,7 @@ body.print-layout-check .legal-page-shell:has([data-hoja-vacia]) { display: none
 .app-shell[data-tema] .choque-leyenda .a::before { background: var(--partido-a); }
 .app-shell[data-tema] .choque-leyenda .b::before { background: #f5f5f7; box-shadow: 0 0 0 1px #0b131b; }
 .app-shell[data-tema] .choque-leyenda small { margin-left: auto; color: var(--muted); font-size: 11px; }
+
+/* La velocidad punta (SkillCorner) bajo el nombre de cada ficha de la pizarra. */
+.app-shell[data-tema] .pizarra-ficha > small.pizarra-velocidad { margin-top: 1px; padding: 0 4px; border-radius: 3px; background: rgba(18, 196, 139, .9); color: #04130d; font-size: 8px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.35; white-space: nowrap; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+@media screen and (max-width: 640px) { .app-shell[data-tema] .pizarra-ficha > small.pizarra-velocidad { display: none; } }
