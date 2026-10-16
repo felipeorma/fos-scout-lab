@@ -435,6 +435,12 @@ _SB_METRICS = {
     "PAdj clearances (SB)": ("player_season_padj_clearances_90", 1),
     "Pressure regains (SB)": ("player_season_pressure_regains_90", 1),
     "Counterpressure regains (SB)": ("player_season_counterpressure_regains_90", 1),
+    # Para los duelos de la pizarra (lib/duelos.ts): cuántos regates intenta y
+    # completa, cuántas veces le regatean, y cuánto pierde el balón.
+    "Dribble success % (SB)": ("player_season_dribble_ratio", 100),
+    "Dribbled past (SB)": ("player_season_dribbled_past_90", 1),
+    "Turnovers (SB)": ("player_season_turnovers_90", 1),
+    "Dispossessed (SB)": ("player_season_dispossessions_90", 1),
 }
 
 
@@ -1210,7 +1216,6 @@ _FORMA_VERSION = 1
 _YARDA = 0.9144
 _DEFENSIVAS = {"Interception", "Ball Recovery", "Block", "Clearance", "Foul Committed"}
 _SIN_JUEGO = {"Goal Kick", "Corner", "Free Kick", "Throw-in", "Kick Off"}
-_sin_360 = set()  # competiciones sin 360 en la suscripción: no se vuelve a pedir
 
 
 def _cuantil(xs, q):
@@ -1327,14 +1332,15 @@ def _forma_de_eventos(eventos, frames):
     return salida
 
 
-def _sb_forma_partido(match_id: int, competition_id: int, auth):
+def _sb_forma_partido(match_id: int, con_360: bool, auth):
     """La forma de los dos equipos en un partido: {team_id: {...}}. Baja eventos (y 360) una vez y guarda solo el resumen."""
     import json as _json
     ruta = _SB_EVENTS_CACHE_DIR / f"forma-{int(match_id)}.json"
     if ruta.exists():
         try:
             guardado = _json.loads(ruta.read_text(encoding="utf-8"))
-            if guardado.get("v") == _FORMA_VERSION:
+            # Si el partido tiene 360 y lo guardado se hizo sin él, se rehace.
+            if guardado.get("v") == _FORMA_VERSION and (guardado.get("con360") or not con_360):
                 return {int(k): v for k, v in guardado["equipos"].items()}
         except Exception:
             pass
@@ -1346,13 +1352,13 @@ def _sb_forma_partido(match_id: int, competition_id: int, auth):
     except Exception:
         return None
     frames = None
-    if competition_id not in _sin_360:
+    # Solo si el partido declara 360 (match_status_360 = available): la CPL no
+    # lo tiene (StatsBomb no lo recoge); MLS Next Pro y USL, sí.
+    if con_360:
         try:
             r3 = _requests.get(f"https://data.statsbomb.com/api/v2/360-frames/{int(match_id)}", auth=auth, timeout=120)
             if r3.status_code == 200:
                 frames = r3.json()
-            elif r3.status_code in (401, 403, 404):
-                _sin_360.add(competition_id)
         except Exception:
             frames = None
     # Ya con los eventos, lo que también sale de ellos se guarda de paso.
@@ -1385,7 +1391,7 @@ def statsbomb_team_shape(competition_id: int, season_id: int):
                            f"https://data.statsbomb.com/api/v6/competitions/{competition_id}/seasons/{season_id}/matches", auth, ttl_seconds=1800)
     jugados = [p for p in partidos if p.get("home_score") is not None and p.get("away_score") is not None]
     with ThreadPoolExecutor(max_workers=6) as pool:
-        formas = list(pool.map(lambda p: _sb_forma_partido(p["match_id"], competition_id, auth), jugados))
+        formas = list(pool.map(lambda p: _sb_forma_partido(p["match_id"], str(p.get("match_status_360")) == "available", auth), jugados))
     salida, fallidos, con360 = [], 0, 0
     for p, forma in zip(jugados, formas):
         if not forma:
@@ -1924,7 +1930,7 @@ def statsbomb_player_stats(competition_id: int, season_id: int):
     auth = _statsbomb_auth()
     if not auth:
         return Response('{"error": "sin credenciales"}', status_code=503, media_type="application/json", headers=cors_headers())
-    clave_disco = f"sb2-{competition_id}-{season_id}"
+    clave_disco = f"sb3-{competition_id}-{season_id}"
     guardadas = _pool_cache_leer(
         clave_disco,
         _POOL_TTL_CERRADA if _temporada_cerrada_sb(competition_id, season_id, auth) else None,

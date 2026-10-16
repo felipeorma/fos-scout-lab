@@ -14,6 +14,7 @@ import {
 import { fusionarSkillcorner, type FilaEquipo } from "@/lib/estiloEquipo";
 import { aggregateDatasets, buildPlayerReport, numeric, type CellValue } from "@/lib/scouting";
 import type { LigaForma } from "@/lib/fases";
+import type { PerfilDeDuelo } from "@/lib/duelos";
 
 /*
  * Lo que necesita Estilo de juego de CUALQUIER liga y temporada de StatsBomb,
@@ -85,7 +86,26 @@ export function useFormaDeLiga(competicion: number | null, temporada: number | n
   return useRecurso<LigaForma>(clave, () => fetchFormaDeLiga(competicion!, temporada!));
 }
 
-export type JugadorDePlantel = { nombre: string; equipo: string; posicion: string; minutos: number; indice: number | null; perfil: string };
+export type JugadorDePlantel = { nombre: string; equipo: string; posicion: string; minutos: number; indice: number | null; perfil: string; duelo: PerfilDeDuelo | null };
+
+const cifra = (valor: unknown) => numeric(valor as CellValue);
+
+/** Sus números de duelo (StatsBomb), o null si la base no los trae. */
+function perfilDeDuelo(fila: Record<string, unknown>, minutos: number): PerfilDeDuelo | null {
+  const regatePct = cifra(fila["Dribble success % (SB)"]) / 100;
+  const frenaPct = cifra(fila["Tackle dribbled past % (SB)"]) / 100;
+  const aereoPct = cifra(fila["Aerial win % (SB)"]) / 100;
+  if (![regatePct, frenaPct, aereoPct].some(Number.isFinite)) return null;
+  return {
+    minutos,
+    regates90: cifra(fila["Successful dribbles (SB)"]),
+    regatePct,
+    regateado90: cifra(fila["Dribbled past (SB)"]),
+    frenaPct,
+    aereos90: cifra(fila["Aerial wins (SB)"]),
+    aereoPct,
+  };
+}
 
 export const normalizarNombre = (nombre: string) => sinTildes(nombre).replace(/[^a-z ]/g, " ").replace(/\s+/g, " ").trim();
 
@@ -101,13 +121,15 @@ export function usePlantelDeLiga(competicion: ApiCompetition | null) {
     const { rows } = aggregateDatasets([base]);
     return rows.map((fila, indice) => {
       const informe = buildPlayerReport(rows, indice, 500, "AUTO", null, { rescate: true });
+      const minutos = numeric(fila["Minutes played"] as CellValue) || 0;
       return {
         nombre: String(fila.Player ?? ""),
         equipo: String(fila.Team ?? ""),
         posicion: String(fila.Position ?? ""),
-        minutos: numeric(fila["Minutes played"] as CellValue) || 0,
+        minutos,
         indice: informe?.metrics.length ? informe.indice : null,
         perfil: informe?.cohort ?? "",
+        duelo: perfilDeDuelo(fila, minutos),
       };
     });
   });

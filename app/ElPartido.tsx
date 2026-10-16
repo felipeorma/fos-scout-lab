@@ -35,6 +35,7 @@ import {
 import { FASES, fasesDeLiga, formaReciente, lecturaDe, lecturaDeFases, type LecturaDeMetrica, type MetricaDeFase } from "@/lib/fases";
 import { DIBUJOS, SITIO, consejosDePizarra, oncePara, puestosDe, type Consejo } from "@/lib/pizarra";
 import { normalizarNombre, useCatalogo, useFormaDeLiga, usePlantelDeLiga, type JugadorDePlantel } from "./useTemporadaDeLiga";
+import { emparejar, mediasDeDuelo, mejorParaElDuelo, probabilidadAerea, probabilidadDeRegate, sitioEnPizarra, tasas, type PerfilDeDuelo } from "@/lib/duelos";
 
 /**
  * El partido: el informe de un rival como lo prepara un cuerpo técnico.
@@ -134,13 +135,18 @@ function useLadoDelPartido(perfil: PerfilEquipo) {
     for (const p of datos?.suyos ?? []) for (const [puesto, nombre] of p.titulares) {
       if (!vistos.has(normalizarNombre(nombre))) {
         vistos.add(normalizarNombre(nombre));
-        deSuEquipo.push({ nombre, equipo: perfil.equipo, posicion: puesto, minutos: 0, indice: null, perfil: "" });
+        deSuEquipo.push({ nombre, equipo: perfil.equipo, posicion: puesto, minutos: 0, indice: null, perfil: "", duelo: null });
       }
     }
     return deSuEquipo.sort((x, y) => y.minutos - x.minutos);
   }, [plantel.datos, perfil.equipo, datos]);
+  // Las medias de duelo de su liga: la base contra la que se mide cada jugador.
+  const mediasDuelo = useMemo(
+    () => mediasDeDuelo((plantel.datos ?? []).map((j) => j.duelo).filter((d): d is PerfilDeDuelo => d !== null)),
+    [plantel.datos],
+  );
   return {
-    partes, liga, datos, jugadores, error, cargando,
+    partes, liga, datos, jugadores, error, cargando, mediasDuelo,
     formaCargando: forma.cargando, con360: (forma.datos?.con360 ?? 0) > 0, formaError: forma.error,
     plantelCargando: plantel.cargando,
   };
@@ -298,6 +304,36 @@ export function ElPartido({ a, b, claseHoja = "legal-page-shell", pie = null }: 
     evento.dataTransfer.setData("text/plain", JSON.stringify(arrastre));
     evento.dataTransfer.effectAllowed = "move";
   };
+
+  // ---- Los duelos que pone el dibujo ----
+  const estaEn = (once: Array<string | null>) => (nombre: string) => once.some((n) => n !== null && mismoJugador(n, nombre));
+  const duelos = useMemo(() => emparejar(puestosA, puestosB).map((par) => {
+    const atacaA = par.ataca === "a";
+    const ladoAtaca = atacaA ? ladoA : ladoB;
+    const ladoDefiende = atacaA ? ladoB : ladoA;
+    const nombreAtacante = (atacaA ? onceA : onceB)[par.puestoAtacante] ?? null;
+    const nombreDefensor = (atacaA ? onceB : onceA)[par.puestoDefensor] ?? null;
+    const atacante = jugadorDe(ladoAtaca, nombreAtacante);
+    const defensor = jugadorDe(ladoDefiende, nombreDefensor);
+    const da = atacante?.duelo ?? null;
+    const dd = defensor?.duelo ?? null;
+    const regate = da && dd ? probabilidadDeRegate(da, ladoAtaca.mediasDuelo, dd, ladoDefiende.mediasDuelo) : Number.NaN;
+    const aereo = par.tipos.includes("aereo") && da && dd ? probabilidadAerea(da, ladoAtaca.mediasDuelo, dd, ladoDefiende.mediasDuelo) : Number.NaN;
+    // El cambio que más ayuda a NUESTRO equipo (A) en este duelo, del plantel que no está en la cancha.
+    const sugerencia = atacaA
+      ? (dd ? mejorParaElDuelo(puestosA[par.puestoAtacante], nombreAtacante, ladoA.jugadores, estaEn(onceA),
+        (perfil) => probabilidadDeRegate(perfil, ladoA.mediasDuelo, dd, ladoB.mediasDuelo)) : null)
+      : (da ? mejorParaElDuelo(puestosA[par.puestoDefensor], nombreDefensor, ladoA.jugadores, estaEn(onceA),
+        (perfil) => 1 - probabilidadDeRegate(da, ladoB.mediasDuelo, perfil, ladoA.mediasDuelo)) : null);
+    // Para A: lo que gana en el duelo (si ataca, su regate; si defiende, frenar el del rival).
+    const paraA = Number.isFinite(regate) ? (atacaA ? regate : 1 - regate) : Number.NaN;
+    return {
+      par, atacaA, atacante, defensor, nombreAtacante, nombreDefensor, regate, aereo, paraA, sugerencia,
+      tasaAtacante: da ? tasas(da, ladoAtaca.mediasDuelo) : null,
+      tasaDefensor: dd ? tasas(dd, ladoDefiende.mediasDuelo) : null,
+      mediaAtacante: ladoAtaca.mediasDuelo, mediaDefensor: ladoDefiende.mediasDuelo,
+    };
+  }), [puestosA, puestosB, onceA, onceB, ladoA, ladoB]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- Lo que sale de la pizarra y de los datos ----
   const consejos = useMemo(() => consejosDePizarra(puestosA, puestosB, {
@@ -475,6 +511,12 @@ export function ElPartido({ a, b, claseHoja = "legal-page-shell", pie = null }: 
           <circle cx={60} cy={40} r={9.15} {...CAL} />
           <rect x={0} y={18} width={18} height={44} {...CAL} />
           <rect x={102} y={18} width={18} height={44} {...CAL} />
+          {duelos.map((d, i) => {
+            const [x1, y1] = sitioEnPizarra((d.atacaA ? puestosA : puestosB)[d.par.puestoAtacante], d.atacaA ? "a" : "b");
+            const [x2, y2] = sitioEnPizarra((d.atacaA ? puestosB : puestosA)[d.par.puestoDefensor], d.atacaA ? "b" : "a");
+            const tono = !Number.isFinite(d.paraA) ? "igual" : d.paraA >= 0.55 ? "nuestro" : d.paraA <= 0.45 ? "suyo" : "igual";
+            return <line key={i} className={`pizarra-duelo ${tono}`} x1={x1} y1={y1} x2={x2} y2={y2} />;
+          })}
         </svg>
         {(["b", "a"] as const).map((cual) => {
           const l = lados[cual];
@@ -495,6 +537,40 @@ export function ElPartido({ a, b, claseHoja = "legal-page-shell", pie = null }: 
         })}
       </div>
       <p className="partido-nota">{tf("{a} ataca hacia la derecha y {b} hacia la izquierda: los delanteros de uno caen sobre los centrales del otro. En cada ficha, su índice en su liga. Arrastra un jugador del plantel a un puesto (o tócalo y luego toca el puesto); dos fichas se cambian entre sí; arrastrar una ficha al plantel la saca.", { a: a.equipo, b: b.equipo })}</p>
+      <div className="pizarra-duelos">
+        <h5>{t("Duelos clave")}</h5>
+        <ol>
+          {[...duelos].filter((d) => Number.isFinite(d.paraA)).sort((x, y) => Math.abs(y.paraA - 0.5) - Math.abs(x.paraA - 0.5)).map((d, i) => {
+            const tono = d.paraA >= 0.55 ? "nuestro" : d.paraA <= 0.45 ? "suyo" : "igual";
+            const atac = d.nombreAtacante ?? "—";
+            const def = d.nombreDefensor ?? "—";
+            const puestoNuestro = d.atacaA ? d.par.puestoAtacante : d.par.puestoDefensor;
+            return <li key={i} className={tono}>
+              <b>{d.atacaA
+                ? tf("{x} encara a {y}", { x: apellido(atac), y: apellido(def) })
+                : tf("{y} frena a {x}", { x: apellido(atac), y: apellido(def) })}
+                <em>{pct(d.paraA)}</em></b>
+              <span>{tf("Regate: {x} completa el {pa} (su liga {la}); {y} frena el {pd} (su liga {ld}). Intenta ≈{n} por partido.", {
+                x: apellido(atac), y: apellido(def),
+                pa: pct(d.tasaAtacante?.regate ?? Number.NaN), la: pct(d.mediaAtacante.regate),
+                pd: pct(d.tasaDefensor?.frena ?? Number.NaN), ld: pct(d.mediaDefensor.frena),
+                n: decimal(d.tasaAtacante?.intentosRegate90 ?? Number.NaN),
+              })}</span>
+              {Number.isFinite(d.aereo) && <span>{tf("Juego aéreo: {p} para {x} ({pa} contra {pd} de aéreos ganados).", {
+                p: pct(d.aereo), x: apellido(atac), pa: pct(d.tasaAtacante?.aereo ?? Number.NaN), pd: pct(d.tasaDefensor?.aereo ?? Number.NaN),
+              })}</span>}
+              {d.sugerencia && <button type="button" className="pizarra-sugerencia"
+                onClick={() => mover("a", { lado: "a", origen: "banca", valor: d.sugerencia!.jugador.nombre }, { tipo: "puesto", indice: puestoNuestro })}>
+                {tf("Probar a {j}: {p} ({g})", { j: d.sugerencia.jugador.nombre, p: pct(d.sugerencia.valor), g: `+${Math.round(d.sugerencia.ganancia * 100)}` })}
+              </button>}
+            </li>;
+          })}
+        </ol>
+        <p className="partido-nota">{[
+          t("Cada atacante contra el defensor que le queda enfrente en la pizarra. La probabilidad es para tu equipo: ganar el regate si ataca, frenarlo si defiende. Log5 con las tasas de cada uno en su temporada, encogidas hacia la media de su liga según los intentos que las sostienen. «Probar a» propone a quien del plantel lo haría mejor en ese duelo (450′ o más y su puesto habitual cerca); un toque lo pone."),
+          !mismaLiga ? t("De ligas o temporadas distintas: la tasa de cada uno es contra rivales de su liga, sin ajustar por nivel.") : "",
+        ].filter(Boolean).join(" ")}</p>
+      </div>
       <div className="pizarra-bancas">
         {(["a", "b"] as const).map((cual) => {
           const l = lados[cual];

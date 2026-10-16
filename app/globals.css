@@ -7029,3 +7029,24 @@ body.print-layout-check .legal-page-shell:has([data-hoja-vacia]) { display: none
   body:not(.print-layout-check) :is(.partido-hoja-1, .partido-hoja-2, .partido-hoja-3, .estilo-hoja-flujo) > .visual-page-footer { display: none; }
   body:not(.print-layout-check) .app-shell[data-tema] .estilo-page.estilo-hoja-partido { margin-top: 0; margin-bottom: 0; padding-top: 6px; padding-bottom: 6px; }
 }
+
+/* Duelos de la pizarra: líneas entre cada pareja y la lista con su probabilidad. */
+.app-shell[data-tema] .pizarra-duelo { stroke-width: .55; stroke-dasharray: 1.4 1; stroke-linecap: round; opacity: .9; }
+.app-shell[data-tema] .pizarra-duelo.nuestro { stroke: #32d583; }
+.app-shell[data-tema] .pizarra-duelo.suyo { stroke: #ff6961; }
+.app-shell[data-tema] .pizarra-duelo.igual { stroke: rgba(245, 245, 247, .45); }
+.app-shell[data-tema] .pizarra-duelos { margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); }
+.app-shell[data-tema] .pizarra-duelos h5 { margin: 0 0 8px; color: var(--ink); font-size: 13.5px; font-weight: 600; }
+.app-shell[data-tema] .pizarra-duelos ol { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 14px; }
+.app-shell[data-tema] .pizarra-duelos li { padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, var(--ink) 4%, transparent); box-shadow: inset 3px 0 0 rgba(245,245,247,.35); display: flex; flex-direction: column; gap: 3px; }
+.app-shell[data-tema] .pizarra-duelos li.nuestro { box-shadow: inset 3px 0 0 #32d583; }
+.app-shell[data-tema] .pizarra-duelos li.suyo { box-shadow: inset 3px 0 0 #ff6961; }
+.app-shell[data-tema] .pizarra-duelos li b { display: flex; justify-content: space-between; gap: 8px; color: var(--ink); font-size: 12.5px; }
+.app-shell[data-tema] .pizarra-duelos li b em { font-style: normal; font-variant-numeric: tabular-nums; }
+.app-shell[data-tema] .pizarra-duelos li.nuestro b em { color: #32d583; }
+.app-shell[data-tema] .pizarra-duelos li.suyo b em { color: #ff6961; }
+.app-shell[data-tema] .pizarra-duelos li span { color: var(--muted); font-size: 11px; line-height: 1.4; }
+.app-shell[data-tema] .pizarra-sugerencia { align-self: flex-start; margin-top: 3px; padding: 4px 10px; border: 1px solid color-mix(in srgb, #32d583 50%, transparent); border-radius: 999px; background: color-mix(in srgb, #32d583 12%, transparent); color: var(--ink); font-family: inherit; font-size: 11.5px; cursor: pointer; }
+.app-shell[data-tema="claro"] .pizarra-duelo.igual { stroke: rgba(11, 19, 27, .4); }
+@media (max-width: 760px) { .app-shell[data-tema] .pizarra-duelos ol { grid-template-columns: 1fr; } }
+@media print { .pizarra-sugerencia { display: none !important; } }
