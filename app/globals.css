@@ -5684,12 +5684,22 @@ button.menu-fila:active { transform: scale(.985); }
 .rosa-estilo { display: block; width: 100%; height: auto; }
 .app-shell[data-tema] .rosa-anillo { fill: none; stroke: var(--line); stroke-width: 1; }
 .app-shell[data-tema] .rosa-anillo.mediana { stroke: color-mix(in srgb, var(--ink) 40%, transparent); stroke-dasharray: 4 4; }
-.app-shell[data-tema] .rosa-radio { stroke: var(--line); stroke-width: .8; }
+/* Los efectos del radar de jugadores (PizzaRadar.tsx): pista tenue, cuña en
+   degradado, anillo de color y píldora oscura. Mismas tintas, claro y oscuro. */
+.app-shell[data-tema] .rosa-anillo-base { fill: none; stroke: rgba(255, 255, 255, .06); stroke-width: 12; }
+.app-shell[data-tema="claro"] .rosa-anillo-base { stroke: rgba(18, 36, 49, .14); }
+.app-shell[data-tema] .rosa-anillo-familia { fill: none; stroke-width: 8; stroke-linecap: round; transition: opacity .18s ease; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+.app-shell[data-tema] .rosa-pista { fill: rgba(255, 255, 255, .035); }
+.app-shell[data-tema="claro"] .rosa-pista { fill: rgba(18, 36, 49, .035); }
 .app-shell[data-tema] .rosa-cuna { cursor: pointer; transition: opacity .18s ease; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-.app-shell[data-tema] .rosa-cuna.atenuada { opacity: .22; }
+.app-shell[data-tema] .rosa-pildora { pointer-events: none; transition: opacity .18s ease; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+.app-shell[data-tema] .rosa-pildora rect { fill: #0b131b; stroke: #8e9399; stroke-width: 1.2; }
+.app-shell[data-tema] .rosa-pildora text { fill: #fff; font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.app-shell[data-tema] :is(.rosa-cuna, .rosa-anillo-familia, .rosa-pildora).atenuada { opacity: .22; }
 .app-shell[data-tema] .rosa-rival { fill: color-mix(in srgb, var(--ink) 6%, transparent); stroke: var(--ink); stroke-width: 2.5; stroke-linejoin: round; }
 .app-shell[data-tema] .rosa-rival.abierto { fill: none; stroke-linecap: round; }
-.app-shell[data-tema] .rosa-centro { fill: var(--paper); stroke: var(--line); }
+.app-shell[data-tema] .rosa-centro { fill: #08080a; stroke: rgba(255, 255, 255, .08); }
+.app-shell[data-tema="claro"] .rosa-centro { fill: #122431; stroke: none; }
 .app-shell[data-tema] .rosa-fase-arco { fill: none; stroke-width: 2; stroke-linecap: round; }
 /* Los arcos de fase, en gris: el color queda para las familias. */
 .app-shell[data-tema] .rosa-fase .rosa-fase-arco { stroke: color-mix(in srgb, var(--ink) 38%, transparent); }
@@ -5700,8 +5710,7 @@ button.menu-fila:active { transform: scale(.985); }
 .rosa-familia.atenuada { opacity: .35; }
 .app-shell[data-tema] .rosa-nombre { fill: var(--ink); font-size: 14px; font-weight: 600; }
 .app-shell[data-tema] .rosa-familia.activa .rosa-nombre { fill: var(--acento-claro); }
-.app-shell[data-tema] .rosa-valor { fill: var(--muted); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
-@media (prefers-reduced-motion: reduce) { .app-shell[data-tema] .rosa-cuna, .rosa-familia { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .app-shell[data-tema] :is(.rosa-cuna, .rosa-anillo-familia, .rosa-pildora), .rosa-familia { transition: none; } }
 .app-shell[data-tema] .estilo-rosa > figcaption { margin-top: 4px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; color: var(--ink); font-size: 12.5px; }
 .estilo-rosa > figcaption > span { display: inline-flex; align-items: center; gap: 6px; }
 .estilo-rosa > figcaption i { width: 14px; height: 10px; display: inline-block; border-radius: 2px; }
