@@ -7026,7 +7026,7 @@ body.print-layout-check .legal-page-shell:has([data-hoja-vacia]) { display: none
 .app-shell[data-tema] .partido-prueba.contradice { box-shadow: inset 2px 0 0 #ff9f0a; }
 @media screen {
   /* El partido y el flujo en pantalla: seguidos, sin el pie entre hojas. */
-  body:not(.print-layout-check) :is(.partido-hoja-1, .partido-hoja-2, .partido-hoja-3, .estilo-hoja-flujo) > .visual-page-footer { display: none; }
+  body:not(.print-layout-check) :is(.partido-hoja-1, .partido-hoja-2, .partido-hoja-3, .partido-hoja-4, .estilo-hoja-flujo) > .visual-page-footer { display: none; }
   body:not(.print-layout-check) .app-shell[data-tema] .estilo-page.estilo-hoja-partido { margin-top: 0; margin-bottom: 0; padding-top: 6px; padding-bottom: 6px; }
 }
 
@@ -7050,3 +7050,41 @@ body.print-layout-check .legal-page-shell:has([data-hoja-vacia]) { display: none
 .app-shell[data-tema="claro"] .pizarra-duelo.igual { stroke: rgba(11, 19, 27, .4); }
 @media (max-width: 760px) { .app-shell[data-tema] .pizarra-duelos ol { grid-template-columns: 1fr; } }
 @media print { .pizarra-sugerencia { display: none !important; } }
+
+/* ---- Recomendaciones de la data: un solo cuadro, dos columnas ---- */
+.app-shell[data-tema] .partido-recomendaciones { --rec-bien: #32d583; --rec-mal: #ff6961; padding: 16px 18px 12px; border-radius: 16px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); }
+.app-shell[data-tema="claro"] .partido-recomendaciones { --rec-bien: #1a7f37; --rec-mal: #c62828; }
+.app-shell[data-tema] .partido-recomendaciones > header { margin-bottom: 12px; }
+.app-shell[data-tema] .partido-recomendaciones > header h4 { margin: 0; color: var(--ink); font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
+.app-shell[data-tema] .partido-recomendaciones > header small { display: block; margin-top: 3px; color: var(--muted); font-size: 11.5px; }
+.app-shell[data-tema] .recomendaciones-columnas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.app-shell[data-tema] .recomendaciones-columnas > section { padding: 12px; border-radius: 12px; background: color-mix(in srgb, var(--ink) 3%, transparent); }
+.app-shell[data-tema] .recomendaciones-columnas > section.danar { box-shadow: inset 0 3px 0 var(--rec-bien); }
+.app-shell[data-tema] .recomendaciones-columnas > section.neutralizar { box-shadow: inset 0 3px 0 var(--rec-mal); }
+.app-shell[data-tema] .recomendaciones-columnas h5 { margin: 2px 0 10px; display: flex; align-items: center; gap: 8px; color: var(--ink); font-size: 13.5px; font-weight: 700; }
+.app-shell[data-tema] .recomendaciones-columnas h5 i { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 12px; font-style: normal; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+.app-shell[data-tema] .danar h5 i { background: var(--rec-bien); }
+.app-shell[data-tema] .neutralizar h5 i { background: var(--rec-mal); }
+.app-shell[data-tema] .partido-recomendaciones ol { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.app-shell[data-tema] .recomendacion { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; align-items: start; }
+.app-shell[data-tema] .recomendacion-icono { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+.app-shell[data-tema] .danar .recomendacion-icono { color: var(--rec-bien); background: color-mix(in srgb, var(--rec-bien) 16%, transparent); }
+.app-shell[data-tema] .neutralizar .recomendacion-icono { color: var(--rec-mal); background: color-mix(in srgb, var(--rec-mal) 16%, transparent); }
+.app-shell[data-tema] .recomendacion.pizarra .recomendacion-icono { background: none; box-shadow: inset 0 0 0 1.5px currentColor; }
+.app-shell[data-tema] .recomendacion b { display: block; color: var(--ink); font-size: 13px; font-weight: 600; line-height: 1.4; }
+.app-shell[data-tema] .recomendacion-origen { margin-top: 2px; display: inline-block; padding: 0 6px; border-radius: 4px; background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--muted); font-size: 9.5px; font-style: normal; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.app-shell[data-tema] .recomendacion-datos { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px; }
+.app-shell[data-tema] .recomendacion-datos > span { padding: 1px 7px; border-radius: 6px; background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--muted); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.app-shell[data-tema] .recomendacion-datos > span.apoya { color: var(--ink); box-shadow: inset 2px 0 0 var(--rec-bien); }
+.app-shell[data-tema] .recomendacion-datos > span.contradice { box-shadow: inset 2px 0 0 #ff9f0a; }
+.app-shell[data-tema] .recomendaciones-dudosas { margin-top: 12px; color: var(--muted); font-size: 12px; }
+.app-shell[data-tema] .recomendaciones-dudosas summary { cursor: pointer; }
+.app-shell[data-tema] .recomendaciones-dudosas ol { margin-top: 8px; opacity: .75; }
+.app-shell[data-tema] .recomendaciones-dudosas .recomendacion-icono { color: #ff9f0a; background: color-mix(in srgb, #ff9f0a 14%, transparent); }
+.app-shell[data-tema] .recomendaciones-leyenda { margin: 10px 2px 0; color: var(--muted); font-size: 10.5px; }
+@media (max-width: 760px) { .app-shell[data-tema] .recomendaciones-columnas { grid-template-columns: 1fr; } }
+@media print { .partido-recomendaciones { break-inside: avoid; } .recomendaciones-dudosas:not([open]) { display: none; } }
+.app-shell[data-tema] .recomendaciones-mas { margin-top: 10px; color: var(--muted); font-size: 11.5px; }
+.app-shell[data-tema] .recomendaciones-mas summary { cursor: pointer; }
+.app-shell[data-tema] .recomendaciones-mas ol { margin-top: 8px; }
+@media print { .recomendaciones-mas:not([open]) { display: none; } }

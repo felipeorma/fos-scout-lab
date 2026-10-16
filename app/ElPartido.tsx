@@ -229,6 +229,33 @@ const CRUCE: Record<CruceDeEstilo["id"], string> = {
 const etiquetaDeMetricaEstilo = (id: string) => t(METRICAS_ESTILO.find((m) => m.id === id)?.etiqueta ?? id);
 const conSigno = (z: number) => `${z >= 0 ? "+" : "−"}${Math.abs(z).toFixed(1)}`;
 
+/** Un icono por tipo de consejo, para leerlos de un vistazo. */
+const TRAZO = { fill: "none", stroke: "currentColor", strokeWidth: 1.6, strokeLinecap: "round", strokeLinejoin: "round" } as const;
+const ICONOS: Record<string, ReactNode> = {
+  medio: <><circle cx="3.5" cy="8" r="1.6" {...TRAZO} /><circle cx="8" cy="8" r="1.6" {...TRAZO} /><circle cx="12.5" cy="8" r="1.6" {...TRAZO} /></>,
+  bandas: <path d="M2 8h12M5 5 2 8l3 3M11 5l3 3-3 3" {...TRAZO} />,
+  espalda: <><path d="M10 2v12" {...TRAZO} strokeDasharray="2 2" /><path d="M2 8h12M11 5l3 3-3 3" {...TRAZO} /></>,
+  bloque: <><path d="M3 4v8M8 4v8M13 4v8" {...TRAZO} /></>,
+  presion: <><circle cx="8" cy="8" r="6" {...TRAZO} /><circle cx="8" cy="8" r="2" {...TRAZO} /></>,
+  parado: <path d="M4 14V2l8 3-8 3" {...TRAZO} />,
+  contra: <path d="M9 1 3 9h4l-1 6 6-8H8z" {...TRAZO} />,
+  cambio: <path d="M3 5h10l-3-3M13 11H3l3 3" {...TRAZO} />,
+  escudo: <path d="M8 1.5 13.5 3.5v4.5c0 3.5-2.6 5.5-5.5 6.5-2.9-1-5.5-3-5.5-6.5V3.5z" {...TRAZO} />,
+  largo: <path d="M2 12c3-8 9-8 12 0M11.5 10.5 14 12l.5-3" {...TRAZO} />,
+};
+const ICONO_DE_CONSEJO: Record<string, string> = {
+  medio_mas: "medio", medio_menos: "medio", medio_igual: "medio",
+  linea3: "bandas", amplitud: "bandas", carrileros: "bandas", su_amplitud: "bandas",
+  espalda: "espalda", entre_lineas: "espalda", bloque_bajo: "bloque", linea5: "bloque",
+  un_punta: "presion", su_presion: "presion",
+  parado: "parado", su_parado: "parado",
+  su_contra: "contra", carrileros_espalda: "contra", estrecho: "contra", linea5_espacios: "contra",
+  lado_debil: "cambio", dos_puntas: "escudo", pivote: "escudo", su_balon_largo: "largo",
+};
+function IconoDeConsejo({ id }: { id: string }) {
+  return <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">{ICONOS[ICONO_DE_CONSEJO[id] ?? "medio"]}</svg>;
+}
+
 /** Las métricas de forma que, sin StatsBomb 360, son una estimación. */
 const ESTIMADAS = new Set(["largo_bloque", "ancho_bloque"]);
 
@@ -358,14 +385,6 @@ export function ElPartido({ a, b, claseHoja = "legal-page-shell", pie = null }: 
     texto: textoDePrueba(p.equipo === "a" ? a.equipo : b.equipo, p.lectura, ESTIMADAS.has(p.lectura.metrica.id) && !(p.equipo === "a" ? ladoA.con360 : ladoB.con360)),
     apoya: p.apoya,
   }));
-  const ESTADO: Record<Consejo["estado"], string> = { respaldado: "Respaldado por los datos", pizarra: "Solo pizarra", contradicho: "Los datos no lo respaldan" };
-  const itemDeConsejo = (c: Consejo) => <li key={c.id} className={`consejo-${c.estado}`}>
-    <b>{textoConsejo(c)}</b>
-    <em className="partido-estado-consejo">{t(ESTADO[c.estado])}</em>
-    {pruebasDe(c).map((p) => <span key={p.texto} className={`partido-prueba${p.apoya === true ? " apoya" : p.apoya === false ? " contradice" : ""}`}>
-      {p.apoya === true ? "✓ " : p.apoya === false ? "✗ " : ""}{p.texto}
-    </span>)}
-  </li>;
 
   const cabecera = <header className="partido-cabecera">
     <Antetitulo>{t("EL PARTIDO")}</Antetitulo>
@@ -382,14 +401,15 @@ export function ElPartido({ a, b, claseHoja = "legal-page-shell", pie = null }: 
   </header>;
 
   /*
-   * Tres hojas, como la ficha ampliada: en una Legal no cabe todo y reducido
-   * no se lee. En pantalla se leen seguidas; la cabecera de continuación y el
-   * pie de las dos primeras solo salen al imprimir.
+   * Cuatro hojas, como la ficha ampliada: en una Legal no cabe todo y
+   * reducido no se lee. Claves y recomendaciones; pizarra y duelos; fases y
+   * cómo vienen; el resto. En pantalla se leen seguidas; la cabecera de
+   * continuación y el pie de las primeras solo salen al imprimir.
    */
   const hoja = (n: number, contenido: ReactNode) => <div className={claseHoja}>
     <section className={`estilo-page estilo-hoja-partido partido-hoja-${n}`}>
       {n > 1 && <header className="estilo-cabecera-continuacion"><div>
-        <span>{tf("EL PARTIDO · {n} DE 3", { n })}</span>
+        <span>{tf("EL PARTIDO · {n} DE 4", { n })}</span>
         <h2>{`${a.equipo} · ${b.equipo}`}</h2>
       </div></header>}
       {contenido}
@@ -413,11 +433,38 @@ export function ElPartido({ a, b, claseHoja = "legal-page-shell", pie = null }: 
   const xg = delMismo?.esperado.find((e) => e.metrica.id === "xg");
   const ppda = delMismo?.esperado.find((e) => e.metrica.id === "ppda");
   const presionaMas = ppda && Number.isFinite(ppda.a) && Number.isFinite(ppda.b) ? (ppda.a < ppda.b ? a.equipo : b.equipo) : "";
-  // Las claves: lo respaldado primero (ya vienen ordenados) y nunca lo que los datos contradicen.
-  const claves = {
-    op: consejos.oportunidades.filter((c) => c.estado !== "contradicho").slice(0, 3),
-    ri: consejos.riesgos.filter((c) => c.estado !== "contradicho").slice(0, 3),
+  // Las recomendaciones: lo respaldado primero (ya vienen ordenados); lo que
+  // los datos contradicen, aparte y plegado.
+  const recomendaciones = {
+    danar: consejos.oportunidades.filter((c) => c.estado !== "contradicho"),
+    neutralizar: consejos.riesgos.filter((c) => c.estado !== "contradicho"),
+    dudosas: [...consejos.oportunidades, ...consejos.riesgos].filter((c) => c.estado === "contradicho"),
   };
+  /** Lo respaldado siempre; con eso, hasta cuatro por columna. El resto, plegado. */
+  const columna = (lista: Consejo[]) => {
+    const respaldadas = lista.filter((c) => c.estado === "respaldado").length;
+    const cuantas = Math.max(4, respaldadas);
+    const resto = lista.slice(cuantas);
+    return <>
+      <ol>{lista.length ? lista.slice(0, cuantas).map(itemDeRecomendacion) : <li className="partido-vacio">{t("Nada que destaque.")}</li>}</ol>
+      {resto.length > 0 && <details className="recomendaciones-mas">
+        <summary>{tf("{n} más, solo de la pizarra", { n: resto.length })}</summary>
+        <ol>{resto.map(itemDeRecomendacion)}</ol>
+      </details>}
+    </>;
+  };
+  function itemDeRecomendacion(c: Consejo) { return <li key={c.id} className={`recomendacion ${c.estado}`}>
+    <span className="recomendacion-icono"><IconoDeConsejo id={c.id} /></span>
+    <div>
+      <b>{textoConsejo(c)}</b>
+      {c.estado === "pizarra" && <em className="recomendacion-origen">{t("pizarra")}</em>}
+      {pruebasDe(c).length > 0 && <span className="recomendacion-datos">
+        {pruebasDe(c).map((p) => <span key={p.texto} className={p.apoya === true ? "apoya" : p.apoya === false ? "contradice" : undefined}>
+          {p.apoya === true ? "✓ " : p.apoya === false ? "✗ " : ""}{p.texto}
+        </span>)}
+      </span>}
+    </div>
+  </li>; }
   const racha = (datos: typeof datosA) => datos.reciente.map((p) => t(p.resultado)).join(" ");
 
   const columnaVentajas = (equipo: string, rival: string, lista: ReturnType<typeof ventajas>, cruces: CruceDeEstilo[]) => <div>
@@ -477,14 +524,33 @@ export function ElPartido({ a, b, claseHoja = "legal-page-shell", pie = null }: 
           ? t("De temporadas distintas: cada número se lee contra su propia temporada. Lo esperado partido a partido solo se calcula entre equipos de la misma liga y temporada.")
           : t("De ligas distintas: cada número se lee contra su propia liga, con el nivel de Opta de cada una al lado. Lo esperado partido a partido solo se calcula entre equipos de la misma liga.")}</li>}
       </ul>
-      <div className="partido-dos">
-        <div><p className="partido-etiqueta bueno">{tf("Para hacer daño a {b}", { b: b.equipo })}</p>
-          <ul>{claves.op.map((c) => <li key={c.id}>{textoConsejo(c)}</li>)}</ul></div>
-        <div><p className="partido-etiqueta malo">{tf("Para neutralizar a {b}", { b: b.equipo })}</p>
-          <ul>{claves.ri.length ? claves.ri.map((c) => <li key={c.id}>{textoConsejo(c)}</li>) : <li className="partido-vacio">{t("Nada que destaque.")}</li>}</ul></div>
-      </div>
     </div>
 
+    {/* ---- Recomendaciones de la data: un solo cuadro ---- */}
+    <div className="partido-recomendaciones">
+      <header>
+        <h4>{t("Recomendaciones de la data")}</h4>
+        <small>{tf("Con los dibujos de la pizarra ({fa} contra {fb}) y la temporada de cada uno. Cambia un dibujo y cambian.", { fa: formacionLegible(formA), fb: formacionLegible(formB) })}</small>
+      </header>
+      <div className="recomendaciones-columnas">
+        <section className="danar">
+          <h5><i aria-hidden="true">↗</i>{tf("Para hacerle daño a {b}", { b: b.equipo })}</h5>
+          {columna(recomendaciones.danar)}
+        </section>
+        <section className="neutralizar">
+          <h5><i aria-hidden="true">⛨</i>{tf("Para neutralizar a {b}", { b: b.equipo })}</h5>
+          {columna(recomendaciones.neutralizar)}
+        </section>
+      </div>
+      {recomendaciones.dudosas.length > 0 && <details className="recomendaciones-dudosas">
+        <summary>{tf("{n} que el dibujo sugiere pero los datos no respaldan", { n: recomendaciones.dudosas.length })}</summary>
+        <ol>{recomendaciones.dudosas.map(itemDeRecomendacion)}</ol>
+      </details>}
+      <p className="recomendaciones-leyenda">{t("✓ el dato apoya la recomendación · ✗ dice lo contrario · «pizarra»: solo lo dice el cruce de dibujos. Cada dato, con el puesto del equipo en su liga.")}</p>
+    </div>
+
+  </section>)}
+  {hoja(2, <section className="partido">
     {/* ---- La pizarra ---- */}
     <div className="partido-bloque">
       <h4>{t("La pizarra")}</h4>
@@ -583,20 +649,6 @@ export function ElPartido({ a, b, claseHoja = "legal-page-shell", pie = null }: 
       </div>
     </div>
 
-  </section>)}
-  {hoja(2, <section className="partido">
-    {/* ---- Lo que aconseja el cruce ---- */}
-    <div className="partido-bloque partido-dos partido-consejos">
-      <div>
-        <h4 className="partido-etiqueta bueno">{t("Oportunidades")}</h4>
-        <ul>{consejos.oportunidades.map(itemDeConsejo)}</ul>
-      </div>
-      <div>
-        <h4 className="partido-etiqueta malo">{t("Riesgos a cuidar")}</h4>
-        <ul>{consejos.riesgos.length ? consejos.riesgos.map(itemDeConsejo) : <li className="partido-vacio">{t("Nada que destaque.")}</li>}</ul>
-      </div>
-    </div>
-    <p className="partido-nota">{t("Cada consejo sale del cruce de los dos dibujos de la pizarra (reglas de pizarra) y, debajo, los datos de la temporada, con el puesto de cada equipo en su liga: ✓ si apoyan el consejo, ✗ si dicen lo contrario. Los que los datos no respaldan van al final y no entran en las claves. Cambia un dibujo y los consejos cambian.")}</p>
 
     <div className="partido-bloque">
       <h4>{t("El choque de dibujos")}</h4>
@@ -609,6 +661,8 @@ export function ElPartido({ a, b, claseHoja = "legal-page-shell", pie = null }: 
       </ol>
     </div>
 
+  </section>)}
+  {hoja(3, <section className="partido">
     {/* ---- Las fases del juego ---- */}
     <div className="partido-bloque">
       <h4>{t("Las fases del juego")}</h4>
@@ -639,8 +693,6 @@ export function ElPartido({ a, b, claseHoja = "legal-page-shell", pie = null }: 
       ].filter(Boolean).join(" ")}</p>
     </div>
 
-  </section>)}
-  {hoja(3, <section className="partido">
     {/* ---- Cómo vienen ---- */}
     <div className="partido-bloque partido-dos">
       {[{ perfil: a, datos: datosA }, { perfil: b, datos: datosB }].map(({ perfil, datos }) => <div key={perfil.clave}>
@@ -655,6 +707,8 @@ export function ElPartido({ a, b, claseHoja = "legal-page-shell", pie = null }: 
       </div>)}
     </div>
 
+  </section>)}
+  {hoja(4, <section className="partido">
     {delMismo && <div className="partido-bloque">
       <h4>{t("Lo esperado")}</h4>
       <table className="partido-esperado">
