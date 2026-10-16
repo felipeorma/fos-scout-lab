@@ -25,7 +25,9 @@ import type { TransfermarktProfile } from "@/lib/transfermarkt";
  * Cada gráfico es una pieza de PiezasFicha: los mismos que Visuales ofrece
  * sueltos para montar una hoja a medida.
  */
-export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, destinatario = "", logoDestinatario = "", onAbrirJugador, claseHoja = "legal-page-shell", temporada, clavesPorFila = null, feedOpta = null, ligasDeFila = null }: {
+export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, destinatario = "", logoDestinatario = "", onAbrirJugador, claseHoja = "legal-page-shell", temporada, clavesPorFila = null, feedOpta = null, ligasDeFila = null, avisoSkillcorner = "" }: {
+  /** Si SkillCorner no publica su liga en esta temporada (o solo los físicos): una línea bajo el título. */
+  avisoSkillcorner?: string;
   /** Las claves "liga año" de cada fila cuando se mide contra su liga. */
   clavesPorFila?: string[][] | null;
   /** Las claves "liga año" de cada fila, siempre: acotan el Top 10 y los parecidos. */
@@ -69,6 +71,7 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
         : datos.marco
           ? tf("Familias contra {n} {grupo} de la base cargada, con al menos {m} minutos: su liga ({marco}) solo tiene {k} de su puesto, pocos para un grupo propio.", { n: datos.grupo.indices.length, grupo: datos.nombreGrupo.toLowerCase(), m: minutosMin, marco: datos.marco.texto, k: datos.marco.enSuLiga })
           : tf("Familias contra {n} {grupo} de la base cargada, con al menos {m} minutos.", { n: datos.grupo.indices.length, grupo: datos.nombreGrupo.toLowerCase(), m: minutosMin })}</p>
+      {avisoSkillcorner && <p className="snap-aviso-sc">{avisoSkillcorner}</p>}
       {susLigas.length > 0 && otrasLigas.length > 0 && <div className="snap-ligas" role="group" aria-label={t("Ligas del Top 10 y de los parecidos")}>
         <span>{t("Top 10 y parecidos")}</span>
         <b className="snap-liga propia">{marcoConNivel(susLigas, feedOpta)}</b>

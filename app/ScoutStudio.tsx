@@ -44,6 +44,7 @@ import { fuenteStatsbomb } from "@/lib/snapshot";
 import { profileStorageKey, readStoredJson, type TransfermarktProfile } from "@/lib/transfermarkt";
 import { formatPlayerPositions, selectedCohortPosition } from "@/lib/positions";
 import { removePlayerImageBackground } from "@/lib/playerImageBackground";
+import { avisoSkillcorner, textoDeAvisoSkillcorner } from "@/lib/avisoSkillcorner";
 import { fetchAiSummary, type AiMetricFact, type AiPlayerFacts, fetchOptaLeagueMeta, fetchSkillcornerCompetitions, fetchSkillcornerDataset, fetchSourcesStatus, fetchStatsbombCompetitions, fetchStatsbombDataset, fetchTransfermarktProfile, temporadasUtiles, type ApiCompetition, type SourcesStatus } from "@/lib/remoteData";
 import { reportExportBaseName } from "@/lib/reportExportName";
 import { MINUTOS_FIABLES, margenDelIndice } from "@/lib/fiabilidad";
@@ -479,6 +480,14 @@ export default function ScoutStudio() {
     return cruceDeLaTemporada.findIndex((fila) => String(fila.Player ?? "") === nombre
       && (!nacimiento || !fila["Birth date"] || String(fila["Birth date"]) === nacimiento));
   }, [cruceDeLaTemporada, filaElegida]);
+  /** Si SkillCorner no publica su liga en la temporada que se mira, o solo sus físicos: la ficha lo dice. */
+  const avisoSc = useMemo(() => {
+    if (!temporadaDeReferencia) return "";
+    const aviso = avisoSkillcorner(basesActivas, temporadaDeReferencia.ligas, temporadaDeReferencia.etiqueta, String(filasDelInforme[indiceDelInforme]?.["Data sources"] ?? ""));
+    return aviso ? textoDeAvisoSkillcorner(aviso) : "";
+    // lang: el texto cambia de idioma.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [temporadaDeReferencia, basesActivas, filasDelInforme, indiceDelInforme, lang]);
   const filasDeLasPiezas = cruceDeLaTemporada && indiceEnLaTemporada >= 0 ? cruceDeLaTemporada : reportRows;
   const indiceDeLasPiezas = cruceDeLaTemporada && indiceEnLaTemporada >= 0 ? indiceEnLaTemporada : selectedPlayer;
   /** Un jugador de las filas de las piezas, en la base entera (para abrir su ficha). */
@@ -1991,6 +2000,7 @@ export default function ScoutStudio() {
         <div className="dossier-stat assists"><strong>{cifra(temporadaActual?.asistencias ?? report.assists)}</strong><span>{t("Asist.")}</span></div>
         <div className="score-ring" style={{ "--score": `${report.score * 3.6}deg` } as React.CSSProperties}><b>{report.score}</b><span>{t("Índice")}</span></div>
       </section>
+      {avisoSc && <p className="dossier-aviso-sc">{avisoSc}</p>}
       {(previaAMano && !soloTemporadaActual ? [aTemporadaDeJugador(previaAMano)] : temporadasDelJugador.slice(1, 3)).map((temporada: TemporadaDeJugador & { aMano?: TemporadaAMano }, posicion, anteriores) => (
         <section className="dossier-season-strip dossier-season-previa" key={temporada.etiqueta}>
           <div className="season-source">
@@ -2731,7 +2741,7 @@ export default function ScoutStudio() {
                   tests/orden-del-pdf.test.mjs. */}
               {espacio === "cavalry" && report && paginaMontada(SNAPSHOT_PAGE) && (
                 <SnapshotPage rows={filasDeLasPiezas} indice={indiceDeLasPiezas} informe={report} perfilTm={profile} minutosMin={minimumMinutes} claseHoja={claseHoja(SNAPSHOT_PAGE)} temporada={temporadaDeReferencia?.etiqueta}
-                  clavesPorFila={clavesDeLasPiezas} ligasDeFila={ligasDeLasPiezas} feedOpta={feedOpta}
+                  clavesPorFila={clavesDeLasPiezas} ligasDeFila={ligasDeLasPiezas} feedOpta={feedOpta} avisoSkillcorner={avisoSc}
                   destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} onAbrirJugador={(indice) => { const enBase = enLaBase(indice); if (enBase >= 0) selectPlayer(enBase); }} />
               )}
               {report && paginaMontada(CONTEXT_PAGE) && (

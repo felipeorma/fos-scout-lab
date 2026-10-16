@@ -7267,3 +7267,8 @@ body.print-layout-check .legal-page-shell:has([data-hoja-vacia]) { display: none
   .snap-una-2 { grid-template-columns: minmax(0, 1.1fr) minmax(0, 2fr) minmax(0, 1fr); }
   .snap-una-3 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 }
+
+/* El aviso de SkillCorner: su liga no está en la suscripción, o solo con físicos. */
+.jordhy-report .dossier-aviso-sc { margin: 0; padding: 8px 22px; border-top: 1px solid var(--report-line); color: color-mix(in srgb, var(--report-ink) 62%, transparent); font-size: 10.5px; line-height: 1.45; }
+.jordhy-report .dossier-aviso-sc::before, .app-shell[data-tema] p.snap-aviso-sc::before { content: "SC"; display: inline-block; margin-right: 7px; padding: 1px 5px; border-radius: 4px; background: #12c48b; color: #04130d; font-size: 9px; font-weight: 800; letter-spacing: .04em; vertical-align: 1px; }
+.app-shell[data-tema] p.snap-aviso-sc { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
