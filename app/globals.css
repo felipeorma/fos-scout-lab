@@ -7111,3 +7111,19 @@ body.print-layout-check .legal-page-shell:has([data-hoja-vacia]) { display: none
 .app-shell[data-tema] .snap-roles-parte { fill: var(--muted); font-size: 4.6px; text-anchor: middle; }
 .app-shell[data-tema] .snap-roles-leyenda { margin: 6px 0 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px 14px; color: var(--muted); font-size: 10.5px; line-height: 1.35; }
 .app-shell[data-tema] .snap-roles-leyenda b { color: var(--ink); font-weight: 600; }
+
+/* Escudo y dorsal con el mismo contorno blanco tipo sticker que la foto
+   (Ficha, Similitud y Ficha ampliada en Night). El dorsal deja de ser un
+   contorno casi invisible: cifra rellena con el color del club y borde blanco. */
+.jordhy-report[data-oscuro] .dossier-club-logo,
+.jordhy-report[data-oscuro] .shirt-number {
+  filter: drop-shadow(2px 0 0 #fff) drop-shadow(-2px 0 0 #fff) drop-shadow(0 2px 0 #fff) drop-shadow(0 -2px 0 #fff) drop-shadow(0 8px 12px rgba(0, 0, 0, .5));
+}
+.jordhy-report[data-oscuro] .shirt-number { top: 12px; right: 18px; color: var(--report-accent); -webkit-text-stroke: 0; font-size: 64px; }
+.similarity-report-theme[data-oscuro] .duel-header-crest,
+.similarity-report-theme[data-oscuro] .duel-header-number,
+.app-shell[data-informe="oscuro"] .snap-foto-dorsal {
+  filter: drop-shadow(1.5px 0 0 #fff) drop-shadow(-1.5px 0 0 #fff) drop-shadow(0 1.5px 0 #fff) drop-shadow(0 -1.5px 0 #fff) drop-shadow(0 5px 8px rgba(0, 0, 0, .5));
+}
+.similarity-report-theme[data-oscuro] .duel-header-number { color: var(--player-color); -webkit-text-stroke: 0; font-size: 26px; }
+.app-shell[data-informe="oscuro"] .snap-foto-dorsal { top: 5px; right: 8px; color: var(--acento, #ff3b30); -webkit-text-stroke: 0; font-size: 28px; }
