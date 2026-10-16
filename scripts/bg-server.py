@@ -1373,6 +1373,174 @@ def _sb_forma_partido(match_id: int, con_360: bool, auth):
     return equipos
 
 
+# ---- Duelos y balón parado, partido a partido ------------------------------------------
+# De los eventos de cada partido, dos cosas que las estadísticas de temporada
+# no dan: los duelos con nombre y apellido (quién regateó a quién, quién ganó
+# el aéreo a quién), para validar el modelo de duelos de la pizarra, y cada
+# córner y falta al área (lanzador, banda, rosca, zona, primer contacto, si
+# acaba en remate) para el balón parado de El partido. Se guarda solo el
+# resumen de cada partido.
+_RESUMEN_VERSION = 1
+_AEREO_GANADO = ("pass", "shot", "clearance", "miscontrol")
+
+
+def _zona_de_balon_parado(fin, lado_izquierdo: bool):
+    """Dónde cae un balón parado, desde el que ataca: corto, borde, primer palo, centro o segundo palo."""
+    if not fin or len(fin) < 2:
+        return "desconocida"
+    x, y = fin[0], fin[1]
+    if x < 102 or y < 18 or y > 62:
+        return "corto" if x >= 90 else "fuera"
+    if x < 108:
+        return "borde"
+    # Primer palo: el tercio del área más cercano a la banda desde la que se saca.
+    cerca = y < 32.67 if lado_izquierdo else y > 47.33
+    lejos = y > 47.33 if lado_izquierdo else y < 32.67
+    return "primer_palo" if cerca else "segundo_palo" if lejos else "centro"
+
+
+def _resumen_de_eventos(eventos):
+    por_id = {e.get("id"): e for e in eventos}
+    nombre = lambda e: (e.get("player") or {}).get("name")
+    equipo = lambda e: (e.get("team") or {}).get("id")
+    duelos, balon_parado = [], []
+    for i, e in enumerate(eventos):
+        tipo = (e.get("type") or {}).get("name")
+        if tipo == "Dribble":
+            completo = ((e.get("dribble") or {}).get("outcome") or {}).get("name") == "Complete"
+            defensor = None
+            for rid in e.get("related_events") or []:
+                otro = por_id.get(rid)
+                if not otro or equipo(otro) == equipo(e):
+                    continue
+                ot = (otro.get("type") or {}).get("name")
+                if ot == "Dribbled Past" or (ot == "Duel" and ((otro.get("duel") or {}).get("type") or {}).get("name") == "Tackle"):
+                    defensor = otro
+                    break
+            if defensor and nombre(e) and nombre(defensor):
+                duelos.append({"t": "regate", "a": nombre(e), "ea": equipo(e), "d": nombre(defensor), "ed": equipo(defensor), "gana": bool(completo)})
+        elif tipo == "Duel" and ((e.get("duel") or {}).get("type") or {}).get("name") == "Aerial Lost":
+            ganador = None
+            for rid in e.get("related_events") or []:
+                otro = por_id.get(rid)
+                if not otro or equipo(otro) == equipo(e):
+                    continue
+                if any((otro.get(k) or {}).get("aerial_won") for k in _AEREO_GANADO):
+                    ganador = otro
+                    break
+            if ganador and nombre(e) and nombre(ganador):
+                duelos.append({"t": "aereo", "a": nombre(ganador), "ea": equipo(ganador), "d": nombre(e), "ed": equipo(e), "gana": True})
+        elif tipo == "Pass":
+            pase = e.get("pass") or {}
+            clase = (pase.get("type") or {}).get("name")
+            inicio, fin = e.get("location"), pase.get("end_location")
+            al_area = fin and len(fin) >= 2 and fin[0] >= 102 and 18 <= fin[1] <= 62
+            if clase != "Corner" and not (clase == "Free Kick" and inicio and inicio[0] >= 60 and al_area):
+                continue
+            lado_izquierdo = bool(inicio and inicio[1] < 40)
+            completo = not pase.get("outcome")
+            # Primer contacto: el receptor si el pase llega; si no, el primero que la toca después.
+            if completo and pase.get("recipient"):
+                contacto, quien = "ataque", (pase.get("recipient") or {}).get("name")
+            else:
+                contacto, quien = "nadie", None
+                for otro in eventos[i + 1:i + 8]:
+                    ot = (otro.get("type") or {}).get("name")
+                    if ot in ("Clearance", "Goal Keeper", "Interception", "Shot", "Pass", "Ball Recovery", "Duel", "Miscontrol", "Block"):
+                        contacto, quien = ("ataque" if equipo(otro) == equipo(e) else "defensa"), nombre(otro)
+                        break
+            # Si acaba en remate: los tiros del que saca en la misma posesión, a balón parado.
+            remates = [o for o in eventos[i + 1:i + 25]
+                       if (o.get("type") or {}).get("name") == "Shot" and equipo(o) == equipo(e) and o.get("possession") == e.get("possession")]
+            balon_parado.append({
+                "clase": "corner" if clase == "Corner" else "falta",
+                "equipo": equipo(e), "lanzador": nombre(e),
+                "lado": "izquierda" if lado_izquierdo else "derecha",
+                "rosca": ((pase.get("technique") or {}).get("name") or "").lower() or None,
+                "corto": bool(pase.get("length") is not None and pase.get("length") < 18),
+                "zona": _zona_de_balon_parado(fin, lado_izquierdo),
+                "contacto": contacto, "quien": quien,
+                "remate": bool(remates), "rematador": nombre(remates[0]) if remates else None,
+                "xg": round(sum(((o.get("shot") or {}).get("statsbomb_xg") or 0) for o in remates), 3),
+                "gol": any(((o.get("shot") or {}).get("outcome") or {}).get("name") == "Goal" for o in remates),
+            })
+    return {"duelos": duelos, "balonParado": balon_parado}
+
+
+def _sb_resumen_partido(match_id: int, auth):
+    """Duelos y balón parado de un partido; si no están guardados, se bajan sus eventos una vez."""
+    import json as _json
+    ruta = _SB_EVENTS_CACHE_DIR / f"res-{int(match_id)}.json"
+    if ruta.exists():
+        try:
+            guardado = _json.loads(ruta.read_text(encoding="utf-8"))
+            if guardado.get("v") == _RESUMEN_VERSION:
+                return guardado
+        except Exception:
+            pass
+    try:
+        r = _requests.get(f"https://data.statsbomb.com/api/v8/events/{int(match_id)}", auth=auth, timeout=120)
+        if r.status_code != 200:
+            return None
+        eventos = r.json()
+    except Exception:
+        return None
+    # Ya con los eventos, lo que también sale de ellos se guarda si faltaba.
+    if not (_SB_EVENTS_CACHE_DIR / f"f-{int(match_id)}.json").exists():
+        _sb_guardar_formaciones(match_id, eventos)
+    resumen = {"v": _RESUMEN_VERSION, **_resumen_de_eventos(eventos)}
+    try:
+        _SB_EVENTS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        _escribir_atomico(ruta, _json.dumps(resumen, ensure_ascii=False))
+    except OSError:
+        pass
+    return resumen
+
+
+def _resumenes_de_liga(competition_id: int, season_id: int, auth):
+    from concurrent.futures import ThreadPoolExecutor
+    partidos = _cached_get(f"sb:matches6:{competition_id}:{season_id}",
+                           f"https://data.statsbomb.com/api/v6/competitions/{competition_id}/seasons/{season_id}/matches", auth, ttl_seconds=1800)
+    jugados = [p for p in partidos if p.get("home_score") is not None and p.get("away_score") is not None]
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        resumenes = list(pool.map(lambda p: _sb_resumen_partido(p["match_id"], auth), jugados))
+    return jugados, resumenes
+
+
+@app.get("/api/statsbomb/duel-pairs")
+def statsbomb_duel_pairs(competition_id: int, season_id: int):
+    """Los duelos de cada partido con sus dos jugadores: regates (quién regatea a quién y si lo completa) y aéreos (quién gana a quién)."""
+    import json as _json
+    auth = _statsbomb_auth()
+    if not auth:
+        return Response('{"error": "sin credenciales"}', status_code=503, media_type="application/json", headers=cors_headers())
+    jugados, resumenes = _resumenes_de_liga(competition_id, season_id, auth)
+    salida = [{"partido": p.get("match_id"), "fecha": p.get("match_date"), "duelos": r["duelos"]} for p, r in zip(jugados, resumenes) if r]
+    return Response(_json.dumps({"partidos": salida, "fallidos": sum(1 for r in resumenes if not r)}, ensure_ascii=False),
+                    media_type="application/json", headers=cors_headers())
+
+
+@app.get("/api/statsbomb/set-pieces")
+def statsbomb_set_pieces(competition_id: int, season_id: int):
+    """Cada córner y falta al área de cada partido: quién, desde dónde, cómo, a qué zona, quién toca primero y si acaba en remate."""
+    import json as _json
+    auth = _statsbomb_auth()
+    if not auth:
+        return Response('{"error": "sin credenciales"}', status_code=503, media_type="application/json", headers=cors_headers())
+    jugados, resumenes = _resumenes_de_liga(competition_id, season_id, auth)
+    salida = []
+    for p, r in zip(jugados, resumenes):
+        if not r:
+            continue
+        salida.append({
+            "partido": p.get("match_id"), "fecha": p.get("match_date"),
+            "local": (p.get("home_team") or {}).get("home_team_id"), "visita": (p.get("away_team") or {}).get("away_team_id"),
+            "acciones": r["balonParado"],
+        })
+    return Response(_json.dumps({"partidos": salida, "fallidos": sum(1 for r in resumenes if not r)}, ensure_ascii=False),
+                    media_type="application/json", headers=cors_headers())
+
+
 @app.get("/api/statsbomb/team-shape")
 def statsbomb_team_shape(competition_id: int, season_id: int):
     """La forma de cada equipo en cada partido jugado de una liga y temporada.
