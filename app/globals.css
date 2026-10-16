@@ -7382,3 +7382,13 @@ body.print-layout-check .legal-page-shell:has([data-hoja-vacia]) { display: none
 .app-shell[data-tema] .parado-quienes { margin: 8px 0 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; font-size: 12px; line-height: 1.4; }
 .app-shell[data-tema] .parado-quienes dt { color: var(--muted); font-weight: 600; }
 .app-shell[data-tema] .parado-quienes dd { margin: 0; color: var(--ink); }
+
+/* Para que la hoja 2 y la 3 de El partido entren en la Legal sin encogerse de más:
+   los duelos en tres columnas, el choque con sus lecturas al lado y las fases en dos tablas. */
+@media screen and (min-width: 1100px) { .app-shell[data-tema] .pizarra-duelos > ol { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media print { .app-shell[data-tema] .pizarra-duelos > ol { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+body.print-layout-check .app-shell[data-tema] .pizarra-duelos > ol { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.app-shell[data-tema] .choque-rejilla { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+.app-shell[data-tema] .choque-rejilla .partido-zonas { grid-template-columns: 1fr; }
+.app-shell[data-tema] .partido-fases-dos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
+@media screen and (max-width: 900px) { body:not(.print-layout-check) .app-shell[data-tema] :is(.choque-rejilla, .partido-fases-dos) { grid-template-columns: 1fr; } }

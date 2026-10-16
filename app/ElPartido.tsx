@@ -802,6 +802,7 @@ export function ElPartido({ a, b, claseHoja = "legal-page-shell", pie = null }: 
       <h4>{t("El choque de dibujos")}</h4>
       {/* Los dos onces sobre el campo y, en cada zona, quién tiene más gente:
           en el color de A si es A, en blanco si es B, sin color si empatan. */}
+      <div className="choque-rejilla">
       <div className="choque-campo">
         <svg viewBox="-2 -2 124 84" role="img" aria-label={t("El choque de dibujos")}>
           <Cesped ancho={120} largo={80} vertical={false} franja={10} />
@@ -841,6 +842,7 @@ export function ElPartido({ a, b, claseHoja = "legal-page-shell", pie = null }: 
           <small>{lecturaDeZona(zona, a.equipo, b.equipo)}</small>
         </li>)}
       </ol>
+      </div>
     </div>
 
   </section>)}
@@ -849,26 +851,29 @@ export function ElPartido({ a, b, claseHoja = "legal-page-shell", pie = null }: 
     <div className="partido-bloque">
       <h4>{t("Las fases del juego")}</h4>
       {(ladoA.formaCargando || ladoB.formaCargando) && <p className="partido-estado" role="status">{t("Calculando la forma de cada equipo partido a partido (altura, bloque, presión, amplitud)… la primera vez tarda unos minutos por liga.")}</p>}
-      <table className="partido-fases">
-        <thead><tr><th>{t("Métrica")}</th><th>{a.equipo}</th><th>{b.equipo}</th></tr></thead>
-        {FASES.map((fase) => {
-          const filas = fase.metricas.map((metrica) => ({ metrica, la: lecturaDe(datosA.lecturas, metrica.id), lb: lecturaDe(datosB.lecturas, metrica.id) }))
-            .filter(({ la, lb }) => la || lb);
-          if (!filas.length) return null;
-          const celda = (l: LecturaDeMetrica | null, con360: boolean) => (l ? <td className={`tercio-${l.tercio ?? "x"}${l.metrica.mejor ? ` mejor-${l.metrica.mejor}` : ""}`}>
-            <b>{ESTIMADAS.has(l.metrica.id) && !con360 ? "≈" : ""}{formatoFase(l.metrica, l.valor)}</b>
-            <small>{[l.palabra ? t(l.palabra) : "", ordinal(l.puesto, l.equipos)].filter(Boolean).join(" · ")}</small>
-          </td> : <td className="sin-dato">—</td>);
-          return <tbody key={fase.id}>
-            <tr className="partido-fase-titulo"><th colSpan={3}>{t(fase.nombre)}</th></tr>
-            {filas.map(({ metrica, la, lb }) => <tr key={metrica.id}>
-              <th scope="row" title={t(metrica.etiqueta)}>{t(metrica.etiqueta)}</th>
-              {celda(la, ladoA.con360)}
-              {celda(lb, ladoB.con360)}
-            </tr>)}
-          </tbody>;
-        })}
-      </table>
+      {/* En dos columnas: con las filas de SkillCorner la tabla pasaba de 70 filas y la hoja salía al 66 % en el PDF. */}
+      <div className="partido-fases-dos">
+        {[FASES.filter((fase) => fase.id === "con" || fase.id === "perdida"), FASES.filter((fase) => fase.id !== "con" && fase.id !== "perdida")].map((grupo, k) => <table key={k} className="partido-fases">
+          <thead><tr><th>{t("Métrica")}</th><th>{a.equipo}</th><th>{b.equipo}</th></tr></thead>
+          {grupo.map((fase) => {
+            const filas = fase.metricas.map((metrica) => ({ metrica, la: lecturaDe(datosA.lecturas, metrica.id), lb: lecturaDe(datosB.lecturas, metrica.id) }))
+              .filter(({ la, lb }) => la || lb);
+            if (!filas.length) return null;
+            const celda = (l: LecturaDeMetrica | null, con360: boolean) => (l ? <td className={`tercio-${l.tercio ?? "x"}${l.metrica.mejor ? ` mejor-${l.metrica.mejor}` : ""}`}>
+              <b>{ESTIMADAS.has(l.metrica.id) && !con360 ? "≈" : ""}{formatoFase(l.metrica, l.valor)}</b>
+              <small>{[l.palabra ? t(l.palabra) : "", ordinal(l.puesto, l.equipos)].filter(Boolean).join(" · ")}</small>
+            </td> : <td className="sin-dato">—</td>);
+            return <tbody key={fase.id}>
+              <tr className="partido-fase-titulo"><th colSpan={3}>{t(fase.nombre)}</th></tr>
+              {filas.map(({ metrica, la, lb }) => <tr key={metrica.id}>
+                <th scope="row" title={t(metrica.ayuda ?? metrica.etiqueta)}>{t(metrica.etiqueta)}</th>
+                {celda(la, ladoA.con360)}
+                {celda(lb, ladoB.con360)}
+              </tr>)}
+            </tbody>;
+          })}
+        </table>)}
+      </div>
       <p className="partido-nota">{[
         t("Media por partido de su temporada. Debajo, la lectura por tercios de su liga y su puesto en ella (1º = el que más)."),
         !(ladoA.con360 && ladoB.con360) ? t("≈: el largo y el ancho del bloque se estiman con dónde hace cada equipo sus acciones defensivas y de presión (la parte central de esas acciones, del cuartil 25 al 75); sin StatsBomb 360 no hay posición de los once en cada momento. La altura de la defensa es la de StatsBomb.") : "",
