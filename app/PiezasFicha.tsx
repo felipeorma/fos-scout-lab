@@ -592,38 +592,58 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
     : tf("frente a {n} {grupo}", { n: grupo.indices.length, grupo: nombreGrupo.toLowerCase() });
 
   switch (pieza) {
-    case "ficha":
+    case "ficha": {
+      /*
+       * La misma tarjeta que Ficha y radar, en pequeño: retrato grafito con
+       * el brillo del club, escudo arriba a la izquierda y dorsal arriba a la
+       * derecha (los dos con el borde blanco de la foto), la foto recortada,
+       * y al lado la liga, el nombre, la posición y los datos; debajo, la
+       * franja de la temporada con el índice.
+       */
+      const dorsal = eventos?.dorsal || perfilTm?.number || "";
+      const iniciales = jugador.split(/\s+/).map((p) => p[0]).slice(0, 2).join("");
+      const minutosTemporada = Number(rows[indice]?.["Minutes played"]) || informe.minutes;
+      const dato = (valor: unknown) => (valor === undefined || valor === null || valor === "" || valor === "—" ? "—" : String(valor));
       return <div className="snap-ficha">
-        {/* El retrato: marco grafito con el brillo del club, dorsal en
-            contorno y la foto recortada con contorno blanco tipo sticker. */}
-        <span className="snap-foto-marco">
-          {(eventos?.dorsal || perfilTm?.number) && <b className="snap-foto-dorsal">{eventos?.dorsal || perfilTm?.number}</b>}
+        <div className="snap-retrato">
+          <span className="snap-retrato-brillo" aria-hidden="true" />
+          {perfilTm?.clubLogo
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img className="snap-retrato-escudo" src={perfilTm.clubLogo} alt="" />
+            : <Escudo equipo={equipo} liga={fuente?.liga ?? ""} tamano={34} respaldo className="snap-retrato-escudo" />}
+          {dorsal && <b className="snap-retrato-dorsal">{dorsal}</b>}
           {perfilTm?.playerImage
             // eslint-disable-next-line @next/next/no-img-element
-            ? <img className="snap-foto" src={perfilTm.playerImage} alt="" />
-            : <span className="snap-foto vacia">{jugador.split(/\s+/).map((p) => p[0]).slice(0, 2).join("")}</span>}
-        </span>
-        <div className="snap-ficha-texto">
-          <b>{jugador}</b>
-          <small>
-            {perfilTm?.clubLogo
-              // eslint-disable-next-line @next/next/no-img-element
-              ? <img src={perfilTm.clubLogo} alt="" />
-              : <Escudo equipo={equipo} liga={fuente?.liga ?? ""} tamano={16} />}
-            {perfilTm?.club || equipo}
-          </small>
+            ? <img className="snap-retrato-foto" src={perfilTm.playerImage} alt="" />
+            : <span className="snap-retrato-iniciales">{iniciales}</span>}
         </div>
-        <dl>
-          <div><dt>{t("Posición")}</dt><dd>{informe.position || "—"}</dd></div>
-          <div><dt>{t("Edad")}</dt><dd>{informe.age || "—"}</dd></div>
-          {/* Los de la temporada que enseña la ficha ampliada, no la suma de
-              las dos que puede llevar el radar de la ficha. */}
-          <div><dt>{t("Minutos")}</dt><dd>{num(Number(rows[indice]?.["Minutes played"]) || informe.minutes)}</dd></div>
-          <div><dt>{t("País")}</dt><dd>{informe.passport || "—"}</dd></div>
-          <div><dt>{t("Dorsal")}</dt><dd>{eventos?.dorsal || perfilTm?.number || "—"}</dd></div>
-          <div><dt>{t("Liga")}</dt><dd>{fuente ? `${fuente.liga} · ${fuente.temporada}` : "—"}</dd></div>
-        </dl>
+        <div className="snap-retrato-info">
+          <div className="snap-retrato-competicion">
+            {perfilTm?.leagueLogo
+              // eslint-disable-next-line @next/next/no-img-element
+              && <img src={perfilTm.leagueLogo} alt="" />}
+            <span><b>{fuente?.liga || perfilTm?.league || t("Competición")}</b><small>{perfilTm?.club || equipo}</small></span>
+          </div>
+          <h3>{jugador}</h3>
+          <div className="snap-retrato-identidad"><b>{informe.position || "—"}</b><span>{perfilTm?.citizenship || informe.passport || ""}</span></div>
+          <dl>
+            <div><dt>{t("Edad")}</dt><dd>{dato(perfilTm?.age || informe.age)}</dd></div>
+            <div><dt>{t("Altura")}</dt><dd>{dato(perfilTm?.height)}</dd></div>
+            <div><dt>{t("Pie")}</dt><dd>{dato(perfilTm?.foot || informe.foot)}</dd></div>
+            <div><dt>{t("Contrato")}</dt><dd>{dato(perfilTm?.contract || informe.contract)}</dd></div>
+            <div><dt>{t("Valor")}</dt><dd>{dato(perfilTm?.marketValue)}</dd></div>
+            <div><dt>{t("Temporada")}</dt><dd>{dato(fuente?.temporada)}</dd></div>
+          </dl>
+        </div>
+        <div className="snap-retrato-franja">
+          <div><b>{num(informe.matches)}</b><span>{t("Partidos")}</span></div>
+          <div><b>{num(minutosTemporada)}</b><span>{t("Minutos")}</span></div>
+          <div className="goles"><b>{num(informe.goals)}</b><span>{t("Goles")}</span></div>
+          <div className="asistencias"><b>{num(informe.assists)}</b><span>{t("Asist.")}</span></div>
+          <div className="snap-retrato-anillo" style={{ "--score": `${informe.score * 3.6}deg` } as CSSProperties}><b>{informe.score}</b><span>{t("Índice")}</span></div>
+        </div>
       </div>;
+    }
 
     case "tabla": {
       // Filas de métrica por conjunto: la barra es el percentil con el

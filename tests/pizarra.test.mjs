@@ -102,3 +102,25 @@ test("al recolocar un once se busca el menor desajuste total, no solo el primero
   assert.ok(["LCMF", "CMF", "RCMF"].includes(puestoDe("AMF")), `el mediapunta va al medio, no ${puestoDe("AMF")}`);
   assert.equal(new Set(nuevo).size, 11);
 });
+
+test("cómo viene: solo los cambios que pasan el umbral, y el cambio de dibujo", async () => {
+  const { cambiosRecientes, UMBRAL_DE_CAMBIO } = await import("../lib/fases.ts");
+  const { cambioDeDibujo } = await import("../lib/partido.ts");
+  const lado = (equipo, stats, formacion = "4231", once = []) => ({ equipo, nombre: `E${equipo}`, goles: 0, formacion, cambios: 0, once, stats });
+  // Doce partidos con PPDA ~12 (con algo de ruido) y los cinco últimos a ~7: presiona más.
+  const ppdas = [12, 11, 13, 12, 12.5, 11.5, 12, 13, 11, 12, 7, 7.5, 6.5, 7, 7];
+  const liga = { fallidos: 0, partidos: ppdas.map((ppda, i) => ({
+    partido: i, fecha: `2026-${String(i + 1).padStart(2, "0")}-01`, jornada: i,
+    local: lado(1, { ppda, possession: 0.5 + (i % 2 ? 0.01 : -0.01) }), visita: lado(2, { ppda: 12, possession: 0.5 }),
+  })) };
+  const cambios = cambiosRecientes(liga, null, 1);
+  assert.equal(cambios[0].metrica.id, "ppda");
+  assert.ok(cambios[0].z <= -UMBRAL_DE_CAMBIO);
+  assert.ok(!cambios.some((c) => c.metrica.id === "posesion"), "la posesión apenas se mueve: no es un cambio");
+  // Línea de 4 toda la temporada y de 3 en los tres últimos.
+  const de4 = ["GK", "LB", "LCB", "RCB", "RB", "LDMF", "RDMF", "LW", "AMF", "RW", "CF"];
+  const de3 = ["GK", "LCB", "CB", "RCB", "LWB", "LCMF", "CMF", "RCMF", "RWB", "LCF", "RCF"];
+  const partidos = [...Array.from({ length: 8 }, () => ({ formacion: "4231", once: de4 })), ...Array.from({ length: 3 }, () => ({ formacion: "352", once: de3 }))];
+  assert.deepEqual(cambioDeDibujo(partidos), { tipo: "linea", antes: 4, ahora: 3, dibujoAhora: "352", partidos: 3 });
+  assert.equal(cambioDeDibujo(partidos.slice(0, 8)), null);
+});

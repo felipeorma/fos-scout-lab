@@ -499,3 +499,33 @@ export function crucesDeEstilo(a: PerfilDeEstilo, b: PerfilDeEstilo): CruceDeEst
   }
   return salida.sort((x, y) => y.fuerza - x.fuerza);
 }
+
+/**
+ * Si cambió de dibujo en sus últimos partidos: los tres últimos con el mismo
+ * dibujo (o la misma línea, de 3 o de 4) y distinto del que más usó antes.
+ */
+export function cambioDeDibujo(partidos: PartidoDeEquipo[], ultimos = 3) {
+  const conDibujo = partidos.filter((p) => p.formacion);
+  if (conDibujo.length < ultimos + 5) return null;
+  const recientes = conDibujo.slice(-ultimos);
+  const antes = conDibujo.slice(0, -ultimos);
+  const masUsada = (lista: PartidoDeEquipo[], clave: (p: PartidoDeEquipo) => string) => {
+    const cuenta = new Map<string, number>();
+    for (const p of lista) cuenta.set(clave(p), (cuenta.get(clave(p)) ?? 0) + 1);
+    return [...cuenta.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "";
+  };
+  const linea = (p: PartidoDeEquipo) => (p.once.length >= 10 ? String(lineaDefensiva(estructuraDe(p.once))) : "");
+  const dibujoAhora = recientes[0].formacion!;
+  const lineaAhora = linea(recientes[0]);
+  const mismoDibujo = recientes.every((p) => p.formacion === dibujoAhora);
+  const mismaLinea = lineaAhora && recientes.every((p) => linea(p) === lineaAhora);
+  const dibujoAntes = masUsada(antes, (p) => p.formacion!);
+  const lineaAntes = masUsada(antes.filter((p) => linea(p)), linea);
+  if (mismaLinea && lineaAntes && lineaAhora !== lineaAntes) {
+    return { tipo: "linea" as const, antes: Number(lineaAntes) as 3 | 4, ahora: Number(lineaAhora) as 3 | 4, dibujoAhora, partidos: ultimos };
+  }
+  if (mismoDibujo && dibujoAntes && dibujoAhora !== dibujoAntes) {
+    return { tipo: "dibujo" as const, antes: dibujoAntes, ahora: dibujoAhora, partidos: ultimos };
+  }
+  return null;
+}

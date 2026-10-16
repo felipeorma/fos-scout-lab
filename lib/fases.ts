@@ -104,7 +104,7 @@ const media = (xs: number[]) => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : Number.NaN);
 
 /** Lo que vale cada métrica de cada equipo en un partido. */
-function valorEnPartido(metrica: MetricaDeFase, stats: Record<string, number>, forma: FormaEquipoPartido | undefined, formaRival: FormaEquipoPartido | undefined) {
+export function valorEnPartido(metrica: MetricaDeFase, stats: Record<string, number>, forma: FormaEquipoPartido | undefined, formaRival: FormaEquipoPartido | undefined) {
   if (metrica.fuente === "stats") {
     const v = num(stats[metrica.campo]);
     // StatsBomb da la proporción de saques largos del portero: aquí se cuenta la de cortos.
@@ -208,4 +208,62 @@ export function formaReciente(liga: LigaPartidos, equipo: number, cuantos = 5) {
         xg: num(suyo.stats?.np_xg), xgContra: num(otro.stats?.np_xg), formacion: suyo.formacion,
       };
     });
+}
+
+// ---- Cómo viene: lo que cambió en sus últimos partidos ------------------------------------
+
+export type CambioReciente = {
+  metrica: MetricaDeFase;
+  /** Media de sus últimos partidos y del resto de la temporada. */
+  reciente: number;
+  antes: number;
+  /** La diferencia en errores típicos: por encima de UMBRAL_DE_CAMBIO no es ruido de pocos partidos. */
+  z: number;
+};
+
+/**
+ * Desde cuántos errores típicos un cambio reciente se cuenta. Con unas
+ * treinta métricas por equipo, a 1,5 saldrían unos cuatro "cambios" por puro
+ * azar en cada uno; a 2,0, alrededor de uno. La pantalla lo dice.
+ */
+export const UMBRAL_DE_CAMBIO = 2;
+
+/**
+ * Las métricas de las fases en sus últimos `n` partidos frente al resto de su
+ * temporada. Solo las que cambian de verdad: la diferencia dividida por su
+ * error típico (con la variación partido a partido del propio equipo) tiene
+ * que pasar UMBRAL_DE_CAMBIO; cinco partidos se mueven mucho por sí solos.
+ */
+export function cambiosRecientes(liga: LigaPartidos, forma: LigaForma | null, equipo: number, n = 5): CambioReciente[] {
+  const formaDe = new Map<number, Record<string, FormaEquipoPartido>>();
+  for (const p of forma?.partidos ?? []) formaDe.set(p.partido, p.equipos);
+  const suyos = liga.partidos
+    .filter((p) => p.local.equipo === equipo || p.visita.equipo === equipo)
+    .sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)));
+  if (suyos.length < n + 5) return [];
+  const salida: CambioReciente[] = [];
+  for (const fase of FASES) {
+    for (const metrica of fase.metricas) {
+      const valores = suyos.map((p) => {
+        const enCasa = p.local.equipo === equipo;
+        const suyo = enCasa ? p.local : p.visita;
+        const otro = enCasa ? p.visita : p.local;
+        const formas = formaDe.get(p.partido);
+        return valorEnPartido(metrica, suyo.stats ?? {}, formas?.[String(suyo.equipo)], formas?.[String(otro.equipo)]);
+      });
+      const recientes = valores.slice(-n).filter(Number.isFinite);
+      const anteriores = valores.slice(0, -n).filter(Number.isFinite);
+      if (recientes.length < Math.min(3, n) || anteriores.length < 5) continue;
+      const todos = [...recientes, ...anteriores];
+      const m = media(todos);
+      const sd = Math.sqrt(todos.reduce((s, v) => s + (v - m) ** 2, 0) / (todos.length - 1));
+      const error = sd * Math.sqrt(1 / recientes.length + 1 / anteriores.length);
+      if (!(error > 0)) continue;
+      const reciente = media(recientes);
+      const antes = media(anteriores);
+      const z = (reciente - antes) / error;
+      if (Math.abs(z) >= UMBRAL_DE_CAMBIO) salida.push({ metrica, reciente, antes, z });
+    }
+  }
+  return salida.sort((a, b) => Math.abs(b.z) - Math.abs(a.z));
 }

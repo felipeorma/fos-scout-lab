@@ -1658,6 +1658,7 @@ const EN: Record<string, string> = {
   "Incluir la temporada anterior": "Include the previous season",
   "Al cargar ligas de la API entra también la temporada anterior, y la ficha mide a cada jugador con las dos. Con Wyscout, sube los dos archivos a la vez con el año en el nombre (CPL 2025.xlsx, CPL 2026.xlsx).": "Loading leagues from the API also brings in the previous season, and the card measures each player over both. With Wyscout, upload both files together with the year in the name (CPL 2025.xlsx, CPL 2026.xlsx).",
   "Temporada anterior": "Previous season",
+  "Valor": "Value",
   "Cómo participa en la jugada": "How he takes part in the move",
   "Frente a {n} {grupo} de {liga} · {i} intervenciones suyas en juego abierto": "Against {n} {grupo} in {liga} · {i} open-play involvements",
   "Perfil: {perfil}. Lo que más le distingue de los {grupo}: {lista}.": "Profile: {perfil}. What sets him apart from other {grupo}: {lista}.",

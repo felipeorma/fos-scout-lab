@@ -5852,16 +5852,6 @@ button.menu-fila:active { transform: scale(.985); }
 .snap-l.asistencia { background: var(--acento); } .snap-l.fallo { background: var(--rojo); }
 
 /* La ficha */
-.app-shell[data-tema] .snap-ficha { display: grid; grid-template-columns: 60px minmax(0, 1fr); gap: 10px 12px; align-items: center; }
-.snap-foto { width: 60px; height: 60px; border-radius: 50%; object-fit: cover; background: color-mix(in srgb, var(--ink) 8%, transparent); }
-.app-shell[data-tema] .snap-foto.vacia { display: grid; place-items: center; color: var(--muted); font-size: 18px; font-weight: 700; }
-.snap-ficha-texto { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.app-shell[data-tema] .snap-ficha-texto > b { color: var(--ink); font-size: 16px; font-weight: 700; line-height: 1.2; overflow-wrap: break-word; }
-.app-shell[data-tema] .snap-ficha-texto > small { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
-.snap-ficha-texto > small > img { width: 18px; height: 18px; object-fit: contain; }
-.snap-ficha > dl { grid-column: 1 / -1; margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px; }
-.app-shell[data-tema] .snap-ficha dt { color: var(--muted); font-size: 10.5px; }
-.app-shell[data-tema] .snap-ficha dd { margin: 0; color: var(--ink); font-size: 12.5px; font-weight: 600; overflow-wrap: break-word; }
 
 /* La tabla de familias */
 .app-shell[data-tema] .snap-tabla { margin: 0; padding: 8px 12px; list-style: none; }
@@ -6749,7 +6739,6 @@ body.print-layout-check .legal-page-shell:has([data-hoja-vacia]) { display: none
    diseño) y un velo oscuro abajo; sin foto, las iniciales grandes y casi
    transparentes en lugar de un arco gris vacío. */
 .retrato-sticker, .jordhy-report[data-oscuro] .dossier-player-image,
-.app-shell[data-informe="oscuro"] .snap-foto-marco > img.snap-foto,
 .similarity-report-theme[data-oscuro] .duel-header-photo .comparison-player-image {
   filter: drop-shadow(2px 0 0 #fff) drop-shadow(-2px 0 0 #fff) drop-shadow(0 2px 0 #fff) drop-shadow(0 -2px 0 #fff) drop-shadow(0 10px 16px rgba(0, 0, 0, .55));
 }
@@ -6768,24 +6757,12 @@ body.print-layout-check .legal-page-shell:has([data-hoja-vacia]) { display: none
 .jordhy-report[data-oscuro] .dossier-club-logo { z-index: 3; }
 
 /* Ficha ampliada */
-.snap-foto-marco { position: relative; flex: none; display: block; width: 60px; height: 60px; }
-.app-shell[data-informe="oscuro"] .snap-foto-marco {
-  width: 92px; height: auto; aspect-ratio: 210 / 262; overflow: hidden; isolation: isolate;
-  border-radius: 13px; background: linear-gradient(180deg, #1e1e24, #0d0d10); box-shadow: inset 0 0 0 .7px var(--line);
-}
-.app-shell[data-informe="oscuro"] .snap-foto-marco::before { content: ""; position: absolute; inset: -30% -40% 30% 10%; z-index: -1; background: radial-gradient(circle at 70% 30%, color-mix(in srgb, var(--acento, #ff3b30) 46%, transparent), transparent 60%); }
-.app-shell[data-informe="oscuro"] .snap-foto-marco::after { content: ""; position: absolute; inset: auto 0 0; height: 30%; z-index: 2; background: linear-gradient(180deg, transparent, rgba(8, 8, 10, .9)); }
-.app-shell[data-informe="oscuro"] .snap-foto-marco > .snap-foto { position: absolute; left: 50%; bottom: 0; z-index: 1; width: 88%; height: auto; border-radius: 0; background: none; object-fit: contain; transform: translateX(-50%); }
-.app-shell[data-informe="oscuro"] .snap-foto-marco > .snap-foto.vacia { inset: 0; left: 0; width: 100%; height: 100%; transform: none; padding-bottom: 16%; color: rgba(245, 245, 247, .1); font-size: 42px; font-weight: 900; letter-spacing: -.06em; }
-.snap-foto-dorsal { display: none; }
-.app-shell[data-informe="oscuro"] .snap-foto-dorsal { display: block; position: absolute; top: 2px; right: 7px; z-index: 1; color: transparent; -webkit-text-stroke: 1px rgba(245, 245, 247, .22); font-size: 34px; font-weight: 900; letter-spacing: -.05em; line-height: 1; }
 
 /* Similitud */
 .similarity-report-theme[data-oscuro] .duel-header-photo { isolation: isolate; border-radius: 13px; }
 .similarity-report-theme[data-oscuro] .duel-header-photo::after { content: ""; position: absolute; inset: auto 0 0; height: 30%; z-index: 2; background: linear-gradient(180deg, transparent, rgba(8, 8, 10, .85)); pointer-events: none; }
 .similarity-report-theme[data-oscuro] .duel-header-number { top: 2px; right: 6px; z-index: 1; color: transparent; -webkit-text-stroke: 1px rgba(245, 245, 247, .25); font-size: 30px; font-weight: 900; letter-spacing: -.05em; }
 .similarity-report-theme[data-oscuro] .duel-header-initials { padding-bottom: 14%; color: color-mix(in srgb, var(--player-color) 22%, transparent); font-family: var(--font-geist), sans-serif; font-size: 40px; font-weight: 900; letter-spacing: -.06em; }
-.app-shell[data-informe="oscuro"] .snap-ficha { grid-template-columns: 92px minmax(0, 1fr); align-items: end; }
 
 /* =====================================================================
    Similitud en el look Night
@@ -7122,8 +7099,39 @@ body.print-layout-check .legal-page-shell:has([data-hoja-vacia]) { display: none
 .jordhy-report[data-oscuro] .shirt-number { top: 12px; right: 18px; color: var(--report-accent); -webkit-text-stroke: 0; font-size: 64px; }
 .similarity-report-theme[data-oscuro] .duel-header-crest,
 .similarity-report-theme[data-oscuro] .duel-header-number,
-.app-shell[data-informe="oscuro"] .snap-foto-dorsal {
-  filter: drop-shadow(1.5px 0 0 #fff) drop-shadow(-1.5px 0 0 #fff) drop-shadow(0 1.5px 0 #fff) drop-shadow(0 -1.5px 0 #fff) drop-shadow(0 5px 8px rgba(0, 0, 0, .5));
-}
 .similarity-report-theme[data-oscuro] .duel-header-number { color: var(--player-color); -webkit-text-stroke: 0; font-size: 26px; }
-.app-shell[data-informe="oscuro"] .snap-foto-dorsal { top: 5px; right: 8px; color: var(--acento, #ff3b30); -webkit-text-stroke: 0; font-size: 28px; }
+
+/* ---- Ficha ampliada: la tarjeta del jugador, como la de Ficha y radar ---- */
+.app-shell[data-tema] .snap-ficha { padding: 0; overflow: hidden; display: grid; grid-template-columns: 136px minmax(0, 1fr); gap: 0; align-items: stretch; }
+.snap-retrato { position: relative; isolation: isolate; min-height: 190px; overflow: hidden; display: flex; align-items: flex-end; justify-content: center; background: linear-gradient(180deg, #1e1e24, #0d0d10); }
+.snap-retrato-brillo { position: absolute; inset: -40% -55% 35% 5%; z-index: -1; background: radial-gradient(circle at 70% 30%, color-mix(in srgb, var(--acento, #ff3b30) 50%, transparent), transparent 60%); }
+.snap-retrato::after { content: ""; position: absolute; inset: auto 0 0; z-index: 2; height: 28%; background: linear-gradient(180deg, transparent, rgba(8, 8, 10, .9)); pointer-events: none; }
+.snap-retrato .snap-retrato-escudo { position: absolute; top: 9px; left: 9px; z-index: 3; width: 34px; height: 34px; object-fit: contain;
+  filter: drop-shadow(1.5px 0 0 #fff) drop-shadow(-1.5px 0 0 #fff) drop-shadow(0 1.5px 0 #fff) drop-shadow(0 -1.5px 0 #fff) drop-shadow(0 5px 8px rgba(0, 0, 0, .5)); }
+.snap-retrato-dorsal { position: absolute; top: 6px; right: 10px; z-index: 3; color: var(--acento, #ff3b30); font-size: 32px; font-weight: 900; letter-spacing: -.05em; line-height: 1;
+  filter: drop-shadow(1.5px 0 0 #fff) drop-shadow(-1.5px 0 0 #fff) drop-shadow(0 1.5px 0 #fff) drop-shadow(0 -1.5px 0 #fff) drop-shadow(0 5px 8px rgba(0, 0, 0, .5)); }
+.snap-retrato-foto { position: relative; z-index: 1; width: 92%; max-height: 172px; object-fit: contain; object-position: center bottom;
+  filter: drop-shadow(2px 0 0 #fff) drop-shadow(-2px 0 0 #fff) drop-shadow(0 2px 0 #fff) drop-shadow(0 -2px 0 #fff) drop-shadow(0 10px 16px rgba(0, 0, 0, .55)); }
+.snap-retrato-iniciales { position: absolute; inset: 0; z-index: 1; display: grid; place-items: center; padding-bottom: 14%; color: rgba(245, 245, 247, .1); font-size: 54px; font-weight: 900; letter-spacing: -.06em; }
+.snap-retrato-info { min-width: 0; padding: 12px 14px 10px; display: flex; flex-direction: column; gap: 6px; }
+.snap-retrato-competicion { display: flex; align-items: center; gap: 8px; }
+.snap-retrato-competicion img { width: 26px; height: 26px; object-fit: contain; }
+.snap-retrato-competicion b { display: block; overflow: hidden; color: var(--ink); font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+.snap-retrato-competicion small { display: block; overflow: hidden; color: var(--muted); font-size: 9.5px; font-weight: 700; letter-spacing: .08em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+.app-shell[data-tema] .snap-retrato-info h3 { margin: 2px 0 0; color: var(--ink); font-size: 21px; font-weight: 800; letter-spacing: -.02em; line-height: 1.05; overflow-wrap: break-word; }
+.snap-retrato-identidad { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.snap-retrato-identidad b { padding: 3px 9px; border-radius: 5px; background: var(--acento, #ff3b30); color: #fff; font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+.snap-retrato-identidad span { color: var(--ink); font-size: 11px; font-weight: 600; }
+.snap-retrato-info dl { margin: 4px 0 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px 10px; }
+.snap-retrato-info dt { color: var(--muted); font-size: 8.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.snap-retrato-info dd { margin: 2px 0 0; overflow: hidden; color: var(--ink); font-size: 11.5px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.snap-retrato-franja { grid-column: 1 / -1; padding: 10px 14px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) auto; align-items: center; gap: 8px; border-top: 1px solid var(--line); }
+.snap-retrato-franja > div:not(.snap-retrato-anillo) b { display: block; color: var(--ink); font-size: 20px; font-weight: 800; letter-spacing: -.02em; line-height: 1; font-variant-numeric: tabular-nums; }
+.snap-retrato-franja > div.goles b { color: #ff453a; }
+.snap-retrato-franja > div.asistencias b { color: #bf5af2; }
+.snap-retrato-franja span { display: block; margin-top: 3px; color: var(--muted); font-size: 8.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.snap-retrato-anillo { width: 54px; height: 54px; border-radius: 50%; display: grid; place-content: center; text-align: center;
+  background: radial-gradient(closest-side, var(--paper, #121217) 78%, transparent 80% 100%), conic-gradient(var(--acento, #ff3b30) var(--score), color-mix(in srgb, var(--ink) 12%, transparent) 0); print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+.snap-retrato-anillo b { color: var(--ink); font-size: 17px; font-weight: 800; line-height: 1; }
+.snap-retrato-anillo span { margin-top: 1px; font-size: 6.5px; }
+.app-shell[data-tema="claro"] .snap-retrato { background: linear-gradient(180deg, #2a2a31, #15151a); }
