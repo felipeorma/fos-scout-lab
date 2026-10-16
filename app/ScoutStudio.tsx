@@ -519,6 +519,12 @@ export default function ScoutStudio() {
   const porLiga = medirContra === "liga" && clavesDelInforme ? { clavesPorFila: clavesDelInforme } : undefined;
   // Lo mismo para la Ficha ampliada y las piezas de Visuales, que arman su
   // grupo sobre las filas de la temporada que se mira.
+  // Las ligas de cada fila, se mida como se mida: el Top 10 y los parecidos de
+  // la Ficha ampliada se acotan a su liga por defecto.
+  const ligasDeLasPiezas = useMemo(
+    () => (procedencias.length ? origenPorFila(filasDeLasPiezas, procedencias).map((origen) => origen.claves) : null),
+    [procedencias, filasDeLasPiezas],
+  );
   const clavesDeLasPiezas = useMemo(() => {
     if (medirContra !== "liga" || procedencias.length < 2) return null;
     return origenPorFila(filasDeLasPiezas, procedencias).map((origen) => origen.claves);
@@ -2743,7 +2749,7 @@ export default function ScoutStudio() {
                   tests/orden-del-pdf.test.mjs. */}
               {espacio === "cavalry" && report && paginaMontada(SNAPSHOT_PAGE) && (
                 <SnapshotPage rows={filasDeLasPiezas} indice={indiceDeLasPiezas} informe={report} perfilTm={profile} minutosMin={minimumMinutes} claseHoja={claseHoja(SNAPSHOT_PAGE)} temporada={temporadaDeReferencia?.etiqueta}
-                  clavesPorFila={clavesDeLasPiezas} feedOpta={feedOpta}
+                  clavesPorFila={clavesDeLasPiezas} ligasDeFila={ligasDeLasPiezas} feedOpta={feedOpta}
                   destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} onAbrirJugador={(indice) => { const enBase = enLaBase(indice); if (enBase >= 0) selectPlayer(enBase); }}
                   equipoEncaje={equipoEncaje} onEquipoEncaje={setEquipoEncaje} sinHojaDeEncaje={Boolean(printRun) && !pdfConEncaje} />
               )}
@@ -2771,7 +2777,7 @@ export default function ScoutStudio() {
               )}
               {report ? visualPages.filter((page) => printRun ? printRun.includes(page) : reportPage === page).map((page) => (
                 <ReportPageDesigner key={page} pageNumber={page} persist={!printRun || reportPage === page} player={report.player} team={profile.club || report.team} position={formatPlayerPositions(profile.position || report.position)} theme={reportTheme} onThemeChange={setReportTheme} recipientName={recipientName} recipientLogoUrl={reportRecipientLogoUrl} aiFacts={aiControlsHidden ? undefined : () => ({ lang, player: aiPlayerFacts(report), metrics: aiMetricFacts(report) })}
-                  ficha={{ rows: filasDeLasPiezas, indice: indiceDeLasPiezas, informe: report, perfilTm: profile, minutosMin: minimumMinutes, temporada: temporadaDeReferencia?.etiqueta, clavesPorFila: clavesDeLasPiezas, feedOpta }} />
+                  ficha={{ rows: filasDeLasPiezas, indice: indiceDeLasPiezas, informe: report, perfilTm: profile, minutosMin: minimumMinutes, temporada: temporadaDeReferencia?.etiqueta, clavesPorFila: clavesDeLasPiezas, ligasDeFila: ligasDeLasPiezas, feedOpta }} />
               )) : !printRun && reportPage >= FIRST_VISUAL_PAGE ? <div className="empty-preview">{t("Selecciona un jugador para diseñar las páginas.")}</div> : null}
               {report && paginaMontada(BOARD_PAGE) && (
                 <div className={claseHoja(BOARD_PAGE)}><ScoutingBoard rows={reportRows} minimumMinutes={minimumMinutes} onSelectPlayer={(indice) => { selectPlayer(indice); setBoardPreviewOpen(true); }} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>

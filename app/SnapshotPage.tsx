@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { PieDeReporte } from "./PieDeReporte";
 import { Antetitulo } from "./KitNight";
 import { PiezaFicha, useDatosFicha, type ContextoFicha, type IdPieza } from "./PiezasFicha";
-import type { EntradaOpta } from "@/lib/nivelDeLiga";
+import { marcoConNivel, type EntradaOpta } from "@/lib/nivelDeLiga";
 import { t, tf } from "@/lib/i18n";
 import type { DataRow, PlayerReport } from "@/lib/scouting";
 import type { TransfermarktProfile } from "@/lib/transfermarkt";
@@ -22,9 +22,11 @@ import type { TransfermarktProfile } from "@/lib/transfermarkt";
  * Cada gráfico es una pieza de PiezasFicha: los mismos que Visuales ofrece
  * sueltos para montar una hoja a medida.
  */
-export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, destinatario = "", logoDestinatario = "", onAbrirJugador, claseHoja = "legal-page-shell", equipoEncaje: equipoDeFuera, onEquipoEncaje, sinHojaDeEncaje = false, temporada, clavesPorFila = null, feedOpta = null }: {
+export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, destinatario = "", logoDestinatario = "", onAbrirJugador, claseHoja = "legal-page-shell", equipoEncaje: equipoDeFuera, onEquipoEncaje, sinHojaDeEncaje = false, temporada, clavesPorFila = null, feedOpta = null, ligasDeFila = null }: {
   /** Las claves "liga año" de cada fila cuando se mide contra su liga. */
   clavesPorFila?: string[][] | null;
+  /** Las claves "liga año" de cada fila, siempre: acotan el Top 10 y los parecidos. */
+  ligasDeFila?: string[][] | null;
   feedOpta?: EntradaOpta[] | null;
   /** La temporada que se mira en la ficha; sin ella, la más reciente del jugador. */
   temporada?: string;
@@ -44,7 +46,16 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
   /** Sin la tercera hoja: en el PDF el encaje es opcional. En pantalla siempre está. */
   sinHojaDeEncaje?: boolean;
 }) {
-  const contexto: ContextoFicha = { rows, indice, informe, perfilTm, minutosMin, onAbrirJugador, temporada, clavesPorFila, feedOpta };
+  // El Top 10 y los parecidos: su liga, y las que se añadan.
+  const [ligasExtra, setLigasExtra] = useState<string[]>([]);
+  const susLigas = ligasDeFila?.[indice] ?? [];
+  const otrasLigas = useMemo(
+    () => [...new Set((ligasDeFila ?? []).flat())].filter((liga) => !susLigas.includes(liga)).sort((x, y) => x.localeCompare(y)),
+    // susLigas sale de ligasDeFila e indice.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [ligasDeFila, indice],
+  );
+  const contexto: ContextoFicha = { rows, indice, informe, perfilTm, minutosMin, onAbrirJugador, temporada, clavesPorFila, feedOpta, ligasDeFila, ligasExtra };
   const datos = useDatosFicha(contexto, true, true);
   const [familiaTop, setFamiliaTop] = useState("progresion");
   // El mapa de recepciones y su reparto se agrupan igual: cambiar uno cambia los dos.
@@ -65,6 +76,17 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
         : datos.marco
           ? tf("Familias contra {n} {grupo} de la base cargada, con al menos {m} minutos: su liga ({marco}) solo tiene {k} de su puesto, pocos para un grupo propio.", { n: datos.grupo.indices.length, grupo: datos.nombreGrupo.toLowerCase(), m: minutosMin, marco: datos.marco.texto, k: datos.marco.enSuLiga })
           : tf("Familias contra {n} {grupo} de la base cargada, con al menos {m} minutos.", { n: datos.grupo.indices.length, grupo: datos.nombreGrupo.toLowerCase(), m: minutosMin })}</p>
+      {hoja === 1 && susLigas.length > 0 && otrasLigas.length > 0 && <div className="snap-ligas" role="group" aria-label={t("Ligas del Top 10 y de los parecidos")}>
+        <span>{t("Top 10 y parecidos")}</span>
+        <b className="snap-liga propia">{marcoConNivel(susLigas, feedOpta)}</b>
+        {ligasExtra.map((liga) => <button key={liga} type="button" className="snap-liga" onClick={() => setLigasExtra((actuales) => actuales.filter((x) => x !== liga))}
+          title={t("Quitar")}>{marcoConNivel([liga], feedOpta)} ×</button>)}
+        <select aria-label={t("Añadir una liga")} value="" onChange={(evento) => { const liga = evento.target.value; if (liga) setLigasExtra((actuales) => [...actuales, liga]); }}>
+          <option value="">{t("+ Añadir liga")}</option>
+          {otrasLigas.filter((liga) => !ligasExtra.includes(liga)).map((liga) => <option key={liga} value={liga}>{marcoConNivel([liga], feedOpta)}</option>)}
+        </select>
+        {ligasExtra.length > 0 && <button type="button" className="snap-liga-limpiar" onClick={() => setLigasExtra([])}>{t("Solo su liga")}</button>}
+      </div>}
     </div>
   </header>;
   const pie = <PieDeReporte asunto={datos.jugador} destinatario={destinatario} logo={logoDestinatario} />;

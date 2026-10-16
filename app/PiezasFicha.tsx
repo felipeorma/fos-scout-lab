@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
-import { BarraDegradada, Cesped, ChipDeCambio, ChipNeutro, Cometa, FilaDeMetrica, tonosDeColor, type Tonos } from "./KitNight";
+import { BarraDegradada, Cesped, ChipDeCambio, Cometa, FilaDeMetrica, tonosDeColor, type Tonos } from "./KitNight";
 import { SIMILARITY_METRIC_GROUPS, type SimilarityMetricGroup } from "@/lib/similarityMetricGroups";
 import { Desplegable } from "./BarraDeFiltros";
 import { numberLocale, t, tf } from "@/lib/i18n";
@@ -13,6 +13,7 @@ import { buildSimilaritySearch, type SimilarityFilters, type SimilarityPlayer } 
 import { PERFILES } from "@/lib/perfiles";
 import { primaryPositionRole } from "@/lib/positions";
 import { marcoDeSuLiga, temporadasDeFila, type DataRow, type PlayerReport } from "@/lib/scouting";
+import type { ValorCompuesto } from "@/lib/snapshot";
 import { marcoConNivel, type EntradaOpta } from "@/lib/nivelDeLiga";
 import type { TransfermarktProfile } from "@/lib/transfermarkt";
 import {
@@ -31,7 +32,6 @@ import {
   familiasCompuestas,
   fuenteStatsbomb,
   grupoDeRecepcion,
-  MIN_INTERVENCIONES,
   rejilla,
   resumenRecepciones,
   ROLES_SECUENCIA,
@@ -67,6 +67,10 @@ export type ContextoFicha = {
   clavesPorFila?: string[][] | null;
   /** Los Opta Power Rankings, para decir el nivel de su liga junto al grupo. */
   feedOpta?: EntradaOpta[] | null;
+  /** Las claves "liga año" de cada fila, se mida como se mida: acotan el Top 10 y los parecidos. */
+  ligasDeFila?: string[][] | null;
+  /** Ligas añadidas a mano al Top 10 y a los parecidos; por defecto, solo la suya. */
+  ligasExtra?: string[];
 };
 
 export type IdPieza =
@@ -99,7 +103,7 @@ export const PIEZAS_FICHA: Array<{ id: IdPieza; titulo: string; ancho: number; a
   { id: "recepciones_tipo", titulo: "Cómo recibe", ancho: 4, alto: 500, eventos: true },
   { id: "recepciones_origen", titulo: "De dónde le llega", ancho: 4, alto: 500, eventos: true },
   { id: "recepciones_pasadores", titulo: "Quién se la da", ancho: 4, alto: 420, eventos: true },
-  { id: "roles", titulo: "Rol en la secuencia", ancho: 12, alto: 420, eventos: false, roles: true },
+  { id: "roles", titulo: "Cómo participa en la jugada", ancho: 12, alto: 420, eventos: false, roles: true },
   { id: "encaje", titulo: "Encaje con un equipo", ancho: 12, alto: 720, eventos: false, roles: true },
   { id: "enjambres", titulo: "Frente a su grupo", ancho: 12, alto: 380, eventos: false },
   { id: "dispersion", titulo: "Construcción frente a asociación", ancho: 6, alto: 400, eventos: false },
@@ -255,7 +259,7 @@ function separar(lista: EventoSB[]) {
  * de descarga que no va a usar.
  */
 export function useDatosFicha(contexto: ContextoFicha, conEventos: boolean, conRoles = false) {
-  const { rows, indice, informe, minutosMin, clavesPorFila, feedOpta } = contexto;
+  const { rows, indice, informe, minutosMin, clavesPorFila, feedOpta, ligasDeFila = null, ligasExtra = [] } = contexto;
   const fila = rows[indice];
   const jugador = String(fila?.Player ?? informe.player);
   const fuente = fuenteStatsbomb(fila?.["Data sources"], contexto.temporada);
@@ -277,14 +281,47 @@ export function useDatosFicha(contexto: ContextoFicha, conEventos: boolean, conR
     const clave = `${informe.cohort}|${minutosMin}|${indice}|${enSuLiga ? enSuLiga.claves.join("¦") : "todas"}`;
     return deCache(grupos, rows, clave, () => familiasCompuestas(rows, informe.cohort, minutosMin, indice, enSuLiga ? (i) => enSuLiga.filas.has(i) : undefined));
   }, [rows, informe.cohort, minutosMin, indice, suLiga]);
-  const parecidos = useMemo(() => deCache(similares, rows, `${indice}|${minutosMin}`, () => {
-    const filtros: SimilarityFilters = { query: "", position: "", secondaryRole: "", side: "", passport: "", minimumMinutes: minutosMin, ageMin: null, ageMax: null };
+  /*
+   * El Top 10 y los parecidos, de su liga y temporada por defecto; con más
+   * ligas si se añaden. En el Top 10 cada uno va medido dentro de su propia
+   * liga (su grupo de posición de esa liga), así que un 1,5 de la MLS y uno de
+   * la CPL dicen lo mismo: cuánto destaca donde juega.
+   */
+  const susLigas = useMemo(() => ligasDeFila?.[indice] ?? [], [ligasDeFila, indice]);
+  const ligasDeLaLista = useMemo(() => [...new Set([...susLigas, ...ligasExtra])], [susLigas, ligasExtra]);
+  const claveDeLigas = ligasDeLaLista.join("¦");
+  const gruposDelTop = useMemo(() => {
+    if (!ligasDeFila || !susLigas.length) return [grupo];
+    return ligasDeLaLista.map((liga) => deCache(grupos, rows, `${informe.cohort}|${minutosMin}|liga:${liga}`,
+      () => familiasCompuestas(rows, informe.cohort, minutosMin, -1, (i) => (ligasDeFila[i] ?? []).includes(liga))));
+    // claveDeLigas resume ligasDeLaLista.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ligasDeFila, susLigas, claveDeLigas, rows, informe.cohort, minutosMin, grupo]);
+  const candidatosDelTop = useMemo(() => {
+    const vistos = new Set<number>();
+    const lista: Array<{ i: number; valores: Record<string, ValorCompuesto> | undefined }> = [];
+    for (const g of gruposDelTop) for (const i of g.indices) {
+      if (vistos.has(i)) continue;
+      vistos.add(i);
+      lista.push({ i, valores: g.valores.get(i) });
+    }
+    return lista;
+  }, [gruposDelTop]);
+  const parecidos = useMemo(() => deCache(similares, rows, `${indice}|${minutosMin}|${claveDeLigas}`, () => {
+    const puesto = primaryPositionRole(fila?.Position ?? informe.position) ?? "";
+    const filtros: SimilarityFilters = { query: "", position: puesto, secondaryRole: "", side: "", passport: "", minimumMinutes: minutosMin, ageMin: null, ageMax: null };
+    // Cada uno medido contra su liga cuando hay varias; si la suya no da, contra todas.
+    const porLiga = ligasDeFila && new Set(ligasDeFila.flat()).size > 1 ? { ligasPorFila: ligasDeFila } : null;
+    const enLaLista = (i: number) => !ligasDeFila || !susLigas.length || (ligasDeFila[i] ?? []).some((liga) => ligasDeLaLista.includes(liga));
     try {
-      return buildSimilaritySearch(rows, indice, filtros)?.candidates.slice(0, 15) ?? [];
+      const busqueda = (porLiga ? buildSimilaritySearch(rows, indice, filtros, {}, "AUTO", null, porLiga) : null) ?? buildSimilaritySearch(rows, indice, filtros);
+      return (busqueda?.candidates ?? []).filter((c) => enLaLista(c.index)).slice(0, 15);
     } catch {
       return [];
     }
-  }), [rows, indice, minutosMin]);
+    // claveDeLigas resume las ligas de la lista.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [rows, indice, minutosMin, claveDeLigas, ligasDeFila, informe.position, fila]);
   // Para los aros de los gráficos de grupo hacen falta parecidos de su mismo
   // puesto: la lista general admite otros (a Engel, central, le salían
   // laterales y un extremo), y esos no tienen punto en el gráfico de centrales.
@@ -321,6 +358,11 @@ export function useDatosFicha(contexto: ContextoFicha, conEventos: boolean, conR
     nombreGrupo: t(PERFILES.find((perfil) => perfil.id === informe.cohort)?.nombre ?? informe.cohort),
     /** Contra quién se midió el grupo, con el nivel de su liga; null con una sola competición. */
     marco: suLiga ? { modo: suLiga.modo, texto: marcoConNivel(suLiga.claves, feedOpta), enSuLiga: suLiga.enSuLiga } : null,
+    candidatosDelTop,
+    /** Las ligas del Top 10 y de los parecidos, con su nivel: "CPL 2026 · Opta 65,3 + MLS 2026 · Opta 79,7". */
+    ligasDeLaLista: ligasDeLaLista.length ? marcoConNivel(ligasDeLaLista, feedOpta) : "",
+    /** De cuál de las ligas de la lista es una fila (la primera que casa), para escribirla al lado. */
+    ligaEnLaLista: (i: number) => (ligasDeFila?.[i] ?? []).find((liga) => ligasDeLaLista.includes(liga)) ?? "",
     parecidos,
     // Los aros de los gráficos de grupo: los cinco más parecidos de su puesto
     // que están en el grupo (con el mínimo de minutos).
@@ -611,12 +653,12 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
 
     case "top10": {
       const familia = COMPUESTAS.find((c) => c.id === opcion) ?? COMPUESTAS.find((c) => c.id === "progresion") ?? COMPUESTAS[0];
-      const top = grupo.indices
-        .map((i) => ({ i, z: grupo.valores.get(i)?.[familia.id]?.z ?? Number.NaN }))
+      const top = datos.candidatosDelTop
+        .map(({ i, valores }) => ({ i, z: valores?.[familia.id]?.z ?? Number.NaN }))
         .filter((p) => Number.isFinite(p.z))
         .sort((a, b) => b.z - a.z)
         .slice(0, 10);
-      return <Tarjeta titulo={t("Top 10")} subtitulo={suelta ? `${t(familia.etiqueta)} · ${conGrupo}` : undefined} clase="snap-top">
+      return <Tarjeta titulo={t("Top 10")} subtitulo={datos.ligasDeLaLista ? tf("{f} · cada uno en su liga · {ligas}", { f: t(familia.etiqueta), ligas: datos.ligasDeLaLista }) : suelta ? `${t(familia.etiqueta)} · ${conGrupo}` : undefined} clase="snap-top">
         <Desplegable etiqueta={t("Familia")} valor={t(familia.etiqueta)} activo={false}>
           <select aria-label={t("Familia")} value={familia.id} onChange={(evento) => onOpcion?.(evento.target.value)} onClick={(evento) => evento.stopPropagation()}>
             {COMPUESTAS.map((c) => <option key={c.id} value={c.id}>{c.fuente === "skillcorner" ? `${t(c.etiqueta)} · SkillCorner` : t(c.etiqueta)}</option>)}
@@ -626,7 +668,7 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
           {top.map(({ i, z }, posicion) => (
             <li key={i} className={i === indice ? "activo" : undefined} onClick={() => onAbrirJugador?.(i)}>
               <span>{posicion + 1}</span>
-              <b>{nombres(i)}<small>{String(rows[i]?.Team ?? "")}</small><BarraDegradada valor={(z / Math.max(top[0]?.z ?? 1, 0.01)) * 100} tonos={tonosDeColor(conjuntoDeFamilia(familia.id).color)} /></b>
+              <b>{nombres(i)}<small>{[String(rows[i]?.Team ?? ""), ...(contexto.ligasExtra?.length ? [datos.ligaEnLaLista(i)] : [])].filter(Boolean).join(" · ")}</small><BarraDegradada valor={(z / Math.max(top[0]?.z ?? 1, 0.01)) * 100} tonos={tonosDeColor(conjuntoDeFamilia(familia.id).color)} /></b>
               <em>{conSigno(z)}</em>
             </li>
           ))}
@@ -660,13 +702,16 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
       // Suelto, en un bloque de media hoja, van diez: quince pedían un bloque
       // más alto que el resto de la fila.
       const lista = suelta ? parecidos.slice(0, 10) : parecidos;
-      return <Tarjeta titulo={tf("Los que más se parecen a {nombre}", { nombre: apellido(jugador) })} subtitulo={tf("{n} más cercanos de la base, de cualquier puesto", { n: lista.length })} clase="snap-parecidos">
+      return <Tarjeta titulo={tf("Los que más se parecen a {nombre}", { nombre: apellido(jugador) })}
+        subtitulo={datos.ligasDeLaLista
+          ? tf("{n} más cercanos de su puesto · {ligas}", { n: lista.length, ligas: datos.ligasDeLaLista })
+          : tf("{n} más cercanos de su puesto en la base", { n: lista.length })} clase="snap-parecidos">
         <ol>
           {lista.map((p, posicion) => (
             <li key={p.index} onClick={() => onAbrirJugador?.(p.index)}>
               <span>{posicion + 1}</span>
               <b>{p.name}</b>
-              <small>{p.team}</small>
+              <small>{[p.team, ...(contexto.ligasExtra?.length ? [datos.ligaEnLaLista(p.index)] : [])].filter(Boolean).join(" · ")}</small>
               <em>{`${num(p.similarity, 1)}%`}</em>
               <BarraDegradada valor={p.similarity} tonos={TONOS_ACENTO} />
             </li>
@@ -851,19 +896,55 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
       const aviso = !fuente
         ? t("Este jugador no viene de StatsBomb: los roles salen de sus eventos partido a partido.")
         : !r ? (datos.estadoRoles || t("Sin intervenciones de este jugador en las secuencias de su liga.")) : undefined;
-      return <Tarjeta titulo={tf("Rol en la secuencia frente a su grupo{perfil}", { perfil: r?.perfil ? ` · ${r.perfil}` : "" })}
-        subtitulo={r ? tf("Percentil frente a {n} {grupo} de {liga} · secuencias en juego abierto, mínimo {min} intervenciones · {i} suyas", {
-          n: r.grupo, grupo: nombreGrupo.toLowerCase(), liga: fuente?.liga ?? "", min: MIN_INTERVENCIONES, i: num(r.intervenciones),
+      /*
+       * La jugada de izquierda a derecha: arranca, circula, hace avanzar,
+       * finaliza. Cada papel es una burbuja en su fase: el tamaño, qué parte
+       * de su juego es; el color y la cifra, cuánto más que los de su puesto
+       * (percentil). Antes eran ocho barras iguales y no se veía la jugada.
+       */
+      const FASES_DE_LA_JUGADA: Array<{ nombre: string; x: number; roles: Array<{ id: string; x: number; y: number }> }> = [
+        { nombre: "Arranca", x: 24, roles: [{ id: "iniciador", x: 24, y: 64 }] },
+        { nombre: "Circula", x: 74, roles: [{ id: "control", x: 74, y: 38 }, { id: "apoyo", x: 74, y: 90 }] },
+        { nombre: "Hace avanzar", x: 140, roles: [{ id: "enlace", x: 118, y: 38 }, { id: "progresor", x: 162, y: 38 }, { id: "conductor", x: 118, y: 90 }, { id: "vertical", x: 162, y: 90 }] },
+        { nombre: "Finaliza", x: 204, roles: [{ id: "remate", x: 204, y: 64 }] },
+      ];
+      const fila = (id: string) => r?.filas.find((f) => f.id === id);
+      const destacan = r ? [...r.filas].filter((f) => f.parte >= 0.05).sort((x, y) => y.percentil - x.percentil).slice(0, 2) : [];
+      return <Tarjeta titulo={t("Cómo participa en la jugada")}
+        subtitulo={r ? tf("Frente a {n} {grupo} de {liga} · {i} intervenciones suyas en juego abierto", {
+          n: r.grupo, grupo: nombreGrupo.toLowerCase(), liga: fuente?.liga ?? "", i: num(r.intervenciones),
         }) : undefined} aviso={aviso} clase="snap-roles">
-        {r && <div className="snap-roles-lista n-roles">
-          {r.filas.map((f) => (
-            <div key={f.id} title={t(ROLES_SECUENCIA.find((rol) => rol.id === f.id)?.descripcion ?? "")}>
-              <FilaDeMetrica etiqueta={t(f.etiqueta)} cifra={`P${f.percentil}`} chip={<ChipNeutro>{`${Math.round(f.parte * 100)} %`}</ChipNeutro>}
-                valor={f.percentil} tonos={TONOS_ACENTO} marca={50} />
-            </div>
-          ))}
-        </div>}
-        {r && <p className="snap-roles-nota">{t("Barra: percentil frente a su grupo en la parte de sus intervenciones que es cada rol. Derecha: esa parte. Cada intervención cuenta en un solo rol, el primero que cumple: remate, iniciador, vertical, progresor, conductor, apoyo, enlace, control.")}</p>}
+        {r && <>
+          {destacan.length > 0 && <p className="snap-roles-perfil">{tf("Perfil: {perfil}. Lo que más le distingue de los {grupo}: {lista}.", {
+            perfil: r.perfil || t(ROLES_SECUENCIA.find((x) => x.id === destacan[0].id)?.perfil ?? ""), grupo: nombreGrupo.toLowerCase(),
+            lista: destacan.map((f) => `${t(f.etiqueta).toLowerCase()} (P${f.percentil})`).join(t(" y ")),
+          })}</p>}
+          <svg viewBox="0 0 228 122" className="snap-roles-jugada" role="img" aria-label={t("Cómo participa en la jugada")}>
+            {/* Las cuatro fases, con flechas: la jugada va hacia la portería rival. */}
+            {FASES_DE_LA_JUGADA.map((fase, k) => <g key={fase.nombre}>
+              <text x={fase.x} y={9} className="snap-roles-fase">{t(fase.nombre)}</text>
+              {k < FASES_DE_LA_JUGADA.length - 1 && <path d={`M${fase.x + (k === 2 ? 38 : 17)} 64 L${FASES_DE_LA_JUGADA[k + 1].x - (k + 1 === 2 ? 38 : 17)} 64`} className="snap-roles-flecha" markerEnd="url(#snap-roles-punta)" />}
+            </g>)}
+            <defs><marker id="snap-roles-punta" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 6 3 0 6z" className="snap-roles-punta" /></marker></defs>
+            {FASES_DE_LA_JUGADA.flatMap((fase) => fase.roles).map(({ id, x, y }) => {
+              const f = fila(id);
+              if (!f) return null;
+              const radio = 6.5 + Math.sqrt(f.parte) * 12;
+              const rol = ROLES_SECUENCIA.find((x) => x.id === id);
+              return <g key={id} className="snap-roles-burbuja">
+                <title>{`${t(rol?.etiqueta ?? id)}: ${t(rol?.descripcion ?? "")} P${f.percentil} · ${Math.round(f.parte * 100)} %`}</title>
+                <circle cx={x} cy={y} r={radio} style={{ fill: rampaDeRed(f.percentil / 100) }} />
+                <text x={x} y={y + 2} className={f.percentil >= 50 ? "snap-roles-p fuerte" : "snap-roles-p"}>{`P${f.percentil}`}</text>
+                <text x={x} y={y + radio + 6.5} className="snap-roles-nombre">{t(f.etiqueta)}</text>
+                <text x={x} y={y + radio + 12} className="snap-roles-parte">{`${Math.round(f.parte * 100)} %`}</text>
+              </g>;
+            })}
+          </svg>
+          <ul className="snap-roles-leyenda">
+            {ROLES_SECUENCIA.map((rol) => <li key={rol.id}><b>{t(rol.etiqueta)}</b> {t(rol.descripcion)}</li>)}
+          </ul>
+          <p className="snap-roles-nota">{t("Cada vez que toca el balón en una jugada de su equipo cuenta un solo papel, el primero que cumple: remate, inicio, pase largo, progresión, conducción, apoyo, enlace, control. Tamaño: qué parte de su juego es ese papel. Color y cifra: su percentil en ese papel frente a los de su puesto.")}</p>
+        </>}
       </Tarjeta>;
     }
 
