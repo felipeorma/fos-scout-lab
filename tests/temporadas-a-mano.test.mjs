@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { activeLang, setActiveLang } from "../lib/i18n.ts";
 import {
-  aTemporadaDeJugador, anterioresAMano, claveDeJugador, datosDeFilaWyscout, errorDeTemporadaAMano, nuevaTemporadaAMano, parecidoDeNombre,
+  aTemporadaDeJugador, anterioresAMano, claveDeJugador, datosDeFilaWyscout, delMismoAnioAMano, errorDeTemporadaAMano, nuevaTemporadaAMano, parecidoDeNombre,
 } from "../lib/temporadasAMano.ts";
 
 /** La temporada anterior que no está en ninguna base: escrita a mano o sacada de una fila de Wyscout. */
@@ -10,11 +11,12 @@ const datos = (cambios = {}) => ({
   etiqueta: "2024", liga: "Liga Profesional Argentina", equipo: "Lanús", partidos: 21, minutos: 1630, goles: 3, asistencias: 2, origen: "mano", ...cambios,
 });
 
-test("se valida antes de guardar: liga, temporada anterior a la que se mira, equipo y minutos", () => {
+test("se valida antes de guardar: liga, temporada del mismo año o anterior, equipo y minutos", () => {
   assert.equal(errorDeTemporadaAMano(datos(), 2025), "");
   assert.match(errorDeTemporadaAMano(datos({ liga: " " }), 2025), /liga/);
   assert.match(errorDeTemporadaAMano(datos({ etiqueta: "24" }), 2025), /2026 o 2025\/2026/);
-  assert.match(errorDeTemporadaAMano(datos({ etiqueta: "2025" }), 2025), /anterior/);
+  assert.equal(errorDeTemporadaAMano(datos({ etiqueta: "2025" }), 2025), "");
+  assert.match(errorDeTemporadaAMano(datos({ etiqueta: "2026" }), 2025), /posterior/);
   assert.equal(errorDeTemporadaAMano(datos({ etiqueta: "2023/2024" }), 2024), "", "una de año cruzado que empieza antes vale");
   assert.match(errorDeTemporadaAMano(datos({ equipo: "" }), 2025), /equipo/);
   assert.match(errorDeTemporadaAMano(datos({ minutos: Number.NaN }), 2025), /minutos/);
@@ -29,6 +31,48 @@ test("la misma temporada, liga y equipo es la misma: se reemplaza, no se duplica
   assert.equal(una.liga, "Liga Profesional Argentina");
   assert.equal(una.etiqueta, "2024");
   assert.equal(claveDeJugador(" Sean Young ", "2001-05-02"), "Sean Young|2001-05-02");
+});
+
+test("el formulario del mismo año sigue rechazando años distintos", () => {
+  assert.equal(errorDeTemporadaAMano(datos({ etiqueta: "2025" }), 2025, true), "");
+  assert.equal(errorDeTemporadaAMano(datos({ etiqueta: "2025/2026" }), 2025, true), "");
+  for (const etiqueta of ["2024", "2024/2025", "2026"]) {
+    assert.match(errorDeTemporadaAMano(datos({ etiqueta }), 2025, true), /mismo año/);
+  }
+  assert.equal(errorDeTemporadaAMano(datos({ etiqueta: "2025" }), 2025), "");
+  assert.match(errorDeTemporadaAMano(datos({ etiqueta: "2025", equipo: "" }), 2025, true), /equipo/);
+});
+
+test("Typing the data permite otra liga de 2024 al mirar 2024, también en inglés", () => {
+  const idiomaAnterior = activeLang();
+  try {
+    for (const idioma of ["es", "en"]) {
+      setActiveLang(idioma);
+      // La barra lateral usa la validación por defecto, sin el modo exclusivo del mismo año.
+      for (const etiqueta of ["2024", "2024/2025", "2023", "2023/2024"]) {
+        assert.equal(errorDeTemporadaAMano(datos({ etiqueta }), 2024), "", `${idioma}: ${etiqueta}`);
+      }
+      for (const etiqueta of ["2025", "2025/2026"]) {
+        const error = errorDeTemporadaAMano(datos({ etiqueta }), 2024);
+        assert.equal(error, idioma === "en"
+          ? "It cannot be later than the season shown (2024)."
+          : "No puede ser posterior a la temporada que se mira (2024).");
+      }
+    }
+  } finally {
+    setActiveLang(idiomaAnterior);
+  }
+});
+
+test("varias ligas del mismo año conviven con la temporada anterior y se filtran al cambiar de año", () => {
+  const anterior = nuevaTemporadaAMano(datos({ etiqueta: "2024" }));
+  const usl = nuevaTemporadaAMano(datos({ etiqueta: "2025", liga: "USL Championship", equipo: "Pittsburgh" }));
+  const mls = nuevaTemporadaAMano(datos({ etiqueta: "2025", liga: "MLS", equipo: "Toronto FC" }));
+  const lista = [anterior, usl, mls];
+  assert.deepEqual(delMismoAnioAMano(lista, 2025), [usl, mls]);
+  assert.deepEqual(anterioresAMano(lista, 2025), [anterior]);
+  assert.deepEqual(delMismoAnioAMano(lista, 2024), [anterior]);
+  assert.deepEqual(delMismoAnioAMano(lista, 0), []);
 });
 
 test("en la franja se lee como una temporada más, y solo cuentan las anteriores a la que se mira", () => {

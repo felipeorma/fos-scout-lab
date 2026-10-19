@@ -17,8 +17,9 @@ import { ligasDeBases, origenPorFila, basesDelRadar, ligaYAnioDe } from "@/lib/p
 import { aplicarNombre, conNombresGuardados, guardarNombre, identidadDeBase, nombreActual, type NombreDeBase, temporadaAnteriorDe } from "@/lib/nombresDeBase";
 import { EditorDeNombreDeBase } from "./EditorDeNombreDeBase";
 import { AnadirTemporadaWyscout } from "./AnadirTemporadaWyscout";
+import { LigaDelMismoAnio } from "./LigaDelMismoAnio";
 import { TemporadaDesdeWyscout, TemporadaEscrita } from "./TemporadaAMano";
-import { CLAVE_TEMPORADAS_A_MANO, aTemporadaDeJugador, anterioresAMano, nuevaTemporadaAMano, type DatosDeTemporada, type TemporadaAMano } from "@/lib/temporadasAMano";
+import { CLAVE_TEMPORADAS_A_MANO, aTemporadaDeJugador, anterioresAMano, delMismoAnioAMano, nuevaTemporadaAMano, type DatosDeTemporada, type TemporadaAMano } from "@/lib/temporadasAMano";
 import { ProveedorDeBase, useEstadoDeBase } from "./BaseActiva";
 import { BarraDeFiltros } from "./BarraDeFiltros";
 import { MenuDeLigas, MenuDesplegable, type OpcionDeMenu } from "./MenuDesplegable";
@@ -440,6 +441,7 @@ export default function ScoutStudio() {
     () => anterioresAMano(temporadasAMano[claveDelJugador] ?? [], inicioDeReferencia),
     [temporadasAMano, claveDelJugador, inicioDeReferencia],
   );
+  const otrasLigasAMano = delMismoAnioAMano(temporadasAMano[claveDelJugador] ?? [], inicioDeReferencia);
   const elegidaDeLaBase = eleccion?.tipo === "base" ? anterioresDeLaFila.find((temporada) => temporada.anio === eleccion.anio) : undefined;
   const elegidaAMano = eleccion?.tipo === "mano" ? anterioresAManoDelJugador.find((temporada) => temporada.id === eleccion.id) : undefined;
   const previaAMano = elegidaAMano ?? (!elegidaDeLaBase && !anterioresDeLaFila.length ? anterioresAManoDelJugador[0] : undefined) ?? null;
@@ -629,6 +631,9 @@ export default function ScoutStudio() {
     const propia = deSusLigas.find((competicion) => temporadaDeReferencia?.ligas.includes(competicion.name));
     return propia ? [propia, ...deSusLigas.filter((competicion) => competicion !== propia)] : deSusLigas;
   }, [catalogoAnterior, ligasDelJugador, temporadaDeReferencia]);
+  const catalogoDelMismoAnio = catalogoSb.filter((competicion) => inicioDeReferencia > 0
+    && competicion.hasMatches !== false && anioDeInicio(String(competicion.season)) === inicioDeReferencia
+    && !sourceDatasets.some((dataset) => dataset.fileName === `StatsBomb · ${competicion.name} ${competicion.season}`));
   const [previaManual, setPreviaManual] = useState<{ jugador: string; elegida: string } | null>(null);
   const [pedidaAlCatalogo, setPedidaAlCatalogo] = useState<{ jugador: string; competicion: ApiCompetition } | null>(null);
   const manualAbierto = previaManual?.jugador === claveDelJugador;
@@ -677,13 +682,14 @@ export default function ScoutStudio() {
     setTemporadasAMano(siguiente);
     try { window.localStorage.setItem(CLAVE_TEMPORADAS_A_MANO, JSON.stringify(siguiente)); } catch { /* sigue en memoria esta sesión */ }
   }
-  /** Guarda una temporada añadida a mano para este jugador y la deja elegida como anterior. */
+  /** Guarda otra etapa; solo cambia la anterior elegida cuando es de un año anterior. */
   function anadirTemporadaAMano(datos: DatosDeTemporada) {
     const nueva = nuevaTemporadaAMano(datos);
     const suyas = (temporadasAMano[claveDelJugador] ?? []).filter((temporada) => temporada.id !== nueva.id);
     guardarTemporadasAMano({ ...temporadasAMano, [claveDelJugador]: [...suyas, nueva] });
-    setSoloTemporadaActual(false);
     setPreviaManual(null);
+    if (anioDeInicio(nueva.etiqueta) === inicioDeReferencia) return;
+    setSoloTemporadaActual(false);
     setEleccionPrevia({ jugador: claveDelJugador, tipo: "mano", id: nueva.id });
   }
   function quitarTemporadaAMano(id: string) {
@@ -691,7 +697,7 @@ export default function ScoutStudio() {
     const { [claveDelJugador]: _quitado, ...resto } = temporadasAMano;
     void _quitado;
     guardarTemporadasAMano(suyas.length ? { ...resto, [claveDelJugador]: suyas } : resto);
-    setEleccionPrevia(null);
+    if (eleccion?.tipo === "mano" && eleccion.id === id) setEleccionPrevia(null);
   }
   /*
    * Sugerencias para la liga de una temporada añadida a mano: cualquier liga
@@ -1327,10 +1333,10 @@ export default function ScoutStudio() {
    * estaba se renombra si se le cambiaron las suyas. Los dos nombres se
    * recuerdan para la próxima vez que se suban esos mismos archivos.
    */
-  async function anadirTemporadaWyscout(archivo: File, anterior: NombreDeBase, nombreDeEsta: NombreDeBase) {
+  async function anadirTemporadaWyscout(archivo: File, anterior: NombreDeBase, nombreDeEsta?: NombreDeBase) {
     const nombre = String(filaElegida?.Player ?? "");
     const nacimiento = String(filaElegida?.["Birth date"] ?? "");
-    const deEsta = basesDeArchivoDe(temporadaDeReferencia ?? undefined).map((dataset) => dataset.fileName);
+    const deEsta = nombreDeEsta ? basesDeArchivoDe(temporadaDeReferencia ?? undefined).map((dataset) => dataset.fileName) : [];
     setReportLoading(true);
     setReportError("");
     try {
@@ -1338,7 +1344,7 @@ export default function ScoutStudio() {
       guardarNombre(leida, anterior);
       const nueva = aplicarNombre(leida, anterior);
       const inventario = sourceDatasets.map((dataset) => {
-        if (!deEsta.includes(dataset.fileName)) return dataset;
+        if (!nombreDeEsta || !deEsta.includes(dataset.fileName)) return dataset;
         const ahora = nombreActual(dataset);
         if (ahora.liga === nombreDeEsta.liga.trim() && ahora.temporada === nombreDeEsta.temporada.trim().replace(/\s+/g, "")) return dataset;
         guardarNombre(dataset, nombreDeEsta);
@@ -1991,7 +1997,13 @@ export default function ScoutStudio() {
           ? <EditorDeNombreDeBase actual={nombreActual(basesPrincipales[0])} onGuardar={(nombre) => void renombrarBases(basesPrincipales.map((dataset) => dataset.fileName), nombre)}>{tituloPrincipal}</EditorDeNombreDeBase>
           : <InlineText editKey={`source-${report.player}`} value={tDefault(analysisSourceTitle)} fallback={tituloPrincipal} onCommit={updateAnalysisSourceName} />}</b><small>{basesDeLaFicha?.plataformas ? `${basesDeLaFicha.plataformas} · ` : ""}{temporadasDelJugador.length && (variasTemporadas || baseConVariasTemporadas)
           ? tf("Temporada {s} · cohorte {c} · mín. {m}′", { s: temporadasDelJugador[0].etiqueta, c: cohortLabel(report.cohort), m: minimumMinutes })
-          : tf("Cohorte {c} · mín. {m}′", { c: cohortLabel(report.cohort), m: minimumMinutes })}</small></div>
+          : tf("Cohorte {c} · mín. {m}′", { c: cohortLabel(report.cohort), m: minimumMinutes })}</small>
+          {temporadaDeReferencia && <LigaDelMismoAnio key={`${claveDelJugador}|${temporadaDeReferencia.etiqueta}`}
+            temporada={{ liga: temporadaDeReferencia.ligas[0] ?? "", temporada: temporadaDeReferencia.etiqueta }} inicio={inicioDeReferencia}
+            catalogo={catalogoDelMismoAnio} ligasSugeridas={ligasSugeridas} manuales={otrasLigasAMano} cargando={reportLoading} error={reportError}
+            onCargar={(competicion) => sumarTemporada(competicion)} onArchivo={(archivo, nombre) => anadirTemporadaWyscout(archivo, nombre)}
+            onManual={anadirTemporadaAMano} onQuitar={quitarTemporadaAMano} />}
+        </div>
         {/* Con varias temporadas, esta fila es la más reciente y las anteriores
             van debajo; el índice es el de todas juntas. */}
         <div className="dossier-stat"><strong>{numberFormat(temporadaActual?.partidos ?? report.matches)}</strong><span>{t("Partidos")}</span></div>
@@ -2001,10 +2013,13 @@ export default function ScoutStudio() {
         <div className="score-ring" style={{ "--score": `${report.score * 3.6}deg` } as React.CSSProperties}><b>{report.score}</b><span>{t("Índice")}</span></div>
       </section>
       {avisoSc && <p className="dossier-aviso-sc">{avisoSc}</p>}
-      {(previaAMano && !soloTemporadaActual ? [aTemporadaDeJugador(previaAMano)] : temporadasDelJugador.slice(1, 3)).map((temporada: TemporadaDeJugador & { aMano?: TemporadaAMano }, posicion, anteriores) => (
-        <section className="dossier-season-strip dossier-season-previa" key={temporada.etiqueta}>
+      {[
+        ...otrasLigasAMano.map(aTemporadaDeJugador),
+        ...(previaAMano && !soloTemporadaActual ? [aTemporadaDeJugador(previaAMano)] : temporadasDelJugador.slice(1, 3)),
+      ].map((temporada: TemporadaDeJugador & { aMano?: TemporadaAMano }, posicion, anteriores) => (
+        <section className="dossier-season-strip dossier-season-previa" key={temporada.aMano?.id ?? temporada.etiqueta}>
           <div className="season-source">
-            <span>{posicion === 0 ? t("TEMPORADA ANTERIOR") : tf("TEMPORADA {s}", { s: temporada.etiqueta })}</span>
+            <span>{inicioDe(temporada) === inicioDeReferencia ? t("OTRA LIGA · MISMO AÑO") : posicion === otrasLigasAMano.length ? t("TEMPORADA ANTERIOR") : tf("TEMPORADA {s}", { s: temporada.etiqueta })}</span>
             <b>{(() => {
               const texto = [temporada.etiqueta, temporada.ligas.join(" + ")].filter(Boolean).join(" · ");
               const suyas = temporada.aMano ? [] : basesDeArchivoDe(temporada);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, type FormEvent } from "react";
+import { useId, useMemo, useRef, useState, type FormEvent } from "react";
 import { Plus } from "./Icons";
 import { t, tf } from "@/lib/i18n";
 import type { DataRow } from "@/lib/scouting";
@@ -8,7 +8,7 @@ import { readWorkbook } from "./estudio/datos";
 import { datosDeFilaWyscout, errorDeTemporadaAMano, parecidoDeNombre, type DatosDeTemporada } from "@/lib/temporadasAMano";
 
 /**
- * La temporada anterior de un jugador que no está en ninguna base: sacada de
+ * Otra etapa de un jugador que no está en ninguna base: sacada de
  * su fila en un Excel de Wyscout o escrita a mano, de cualquier liga y año.
  * Solo números de temporada: la ficha la enseña, pero no entra en el radar.
  */
@@ -16,8 +16,10 @@ import { datosDeFilaWyscout, errorDeTemporadaAMano, parecidoDeNombre, type Datos
 type Comun = {
   /** El jugador, para encontrar su fila en el Excel. */
   jugador: string;
-  /** Año de inicio de la temporada que se mira: la anterior tiene que ser de antes. */
+  /** Año de inicio de la temporada que se mira: admite ese año y los anteriores. */
   inicioDeReferencia: number;
+  /** Otro club o liga del mismo año, en vez de una temporada anterior. */
+  mismoAnio?: boolean;
   /** La temporada que se propone ("2025" con 2026 de referencia). */
   temporadaPropuesta: string;
   /** Ligas para sugerir, con su país; se puede escribir cualquier otra. */
@@ -34,15 +36,16 @@ const numeroDe = (texto: string) => (texto.trim() === "" ? Number.NaN : Number(t
 function CamposDeLigaYTemporada({ liga, etiqueta, ligasSugeridas, onLiga, onEtiqueta }: {
   liga: string; etiqueta: string; ligasSugeridas: LigaSugerida[]; onLiga: (valor: string) => void; onEtiqueta: (valor: string) => void;
 }) {
+  const listaId = useId();
   return <>
-    <label><span>{t("Liga")}</span><input value={liga} list="ligas-sugeridas" placeholder={t("Escríbela o elígela")} onChange={(evento) => onLiga(evento.target.value)} /></label>
+    <label><span>{t("Liga")}</span><input value={liga} list={listaId} placeholder={t("Escríbela o elígela")} onChange={(evento) => onLiga(evento.target.value)} /></label>
     <label><span>{t("Temporada")}</span><input value={etiqueta} inputMode="numeric" placeholder="2025 · 2024/2025" onChange={(evento) => onEtiqueta(evento.target.value)} /></label>
-    <datalist id="ligas-sugeridas">{ligasSugeridas.map(({ nombre, pais }) => <option key={`${nombre}|${pais ?? ""}`} value={nombre}>{pais}</option>)}</datalist>
+    <datalist id={listaId}>{ligasSugeridas.map(({ nombre, pais }) => <option key={`${nombre}|${pais ?? ""}`} value={nombre}>{pais}</option>)}</datalist>
   </>;
 }
 
 /** Su fila en un Excel de Wyscout de otra liga o temporada. */
-export function TemporadaDesdeWyscout({ jugador, inicioDeReferencia, temporadaPropuesta, ligasSugeridas, deshabilitado = false, onAnadir }: Comun) {
+export function TemporadaDesdeWyscout({ jugador, inicioDeReferencia, mismoAnio = false, temporadaPropuesta, ligasSugeridas, deshabilitado = false, onAnadir }: Comun) {
   const entrada = useRef<HTMLInputElement>(null);
   const [archivo, setArchivo] = useState<{ nombre: string; filas: DataRow[] } | null>(null);
   const [indice, setIndice] = useState(-1);
@@ -82,7 +85,7 @@ export function TemporadaDesdeWyscout({ jugador, inicioDeReferencia, temporadaPr
 
   const fila = archivo && indice >= 0 ? archivo.filas[indice] : null;
   const datos = fila ? datosDeFilaWyscout(fila, liga, etiqueta) : null;
-  const error = !fila ? t("Elige su fila en el archivo.") : errorDeTemporadaAMano(datos!, inicioDeReferencia);
+  const error = !fila ? t("Elige su fila en el archivo.") : errorDeTemporadaAMano(datos!, inicioDeReferencia, mismoAnio);
   const enviar = (evento: FormEvent) => {
     evento.preventDefault();
     if (!datos || error) return;
@@ -130,7 +133,7 @@ export function TemporadaDesdeWyscout({ jugador, inicioDeReferencia, temporadaPr
 }
 
 /** Todos los datos escritos a mano. */
-export function TemporadaEscrita({ inicioDeReferencia, temporadaPropuesta, ligasSugeridas, deshabilitado = false, onAnadir }: Omit<Comun, "jugador">) {
+export function TemporadaEscrita({ inicioDeReferencia, mismoAnio = false, temporadaPropuesta, ligasSugeridas, deshabilitado = false, onAnadir }: Omit<Comun, "jugador">) {
   const vacio = { liga: "", etiqueta: temporadaPropuesta, equipo: "", partidos: "", minutos: "", goles: "", asistencias: "" };
   const [abierto, setAbierto] = useState(false);
   const [campos, setCampos] = useState(vacio);
@@ -139,7 +142,7 @@ export function TemporadaEscrita({ inicioDeReferencia, temporadaPropuesta, ligas
     partidos: numeroDe(campos.partidos), minutos: numeroDe(campos.minutos),
     goles: numeroDe(campos.goles), asistencias: numeroDe(campos.asistencias), origen: "mano",
   };
-  const error = errorDeTemporadaAMano(datos, inicioDeReferencia);
+  const error = errorDeTemporadaAMano(datos, inicioDeReferencia, mismoAnio);
   const cambiar = (campo: keyof typeof vacio) => (evento: { target: { value: string } }) => setCampos({ ...campos, [campo]: evento.target.value });
   const enviar = (evento: FormEvent) => {
     evento.preventDefault();
@@ -156,7 +159,7 @@ export function TemporadaEscrita({ inicioDeReferencia, temporadaPropuesta, ligas
   }
   return <form className="anadir-wyscout-form" onSubmit={enviar}>
     <fieldset>
-      <legend>{t("Temporada anterior, a mano")}</legend>
+      <legend>{mismoAnio ? t("Otra liga del mismo año") : t("Temporada adicional, a mano")}</legend>
       <CamposDeLigaYTemporada liga={campos.liga} etiqueta={campos.etiqueta} ligasSugeridas={ligasSugeridas} onLiga={(liga) => setCampos({ ...campos, liga })} onEtiqueta={(etiqueta) => setCampos({ ...campos, etiqueta })} />
       <label className="ancho"><span>{t("Equipo")}</span><input value={campos.equipo} onChange={cambiar("equipo")} /></label>
       <label><span>{t("Partidos")}</span><input value={campos.partidos} inputMode="numeric" onChange={cambiar("partidos")} /></label>
@@ -164,6 +167,7 @@ export function TemporadaEscrita({ inicioDeReferencia, temporadaPropuesta, ligas
       <label><span>{t("Goles")}</span><input value={campos.goles} inputMode="numeric" placeholder="—" onChange={cambiar("goles")} /></label>
       <label><span>{t("Asistencias")}</span><input value={campos.asistencias} inputMode="numeric" placeholder="—" onChange={cambiar("asistencias")} /></label>
     </fieldset>
+    {!mismoAnio && <small className="temporada-previa-nota">{t("Puedes añadir otra liga del mismo año o una temporada anterior.")}</small>}
     {error && <small className="anadir-wyscout-error">{error}</small>}
     <span className="anadir-wyscout-acciones">
       <button type="submit" className="button primary compact" disabled={Boolean(error) || deshabilitado}>{t("Añadir")}</button>

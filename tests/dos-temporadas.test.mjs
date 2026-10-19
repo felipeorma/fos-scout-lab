@@ -57,6 +57,19 @@ test("un traspaso de invierno entre ligas del mismo año suma en una sola tempor
   assert.equal(temporadas[0].equipo, "Cavalry FC", "el club donde más jugó");
 });
 
+test("añadir un Excel de otra liga del mismo año suma sus métricas y conserva el año anterior", () => {
+  const resultado = aggregateDatasets([
+    base("CPL 2025.xlsx", 2025, [jugador({ Team: "Cavalry FC", "Matches played": 20, "Minutes played": 1800 })]),
+    base("CPL 2026.xlsx", 2026, [jugador({ Team: "Cavalry FC", "Matches played": 10, "Minutes played": 800, "Passes per 90": 50 })]),
+    base("USL Championship 2026.xlsx", 2026, [jugador({ Team: "Pittsburgh Riverhounds", "Matches played": 6, "Minutes played": 300, "Passes per 90": 30 })]),
+  ]);
+  const fila = filaDe(resultado);
+  assert.deepEqual(temporadasDeFila(fila).map((temporada) => [temporada.anio, temporada.minutos]), [[2026, 1100], [2025, 1800]]);
+  assert.deepEqual([...temporadasDeFila(fila)[0].ligas].sort(), ["CPL", "USL Championship"]);
+  assert.equal(fila["Minutes played"], 2900);
+  assert.ok(Math.abs(fila["Passes per 90"] - (1800 * 40 + 800 * 50 + 300 * 30) / 2900) < 1e-9);
+});
+
 test("un fichaje que viene de otra liga enseña las dos temporadas, cada una con su club", () => {
   /* Entre ligas distintas y clubes sin nada en común, el cruce solo junta a
      dos filas si comparten fecha de nacimiento: es lo que separa al mismo

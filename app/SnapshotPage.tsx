@@ -17,8 +17,8 @@ import type { TransfermarktProfile } from "@/lib/transfermarkt";
  * el balón —tiros, ocasiones, regates y cómo participa en la jugada—, y
  * dónde lo hace —pases, mapa de calor, defensa y cómo le llega el balón—.
  * Las piezas se reparten en columnas para que no quede hueco: debajo del
- * Top 10, sus pases; debajo de los puestos, quién se la da; debajo de tiros
- * y ocasiones, la jugada. "Frente a su grupo", "Construcción frente a
+ * Top 10, la jugada; debajo de los puestos, quién se la da; debajo de tiros
+ * y ocasiones, sus mapas de pases. "Frente a su grupo", "Construcción frente a
  * asociación" y el encaje con un equipo salieron de esta página (siguen en
  * Visuales, sueltos).
  *
@@ -93,18 +93,15 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
       {cabecera}
       {datos.estado && <p className="snap-estado" role="status">{datos.estado}</p>}
 
-      {/* Quién es: la ficha y sus familias; el Top 10 con sus pases debajo; dónde juega y quién se la da. */}
+      {/* Quién es: la ficha y sus familias; el Top 10 con la jugada debajo; dónde juega y quién se la da. */}
       <div className="snap-fila snap-una-1">
         <div className="snap-columna">
           {pieza("ficha")}
           {pieza("tabla")}
         </div>
-        <div className="snap-columna">
+        <div className="snap-columna snap-participacion">
           <PiezaFicha pieza="top10" datos={datos} opcion={familiaTop} onOpcion={setFamiliaTop} />
-          <div className="snap-pareja">
-            {pieza("pases_inicio")}
-            {pieza("pases_fin")}
-          </div>
+          {pieza("roles")}
         </div>
         <div className="snap-columna">
           {pieza("puestos")}
@@ -112,15 +109,18 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
         </div>
       </div>
 
-      {/* Qué hace con el balón: tiros y ocasiones con la jugada debajo, y los regates. */}
+      {/* Qué hace con el balón: tiros y ocasiones con los mapas de pases debajo, y los regates. */}
       <div className="snap-fila snap-una-2">
         {pieza("parecidos")}
-        <div className="snap-columna snap-acciones">
+        <div className="snap-columna">
           <div className="snap-pareja">
             {pieza("tiros")}
             {pieza("ocasiones")}
           </div>
-          {pieza("roles")}
+          <div className="snap-pareja">
+            {pieza("pases_inicio")}
+            {pieza("pases_fin")}
+          </div>
         </div>
         {pieza("regates")}
       </div>
@@ -130,8 +130,8 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
         {pieza("calor")}
         {pieza("defensa")}
         <PiezaFicha pieza="recepciones" datos={datos} opcion={agruparRecepciones} onOpcion={setAgruparRecepciones} />
-        <PiezaFicha pieza="recepciones_tipo" datos={datos} opcion={agruparRecepciones} onOpcion={setAgruparRecepciones} />
         {pieza("recepciones_origen")}
+        <PiezaFicha pieza="recepciones_tipo" datos={datos} opcion={agruparRecepciones} onOpcion={setAgruparRecepciones} />
       </div>
       {pie}
     </section>

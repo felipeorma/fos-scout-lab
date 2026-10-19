@@ -1,7 +1,7 @@
 /**
- * Temporadas anteriores añadidas a mano.
+ * Temporadas adicionales añadidas a mano.
  *
- * Cuando la temporada anterior de un jugador no está en ninguna base —jugó en
+ * Cuando otra etapa de un jugador no está en ninguna base —jugó en
  * una liga que no tenemos, o en otro país—, se puede añadir igual: escrita a
  * mano o sacada de su fila en un Excel de Wyscout. Son solo sus números de
  * temporada (club, partidos, minutos, goles, asistencias): no traen métricas,
@@ -49,13 +49,16 @@ export function nuevaTemporadaAMano(datos: DatosDeTemporada): TemporadaAMano {
   return { ...datos, etiqueta, liga, equipo, id: `${etiqueta}|${liga}|${equipo}`.toLowerCase() };
 }
 
-/** Qué falta o qué está mal, en una frase; "" si se puede guardar. */
-export function errorDeTemporadaAMano(datos: DatosDeTemporada, inicioDeReferencia: number): string {
+/** Admite el mismo año y los anteriores; mismoAnio limita al año de referencia. */
+export function errorDeTemporadaAMano(datos: DatosDeTemporada, inicioDeReferencia: number, mismoAnio = false): string {
   const etiqueta = limpiarTemporada(datos.etiqueta);
   if (!datos.liga.trim()) return t("Escribe la liga.");
   if (!etiqueta || !temporadaValida(etiqueta)) return t("La temporada se escribe 2026 o 2025/2026.");
-  if (inicioDeReferencia && anioDeInicio(etiqueta) >= inicioDeReferencia) {
-    return tf("Tiene que ser anterior a la temporada que se mira ({anio}).", { anio: inicioDeReferencia });
+  if (mismoAnio && (!inicioDeReferencia || anioDeInicio(etiqueta) !== inicioDeReferencia)) {
+    return tf("Tiene que ser del mismo año de inicio ({anio}).", { anio: inicioDeReferencia });
+  }
+  if (!mismoAnio && inicioDeReferencia && anioDeInicio(etiqueta) > inicioDeReferencia) {
+    return tf("No puede ser posterior a la temporada que se mira ({anio}).", { anio: inicioDeReferencia });
   }
   if (!datos.equipo.trim()) return t("Escribe el equipo.");
   if (!Number.isFinite(datos.minutos) || datos.minutos < 0) return t("Escribe los minutos jugados.");
@@ -84,6 +87,11 @@ export function anterioresAMano(lista: TemporadaAMano[], inicioDeReferencia: num
   return lista
     .filter((temporada) => !inicioDeReferencia || anioDeInicio(temporada.etiqueta) < inicioDeReferencia)
     .sort((a, b) => anioDeInicio(b.etiqueta) - anioDeInicio(a.etiqueta) || a.liga.localeCompare(b.liga));
+}
+
+/** Otros clubes o ligas del mismo año, sin desplazar la temporada anterior. */
+export function delMismoAnioAMano(lista: TemporadaAMano[], inicioDeReferencia: number) {
+  return lista.filter((temporada) => inicioDeReferencia > 0 && anioDeInicio(temporada.etiqueta) === inicioDeReferencia);
 }
 
 const normalizar = (texto: string) => texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()

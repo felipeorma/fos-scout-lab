@@ -297,6 +297,14 @@ muy poco.
 - Los minutos, partidos y goles toman el máximo entre proveedores dentro de una
   temporada y se suman entre temporadas.
 
+Desde **Base analizada / Database analyzed**, el botón **Añadir liga del mismo
+año** permite incorporar la otra liga en la que jugó un futbolista durante
+esa temporada, sin sustituir la temporada anterior. Se puede cargar desde
+StatsBomb o importar un Excel de Wyscout: sus métricas entran en el cálculo
+existente, ponderadas por minutos. También se pueden escribir los datos de
+varios clubes a mano; aparecen como filas separadas en la ficha y se guardan
+por jugador en el navegador, sin entrar en el radar ni en el índice.
+
 ## Flujo de posesión
 
 Sección **Explorar → Flujo de posesión** (necesita el puente, `npm run bg:server`).

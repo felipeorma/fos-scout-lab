@@ -83,6 +83,15 @@ export function tf(template: string, vars: Record<string, string | number>): str
 }
 
 const EN: Record<string, string> = {
+  "No puede ser posterior a la temporada que se mira ({anio}).": "It cannot be later than the season shown ({anio}).",
+  "Temporada adicional, a mano": "Additional season, manual entry",
+  "Puedes añadir otra liga del mismo año o una temporada anterior.": "You can add another league from the same year or an earlier season.",
+  "Tiene que ser del mismo año de inicio ({anio}).": "It must have the same starting year ({anio}).",
+  "Otra liga del mismo año": "Another league in the same year",
+  "Añadir liga del mismo año": "Add league from the same year",
+  "Añadir liga del mismo año (Excel de Wyscout)": "Add league from the same year (Wyscout Excel)",
+  "Añade la otra liga en la que jugó durante {s}. La temporada anterior se conserva.": "Add the other league they played in during {s}. The previous season is kept.",
+  "OTRA LIGA · MISMO AÑO": "OTHER LEAGUE · SAME YEAR",
   // ---- Genéricos / fallbacks de datos ----
   "Jugador": "Player",
   "Jugador {n}": "Player {n}",

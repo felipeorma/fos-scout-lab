@@ -13,28 +13,31 @@ import { temporadaAnteriorDe, temporadaValida, type NombreDeBase } from "@/lib/n
  * Aquí se elige el archivo y se escriben las dos cosas —las de la base que ya
  * está y las de la nueva—, con la misma liga y el año anterior ya puestos.
  */
-export function AnadirTemporadaWyscout({ actual, deshabilitado = false, onAnadir }: {
+export function AnadirTemporadaWyscout({ actual, mismoAnio = false, deshabilitado = false, onAnadir }: {
   /** Liga y temporada de la base que se está mirando. */
   actual: NombreDeBase;
+  mismoAnio?: boolean;
   deshabilitado?: boolean;
   onAnadir: (archivo: File, anterior: NombreDeBase, actual: NombreDeBase) => void | Promise<void>;
 }) {
   const entrada = useRef<HTMLInputElement>(null);
   const [archivo, setArchivo] = useState<File | null>(null);
   const [esta, setEsta] = useState<NombreDeBase>(actual);
-  const [nueva, setNueva] = useState<NombreDeBase>({ liga: actual.liga, temporada: temporadaAnteriorDe(actual.temporada) });
+  const propuesta = { liga: mismoAnio ? "" : actual.liga, temporada: mismoAnio ? actual.temporada : temporadaAnteriorDe(actual.temporada) };
+  const [nueva, setNueva] = useState<NombreDeBase>(propuesta);
 
   const elegir = (elegido: File | undefined) => {
     if (!elegido) return;
     setArchivo(elegido);
     setEsta(actual);
-    setNueva({ liga: actual.liga, temporada: temporadaAnteriorDe(actual.temporada) });
+    setNueva(propuesta);
   };
   const inicio = (temporada: string) => Number(temporada.match(/\d{4}/)?.[0] ?? 0);
   const error = !esta.liga.trim() || !nueva.liga.trim() ? t("Escribe la liga de las dos bases.")
     : !esta.temporada.trim() || !nueva.temporada.trim() ? t("Escribe la temporada de las dos bases: sin año no hay temporada anterior.")
     : !temporadaValida(esta.temporada) || !temporadaValida(nueva.temporada) ? t("La temporada se escribe 2026 o 2025/2026.")
-    : inicio(nueva.temporada) >= inicio(esta.temporada) ? t("La anterior tiene que ser de un año anterior a esta.")
+    : mismoAnio && inicio(nueva.temporada) !== inicio(esta.temporada) ? tf("Tiene que ser del mismo año de inicio ({anio}).", { anio: inicio(esta.temporada) })
+    : !mismoAnio && inicio(nueva.temporada) >= inicio(esta.temporada) ? t("La anterior tiene que ser de un año anterior a esta.")
     : "";
   const enviar = (evento: FormEvent) => {
     evento.preventDefault();
@@ -47,16 +50,16 @@ export function AnadirTemporadaWyscout({ actual, deshabilitado = false, onAnadir
   return <div className="anadir-wyscout">
     <input ref={entrada} type="file" accept=".xlsx,.xls,.csv" hidden onChange={(evento) => { elegir(evento.target.files?.[0]); evento.target.value = ""; }} />
     {!archivo && <button type="button" className="button secondary compact" disabled={deshabilitado} onClick={() => entrada.current?.click()}>
-      <Plus size={13} />{t("Añadir temporada anterior (Excel de Wyscout)")}
+      <Plus size={13} />{mismoAnio ? t("Añadir liga del mismo año (Excel de Wyscout)") : t("Añadir temporada anterior (Excel de Wyscout)")}
     </button>}
     {archivo && <form className="anadir-wyscout-form" onSubmit={enviar}>
-      <fieldset>
+      {!mismoAnio && <fieldset>
         <legend>{t("Esta base")}</legend>
         <label><span>{t("Liga")}</span><input value={esta.liga} onChange={(evento) => setEsta({ ...esta, liga: evento.target.value })} /></label>
         <label><span>{t("Temporada")}</span><input value={esta.temporada} inputMode="numeric" placeholder="2026 · 2025/2026" onChange={(evento) => setEsta({ ...esta, temporada: evento.target.value })} /></label>
-      </fieldset>
+      </fieldset>}
       <fieldset>
-        <legend>{tf("La anterior: {archivo}", { archivo: archivo.name })}</legend>
+        <legend>{mismoAnio ? archivo.name : tf("La anterior: {archivo}", { archivo: archivo.name })}</legend>
         <label><span>{t("Liga")}</span><input value={nueva.liga} onChange={(evento) => setNueva({ ...nueva, liga: evento.target.value })} /></label>
         <label><span>{t("Temporada")}</span><input value={nueva.temporada} inputMode="numeric" placeholder="2025 · 2024/2025" onChange={(evento) => setNueva({ ...nueva, temporada: evento.target.value })} /></label>
       </fieldset>
