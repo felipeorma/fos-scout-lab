@@ -1952,6 +1952,13 @@ export default function ScoutStudio() {
    * temporada actual» elegida en el panel, solo queda la actual.
    */
   const temporadasDelJugador = report ? temporadasDeFila(filasDelInforme[indiceDelInforme]) : [];
+  const temporadasAdicionalesDeLaFicha = [
+    ...otrasLigasAMano.map(aTemporadaDeJugador),
+    ...(previaAMano && !soloTemporadaActual ? [aTemporadaDeJugador(previaAMano)] : temporadasDelJugador.slice(1, 3)),
+  ];
+  const cantidadDeTemporadasDeLaFicha = 1 + temporadasAdicionalesDeLaFicha.length;
+  const minutosTotalesDeLaFicha = (temporadasDelJugador[0]?.minutos ?? report?.minutes ?? 0)
+    + temporadasAdicionalesDeLaFicha.reduce((total, temporada) => total + (Number.isFinite(temporada.minutos) ? temporada.minutos : 0), 0);
   const variasTemporadas = temporadasDelJugador.length > 1;
   const temporadaActual = variasTemporadas ? temporadasDelJugador[0] : null;
   // El título de la primera fila de la franja, y las bases de archivo que lo explican.
@@ -2013,10 +2020,7 @@ export default function ScoutStudio() {
         <div className="score-ring" style={{ "--score": `${report.score * 3.6}deg` } as React.CSSProperties}><b>{report.score}</b><span>{t("Índice")}</span></div>
       </section>
       {avisoSc && <p className="dossier-aviso-sc">{avisoSc}</p>}
-      {[
-        ...otrasLigasAMano.map(aTemporadaDeJugador),
-        ...(previaAMano && !soloTemporadaActual ? [aTemporadaDeJugador(previaAMano)] : temporadasDelJugador.slice(1, 3)),
-      ].map((temporada: TemporadaDeJugador & { aMano?: TemporadaAMano }, posicion, anteriores) => (
+      {temporadasAdicionalesDeLaFicha.map((temporada: TemporadaDeJugador & { aMano?: TemporadaAMano }, posicion, anteriores) => (
         <section className="dossier-season-strip dossier-season-previa" key={temporada.aMano?.id ?? temporada.etiqueta}>
           <div className="season-source">
             <span>{inicioDe(temporada) === inicioDeReferencia ? t("OTRA LIGA · MISMO AÑO") : posicion === otrasLigasAMano.length ? t("TEMPORADA ANTERIOR") : tf("TEMPORADA {s}", { s: temporada.etiqueta })}</span>
@@ -2035,10 +2039,8 @@ export default function ScoutStudio() {
           <div className="dossier-stat"><strong>{numberFormat(temporada.minutos)}</strong><span>{t("Minutos")}</span></div>
           <div className="dossier-stat goals"><strong>{cifra(temporada.goles)}</strong><span>{t("Goles")}</span></div>
           <div className="dossier-stat assists"><strong>{cifra(temporada.asistencias)}</strong><span>{t("Asist.")}</span></div>
-          {temporada.aMano
-            ? <div className="season-radar-note"><span>{t("Radar")}</span><b>{t("Sin esta temporada")}</b><small>{t("sin métricas")}</small></div>
-            : posicion === anteriores.length - 1
-            ? <div className="season-radar-note"><span>{t("Radar")}</span><b>{tf("{n} temporadas", { n: temporadasDelJugador.length })}</b><small>{`${numberFormat(report.minutes)}′`}</small></div>
+          {posicion === anteriores.length - 1
+            ? <div className="season-radar-note"><span>{t("Radar")}</span><b>{tf("{n} temporadas", { n: cantidadDeTemporadasDeLaFicha })}</b><small>{`${numberFormat(minutosTotalesDeLaFicha)}′`}</small></div>
             : <span />}
         </section>
       ))}
