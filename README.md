@@ -287,10 +287,10 @@ muy poco.
   (partidos, minutos, goles y asistencias de cada una, con su liga y club). El
   radar y el índice salen de las dos juntas, ponderadas por minutos, y la
   cohorte también junta las dos temporadas de cada par.
-- **Panel lateral → Temporada anterior:** dice qué temporada entra en el radar y
-  permite medir solo con la actual (jugador y cohorte se recalculan con esa
-  temporada). Si el jugador no tiene temporada anterior en la base, recomienda
-  la de su liga y la añade con un clic.
+- **Panel lateral → Temporadas anteriores:** permite marcar varias temporadas
+  a la vez, añadir otras sin sustituir las elegidas y volver a medir solo con
+  la actual. La selección se recuerda por jugador y año de referencia; las
+  bases con métricas recalculan también la cohorte para los años incluidos.
 - **Fichajes entre ligas:** el mismo nombre con la misma fecha de nacimiento se
   junta aunque cambie de liga y de club (USL 2025 → CPL 2026). El mismo nombre
   con distinta fecha en un mismo proveedor son dos personas.
@@ -299,7 +299,8 @@ muy poco.
 
 Desde **Base analizada / Database analyzed**, el botón **Añadir liga del mismo
 año** permite incorporar la otra liga en la que jugó un futbolista durante
-esa temporada, sin sustituir la temporada anterior. Se puede cargar desde
+esa temporada, sin sustituir las anteriores. Cada fila de temporada anterior
+tiene también su propio botón, con el año correspondiente. Se puede cargar desde
 StatsBomb o importar un Excel de Wyscout: sus métricas entran en el cálculo
 existente, ponderadas por minutos. También se pueden escribir los datos de
 varios clubes a mano; aparecen como filas separadas en la ficha y se guardan

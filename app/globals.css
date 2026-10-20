@@ -7404,3 +7404,18 @@ body.print-layout-check .app-shell[data-tema] .pizarra-duelos > ol { grid-templa
 .app-shell[data-tema] .choque-rejilla .partido-zonas { grid-template-columns: 1fr; }
 .app-shell[data-tema] .partido-fases-dos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
 @media screen and (max-width: 900px) { body:not(.print-layout-check) .app-shell[data-tema] :is(.choque-rejilla, .partido-fases-dos) { grid-template-columns: 1fr; } }
+
+/* Selección acumulativa de las temporadas de la ficha. */
+.temporadas-incluidas { min-width: 0; padding: 0; border: 0; }
+.temporadas-incluidas > legend { width: 100%; padding: 0; }
+.temporadas-incluidas-lista { display: flex; flex-direction: column; gap: 4px; }
+.temporadas-incluidas-fila { display: flex; align-items: center; gap: 4px; min-width: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+.temporadas-incluidas-opcion { flex: 1; min-width: 0; display: flex; align-items: flex-start; gap: 7px; padding: 8px; color: var(--ink); font-size: 11px; line-height: 1.45; cursor: pointer; }
+.temporadas-incluidas-opcion > input { flex: none; width: 14px; height: 14px; margin: 1px 0 0; accent-color: var(--acento); cursor: pointer; }
+.temporadas-incluidas-opcion > span { min-width: 0; overflow-wrap: anywhere; }
+.temporadas-incluidas-manual { display: block; color: var(--muted); font-size: 10px; }
+.temporadas-incluidas-quitar { flex: none; display: grid; place-items: center; width: 28px; height: 28px; margin-right: 4px; border: 0; border-radius: 6px; color: var(--muted); background: transparent; cursor: pointer; }
+.temporadas-incluidas-quitar:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.temporadas-incluidas-quitar:focus-visible { outline: 2px solid var(--acento); outline-offset: 1px; }
+.temporadas-incluidas-acciones { display: flex; flex-wrap: wrap; gap: 6px; }
+.temporadas-incluidas:disabled :is(.temporadas-incluidas-opcion, button) { cursor: default; opacity: .6; }

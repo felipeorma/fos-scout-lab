@@ -83,6 +83,11 @@ export function tf(template: string, vars: Record<string, string | number>): str
 }
 
 const EN: Record<string, string> = {
+  "Temporadas anteriores": "Previous seasons",
+  "Puedes incluir varias temporadas y añadir otras ligas del mismo año en cada una.": "You can include several seasons and add other leagues from the same year to each one.",
+  "Solo la temporada actual": "Current season only",
+  "Añadir otra temporada": "Add another season",
+  "Las temporadas añadidas a mano aparecen en la ficha; el radar y el índice se calculan con las bases que incluyen métricas.": "Manually added seasons appear in the profile; the radar and index are calculated using databases that include metrics.",
   "No puede ser posterior a la temporada que se mira ({anio}).": "It cannot be later than the season shown ({anio}).",
   "Temporada adicional, a mano": "Additional season, manual entry",
   "Puedes añadir otra liga del mismo año o una temporada anterior.": "You can add another league from the same year or an earlier season.",

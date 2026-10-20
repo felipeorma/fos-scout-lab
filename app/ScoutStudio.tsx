@@ -18,8 +18,10 @@ import { aplicarNombre, conNombresGuardados, guardarNombre, identidadDeBase, nom
 import { EditorDeNombreDeBase } from "./EditorDeNombreDeBase";
 import { AnadirTemporadaWyscout } from "./AnadirTemporadaWyscout";
 import { LigaDelMismoAnio } from "./LigaDelMismoAnio";
+import { SelectorTemporadas } from "./SelectorTemporadas";
 import { TemporadaDesdeWyscout, TemporadaEscrita } from "./TemporadaAMano";
-import { CLAVE_TEMPORADAS_A_MANO, aTemporadaDeJugador, anterioresAMano, delMismoAnioAMano, nuevaTemporadaAMano, type DatosDeTemporada, type TemporadaAMano } from "@/lib/temporadasAMano";
+import { CLAVE_TEMPORADAS_A_MANO, delMismoAnioAMano, nuevaTemporadaAMano, type DatosDeTemporada, type TemporadaAMano } from "@/lib/temporadasAMano";
+import { temporadasDeFicha, type TemporadaEnFicha } from "@/lib/temporadasDeFicha";
 import { ProveedorDeBase, useEstadoDeBase } from "./BaseActiva";
 import { BarraDeFiltros } from "./BarraDeFiltros";
 import { MenuDeLigas, MenuDesplegable, type OpcionDeMenu } from "./MenuDesplegable";
@@ -41,7 +43,6 @@ import {
   type TemporadaDeJugador,
 } from "@/lib/scouting";
 import { anioDeInicio, dosTemporadas, temporadaAnterior, temporadasDelAnio } from "@/lib/temporadas";
-import { fuenteStatsbomb } from "@/lib/snapshot";
 import { profileStorageKey, readStoredJson, type TransfermarktProfile } from "@/lib/transfermarkt";
 import { formatPlayerPositions, selectedCohortPosition } from "@/lib/positions";
 import { removePlayerImageBackground } from "@/lib/playerImageBackground";
@@ -387,7 +388,7 @@ export default function ScoutStudio() {
     [jugadoresVisibles, selectedTeam],
   );
   /*
-   * Qué temporada del jugador se mira, y con cuál anterior.
+   * Qué temporada del jugador se mira, y cuáles anteriores se incluyen.
    *
    * Antes la ficha miraba siempre su última temporada y, como anterior, la
    * siguiente de la lista: con un año más viejo elegido en el filtro seguía
@@ -400,7 +401,6 @@ export default function ScoutStudio() {
    * Si lo pedido coincide con todo lo cargado, sirve la fila fusionada y no
    * se recalcula nada.
    */
-  const [soloTemporadaActual, setSoloTemporadaActual] = useState(false);
   /** La temporada elegida a mano y con qué filtro de año se eligió: si el filtro cambia, manda el filtro. */
   const [temporadaElegida, setTemporadaElegida] = useState<{ anio: number; conFiltro: string } | null>(null);
   const filaElegida = reportRows[selectedPlayer];
@@ -420,38 +420,37 @@ export default function ScoutStudio() {
   })();
   const temporadaDeReferencia = temporadasDeLaFila[indiceDeReferencia] ?? null;
   /*
-   * La temporada anterior se elige: por defecto la inmediatamente anterior que
-   * haya en la base, pero cualquiera más vieja del jugador vale (con 2025 de
-   * referencia y 2024 en otra liga, se puede querer 2023). La elección es de
-   * este jugador; al cambiar de jugador vuelve a la inmediata.
+   * Se pueden elegir varias anteriores. Por defecto entra la más reciente de
+   * la base, y las nuevas se suman sin sustituirla. La selección se recuerda
+   * por jugador y año de referencia en este navegador.
    */
   const claveDelJugador = `${String(filaElegida?.Player ?? "")}|${String(filaElegida?.["Birth date"] ?? "")}`;
-  const [eleccionPrevia, setEleccionPrevia] = useState<{ jugador: string; tipo: "base"; anio: number } | { jugador: string; tipo: "mano"; id: string } | null>(null);
-  const eleccion = eleccionPrevia?.jugador === claveDelJugador ? eleccionPrevia : null;
+  const [seleccionesPrevias, setSeleccionesPrevias] = useState<Record<string, string[]>>({});
+  const contextoDeTemporadas = `${claveDelJugador}|${temporadaDeReferencia ? inicioDe(temporadaDeReferencia) : 0}`;
   const inicioDeReferencia = temporadaDeReferencia ? inicioDe(temporadaDeReferencia) : 0;
-  const anterioresDeLaFila = temporadasDeLaFila.slice(indiceDeReferencia + 1);
   /*
-   * Las añadidas a mano (o desde la fila de un Excel de Wyscout) para cuando
-   * la anterior no está en ninguna base. Solo traen números de temporada: la
-   * franja de la ficha las enseña, el radar no las cuenta. Por defecto manda
-   * la de la base; la añadida a mano, si no hay ninguna o si se elige.
+   * Las añadidas a mano o desde una fila de Wyscout traen números de temporada:
+   * la ficha las enseña; los años que alimentan el radar salen de las bases.
    */
   const [temporadasAMano, setTemporadasAMano] = useState<Record<string, TemporadaAMano[]>>({});
-  const anterioresAManoDelJugador = useMemo(
-    () => anterioresAMano(temporadasAMano[claveDelJugador] ?? [], inicioDeReferencia),
-    [temporadasAMano, claveDelJugador, inicioDeReferencia],
-  );
-  const otrasLigasAMano = delMismoAnioAMano(temporadasAMano[claveDelJugador] ?? [], inicioDeReferencia);
-  const elegidaDeLaBase = eleccion?.tipo === "base" ? anterioresDeLaFila.find((temporada) => temporada.anio === eleccion.anio) : undefined;
-  const elegidaAMano = eleccion?.tipo === "mano" ? anterioresAManoDelJugador.find((temporada) => temporada.id === eleccion.id) : undefined;
-  const previaAMano = elegidaAMano ?? (!elegidaDeLaBase && !anterioresDeLaFila.length ? anterioresAManoDelJugador[0] : undefined) ?? null;
-  const temporadaPrevia = previaAMano ? null : elegidaDeLaBase ?? anterioresDeLaFila[0] ?? null;
-  const aniosDelInforme = useMemo(
-    () => (temporadaDeReferencia ? [temporadaDeReferencia.anio, ...(!soloTemporadaActual && temporadaPrevia ? [temporadaPrevia.anio] : [])] : []),
-    [temporadaDeReferencia, temporadaPrevia, soloTemporadaActual],
-  );
+  const seleccionDeTemporadas = temporadasDeFicha(temporadaDeReferencia, temporadasDeLaFila,
+    temporadasAMano[claveDelJugador] ?? [], seleccionesPrevias[contextoDeTemporadas]);
+  const soloTemporadaActual = seleccionDeTemporadas.anteriores.length === 0;
+  // Las barras conservan una sola marca: la anterior con métricas más reciente de las elegidas.
+  const temporadaPrevia = seleccionDeTemporadas.anteriores.find((temporada) => !temporada.aMano) ?? null;
+  const aniosDelInforme = seleccionDeTemporadas.anios;
+  function cambiarSeleccionDeTemporadas(cambiar: (claves: string[]) => string[]) {
+    setSeleccionesPrevias((anteriores) => {
+      const siguiente = { ...anteriores, [contextoDeTemporadas]: cambiar(anteriores[contextoDeTemporadas] ?? seleccionDeTemporadas.seleccion) };
+      try { window.localStorage.setItem("fos-scout-temporadas-incluidas-v1", JSON.stringify(siguiente)); } catch { /* sigue en esta sesión */ }
+      return siguiente;
+    });
+  }
+  function incluirTemporada(clave: string) {
+    cambiarSeleccionDeTemporadas((claves) => [...new Set([...claves, clave])]);
+  }
   const basesActivas = useMemo(() => sourceDatasets.filter((dataset) => !ligasApagadas.includes(dataset.fileName)), [sourceDatasets, ligasApagadas]);
-  const claveDelCruce = temporadasDeLaFila.length > 1 && basesActivas.some((dataset) => !aniosDelInforme.includes(dataset.season))
+  const claveDelCruce = aniosDelInforme.length > 0 && basesActivas.some((dataset) => !aniosDelInforme.includes(dataset.season))
     ? aniosDelInforme.join(",") : "";
   const cruceDeTemporadas = useCruceDeAnios(basesActivas, claveDelCruce);
   const indiceEnElCruce = useMemo(() => {
@@ -619,56 +618,22 @@ export default function ScoutStudio() {
         && !sourceDatasets.some((dataset) => dataset.fileName === `StatsBomb · ${competicion.name} ${competicion.season}`))
       .sort((a, b) => String(b.season).localeCompare(String(a.season), "en", { numeric: true }));
   }, [catalogoSb, temporadaDeReferencia, inicioDeReferencia, sourceDatasets]);
-  const ligasDelJugador = useMemo(() => {
-    const ligas = new Set(temporadasDeLaFila.flatMap((temporada) => temporada.ligas));
-    const deStatsbomb = fuenteStatsbomb(filaElegida?.["Data sources"])?.liga;
-    if (deStatsbomb) ligas.add(deStatsbomb);
-    return ligas;
-  }, [temporadasDeLaFila, filaElegida]);
-  const catalogoDelJugador = useMemo(() => {
-    const deSusLigas = catalogoAnterior.filter((competicion) => ligasDelJugador.has(competicion.name));
-    // La de la liga de la referencia, primero.
-    const propia = deSusLigas.find((competicion) => temporadaDeReferencia?.ligas.includes(competicion.name));
-    return propia ? [propia, ...deSusLigas.filter((competicion) => competicion !== propia)] : deSusLigas;
-  }, [catalogoAnterior, ligasDelJugador, temporadaDeReferencia]);
-  const catalogoDelMismoAnio = catalogoSb.filter((competicion) => inicioDeReferencia > 0
-    && competicion.hasMatches !== false && anioDeInicio(String(competicion.season)) === inicioDeReferencia
-    && !sourceDatasets.some((dataset) => dataset.fileName === `StatsBomb · ${competicion.name} ${competicion.season}`));
   const [previaManual, setPreviaManual] = useState<{ jugador: string; elegida: string } | null>(null);
   const [pedidaAlCatalogo, setPedidaAlCatalogo] = useState<{ jugador: string; competicion: ApiCompetition } | null>(null);
   const manualAbierto = previaManual?.jugador === claveDelJugador;
   // La que se pidió y se cargó, pero en la que el jugador no sale.
   const pedidaSinJugador = pedidaAlCatalogo?.jugador === claveDelJugador && !reportLoading
     && sourceDatasets.some((dataset) => dataset.fileName === `StatsBomb · ${pedidaAlCatalogo.competicion.name} ${pedidaAlCatalogo.competicion.season}`)
-    && !anterioresDeLaFila.some((temporada) => temporada.anio === extractSeason(String(pedidaAlCatalogo.competicion.season)))
+    && !temporadasDeLaFila.some((temporada) => temporada.anio === extractSeason(String(pedidaAlCatalogo.competicion.season))
+      && temporada.ligas.includes(pedidaAlCatalogo.competicion.name))
     ? pedidaAlCatalogo.competicion : null;
 
-  /** Carga de StatsBomb una temporada anterior y la deja elegida como anterior del jugador. */
+  /** Añade una temporada de StatsBomb sin reemplazar las que ya estaban elegidas. */
   async function cargarTemporadaAnterior(competicion: ApiCompetition) {
-    setSoloTemporadaActual(false);
-    setEleccionPrevia({ jugador: claveDelJugador, tipo: "base", anio: extractSeason(String(competicion.season)) });
+    incluirTemporada(`base:${extractSeason(String(competicion.season))}`);
     setPedidaAlCatalogo({ jugador: claveDelJugador, competicion });
     setPreviaManual(null);
     await sumarTemporada(competicion);
-  }
-
-  /** Lo que se elige en el desplegable de la temporada anterior. */
-  function elegirTemporadaAnterior(valor: string) {
-    if (valor === "sin") { setSoloTemporadaActual(true); setPreviaManual(null); return; }
-    if (valor === "manual") { setPreviaManual({ jugador: claveDelJugador, elegida: "" }); return; }
-    const [tipo, dato] = [valor.slice(0, valor.indexOf(":")), valor.slice(valor.indexOf(":") + 1)];
-    if (tipo === "base") {
-      setSoloTemporadaActual(false);
-      setPreviaManual(null);
-      setEleccionPrevia({ jugador: claveDelJugador, tipo: "base", anio: Number(dato) });
-    } else if (tipo === "mano") {
-      setSoloTemporadaActual(false);
-      setPreviaManual(null);
-      setEleccionPrevia({ jugador: claveDelJugador, tipo: "mano", id: dato });
-    } else if (tipo === "sb") {
-      const competicion = catalogoDelJugador[Number(dato)];
-      if (competicion) void cargarTemporadaAnterior(competicion);
-    }
   }
 
   useEffect(() => {
@@ -678,26 +643,35 @@ export default function ScoutStudio() {
       if (leido && typeof leido === "object") setTemporadasAMano(leido);
     } catch { /* sin nada guardado */ }
   }, []);
+  useEffect(() => {
+    try {
+      const leido: unknown = JSON.parse(window.localStorage.getItem("fos-scout-temporadas-incluidas-v1") ?? "null");
+      if (leido && typeof leido === "object" && !Array.isArray(leido)) {
+        const validas = Object.entries(leido).filter((entrada): entrada is [string, string[]] =>
+          Array.isArray(entrada[1]) && entrada[1].every((clave: unknown) => typeof clave === "string"));
+        setSeleccionesPrevias(Object.fromEntries(validas));
+      }
+    } catch { /* sin selección guardada */ }
+  }, []);
   function guardarTemporadasAMano(siguiente: Record<string, TemporadaAMano[]>) {
     setTemporadasAMano(siguiente);
     try { window.localStorage.setItem(CLAVE_TEMPORADAS_A_MANO, JSON.stringify(siguiente)); } catch { /* sigue en memoria esta sesión */ }
   }
-  /** Guarda otra etapa; solo cambia la anterior elegida cuando es de un año anterior. */
+  /** Guarda otra etapa y la suma a las elegidas, también al añadir otra liga de un año anterior. */
   function anadirTemporadaAMano(datos: DatosDeTemporada) {
     const nueva = nuevaTemporadaAMano(datos);
     const suyas = (temporadasAMano[claveDelJugador] ?? []).filter((temporada) => temporada.id !== nueva.id);
     guardarTemporadasAMano({ ...temporadasAMano, [claveDelJugador]: [...suyas, nueva] });
     setPreviaManual(null);
     if (anioDeInicio(nueva.etiqueta) === inicioDeReferencia) return;
-    setSoloTemporadaActual(false);
-    setEleccionPrevia({ jugador: claveDelJugador, tipo: "mano", id: nueva.id });
+    incluirTemporada(`mano:${nueva.id}`);
   }
   function quitarTemporadaAMano(id: string) {
     const suyas = (temporadasAMano[claveDelJugador] ?? []).filter((temporada) => temporada.id !== id);
     const { [claveDelJugador]: _quitado, ...resto } = temporadasAMano;
     void _quitado;
     guardarTemporadasAMano(suyas.length ? { ...resto, [claveDelJugador]: suyas } : resto);
-    if (eleccion?.tipo === "mano" && eleccion.id === id) setEleccionPrevia(null);
+    cambiarSeleccionDeTemporadas((claves) => claves.filter((clave) => clave !== `mano:${id}`));
   }
   /*
    * Sugerencias para la liga de una temporada añadida a mano: cualquier liga
@@ -776,7 +750,7 @@ export default function ScoutStudio() {
    * mismas métricas y el mismo criterio de liga—. Solo con una anterior de
    * la base: las añadidas a mano no traen métricas.
    */
-  const anioDeLaPrevia = temporadaPrevia && !previaAMano ? temporadaPrevia.anio : null;
+  const anioDeLaPrevia = temporadaPrevia?.anio ?? null;
   const cruceDeLaPrevia = useCruceDeAnios(basesActivas, report && anioDeLaPrevia !== null ? String(anioDeLaPrevia) : "");
   const marcasDeLaPrevia = useMemo(() => {
     if (!report || !cruceDeLaPrevia || !filaElegida) return null;
@@ -1355,6 +1329,7 @@ export default function ScoutStudio() {
           && (!nacimiento || !fila["Birth date"] || String(fila["Birth date"]) === nacimiento));
         return indice >= 0 ? indice : 0;
       });
+      if (anioDeInicio(anterior.temporada) < inicioDeReferencia) incluirTemporada(`base:${nueva.season}`);
     } catch (error) {
       setReportError(error instanceof Error ? error.message : String(error));
     } finally {
@@ -1946,27 +1921,33 @@ export default function ScoutStudio() {
    * editar la lectura rápida en una vale también en la otra.
    */
   /*
-   * Las temporadas del jugador, de la más reciente a la más antigua. Con dos o
-   * más, la franja enseña cada una por separado y el radar —que sale de la
-   * fila fusionada— las cuenta a todas, ponderadas por minutos. Con «solo la
-   * temporada actual» elegida en el panel, solo queda la actual.
+   * Todas las etapas elegidas, sin límite de filas. Las bases con métricas
+   * alimentan el radar; las manuales se suman al resumen visible de la ficha.
    */
   const temporadasDelJugador = report ? temporadasDeFila(filasDelInforme[indiceDelInforme]) : [];
-  const temporadasAdicionalesDeLaFicha = [
-    ...otrasLigasAMano.map(aTemporadaDeJugador),
-    ...(previaAMano && !soloTemporadaActual ? [aTemporadaDeJugador(previaAMano)] : temporadasDelJugador.slice(1, 3)),
-  ];
+  const temporadasAdicionalesDeLaFicha = seleccionDeTemporadas.adicionales;
   const cantidadDeTemporadasDeLaFicha = 1 + temporadasAdicionalesDeLaFicha.length;
-  const minutosTotalesDeLaFicha = (temporadasDelJugador[0]?.minutos ?? report?.minutes ?? 0)
+  const minutosTotalesDeLaFicha = (temporadaDeReferencia?.minutos ?? report?.minutes ?? 0)
     + temporadasAdicionalesDeLaFicha.reduce((total, temporada) => total + (Number.isFinite(temporada.minutos) ? temporada.minutos : 0), 0);
   const variasTemporadas = temporadasDelJugador.length > 1;
-  const temporadaActual = variasTemporadas ? temporadasDelJugador[0] : null;
+  const temporadaActual = temporadaDeReferencia;
   // El título de la primera fila de la franja, y las bases de archivo que lo explican.
   const tituloPrincipal = (temporadaActual ? [temporadaActual.ligas.join(" + "), temporadaActual.etiqueta].filter(Boolean).join(" · ") : "")
     || basesDeLaFicha?.titulo || base.descripcion || tDefault(reportFileName);
-  const basesPrincipales = basesDeArchivoDe(temporadasDelJugador[0]);
+  const basesPrincipales = basesDeArchivoDe(temporadaDeReferencia ?? undefined);
   const baseConVariasTemporadas = new Set(sourceDatasets.map((dataset) => dataset.season || dataset.fileName)).size > 1;
   const cifra = (valor: number) => (Number.isFinite(valor) ? numberFormat(valor) : "—");
+  const otraLigaPara = (temporada: TemporadaEnFicha) => <LigaDelMismoAnio
+    key={`${claveDelJugador}|${temporada.aMano?.id ?? `base:${temporada.anio}`}`}
+    temporada={{ liga: temporada.ligas[0] ?? "", temporada: temporada.etiqueta }} inicio={inicioDe(temporada)}
+    catalogo={catalogoSb.filter((competicion) => competicion.hasMatches !== false
+      && anioDeInicio(String(competicion.season)) === inicioDe(temporada)
+      && !sourceDatasets.some((dataset) => dataset.fileName === `StatsBomb · ${competicion.name} ${competicion.season}`))}
+    ligasSugeridas={ligasSugeridas} manuales={delMismoAnioAMano(temporadasAMano[claveDelJugador] ?? [], inicioDe(temporada))}
+    cargando={reportLoading} error={reportError}
+    onCargar={(competicion) => inicioDe(temporada) < inicioDeReferencia ? cargarTemporadaAnterior(competicion) : sumarTemporada(competicion)}
+    onArchivo={(archivo, nombre) => anadirTemporadaWyscout(archivo, nombre)}
+    onManual={anadirTemporadaAMano} onQuitar={quitarTemporadaAMano} />;
   const reportArticleNode = report ? (
     <article className="scout-report jordhy-report" data-oscuro={reportTheme.oscuro ? "" : undefined} style={reportThemeStyle(reportTheme)}>
       <header className="dossier-header">
@@ -2003,13 +1984,9 @@ export default function ScoutStudio() {
         <div className="season-source"><span><InlineText editKey={`label-${report.player}`} value={ETIQUETAS_DE_BASE.includes(analysisLabel) ? "" : tDefault(analysisLabel)} fallback={!variasTemporadas && (basesDeLaFicha?.cuantas ?? reportSourceCount) > 1 ? t("BASES ANALIZADAS") : t("BASE ANALIZADA")} onCommit={setAnalysisLabel} /></span><b>{basesPrincipales.length === 1 && !analysisSourceTitle.trim()
           ? <EditorDeNombreDeBase actual={nombreActual(basesPrincipales[0])} onGuardar={(nombre) => void renombrarBases(basesPrincipales.map((dataset) => dataset.fileName), nombre)}>{tituloPrincipal}</EditorDeNombreDeBase>
           : <InlineText editKey={`source-${report.player}`} value={tDefault(analysisSourceTitle)} fallback={tituloPrincipal} onCommit={updateAnalysisSourceName} />}</b><small>{basesDeLaFicha?.plataformas ? `${basesDeLaFicha.plataformas} · ` : ""}{temporadasDelJugador.length && (variasTemporadas || baseConVariasTemporadas)
-          ? tf("Temporada {s} · cohorte {c} · mín. {m}′", { s: temporadasDelJugador[0].etiqueta, c: cohortLabel(report.cohort), m: minimumMinutes })
+          ? tf("Temporada {s} · cohorte {c} · mín. {m}′", { s: temporadaDeReferencia?.etiqueta ?? "", c: cohortLabel(report.cohort), m: minimumMinutes })
           : tf("Cohorte {c} · mín. {m}′", { c: cohortLabel(report.cohort), m: minimumMinutes })}</small>
-          {temporadaDeReferencia && <LigaDelMismoAnio key={`${claveDelJugador}|${temporadaDeReferencia.etiqueta}`}
-            temporada={{ liga: temporadaDeReferencia.ligas[0] ?? "", temporada: temporadaDeReferencia.etiqueta }} inicio={inicioDeReferencia}
-            catalogo={catalogoDelMismoAnio} ligasSugeridas={ligasSugeridas} manuales={otrasLigasAMano} cargando={reportLoading} error={reportError}
-            onCargar={(competicion) => sumarTemporada(competicion)} onArchivo={(archivo, nombre) => anadirTemporadaWyscout(archivo, nombre)}
-            onManual={anadirTemporadaAMano} onQuitar={quitarTemporadaAMano} />}
+          {temporadaDeReferencia && otraLigaPara(temporadaDeReferencia)}
         </div>
         {/* Con varias temporadas, esta fila es la más reciente y las anteriores
             van debajo; el índice es el de todas juntas. */}
@@ -2023,7 +2000,8 @@ export default function ScoutStudio() {
       {temporadasAdicionalesDeLaFicha.map((temporada: TemporadaDeJugador & { aMano?: TemporadaAMano }, posicion, anteriores) => (
         <section className="dossier-season-strip dossier-season-previa" key={temporada.aMano?.id ?? temporada.etiqueta}>
           <div className="season-source">
-            <span>{inicioDe(temporada) === inicioDeReferencia ? t("OTRA LIGA · MISMO AÑO") : posicion === otrasLigasAMano.length ? t("TEMPORADA ANTERIOR") : tf("TEMPORADA {s}", { s: temporada.etiqueta })}</span>
+            <span>{inicioDe(temporada) === inicioDeReferencia || anteriores.slice(0, posicion).some((anterior) => inicioDe(anterior) === inicioDe(temporada))
+              ? t("OTRA LIGA · MISMO AÑO") : tf("TEMPORADA {s}", { s: temporada.etiqueta })}</span>
             <b>{(() => {
               const texto = [temporada.etiqueta, temporada.ligas.join(" + ")].filter(Boolean).join(" · ");
               const suyas = temporada.aMano ? [] : basesDeArchivoDe(temporada);
@@ -2034,6 +2012,7 @@ export default function ScoutStudio() {
             <small>{temporada.aMano
               ? `${temporada.equipo} · ${temporada.aMano.origen === "wyscout" ? t("de un Excel de Wyscout") : t("añadida a mano")}`
               : temporada.equipo}</small>
+            {otraLigaPara(temporada)}
           </div>
           <div className="dossier-stat"><strong>{numberFormat(temporada.partidos)}</strong><span>{t("Partidos")}</span></div>
           <div className="dossier-stat"><strong>{numberFormat(temporada.minutos)}</strong><span>{t("Minutos")}</span></div>
@@ -2087,7 +2066,7 @@ export default function ScoutStudio() {
             m: numberFormat(report.minutes),
           })}`}
           {notaDeRescate && ` ${notaDeRescate}`}
-          {previaAMano && !soloTemporadaActual && ` ${tf("La temporada {s} ({liga}) se añadió a mano: sin métricas, no entra en el radar ni en el índice.", { s: previaAMano.etiqueta, liga: previaAMano.liga })}`}
+          {temporadasAdicionalesDeLaFicha.some((temporada) => temporada.aMano) && ` ${t("Las temporadas añadidas a mano aparecen en la ficha; el radar y el índice se calculan con las bases que incluyen métricas.")}`}
           {` ${lineaDeDatos({ descripcion: base.descripcion, cargadaEl: base.cargadaEl, generadoEl: impresoEl })}.`}
           {report.metrics.some((metric) => metric.source === "skillcorner") && ` ${t("Los volúmenes de SkillCorner (SC) van por 30 minutos con balón del equipo.")}`}</p>
         <div className="report-signatures">
@@ -2551,39 +2530,15 @@ export default function ScoutStudio() {
                   </label>}
                   {report && temporadaDeReferencia && (() => {
                     const deArchivo = basesDeArchivoDe(temporadaDeReferencia);
-                    const hayOpciones = anterioresDeLaFila.length > 0 || catalogoDelJugador.length > 0 || anterioresAManoDelJugador.length > 0;
-                    const valor = manualAbierto ? "manual" : soloTemporadaActual ? "sin" : previaAMano ? `mano:${previaAMano.id}` : temporadaPrevia ? `base:${temporadaPrevia.anio}` : "";
-                    const temporadaPropuesta = temporadaAnteriorDe(temporadaDeReferencia.etiqueta);
+                    const hayOpciones = seleccionDeTemporadas.opciones.length > 0 || catalogoAnterior.length > 0;
+                    const temporadaPropuesta = temporadaAnteriorDe(seleccionDeTemporadas.anteriores.at(-1)?.etiqueta ?? temporadaDeReferencia.etiqueta);
                     const verManual = manualAbierto || !hayOpciones;
                     return <div className="field-group temporada-previa">
-                      <FieldLabel>{t("Temporada anterior")}</FieldLabel>
-                      {hayOpciones && <span className="select-wrap simple"><select value={valor} disabled={reportLoading} onChange={(event) => elegirTemporadaAnterior(event.target.value)}>
-                        {!valor && <option value="" disabled>{t("Elegir temporada anterior…")}</option>}
-                        {anterioresDeLaFila.length > 0 && <optgroup label={t("En la base")}>
-                          {anterioresDeLaFila.map((temporada, posicion) => <option key={temporada.anio} value={`base:${temporada.anio}`}>{tf(posicion === 0 ? "{s} · {liga} · {equipo} · {m}′ (recomendada)" : "{s} · {liga} · {equipo} · {m}′", {
-                            s: temporada.etiqueta, liga: temporada.ligas.join(" + "), equipo: temporada.equipo, m: numberFormat(temporada.minutos),
-                          })}</option>)}
-                        </optgroup>}
-                        {anterioresAManoDelJugador.length > 0 && <optgroup label={t("Añadidas a mano")}>
-                          {anterioresAManoDelJugador.map((temporada) => <option key={temporada.id} value={`mano:${temporada.id}`}>{tf("{s} · {liga} · {equipo} · {m}′", {
-                            s: temporada.etiqueta, liga: temporada.liga, equipo: temporada.equipo, m: Number.isFinite(temporada.minutos) ? numberFormat(temporada.minutos) : "—",
-                          })}</option>)}
-                        </optgroup>}
-                        {catalogoDelJugador.length > 0 && <optgroup label={t("Cargar de StatsBomb")}>
-                          {catalogoDelJugador.map((competicion, indice) => <option key={`${competicion.name}|${competicion.season}`} value={`sb:${indice}`}>{tf(indice === 0 && !anterioresDeLaFila.length && temporadaDeReferencia.ligas.includes(competicion.name) ? "{liga} {s} (recomendada)" : "{liga} {s}", { liga: competicion.name, s: competicion.season })}</option>)}
-                        </optgroup>}
-                        <option value="sin">{tf("Ninguna: solo la temporada {s}", { s: temporadaDeReferencia.etiqueta })}</option>
-                        <option value="manual">{t("Añadir otra manualmente…")}</option>
-                      </select><ChevronDown size={16} /></span>}
-                      {!manualAbierto && (soloTemporadaActual
-                        ? <small className="temporada-previa-nota">{tf("El radar, el índice y la cohorte usan solo la temporada {s}.", { s: temporadaDeReferencia.etiqueta })}</small>
-                        : previaAMano ? <>
-                          <small className="temporada-previa-nota">{t("Añadida a mano: sale en la ficha, pero sin métricas no entra en el radar ni en el índice.")}</small>
-                          <button type="button" className="button secondary compact" onClick={() => quitarTemporadaAMano(previaAMano.id)}>{t("Quitar esta temporada")}</button>
-                        </>
-                        : temporadaPrevia ? <small className="temporada-previa-nota">{tf("El radar y el índice suman {a} y {b}: {m}′ en total.", { a: temporadaDeReferencia.etiqueta, b: temporadaPrevia.etiqueta, m: numberFormat(temporadaDeReferencia.minutos + temporadaPrevia.minutos) })}</small>
-                        : hayOpciones ? <small className="temporada-previa-nota">{t("No hay temporada anterior en la base: elige una de sus ligas para cargarla.")}</small>
-                        : null)}
+                      <SelectorTemporadas opciones={seleccionDeTemporadas.opciones} seleccion={seleccionDeTemporadas.seleccion} deshabilitado={reportLoading}
+                        onAlternar={(clave) => cambiarSeleccionDeTemporadas((claves) => claves.includes(clave) ? claves.filter((actual) => actual !== clave) : [...claves, clave])}
+                        onQuitar={quitarTemporadaAMano} onSoloActual={() => { cambiarSeleccionDeTemporadas(() => []); setPreviaManual(null); }}
+                        onAnadir={() => setPreviaManual({ jugador: claveDelJugador, elegida: "" })} />
+                      {soloTemporadaActual && <small className="temporada-previa-nota">{tf("El radar, el índice y la cohorte usan solo la temporada {s}.", { s: temporadaDeReferencia.etiqueta })}</small>}
                       {pedidaSinJugador && <small className="temporada-previa-nota aviso">{tf("No aparece en {liga} {s}: si jugó en otra liga, añádela manualmente.", { liga: pedidaSinJugador.name, s: pedidaSinJugador.season })}</small>}
                       {verManual && <div className="previa-manual">
                         {!hayOpciones && <small className="temporada-previa-nota">{t("No hay otra temporada de este jugador disponible. Añádela manualmente:")}</small>}
