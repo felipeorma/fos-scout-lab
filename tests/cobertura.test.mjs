@@ -163,3 +163,40 @@ test("dos personas distintas con el mismo apellido siguen separadas", async () =
   assert.equal(cruzar(fila("Liam Campagna", 17), fila("Luigi Campagna", 36)).length, 2);
   assert.equal(cruzar(fila("Lowell Wright", 23), fila("Tre Wright", 22)).length, 2);
 });
+
+test("lo que su liga no publica no le resta: mismo parecido, mismo ajustado", async () => {
+  const { coberturaDeLigas } = await import("../lib/cobertura.ts");
+  // Dos ligas; la segunda no publica la métrica M4 (de SkillCorner, por ejemplo).
+  const filas = [
+    ...Array.from({ length: 8 }, () => ({ M1: 1, M2: 1, M3: 1, M4: 1 })),
+    ...Array.from({ length: 8 }, () => ({ M1: 1, M2: 1, M3: 1 })),
+  ];
+  // Un fichaje fusionado de la primera a la segunda no hace que la segunda "publique" M4.
+  filas.push({ M1: 1, M2: 1, M3: 1, M4: 1 });
+  const ligas = filas.map((_, i) => [i < 8 ? "Con 2026" : "Sin 2026"]);
+  const cobertura = coberturaDeLigas(filas, ligas, ["M1", "M2", "M3", "M4"]);
+  assert.equal(cobertura(0).disponibles, 4);
+  assert.equal(cobertura(9).disponibles, 3, "su liga no publica M4");
+  const candidatos = [
+    { name: "Con", index: 0, similarity: 80, coverage: 100 },
+    { name: "Sin", index: 9, similarity: 80, coverage: 75 },
+    ...Array.from({ length: 10 }, (_, i) => ({ name: `Resto${i}`, index: 1 + (i % 7), similarity: 50 + i, coverage: 100 })),
+  ];
+  const antes = ordenarPorCobertura(candidatos, 4);
+  const ahora = ordenarPorCobertura(candidatos, 4, (c) => cobertura(c.index));
+  const de = (lista, nombre) => lista.find((c) => c.name === nombre).ajustado;
+  assert.ok(de(antes, "Con") > de(antes, "Sin"), "antes le restaba lo que su liga no publica");
+  assert.equal(de(ahora, "Con"), de(ahora, "Sin"));
+});
+
+test("lo que le falta a él con su liga publicándolo sí le resta", () => {
+  const candidatos = [
+    { name: "Completo", similarity: 80, coverage: 100 },
+    { name: "Sin sus datos", similarity: 80, coverage: 60 },
+    ...Array.from({ length: 10 }, (_, i) => ({ name: `Resto${i}`, similarity: 50 + i, coverage: 100 })),
+  ];
+  const mismaLiga = () => ({ disponibles: 10 });
+  const ordenados = ordenarPorCobertura(candidatos, 10, mismaLiga);
+  const de = (nombre) => ordenados.find((c) => c.name === nombre).ajustado;
+  assert.ok(de("Completo") > de("Sin sus datos"), "su liga lo publica: el hueco es suyo");
+});

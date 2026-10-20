@@ -29,7 +29,7 @@ import { t, tf, numberLocale, type Lang } from "@/lib/i18n";
 import { guardarConImagenes } from "@/lib/almacen";
 import { AutorDelInforme } from "./FirmaDelInforme";
 import { clavesDeSimilitud, coincidenciasYDiferencias, duelosDeSimilitud } from "@/lib/similitudClaves";
-import { ordenarPorCobertura } from "@/lib/cobertura";
+import { coberturaDeLigas, ordenarPorCobertura } from "@/lib/cobertura";
 import { nivelDeLiga, type EntradaOpta } from "@/lib/nivelDeLiga";
 import { EQUIPO_PROPIO, crearEncaje, perfilesDeEstilo } from "@/lib/estiloEquipo";
 import { useEstilos } from "./useEstilos";
@@ -373,12 +373,20 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
    * Ordenados por el parecido corregido por cobertura, como hacía Entre ligas:
    * sin la corrección, un candidato de una liga con pocas métricas se compara
    * en menos dimensiones y sube por tener peores datos, no por parecerse más.
+   * Y sabiendo qué publica la liga de cada uno: lo que su liga no publica (los
+   * desmarques de SkillCorner fuera de CPL y MLS Next Pro) no le resta. Sin
+   * esto, la misma persona bajaba 17 puestos por jugar en una liga sin
+   * SkillCorner; con esto, 5.
    * Se corrige sobre todos y después se filtra (ver lib/cobertura).
    */
+  const coberturaDe = useMemo(
+    () => (search && ligasPorFila?.length ? coberturaDeLigas(rows, ligasPorFila, search.target.metrics.map((metric) => metric.key)) : null),
+    [search, rows, ligasPorFila],
+  );
   const candidates = useMemo(
-    () => (search ? ordenarPorCobertura(search.candidates, search.target.metrics.length) : [])
+    () => (search ? ordenarPorCobertura(search.candidates, search.target.metrics.length, coberturaDe ? (candidate) => coberturaDe(candidate.index) : undefined) : [])
       .filter((candidate) => encaja(candidate.index, ligaCandidato, anioCandidato)),
-    [search, encaja, ligaCandidato, anioCandidato],
+    [search, encaja, ligaCandidato, anioCandidato, coberturaDe],
   );
   // Lo que traía Entre ligas: el encaje de estilo del club de cada candidato
   // con el nuestro y, si se elige, el encaje con un equipo concreto.
