@@ -2010,7 +2010,7 @@ export default function ScoutStudio() {
                 : texto;
             })()}</b>
             <small>{temporada.aMano
-              ? `${temporada.equipo} · ${temporada.aMano.origen === "wyscout" ? t("de un Excel de Wyscout") : t("añadida a mano")}`
+              ? <>{temporada.equipo}<span className="season-provenance">{` · ${temporada.aMano.origen === "wyscout" ? t("de un Excel de Wyscout") : t("añadida a mano")}`}</span></>
               : temporada.equipo}</small>
             {otraLigaPara(temporada)}
           </div>
@@ -2066,7 +2066,7 @@ export default function ScoutStudio() {
             m: numberFormat(report.minutes),
           })}`}
           {notaDeRescate && ` ${notaDeRescate}`}
-          {temporadasAdicionalesDeLaFicha.some((temporada) => temporada.aMano) && ` ${t("Las temporadas añadidas a mano aparecen en la ficha; el radar y el índice se calculan con las bases que incluyen métricas.")}`}
+          {temporadasAdicionalesDeLaFicha.some((temporada) => temporada.aMano) && <span className="manual-season-explanation">{` ${t("Las temporadas añadidas a mano aparecen en la ficha; el radar y el índice se calculan con las bases que incluyen métricas.")}`}</span>}
           {` ${lineaDeDatos({ descripcion: base.descripcion, cargadaEl: base.cargadaEl, generadoEl: impresoEl })}.`}
           {report.metrics.some((metric) => metric.source === "skillcorner") && ` ${t("Los volúmenes de SkillCorner (SC) van por 30 minutos con balón del equipo.")}`}</p>
         <div className="report-signatures">

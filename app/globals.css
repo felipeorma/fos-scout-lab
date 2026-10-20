@@ -6619,6 +6619,40 @@ body.print-layout-check .legal-page-shell:has([data-hoja-vacia]) { display: none
 @media print { .liga-mismo-anio-boton, .liga-mismo-anio-dialog { display: none !important; } }
 body.print-layout-check .liga-mismo-anio-boton { display: none !important; }
 
+/* En el PDF las temporadas forman una tabla compacta. Las filas conservan
+   su alto natural para que el autoajuste escale la hoja sin aplastar textos.
+   La medida previa y la impresión usan exactamente la misma distribución. */
+body.print-layout-check .jordhy-report .dossier-season-strip { flex: none; min-height: 90px; padding: 12px 24px; grid-template-columns: minmax(0, 1.65fr) repeat(4, minmax(0, .55fr)) 72px; gap: 5px; align-items: center; break-inside: avoid; }
+body.print-layout-check .jordhy-report .season-source { min-width: 0; grid-column: auto; font-size: 9.5px; line-height: 1.2; }
+body.print-layout-check .jordhy-report .season-source > span { display: block; }
+body.print-layout-check .jordhy-report .dossier-season-strip .season-source > b { max-width: none; margin-top: 2px; overflow: visible; font-size: 15px; line-height: 1.2; white-space: normal; overflow-wrap: anywhere; }
+body.print-layout-check .jordhy-report .season-source > small { margin-top: 1px; font-size: 7.5px; line-height: 1.2; overflow-wrap: anywhere; }
+body.print-layout-check .jordhy-report .dossier-stat { min-width: 0; padding-left: 10px; }
+body.print-layout-check .jordhy-report .dossier-season-previa { min-height: 0; padding-block: 6px; }
+body.print-layout-check .jordhy-report .dossier-season-previa .season-source > b { font-size: 10.5px; }
+body.print-layout-check .jordhy-report .dossier-season-previa .dossier-stat { min-height: 24px; }
+body.print-layout-check .jordhy-report .dossier-season-previa .dossier-stat strong { font-size: 14px; }
+body.print-layout-check .jordhy-report .dossier-season-previa .dossier-stat > span { display: none; }
+body.print-layout-check .jordhy-report :is(.score-ring, .season-radar-note) { display: flex; }
+body.print-layout-check .jordhy-report .season-radar-note { line-height: 1.2; }
+body.print-layout-check :is(.season-provenance, .manual-season-explanation) { display: none !important; }
+@media print {
+  .jordhy-report .dossier-season-strip { flex: none; min-height: 90px; padding: 12px 24px; grid-template-columns: minmax(0, 1.65fr) repeat(4, minmax(0, .55fr)) 72px; gap: 5px; align-items: center; break-inside: avoid; }
+  .jordhy-report .season-source { min-width: 0; grid-column: auto; font-size: 9.5px; line-height: 1.2; }
+  .jordhy-report .season-source > span { display: block; }
+  .jordhy-report .dossier-season-strip .season-source > b { max-width: none; margin-top: 2px; overflow: visible; font-size: 15px; line-height: 1.2; white-space: normal; overflow-wrap: anywhere; }
+  .jordhy-report .season-source > small { margin-top: 1px; font-size: 7.5px; line-height: 1.2; overflow-wrap: anywhere; }
+  .jordhy-report .dossier-stat { min-width: 0; padding-left: 10px; }
+  .jordhy-report .dossier-season-previa { min-height: 0; padding-block: 6px; }
+  .jordhy-report .dossier-season-previa .season-source > b { font-size: 10.5px; }
+  .jordhy-report .dossier-season-previa .dossier-stat { min-height: 24px; }
+  .jordhy-report .dossier-season-previa .dossier-stat strong { font-size: 14px; }
+  .jordhy-report .dossier-season-previa .dossier-stat > span { display: none; }
+  .jordhy-report :is(.score-ring, .season-radar-note) { display: flex; }
+  .jordhy-report .season-radar-note { line-height: 1.2; }
+  .season-provenance, .manual-season-explanation { display: none !important; }
+}
+
 /* Algo no se pudo guardar en el navegador: se dice, en vez de perderse en silencio. */
 .aviso-guardado { margin: 8px 16px 0; padding: 9px 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid rgba(240, 163, 94, .45); border-radius: 10px; color: #f3c79c; background: rgba(240, 163, 94, .1); font-size: 12px; }
 .aviso-guardado button { border: 0; background: none; color: inherit; font-size: 16px; line-height: 1; cursor: pointer; }
