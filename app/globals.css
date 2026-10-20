@@ -6666,7 +6666,20 @@ body.print-layout-check :is(.season-provenance, .manual-season-explanation) { di
    página, y las hojas de análisis como tarjetas grafito con filete. Sin
    print-color-adjust el navegador quita los fondos y deja texto claro sobre
    papel blanco. */
+/* El halo fijo pertenece a la interfaz. Cada hoja ya lleva su propio fondo;
+   imprimir ambos duplica degradados transparentes del tamaño de la página. */
+body.print-layout-check .app-shell::before { display: none !important; }
+body.print-layout-check .app-shell[data-informe="oscuro"] .legal-page-shell {
+  background:
+    radial-gradient(95% 55% at 86% 108%, var(--halo-a, rgba(255,42,31,.34)), transparent 70%),
+    radial-gradient(70% 40% at 6% -10%, var(--halo-b, rgba(61,91,255,.10)), transparent 70%),
+    #08080a;
+}
+body.print-layout-check .app-shell[data-informe="oscuro"] .legal-page-shell > :is(.snap-page, .estilo-page, .rank-page, .pool-page, .runs-page, .flujo-page, .scouting-board, .context-page, .similarity-report-sheet) {
+  background: linear-gradient(180deg, #1b1b20, #101013) !important;
+}
 @media print {
+  .app-shell::before { display: none !important; }
   html:has(.app-shell[data-informe="oscuro"]),
   html:has(.app-shell[data-informe="oscuro"]) body { background: #08080a !important; color-scheme: dark; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .app-shell[data-informe="oscuro"] .legal-page-shell {

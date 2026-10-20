@@ -52,6 +52,7 @@ import { reportExportBaseName } from "@/lib/reportExportName";
 import { MINUTOS_FIABLES, margenDelIndice } from "@/lib/fiabilidad";
 import { alFallarElGuardado, guardarConImagenes, leerConImagenes, migrarImagenesViejas, precargarImagenes } from "@/lib/almacen";
 import { MomentoDeImpresion, ocultarComoAlImprimir } from "./medidaDeImpresion";
+import { aplanarFondosDeImpresion } from "./fondosDeImpresion";
 import { lineaDeDatos } from "@/lib/fechasDelInforme";
 import { cruzarEnSegundoPlano } from "@/lib/cruceEnSegundoPlano";
 import { AutorDelInforme, ContextoDeFirma, type FirmaDelInforme } from "./FirmaDelInforme";
@@ -1042,7 +1043,29 @@ export default function ScoutStudio() {
         const limpiarEscala = () => {
           for (const shell of shells) { shell.style.removeProperty("--print-fit"); delete shell.dataset.printFit; }
         };
-        window.addEventListener("afterprint", limpiarEscala, { once: true });
+        // Los degradados transparentes de Chromium generan máscaras de
+        // luminosidad que algunos visores (Vista rápida/PDFKit) dibujan como
+        // franjas. Solo se aplanan los fondos; texto y gráficos siguen en vector.
+        let restaurarFondos: () => void;
+        try {
+          restaurarFondos = await aplanarFondosDeImpresion(shells);
+        } catch {
+          limpiarEscala();
+          salirDeLaMedida();
+          if (!cancelled) {
+            setPrintLayoutError(t("No se pudo exportar el reporte. Revisa que las imágenes estén disponibles."));
+            setPrintRun(null);
+            setPrintDialogOpen(true);
+          }
+          return;
+        }
+        if (cancelled) { restaurarFondos(); limpiarEscala(); return; }
+        const limpiarExportacion = () => {
+          restaurarFondos();
+          limpiarEscala();
+          window.removeEventListener("afterprint", limpiarExportacion);
+        };
+        window.addEventListener("afterprint", limpiarExportacion, { once: true });
         const previousTitle = document.title;
         const exportTitle = printFileNameRef.current;
         const restoreTitle = () => {
@@ -1055,6 +1078,11 @@ export default function ScoutStudio() {
         }
         try {
           window.print();
+        } catch {
+          limpiarExportacion();
+          restoreTitle();
+          setPrintLayoutError(t("No se pudo exportar el reporte. Revisa que las imágenes estén disponibles."));
+          setPrintDialogOpen(true);
         } finally {
           // `afterprint` restaura el título al cerrar el diálogo. El respaldo
           // conserva el nombre el tiempo suficiente en navegadores no bloqueantes.
