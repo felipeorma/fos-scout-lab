@@ -2741,7 +2741,7 @@ export default function ScoutStudio() {
                   tests/orden-del-pdf.test.mjs. */}
               {espacio === "cavalry" && report && paginaMontada(SNAPSHOT_PAGE) && (
                 <SnapshotPage rows={filasDeLasPiezas} indice={indiceDeLasPiezas} informe={report} perfilTm={profile} minutosMin={minimumMinutes} claseHoja={claseHoja(SNAPSHOT_PAGE)} temporada={temporadaDeReferencia?.etiqueta}
-                  clavesPorFila={clavesDeLasPiezas} ligasDeFila={ligasDeLasPiezas} feedOpta={feedOpta} avisoSkillcorner={avisoSc}
+                  clavesPorFila={ligasDeLasPiezas} ligasDeFila={ligasDeLasPiezas} feedOpta={feedOpta} avisoSkillcorner={avisoSc}
                   destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} onAbrirJugador={(indice) => { const enBase = enLaBase(indice); if (enBase >= 0) selectPlayer(enBase); }} />
               )}
               {report && paginaMontada(CONTEXT_PAGE) && (

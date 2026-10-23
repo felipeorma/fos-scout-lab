@@ -94,3 +94,15 @@ test("el puesto del equipo solo cuenta clubes con plantilla en la base", () => {
   // Solo con el suyo no hay puesto que dar.
   assert.equal(rankingDeEquipos(filas.slice(0, 6).concat({ Team: "Z", m: 1 }), "m", "A"), null);
 });
+
+test("la Ficha ampliada mide siempre en su liga: con cinco de su puesto basta, con cuatro no", async () => {
+  const { MINIMO_FAMILIAS_EN_SU_LIGA } = await import("../lib/scouting.ts");
+  const seis = [
+    ...Array.from({ length: 6 }, (_, i) => fila(`Seis ${i}`, "Liga Seis", 10 + i)),
+    ...Array.from({ length: 12 }, (_, i) => fila(`Otra ${i}`, "Liga Otra", 100 + i)),
+  ];
+  const clavesSeis = seis.map((f) => [String(f["Data sources"]).replace("StatsBomb · ", "")]);
+  assert.equal(marcoDeSuLiga(seis, clavesSeis, 0, "DMF", 900).modo, "todas", "la ficha, con su mínimo de diez");
+  assert.equal(marcoDeSuLiga(seis, clavesSeis, 0, "DMF", 900, MINIMO_FAMILIAS_EN_SU_LIGA).modo, "liga", "la Ficha ampliada, en su liga");
+  assert.equal(marcoDeSuLiga(filas, claves, 24, "DMF", 900, MINIMO_FAMILIAS_EN_SU_LIGA).modo, "todas", "con cuatro no hay escala");
+});

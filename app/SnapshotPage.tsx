@@ -6,7 +6,7 @@ import { Antetitulo } from "./KitNight";
 import { PiezaFicha, useDatosFicha, type ContextoFicha, type IdPieza } from "./PiezasFicha";
 import { marcoConNivel, type EntradaOpta } from "@/lib/nivelDeLiga";
 import { t, tf } from "@/lib/i18n";
-import type { DataRow, PlayerReport } from "@/lib/scouting";
+import { MINIMO_COHORTE_EN_SU_LIGA, type DataRow, type PlayerReport } from "@/lib/scouting";
 import type { TransfermarktProfile } from "@/lib/transfermarkt";
 
 /**
@@ -55,7 +55,8 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [ligasDeFila, indice],
   );
-  const contexto: ContextoFicha = { rows, indice, informe, perfilTm, minutosMin, onAbrirJugador, temporada, clavesPorFila, feedOpta, ligasDeFila, ligasExtra };
+  // Siempre contra su liga y su cohorte, se mida como se mida la ficha: aquí se mira a un jugador en su sitio.
+  const contexto: ContextoFicha = { rows, indice, informe, perfilTm, minutosMin, onAbrirJugador, temporada, clavesPorFila, feedOpta, ligasDeFila, ligasExtra, siempreSuLiga: true };
   const datos = useDatosFicha(contexto, true, true);
   const [familiaTop, setFamiliaTop] = useState("progresion");
   // El mapa de recepciones y su reparto se agrupan igual: cambiar uno cambia los dos.
@@ -67,7 +68,7 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
       <Antetitulo>{t("STATSBOMB · FICHA AMPLIADA")}</Antetitulo>
       <h2>{datos.jugador}</h2>
       <p>{datos.marco?.modo === "liga"
-        ? tf("Familias contra {n} {grupo} de su liga y temporada ({marco}), con al menos {m} minutos.", { n: datos.grupo.indices.length, grupo: datos.nombreGrupo.toLowerCase(), m: minutosMin, marco: datos.marco.texto })
+        ? `${tf("Familias contra {n} {grupo} de su liga y temporada ({marco}), con al menos {m} minutos.", { n: datos.grupo.indices.length, grupo: datos.nombreGrupo.toLowerCase(), m: minutosMin, marco: datos.marco.texto })}${datos.marco.enSuLiga < MINIMO_COHORTE_EN_SU_LIGA ? ` ${t("Son pocos: cada puesto de diferencia mueve mucho el percentil.")}` : ""}`
         : datos.marco
           ? tf("Familias contra {n} {grupo} de la base cargada, con al menos {m} minutos: su liga ({marco}) solo tiene {k} de su puesto, pocos para un grupo propio.", { n: datos.grupo.indices.length, grupo: datos.nombreGrupo.toLowerCase(), m: minutosMin, marco: datos.marco.texto, k: datos.marco.enSuLiga })
           : tf("Familias contra {n} {grupo} de la base cargada, con al menos {m} minutos.", { n: datos.grupo.indices.length, grupo: datos.nombreGrupo.toLowerCase(), m: minutosMin })}</p>

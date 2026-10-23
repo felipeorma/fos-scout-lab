@@ -2063,7 +2063,15 @@ export type MarcoDeSuLiga = {
   filas: Set<number>;
 };
 
-export function marcoDeSuLiga(rows: DataRow[], clavesPorFila: string[][] | null | undefined, indice: number, cohorte: string, minimumMinutes: number): MarcoDeSuLiga | null {
+/**
+ * Lo mínimo para medir a un jugador en su liga cuando se pide siempre (la
+ * Ficha ampliada): cada métrica necesita cinco valores para tener media y
+ * dispersión. Por debajo de diez los percentiles van de diez en diez, y la
+ * página lo avisa.
+ */
+export const MINIMO_FAMILIAS_EN_SU_LIGA = 5;
+
+export function marcoDeSuLiga(rows: DataRow[], clavesPorFila: string[][] | null | undefined, indice: number, cohorte: string, minimumMinutes: number, minimo = MINIMO_COHORTE_EN_SU_LIGA): MarcoDeSuLiga | null {
   const susClaves = clavesPorFila?.[indice] ?? [];
   if (!clavesPorFila || !susClaves.length || !rows[indice]) return null;
   if (new Set(clavesPorFila.flat()).size < 2) return null;
@@ -2075,7 +2083,7 @@ export function marcoDeSuLiga(rows: DataRow[], clavesPorFila: string[][] | null 
   const suCohorte = cohorte === "AUTO" ? cohortOf(positionColumn ? rows[indice][positionColumn] : "") : cohorte;
   const pares = paresDeCohorte(rows, peerCohort(suCohorte), positionColumn, core.minutes, minimumMinutes);
   const enSuLiga = paresEnSusLigas(rows, clavesPorFila, susClaves, pares, `${peerCohort(suCohorte)}|${minimumMinutes}`).length;
-  return { modo: enSuLiga >= MINIMO_COHORTE_EN_SU_LIGA ? "liga" : "todas", claves: susClaves, enSuLiga, filas };
+  return { modo: enSuLiga >= minimo ? "liga" : "todas", claves: susClaves, enSuLiga, filas };
 }
 
 function poblacionDeMetrica(peers: DataRow[], key: string) {

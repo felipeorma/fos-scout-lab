@@ -12,7 +12,7 @@ import { Escudo } from "./Escudo";
 import { buildSimilaritySearch, type SimilarityFilters, type SimilarityPlayer } from "@/lib/similarity";
 import { PERFILES } from "@/lib/perfiles";
 import { primaryPositionRole } from "@/lib/positions";
-import { marcoDeSuLiga, temporadasDeFila, type DataRow, type PlayerReport } from "@/lib/scouting";
+import { marcoDeSuLiga, temporadasDeFila, type DataRow, type PlayerReport, MINIMO_FAMILIAS_EN_SU_LIGA } from "@/lib/scouting";
 import type { ValorCompuesto } from "@/lib/snapshot";
 import { marcoConNivel, type EntradaOpta } from "@/lib/nivelDeLiga";
 import type { TransfermarktProfile } from "@/lib/transfermarkt";
@@ -71,6 +71,12 @@ export type ContextoFicha = {
   ligasDeFila?: string[][] | null;
   /** Ligas añadidas a mano al Top 10 y a los parecidos; por defecto, solo la suya. */
   ligasExtra?: string[];
+  /**
+   * Medir siempre contra su liga y su cohorte, aunque su liga tenga menos de
+   * diez de su puesto (con cinco basta para las familias). La Ficha ampliada
+   * lo pide; las piezas sueltas de Visuales siguen el ajuste de la ficha.
+   */
+  siempreSuLiga?: boolean;
 };
 
 export type IdPieza =
@@ -259,7 +265,7 @@ function separar(lista: EventoSB[]) {
  * de descarga que no va a usar.
  */
 export function useDatosFicha(contexto: ContextoFicha, conEventos: boolean, conRoles = false) {
-  const { rows, indice, informe, minutosMin, clavesPorFila, feedOpta, ligasDeFila = null, ligasExtra = [] } = contexto;
+  const { rows, indice, informe, minutosMin, clavesPorFila, feedOpta, ligasDeFila = null, ligasExtra = [], siempreSuLiga = false } = contexto;
   const fila = rows[indice];
   const jugador = String(fila?.Player ?? informe.player);
   const fuente = fuenteStatsbomb(fila?.["Data sources"], contexto.temporada);
@@ -273,8 +279,8 @@ export function useDatosFicha(contexto: ContextoFicha, conEventos: boolean, conR
   // Su grupo, como en la ficha: los de su puesto en su liga y temporada, si
   // hay al menos diez; si no, todos los cargados, y la cabecera lo dice.
   const suLiga = useMemo(
-    () => marcoDeSuLiga(rows, clavesPorFila, indice, informe.cohort, minutosMin),
-    [rows, clavesPorFila, indice, informe.cohort, minutosMin],
+    () => marcoDeSuLiga(rows, clavesPorFila, indice, informe.cohort, minutosMin, siempreSuLiga ? MINIMO_FAMILIAS_EN_SU_LIGA : undefined),
+    [rows, clavesPorFila, indice, informe.cohort, minutosMin, siempreSuLiga],
   );
   const grupo = useMemo(() => {
     const enSuLiga = suLiga?.modo === "liga" ? suLiga : null;
