@@ -15,51 +15,12 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
+import { SUPERFICIE } from "./temas";
+import { abreviar } from "@/lib/tablero";
+import type { Borrador, Motor, Opciones, Seleccion, Vista } from "./motor";
 import {
-  CAJA_DE_ENCUADRE, CAMPO, balonEn, enCurva, posicionEn, type Ambiente, type Anotacion, type Encuadre, type EstiloFlecha, type Fase, type Jugada, type Punto, type Superficie, type Zonas,
+  CAJA_DE_ENCUADRE, CAMPO, balonEn, enCurva, posicionEn, type Anotacion, type Encuadre, type Fase, type Jugada, type Punto, type Superficie, type Zonas,
 } from "@/lib/abp";
-
-export type Vista = "tactica" | "3d" | "cenital";
-export type Seleccion = { tipo: "ficha" | "anotacion"; id: string } | null;
-/** Lo que se está dibujando con el puntero, antes de soltar. */
-export type Borrador = { tipo: "flecha" | "rect" | "zona" | "carrera" | "pase"; a: Punto; b: Punto; fichaId?: string; estilo?: EstiloFlecha } | null;
-export type Opciones = {
-  colorLocal: string;
-  colorRival: string;
-  colorAnotacion: string;
-  acento: string;
-  nombres: boolean;
-  ambiente: Ambiente;
-  fuente: string;
-  /** El rol tal como se enseña (traducido si es uno de los de serie). */
-  rotulo: (rol: string) => string;
-};
-
-/**
- * Las cuatro superficies. Noche es la de la plataforma: casi negro, el
- * césped apenas verde, para que manden las fichas y el color del espacio.
- */
-const SUPERFICIE: Record<Superficie, {
-  fondo: string; base: string; franjas: [string, string]; fuera: string; lineas: string; zonas: string; aro: string; tinta: string;
-  cielo: number; suelo: number; luz: number; sol: number; asiento: string; muro: string; techo: string;
-}> = {
-  noche: {
-    fondo: "#08080a", base: "#0c1511", franjas: ["#0d1712", "#0f1b15"], fuera: "#0a0f0c", lineas: "rgba(255,255,255,.82)", zonas: "rgba(255,255,255,.2)",
-    aro: "#ffffff", tinta: "#ffffff", cielo: 0xffffff, suelo: 0x1a221d, luz: 1.25, sol: 1.5, asiento: "#101014", muro: "#131317", techo: "#0b0b0e",
-  },
-  retransmision: {
-    fondo: "#0a0d0b", base: "#2b6339", franjas: ["#2c6a3b", "#347845"], fuera: "#214a2c", lineas: "rgba(255,255,255,.93)", zonas: "rgba(255,255,255,.3)",
-    aro: "#ffffff", tinta: "#ffffff", cielo: 0xffffff, suelo: 0x2a3a2e, luz: 1.15, sol: 1.7, asiento: "#16181c", muro: "#1b1d22", techo: "#101114",
-  },
-  papel: {
-    fondo: "#f2f2ef", base: "#e9e9e4", franjas: ["#ebebe6", "#e5e5df"], fuera: "#deded8", lineas: "rgba(38,38,44,.78)", zonas: "rgba(38,38,44,.24)",
-    aro: "#1d1d1f", tinta: "#1d1d1f", cielo: 0xffffff, suelo: 0xd8d8d2, luz: 1.6, sol: 0.75, asiento: "#d6d6d1", muro: "#cacac4", techo: "#bdbdb7",
-  },
-  tiza: {
-    fondo: "#0e1311", base: "#1b2922", franjas: ["#1c2a23", "#19261f"], fuera: "#141e19", lineas: "rgba(238,238,228,.8)", zonas: "rgba(238,238,228,.24)",
-    aro: "#eeeee4", tinta: "#f0f0e8", cielo: 0xffffff, suelo: 0x1d2a23, luz: 1.3, sol: 1.2, asiento: "#121915", muro: "#152019", techo: "#0e1411",
-  },
-};
 
 const LARGO = CAMPO.largo, ANCHO = CAMPO.ancho;
 const MEDIO_L = LARGO / 2, MEDIO_A = ANCHO / 2;
@@ -77,7 +38,7 @@ function rgba(hex: string, alfa: number) {
   return `rgba(${Math.round(c.r * 255)},${Math.round(c.g * 255)},${Math.round(c.b * 255)},${alfa})`;
 }
 
-export class EscenaABP {
+export class EscenaABP implements Motor {
   readonly canvas: HTMLCanvasElement;
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
@@ -106,6 +67,7 @@ export class EscenaABP {
   private sol: THREE.DirectionalLight;
   /** Al reproducir con la cámara siguiendo al balón: la cámara se desliza tras él. */
   seguirBalon = false;
+  private opcionesMontadas: Opciones | null = null;
   /**
    * Los rótulos y dorsales ya dibujados. Arrastrar una ficha vuelve a montar
    * la fase en cada movimiento; sin esto se pintarían cuarenta lienzos por
@@ -644,10 +606,13 @@ export class EscenaABP {
 
   private ficha(dorsal: string, rol: string, color: string, opciones: Opciones, seleccionada: boolean) {
     const g = new THREE.Group();
+    const nombreDeRol = opciones.rotulo(rol);
+    // Dentro, el dorsal o el puesto, como en el tablero 2D.
+    const dentro = opciones.ambiente.fichas === "puesto" && nombreDeRol.trim() ? abreviar(nombreDeRol) : dorsal;
     const cuerpo = new THREE.Mesh(new THREE.CylinderGeometry(RADIO_FICHA, RADIO_FICHA * 1.04, 0.34, 40), new THREE.MeshStandardMaterial({ color, roughness: 0.5, metalness: 0.05 }));
     cuerpo.position.y = 0.17;
     cuerpo.castShadow = true;
-    const tapa = new THREE.Mesh(new THREE.CircleGeometry(RADIO_FICHA * 0.98, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: this.dorsalTextura(dorsal, color, opciones.fuente) }));
+    const tapa = new THREE.Mesh(new THREE.CircleGeometry(RADIO_FICHA * 0.98, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: this.dorsalTextura(dentro, color, opciones.fuente) }));
     tapa.position.y = 0.345;
     // El aro blanco que la despega del césped oscuro.
     const tema = SUPERFICIE[opciones.ambiente.superficie];
@@ -659,7 +624,7 @@ export class EscenaABP {
       sel.position.y = 0.03;
       g.add(sel);
     }
-    if (opciones.nombres && rol.trim()) {
+    if (opciones.nombres && rol.trim() && (opciones.ambiente.fichas === "dorsal" || nombreDeRol.trim().length > 3)) {
       const nombre = this.rotuloSprite(opciones.rotulo(rol).toUpperCase(), { color: tema.tinta, alto: 0.62, peso: 700, fuente: opciones.fuente, sinSombra: tema.tinta !== "#ffffff" });
       nombre.position.y = 1.4;
       g.add(nombre);
@@ -692,6 +657,21 @@ export class EscenaABP {
       const recorte = a.estilo === "linea" ? 0 : Math.min(1.1, largo * 0.4);
       const fin = { x: a.b.x - ux * recorte, z: a.b.z - uz * recorte };
       const puntos: THREE.Vector3[] = [];
+      if (a.estilo === "presion") {
+        // La cuña de la presión: estrecha en quien aprieta, abierta hacia el balón.
+        const abre = Math.max(1, Math.min(largo * 0.35, 4));
+        const forma = new THREE.Shape();
+        forma.moveTo(a.a.x, -a.a.z);
+        forma.lineTo(a.b.x + uz * abre, -(a.b.z - ux * abre));
+        forma.lineTo(a.b.x - uz * abre, -(a.b.z + ux * abre));
+        forma.closePath();
+        const cuña = new THREE.Mesh(new THREE.ShapeGeometry(forma).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.28 * opacidad, depthWrite: false, side: THREE.DoubleSide }));
+        cuña.position.y = y;
+        g.add(cuña);
+        g.add(this.linea([new THREE.Vector3(a.a.x, y, a.a.z), new THREE.Vector3(a.b.x + uz * abre, y, a.b.z - ux * abre)], color, seleccionada ? 4 : 3, false, opacidad));
+        g.add(this.linea([new THREE.Vector3(a.a.x, y, a.a.z), new THREE.Vector3(a.b.x - uz * abre, y, a.b.z + ux * abre)], color, seleccionada ? 4 : 3, false, opacidad));
+        return g;
+      }
       if (a.estilo === "ondulada") {
         // La conducción: el balón pegado al pie, en zigzag suave.
         const tramo = largo - recorte, ondas = Math.max(2, Math.round(tramo / 2.4)), pasos = ondas * 10;
@@ -794,6 +774,7 @@ export class EscenaABP {
     this.grada.visible = estadio;
     this.vaciar(this.dinamico);
     this.fichas.clear();
+    this.opcionesMontadas = opciones;
     const fase = jugada.fases[Math.min(indice, jugada.fases.length - 1)];
     this.fase = fase;
     const colorDe = (equipo: "local" | "rival") => (equipo === "local" ? opciones.colorLocal : opciones.colorRival);
@@ -840,8 +821,9 @@ export class EscenaABP {
   instante(t: number) {
     const fase = this.fase;
     if (!fase) return;
+    const lineal = this.opcionesMontadas?.ambiente.suavizado === "lineal";
     for (const [id, g] of this.fichas) {
-      const p = posicionEn(fase, id, t);
+      const p = posicionEn(fase, id, t, lineal);
       if (p) g.position.set(p.x, 0, p.z);
     }
     const b = balonEn(fase, t);

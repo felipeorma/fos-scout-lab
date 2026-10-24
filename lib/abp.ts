@@ -28,8 +28,12 @@ export type Ficha = { id: string; equipo: Equipo; dorsal: string; rol: string };
 export type Carrera = { fichaId: string; hasta: Punto; curva: number };
 export type Pase = { hasta: Punto; tipo: "aereo" | "raso" };
 export type EstiloZona = "translucida" | "rayas" | "borde";
-/** Continua: un pase o un movimiento. Discontinua: sin balón. Ondulada: conducción. Línea: una altura o un límite, sin punta. */
-export type EstiloFlecha = "continua" | "discontinua" | "ondulada" | "linea";
+/**
+ * Continua: un pase o un movimiento. Discontinua: sin balón. Ondulada:
+ * conducción. Línea: una altura o un límite, sin punta. Presión: una cuña
+ * que se abre del que presiona hacia el balón, con el ángulo por donde llega.
+ */
+export type EstiloFlecha = "continua" | "discontinua" | "ondulada" | "linea" | "presion";
 export type Anotacion =
   | { id: string; tipo: "flecha"; a: Punto; b: Punto; color: string; estilo: EstiloFlecha }
   | { id: string; tipo: "rect" | "zona"; a: Punto; b: Punto; color: string; estilo: EstiloZona }
@@ -42,7 +46,9 @@ export type Fase = {
   carreras: Carrera[];
   pase: Pase | null;
   anotaciones: Anotacion[];
-  /** Segundos que dura al reproducirla. */
+  /** Segundos que la pose se queda quieta antes de moverse: lo que tarda en leerse. */
+  pausa: number;
+  /** Segundos que dura el movimiento. */
   duracion: number;
   /** Una línea que explica el momento: sale bajo el campo, en el PDF y en el vídeo. */
   nota: string;
@@ -53,7 +59,22 @@ export type Categoria = "salida" | "presion" | "ataque" | "defensa" | "abp" | "e
 export type Superficie = "noche" | "retransmision" | "papel" | "tiza";
 export type Zonas = "ninguna" | "tercios" | "carriles" | "rejilla" | "zonas18";
 export type Encuadre = "campo" | "dos_tercios" | "su_mitad" | "nuestra_mitad" | "su_area" | "centro";
-export type Ambiente = { superficie: Superficie; estadio: boolean; zonas: Zonas; encuadre: Encuadre };
+export type Ambiente = {
+  superficie: Superficie;
+  estadio: boolean;
+  zonas: Zonas;
+  encuadre: Encuadre;
+  /** El tablero plano, como una pizarra de análisis, o el campo en 3D. */
+  dimension: "2d" | "3d";
+  /** Solo en 2D: el campo de lado o de abajo arriba, para el móvil y el vídeo vertical. */
+  orientacion: "horizontal" | "vertical";
+  /** Qué va dentro de la ficha: el dorsal o el puesto (DFC, MC…). */
+  fichas: "dorsal" | "puesto";
+  /** Suave: arrancan y frenan como jugadores. Lineal: a ritmo constante. */
+  suavizado: "suave" | "lineal";
+  /** Una estela que se desvanece detrás de cada ficha y del balón al reproducir. */
+  estelas: boolean;
+};
 export type Colores = {
   /** null: el color del espacio de trabajo (rojo en Cavalry, verde en Maldonado). */
   local: string | null;
@@ -78,9 +99,13 @@ export const CAMPO = { largo: 105, ancho: 68 } as const;
 const MEDIO_LARGO = CAMPO.largo / 2;
 /** Cuánto puede salirse una ficha del rectángulo de juego: el lanzador de un córner o el que saca de banda están fuera. */
 const MARGEN = 4;
-export const DURACION_POR_DEFECTO = 3;
+export const DURACION_POR_DEFECTO = 2.4;
+export const PAUSA_POR_DEFECTO = 0.8;
 export const COLORES_POR_DEFECTO: Colores = { local: null, rival: "#e8e8ed", anotacion: "#f3b64c" };
-export const AMBIENTE_POR_DEFECTO: Ambiente = { superficie: "noche", estadio: true, zonas: "ninguna", encuadre: "campo" };
+export const AMBIENTE_POR_DEFECTO: Ambiente = {
+  superficie: "noche", estadio: true, zonas: "ninguna", encuadre: "campo", dimension: "2d", orientacion: "horizontal", fichas: "dorsal",
+  suavizado: "suave", estelas: true,
+};
 
 export const CATEGORIAS: Array<{ id: Categoria; nombre: string }> = [
   { id: "salida", nombre: "Salida" },
@@ -177,10 +202,14 @@ const igual = (a: Punto | undefined, b: Punto | undefined) => Boolean(a && b) &&
 
 // ---- El movimiento ------------------------------------------------------------------------
 
-/** Aceleración y frenada suaves: nadie arranca ni se para en seco. */
-export const suavizar = (t: number) => {
+/**
+ * Aceleración y frenada suaves: nadie arranca ni se para en seco. Es la
+ * curva del coseno —más tranquila que una cúbica—, la que da la sensación de
+ * película de las pizarras animadas. Con `lineal`, ritmo constante.
+ */
+export const suavizar = (t: number, lineal = false) => {
   const u = Math.max(0, Math.min(1, t));
-  return u < 0.5 ? 4 * u * u * u : 1 - (-2 * u + 2) ** 3 / 2;
+  return lineal ? u : 0.5 - 0.5 * Math.cos(Math.PI * u);
 };
 
 /** El punto de control de la curva: en el medio, desplazado `curva` metros hacia la izquierda del recorrido. */
@@ -207,11 +236,11 @@ export function posFinal(fase: Fase, fichaId: string): Punto | undefined {
 export const balonFinal = (fase: Fase) => fase.pase?.hasta ?? fase.balon;
 
 /** Dónde está una ficha en el instante `t` (0–1) de la fase. */
-export function posicionEn(fase: Fase, fichaId: string, t: number): Punto | undefined {
+export function posicionEn(fase: Fase, fichaId: string, t: number, lineal = false): Punto | undefined {
   const desde = fase.pos[fichaId];
   const carrera = carreraDe(fase, fichaId);
   if (!desde || !carrera) return desde;
-  return enCurva(desde, carrera.hasta, carrera.curva, suavizar(t));
+  return enCurva(desde, carrera.hasta, carrera.curva, suavizar(t, lineal));
 }
 
 /** Cuánto sube un balón aéreo: más cuanto más lejos va, sin pasar de un globo razonable. */
@@ -232,7 +261,7 @@ export function balonEn(fase: Fase, t: number): Punto & { y: number } {
 export function faseSiguiente(fase: Fase, nombre: string): Fase {
   const pos: Record<string, Punto> = {};
   for (const id of Object.keys(fase.pos)) pos[id] = { ...posFinal(fase, id)! };
-  return { id: nuevoId("f"), nombre, pos, balon: { ...balonFinal(fase) }, carreras: [], pase: null, anotaciones: [], duracion: fase.duracion, nota: "" };
+  return { id: nuevoId("f"), nombre, pos, balon: { ...balonFinal(fase) }, carreras: [], pase: null, anotaciones: [], pausa: fase.pausa, duracion: fase.duracion, nota: "" };
 }
 
 /**
@@ -260,6 +289,26 @@ export const moverFicha = (jugada: Jugada, indice: number, fichaId: string, p: P
   conFase(jugada, indice, (f) => ({ ...f, pos: { ...f.pos, [fichaId]: limitar(p) } }));
 
 export const moverBalon = (jugada: Jugada, indice: number, p: Punto) => conFase(jugada, indice, (f) => ({ ...f, balon: limitar(p) }));
+
+/**
+ * Mover una ficha en una pose: es la forma de trabajar de las pizarras
+ * animadas. En la primera fase solo la coloca; de la segunda en adelante, si
+ * la ficha venía de la fase anterior, el cambio se convierte en su carrera
+ * desde allí y el estudio anima la diferencia. Si en esta fase ya se había
+ * separado a mano, se respeta y solo se mueve su sitio.
+ */
+export function posar(jugada: Jugada, indice: number, fichaId: string, p: Punto): Jugada {
+  const previa = jugada.fases[indice - 1];
+  if (!previa || !igual(jugada.fases[indice].pos[fichaId], posFinal(previa, fichaId))) return moverFicha(jugada, indice, fichaId, p);
+  return fijarCarrera(jugada, indice - 1, fichaId, p);
+}
+
+/** Lo mismo con el balón: moverlo en una pose es el pase desde la anterior. */
+export function posarBalon(jugada: Jugada, indice: number, p: Punto): Jugada {
+  const previa = jugada.fases[indice - 1];
+  if (!previa || !igual(jugada.fases[indice].balon, balonFinal(previa))) return moverBalon(jugada, indice, p);
+  return fijarPase(jugada, indice - 1, p, previa.pase?.tipo ?? "raso");
+}
 
 /** Una carrera por ficha y fase: marcar otra la sustituye. Si el destino es el sitio de partida, la quita. */
 export function fijarCarrera(jugada: Jugada, indice: number, fichaId: string, hasta: Punto, curva?: number) {
@@ -384,20 +433,32 @@ export const renombrarFase = (jugada: Jugada, indice: number, nombre: string) =>
   ({ ...jugada, fases: jugada.fases.map((f, i) => (i === indice ? { ...f, nombre } : f)) });
 
 export const cambiarDuracion = (jugada: Jugada, indice: number, segundos: number) =>
-  ({ ...jugada, fases: jugada.fases.map((f, i) => (i === indice ? { ...f, duracion: Math.max(0.5, Math.min(15, segundos)) } : f)) });
+  ({ ...jugada, fases: jugada.fases.map((f, i) => (i === indice ? { ...f, duracion: Math.max(0.2, Math.min(15, segundos)) } : f)) });
 
-export const duracionTotal = (jugada: Jugada) => jugada.fases.reduce((s, f) => s + f.duracion, 0);
+export const cambiarPausa = (jugada: Jugada, indice: number, segundos: number) =>
+  ({ ...jugada, fases: jugada.fases.map((f, i) => (i === indice ? { ...f, pausa: Math.max(0, Math.min(6, segundos)) } : f)) });
+
+/** Lo que ocupa una fase en la película: la pausa en su pose y el movimiento. */
+const largoDe = (f: Fase) => f.pausa + f.duracion;
+
+export const duracionTotal = (jugada: Jugada) => jugada.fases.reduce((s, f) => s + largoDe(f), 0);
 
 /** El segundo de la jugada en que empieza la fase `indice`. */
-export const inicioDeFase = (jugada: Jugada, indice: number) => jugada.fases.slice(0, indice).reduce((s, f) => s + f.duracion, 0);
+export const inicioDeFase = (jugada: Jugada, indice: number) => jugada.fases.slice(0, indice).reduce((s, f) => s + largoDe(f), 0);
 
-/** En qué fase y en qué punto de ella cae el segundo `s` de la jugada entera. */
+/**
+ * En qué fase y en qué punto de su movimiento cae el segundo `s` de la
+ * jugada entera. Durante la pausa de una fase, `t` es 0: la pose quieta.
+ */
 export function instanteEn(jugada: Jugada, s: number): { fase: number; t: number } {
   let resto = Math.max(0, s);
   for (let i = 0; i < jugada.fases.length; i += 1) {
-    const d = jugada.fases[i].duracion;
-    if (resto < d || i === jugada.fases.length - 1) return { fase: i, t: d > 0 ? Math.min(1, resto / d) : 1 };
-    resto -= d;
+    const f = jugada.fases[i];
+    if (resto < largoDe(f) || i === jugada.fases.length - 1) {
+      const enMovimiento = resto - f.pausa;
+      return { fase: i, t: enMovimiento <= 0 ? 0 : f.duracion > 0 ? Math.min(1, enMovimiento / f.duracion) : 1 };
+    }
+    resto -= largoDe(f);
   }
   return { fase: 0, t: 0 };
 }
@@ -623,6 +684,7 @@ export function plantilla(tipo: TipoABP): Jugada {
       carreras: Object.entries(d.carreras ?? {}).map(([fichaId, [x, z, curva]]) => ({ fichaId, hasta: { x, z }, curva: curva ?? 0 })),
       pase: d.pase ? { hasta: { x: d.pase[0], z: d.pase[1] }, tipo: d.pase[2] } : null,
       anotaciones: (d.anotaciones ?? []).map((a) => ({ ...a, id: nuevoId("a") })),
+      pausa: PAUSA_POR_DEFECTO,
       duracion: DURACION_POR_DEFECTO,
       nota: d.nota ?? "",
     };
@@ -696,9 +758,10 @@ export function sistemaDePartido(propia: string, rival: string, balon: "nuestro"
     tipo: "partido",
     categoria,
     colores: { ...COLORES_POR_DEFECTO },
-    ambiente: { ...AMBIENTE_POR_DEFECTO },
+    // Como en una pizarra de análisis: la ficha dice el puesto.
+    ambiente: { ...AMBIENTE_POR_DEFECTO, fichas: "puesto" },
     fichas: todos.map(({ id, equipo, dorsal, rol }) => ({ id, equipo, dorsal, rol })),
-    fases: [{ id: nuevoId("f"), nombre: "Fase 1", pos, balon: balonEn, carreras: [], pase: null, anotaciones: [], duracion: DURACION_POR_DEFECTO, nota: "" }],
+    fases: [{ id: nuevoId("f"), nombre: "Fase 1", pos, balon: balonEn, carreras: [], pase: null, anotaciones: [], pausa: PAUSA_POR_DEFECTO, duracion: DURACION_POR_DEFECTO, nota: "" }],
     actualizada: Date.now(),
   };
 }
@@ -722,7 +785,7 @@ function anotacionValida(v: unknown): Anotacion | null {
   if (a.tipo === "texto" || a.tipo === "etiqueta") return { id: a.id, tipo: a.tipo, a: a.a, texto: texto(a.texto), color: c };
   if (!esPunto(a.b)) return null;
   if (a.tipo === "flecha") {
-    const estilo = a.estilo === "discontinua" || a.estilo === "ondulada" || a.estilo === "linea" ? a.estilo : "continua";
+    const estilo = a.estilo === "discontinua" || a.estilo === "ondulada" || a.estilo === "linea" || a.estilo === "presion" ? a.estilo : "continua";
     return { id: a.id, tipo: "flecha", a: a.a, b: a.b, color: c, estilo };
   }
   if (a.tipo === "rect" || a.tipo === "zona") {
@@ -763,7 +826,8 @@ export function jugadaValida(v: unknown): Jugada | null {
       carreras,
       pase,
       anotaciones: Array.isArray(bruta.anotaciones) ? (bruta.anotaciones as unknown[]).map(anotacionValida).filter((a): a is Anotacion => a !== null) : [],
-      duracion: esNumero(bruta.duracion) ? Math.max(0.5, Math.min(15, bruta.duracion)) : DURACION_POR_DEFECTO,
+      pausa: esNumero(bruta.pausa) ? Math.max(0, Math.min(6, bruta.pausa)) : PAUSA_POR_DEFECTO,
+      duracion: esNumero(bruta.duracion) ? Math.max(0.2, Math.min(15, bruta.duracion)) : DURACION_POR_DEFECTO,
       nota: typeof bruta.nota === "string" ? bruta.nota.slice(0, 160) : "",
     });
   }
@@ -782,6 +846,12 @@ export function jugadaValida(v: unknown): Jugada | null {
       estadio: typeof ambiente.estadio === "boolean" ? ambiente.estadio : AMBIENTE_POR_DEFECTO.estadio,
       zonas: elegir(ambiente.zonas, ZONAS, AMBIENTE_POR_DEFECTO.zonas),
       encuadre: elegir(ambiente.encuadre, ENCUADRES, AMBIENTE_POR_DEFECTO.encuadre),
+      // Lo guardado antes del tablero 2D se hizo en 3D: así se abre.
+      dimension: ambiente.dimension === "2d" ? "2d" : "3d",
+      orientacion: ambiente.orientacion === "vertical" ? "vertical" : "horizontal",
+      fichas: ambiente.fichas === "puesto" ? "puesto" : "dorsal",
+      suavizado: ambiente.suavizado === "lineal" ? "lineal" : "suave",
+      estelas: typeof ambiente.estelas === "boolean" ? ambiente.estelas : true,
     },
     actualizada: esNumero(j.actualizada) ? j.actualizada : 0,
     colores: {

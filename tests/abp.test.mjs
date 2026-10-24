@@ -92,10 +92,16 @@ test("fases: añadir arranca del final, duplicar copia, la última no se quita",
   assert.equal(quitarFase(libre, 0).fases.length, 1);
 });
 
-test("el tiempo de la jugada entera cae en la fase que toca", () => {
+test("el tiempo de la jugada entera cae en la fase que toca, con la pausa de cada pose", () => {
   const jugada = plantilla("corner_der");
+  const [f0] = jugada.fases;
+  const largo = f0.pausa + f0.duracion;
   assert.deepEqual(instanteEn(jugada, 0), { fase: 0, t: 0 });
-  assert.deepEqual(instanteEn(jugada, 4.5), { fase: 1, t: 0.5 });
+  // Durante la pausa la pose está quieta.
+  assert.deepEqual(instanteEn(jugada, f0.pausa * 0.5), { fase: 0, t: 0 });
+  const mitad = instanteEn(jugada, largo + f0.pausa + f0.duracion / 2);
+  assert.equal(mitad.fase, 1);
+  assert.ok(Math.abs(mitad.t - 0.5) < 1e-9);
   assert.deepEqual(instanteEn(jugada, 999), { fase: 2, t: 1 });
 });
 
@@ -174,7 +180,10 @@ test("lo guardado antes de las categorías se abre con noche, estadio y su categ
   vieja.jugadas[0].fases[0].anotaciones.push({ id: "f1", tipo: "flecha", a: { x: 0, z: 0 }, b: { x: 5, z: 5 }, color: "#ffffff" });
   const abierta = normalizarCuaderno(vieja).jugadas[0];
   assert.equal(abierta.categoria, "abp");
-  assert.deepEqual(abierta.ambiente, { superficie: "noche", estadio: true, zonas: "ninguna", encuadre: "campo" });
+  // Se hizo en 3D antes de que hubiera tablero 2D: se abre en 3D.
+  assert.deepEqual(abierta.ambiente, {
+    superficie: "noche", estadio: true, zonas: "ninguna", encuadre: "campo", dimension: "3d", orientacion: "horizontal", fichas: "dorsal", suavizado: "suave", estelas: true,
+  });
   assert.equal(abierta.fases[0].nota, "");
   assert.equal(abierta.fases[0].anotaciones[0].estilo, "continua");
 });
@@ -187,4 +196,63 @@ test("cambiar el trazo de una flecha no le pone el relleno de una zona", async (
   assert.equal(ondulada.fases[0].anotaciones[0].estilo, "ondulada");
   const zona = agregarAnotacion(base, 0, { id: "z", tipo: "zona", a: { x: 0, z: 0 }, b: { x: 5, z: 5 }, color: "#ffffff", estilo: "translucida" });
   assert.equal(cambiarAnotacion(zona, 0, "z", { estilo: "rayas" }).fases[0].anotaciones[0].estilo, "rayas");
+});
+
+test("posar: en la segunda fase, mover una ficha crea su carrera desde la anterior", async () => {
+  const { posar, posarBalon, carreraDe } = await import("../lib/abp.ts");
+  const jugada = plantilla("corner_der");
+  // L2 no corre en la fase 1: al moverla en la fase 2, la carrera aparece en la 1.
+  assert.equal(carreraDe(jugada.fases[1], "L2"), undefined);
+  const destino = { x: 20, z: -14 };
+  const nueva = posar(jugada, 2, "L2", destino);
+  assert.ok(cerca(carreraDe(nueva.fases[1], "L2").hasta, destino));
+  assert.ok(cerca(nueva.fases[2].pos.L2, destino));
+  // En la primera fase no hay fase anterior: solo se coloca.
+  const primera = posar(jugada, 0, "L2", destino);
+  assert.ok(cerca(primera.fases[0].pos.L2, destino));
+  assert.equal(carreraDe(primera.fases[0], "L2"), undefined);
+  // El balón: moverlo en una pose es el envío desde la anterior.
+  const conBalon = posarBalon(jugada, 1, { x: 45, z: 5 });
+  assert.ok(cerca(conBalon.fases[0].pase.hasta, { x: 45, z: 5 }));
+  assert.ok(cerca(conBalon.fases[1].balon, { x: 45, z: 5 }));
+});
+
+test("el suavizado: coseno por defecto, lineal si se pide", async () => {
+  const { suavizar } = await import("../lib/abp.ts");
+  assert.equal(suavizar(0), 0);
+  assert.equal(suavizar(1), 1);
+  assert.ok(Math.abs(suavizar(0.5) - 0.5) < 1e-9);
+  assert.ok(suavizar(0.1) < 0.1, "arranca despacio");
+  assert.equal(suavizar(0.3, true), 0.3);
+});
+
+test("la cámara del 2D: encaja el encuadre, ida y vuelta de coordenadas y viaje suave", async () => {
+  const { camaraDeCaja, transformacion, interpolarCamara, abreviar } = await import("../lib/tablero.ts");
+  const caja = { x0: -52.5, x1: 52.5, z0: -34, z1: 34 };
+  for (const orientacion of ["horizontal", "vertical"]) {
+    const cam = camaraDeCaja(caja, 1200, 700, orientacion);
+    const tr = transformacion(cam, 1200, 700, orientacion);
+    // Las cuatro esquinas del campo caben en la pantalla.
+    for (const [x, z] of [[-52.5, -34], [52.5, 34], [-52.5, 34], [52.5, -34]]) {
+      const p = tr.aPantalla({ x, z });
+      assert.ok(p.x >= 0 && p.x <= 1200 && p.y >= 0 && p.y <= 700, `${orientacion} ${x},${z}`);
+      const vuelta = tr.aCampo(p.x, p.y);
+      assert.ok(cerca(vuelta, { x, z }, 1e-6));
+    }
+    // En vertical se ataca hacia arriba: su portería queda más arriba que la nuestra.
+    if (orientacion === "vertical") assert.ok(tr.aPantalla({ x: 50, z: 0 }).y < tr.aPantalla({ x: -50, z: 0 }).y);
+  }
+  const a = { x: -40, z: 0, w: 30 }, b = { x: 40, z: 0, w: 30 };
+  const inicio = interpolarCamara(a, b, 0);
+  assert.ok(Math.abs(inicio.x - a.x) < 1e-9 && Math.abs(inicio.w - a.w) < 1e-9);
+  const fin = interpolarCamara(a, b, 1);
+  assert.ok(Math.abs(fin.x - 40) < 1e-6 && Math.abs(fin.w - 30) < 1e-6);
+  // En un viaje largo se aleja a mitad de camino: así se ve de dónde viene y a dónde va.
+  assert.ok(interpolarCamara(a, b, 0.5).w > 30);
+  // Solo zoom: sin desplazarse.
+  const z = interpolarCamara({ x: 0, z: 0, w: 100 }, { x: 0, z: 0, w: 25 }, 0.5);
+  assert.ok(Math.abs(z.w - 50) < 1e-9);
+  assert.equal(abreviar("Primer palo"), "PP");
+  assert.equal(abreviar("DFC"), "DFC");
+  assert.equal(abreviar("Lanzador"), "LAN");
 });

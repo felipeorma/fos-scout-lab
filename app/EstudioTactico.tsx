@@ -4,12 +4,13 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as EventoDePunt
 import {
   agregarAnotacion, agregarFase, agregarFicha, anotacionCerca, cambiarAnotacion, cambiarDuracion, cambiarFicha, carreraDe, cuadernoInicial,
   curvarCarrera, desplazarAnotacion, distancia, duplicarFase, duracionTotal, fichaCerca, fijarCarrera, fijarPase, inicioDeFase, instanteEn,
-  moverBalon, moverFicha, normalizarCuaderno, nuevoId, quitarAnotacion, quitarCarrera, quitarFase, quitarFicha, quitarPase,
+  posar, posarBalon, cambiarPausa, AMBIENTE_POR_DEFECTO, normalizarCuaderno, nuevoId, quitarAnotacion, quitarCarrera, quitarFase, quitarFicha, quitarPase,
   renombrarFase, tipoDePase, deSerie, CATEGORIAS, ENCUADRES, SUPERFICIES, ZONAS,
   type Ambiente, type Categoria, type Cuaderno, type EstiloFlecha, type EstiloZona, type Fase, type Jugada, type Pase, type Punto,
 } from "@/lib/abp";
 import { t, tf, type Lang } from "@/lib/i18n";
-import type { Borrador, EscenaABP, Opciones, Seleccion, Vista } from "./abp/escena";
+import type { Borrador, Motor, Opciones, Seleccion, Vista } from "./abp/motor";
+import { Tablero2D } from "./abp/tablero2d";
 import { useFirma } from "./FirmaDelInforme";
 import { Interruptor } from "./Interruptor";
 import { Portal, archivoDeCuaderno, archivoDeSistema } from "./PortalDeSistemas";
@@ -93,7 +94,7 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
   const [remontar, setRemontar] = useState(0);
   const raizRef = useRef<HTMLElement>(null);
   const contenedorRef = useRef<HTMLDivElement>(null);
-  const escenaRef = useRef<EscenaABP | null>(null);
+  const escenaRef = useRef<Motor | null>(null);
   const tiempoRef = useRef(0);
   const montadaRef = useRef(-1);
   const ocupadaRef = useRef(false);
@@ -144,26 +145,41 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
     if (estilo.fontFamily) setFuente(estilo.fontFamily);
   }, [paleta]);
 
-  // ---- La escena: se carga al abrir el cuaderno ----
+  // ---- El motor: el tablero 2D al momento; el 3D, con three.js, solo si se pide ----
+  const dimension = jugada?.ambiente.dimension ?? "2d";
+  // Sube cada vez que se cambia de motor, para volver a montar la fase en el nuevo.
+  const [motorVersion, setMotorVersion] = useState(0);
   useEffect(() => {
     let vivo = true;
-    let escena: EscenaABP | null = null;
-    import("./abp/escena").then(({ EscenaABP: Clase }) => {
-      if (!vivo || !contenedorRef.current) return;
-      try {
-        escena = new Clase(contenedorRef.current);
-        escenaRef.current = escena;
-        setLista(true);
-      } catch {
-        setError(t("Este navegador no puede dibujar en 3D: WebGL está desactivado."));
-      }
-    }).catch(() => { if (vivo) setError(t("No se pudo cargar el motor 3D. Revisa la conexión y vuelve a abrir el cuaderno.")); });
+    let motor: Motor | null = null;
+    const poner = (nuevo: Motor) => {
+      motor = nuevo;
+      escenaRef.current = nuevo;
+      setLista(true);
+      setMotorVersion((n) => n + 1);
+    };
+    /* eslint-disable react-hooks/set-state-in-effect -- el motor es un sistema externo: se crea y se avisa */
+    setError("");
+    if (dimension === "2d") {
+      if (contenedorRef.current) poner(new Tablero2D(contenedorRef.current));
+    } else {
+      setLista(false);
+      import("./abp/escena").then(({ EscenaABP: Clase }) => {
+        if (!vivo || !contenedorRef.current) return;
+        try {
+          poner(new Clase(contenedorRef.current));
+        } catch {
+          setError(t("Este navegador no puede dibujar en 3D: WebGL está desactivado."));
+        }
+      }).catch(() => { if (vivo) setError(t("No se pudo cargar el motor 3D. Revisa la conexión y vuelve a abrir el cuaderno.")); });
+    }
+    /* eslint-enable react-hooks/set-state-in-effect */
     return () => {
       vivo = false;
-      escena?.destruir();
+      motor?.destruir();
       escenaRef.current = null;
     };
-  }, []);
+  }, [dimension]);
 
   const colorLocal = jugada?.colores.local ?? acento;
   const colorRival = jugada?.colores.rival ?? "#e8e8ed";
@@ -171,7 +187,7 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
   const ambiente = jugada?.ambiente;
   const opciones = useMemo<Opciones>(() => ({
     colorLocal, colorRival, colorAnotacion, acento, nombres, fuente,
-    ambiente: ambiente ?? { superficie: "noche", estadio: true, zonas: "ninguna", encuadre: "campo" },
+    ambiente: ambiente ?? AMBIENTE_POR_DEFECTO,
     rotulo: (rol) => deSerie(rol, idioma),
   }), [colorLocal, colorRival, colorAnotacion, acento, nombres, fuente, idioma, ambiente]);
 
@@ -183,14 +199,15 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
     // En pausa a mitad de una fase, las fichas se quedan donde estaban.
     const ahora = instanteEn(jugada, tiempoRef.current);
     if (ahora.fase === indice) escena.instante(ahora.t);
-  }, [lista, jugada, indice, opciones, seleccion, borrador, remontar]);
+  }, [lista, jugada, indice, opciones, seleccion, borrador, remontar, motorVersion]);
 
   // La cámara va al encuadre al cambiar de vista, de encuadre o de sistema.
   const encuadre = ambiente?.encuadre ?? "campo";
   const jugadaId = jugada?.id;
-  useEffect(() => { escenaRef.current?.vista(vista, encuadre, fase ? centroDe(fase) : null); }, [vista, lista, encuadre, jugadaId, modo]); // eslint-disable-line react-hooks/exhaustive-deps
+  const orientacion = ambiente?.orientacion ?? "horizontal";
+  useEffect(() => { escenaRef.current?.vista(vista, encuadre, fase ? centroDe(fase) : null); }, [vista, lista, encuadre, jugadaId, modo, motorVersion, orientacion]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { if (escenaRef.current) escenaRef.current.seguirBalon = seguir && reproduciendo; }, [seguir, reproduciendo, lista]);
+  useEffect(() => { if (escenaRef.current) escenaRef.current.seguirBalon = seguir && reproduciendo; }, [seguir, reproduciendo, lista, motorVersion]);
 
   // La foto del portal: un rato después del último cambio, lo que se ve en el campo.
   useEffect(() => {
@@ -345,7 +362,7 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
         return;
       }
       case "balon":
-        guardar(moverBalon(jugada, indice, p));
+        guardar(posarBalon(jugada, indice, p));
         return;
       case "carrera": {
         const ficha = fichaCerca(fase, p);
@@ -387,8 +404,9 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
   /** El resultado de soltar (o de ir arrastrando) en `p`, calculado siempre desde el cuaderno de antes. */
   function aplicarArrastre(arrastre: Arrastre, p: Punto): Jugada | null {
     const j = activaDe(arrastre.base);
-    if (arrastre.tipo === "ficha" && arrastre.id) return moverFicha(j, indice, arrastre.id, p);
-    if (arrastre.tipo === "balon") return moverBalon(j, indice, p);
+    // Mover en una pose: de la segunda fase en adelante, el estudio anima la diferencia.
+    if (arrastre.tipo === "ficha" && arrastre.id) return posar(j, indice, arrastre.id, p);
+    if (arrastre.tipo === "balon") return posarBalon(j, indice, p);
     if (arrastre.tipo === "anotacion" && arrastre.id) return desplazarAnotacion(j, indice, arrastre.id, p.x - arrastre.desde.x, p.z - arrastre.desde.z);
     return null;
   }
@@ -718,7 +736,7 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
     <section className="estilo-page abp-page" ref={raizRef}>
       <header className="abp-cabecera">
         <div>
-          <span>{t("PIZARRA · ESTADIO 3D")}</span>
+          <span>{t("PIZARRA · 2D Y 3D")}</span>
           <h2>{modo === "estudio" && jugada ? jugada.nombre : t("Tus sistemas")}</h2>
           <p>{modo === "estudio"
             ? t("Coloca y dibuja cada fase; al reproducir, el movimiento de una fase a la siguiente se anima solo.")
@@ -839,8 +857,11 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
                   <textarea className="abp-nota" value={deSerieEn(fase.nota)} maxLength={160} rows={2} placeholder={t("Qué hay que ver en esta fase")} onFocus={marcarHistorial}
                     onChange={(e) => sinHistorial({ ...jugada, fases: jugada.fases.map((f, i) => (i === indice ? { ...f, nota: e.target.value } : f)) })} />
                 </label>
-                <label className="inspector-fila inspector-deslizador"><span>{t("Duración")}</span><b>{fase.duracion.toFixed(1)} s</b>
-                  <input type="range" min={1} max={8} step={0.5} value={fase.duracion} onPointerDown={marcarHistorial} onChange={(e) => sinHistorial(cambiarDuracion(jugada, indice, Number(e.target.value)))} />
+                <label className="inspector-fila inspector-deslizador"><span>{t("Pausa en la pose")}</span><b>{fase.pausa.toFixed(1)} s</b>
+                  <input type="range" min={0} max={6} step={0.1} value={fase.pausa} onPointerDown={marcarHistorial} onChange={(e) => sinHistorial(cambiarPausa(jugada, indice, Number(e.target.value)))} />
+                </label>
+                <label className="inspector-fila inspector-deslizador"><span>{t("Movimiento")}</span><b>{fase.duracion.toFixed(1)} s</b>
+                  <input type="range" min={0.2} max={6} step={0.1} value={fase.duracion} onPointerDown={marcarHistorial} onChange={(e) => sinHistorial(cambiarDuracion(jugada, indice, Number(e.target.value)))} />
                 </label>
                 {fase.pase && <div className="inspector-fila"><span>{t("Envío")}</span>
                   <div className="inspector-segmentos">
@@ -860,7 +881,13 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
                     {SUPERFICIES.map((x) => <option key={x.id} value={x.id}>{deSerieEn(x.nombre)}</option>)}
                   </select>
                 </label>
-                <div className="inspector-fila"><span>{t("Estadio 3D")}</span><Interruptor activo={jugada.ambiente.estadio} onCambio={(estadio) => cambiarAmbiente({ estadio })} titulo={t("Estadio 3D")} /></div>
+                {jugada.ambiente.dimension === "3d" && <div className="inspector-fila"><span>{t("Estadio")}</span><Interruptor activo={jugada.ambiente.estadio} onCambio={(estadio) => cambiarAmbiente({ estadio })} titulo={t("Estadio")} /></div>}
+                <div className="inspector-fila"><span>{t("Dentro de la ficha")}</span>
+                  <div className="inspector-segmentos">
+                    <button type="button" className={jugada.ambiente.fichas === "dorsal" ? "activa" : ""} onClick={() => cambiarAmbiente({ fichas: "dorsal" })}>{t("Dorsal")}</button>
+                    <button type="button" className={jugada.ambiente.fichas === "puesto" ? "activa" : ""} onClick={() => cambiarAmbiente({ fichas: "puesto" })}>{t("Puesto")}</button>
+                  </div>
+                </div>
                 <label className="inspector-fila"><span>{t("Zonas")}</span>
                   <select className="inspector-selector" value={jugada.ambiente.zonas} onChange={(e) => cambiarAmbiente({ zonas: e.target.value as Ambiente["zonas"] })}>
                     {ZONAS.map((x) => <option key={x.id} value={x.id}>{deSerieEn(x.nombre)}</option>)}
@@ -871,9 +898,23 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
                     {ENCUADRES.map((x) => <option key={x.id} value={x.id}>{deSerieEn(x.nombre)}</option>)}
                   </select>
                 </label>
-                <div className="inspector-fila"><span>{t("Cámara tras el balón")}</span><Interruptor activo={seguir} onCambio={setSeguir} titulo={t("Cámara tras el balón")} /></div>
                 <div className="inspector-fila"><span>{t("Nombres de los roles")}</span><Interruptor activo={nombres} onCambio={setNombres} titulo={t("Nombres de los roles")} /></div>
               </div>
+            </section>
+
+            <section className="inspector-grupo">
+              <h3 className="inspector-titulo">{t("Animación")}</h3>
+              <div className="inspector-tarjeta">
+                <div className="inspector-fila"><span>{t("Movimiento")}</span>
+                  <div className="inspector-segmentos">
+                    <button type="button" className={jugada.ambiente.suavizado === "suave" ? "activa" : ""} onClick={() => cambiarAmbiente({ suavizado: "suave" })}>{t("Suave")}</button>
+                    <button type="button" className={jugada.ambiente.suavizado === "lineal" ? "activa" : ""} onClick={() => cambiarAmbiente({ suavizado: "lineal" })}>{t("Lineal")}</button>
+                  </div>
+                </div>
+                <div className="inspector-fila"><span>{t("Estelas")}</span><Interruptor activo={jugada.ambiente.estelas} onCambio={(estelas) => cambiarAmbiente({ estelas })} titulo={t("Estelas")} /></div>
+                <div className="inspector-fila"><span>{t("Cámara tras el balón")}</span><Interruptor activo={seguir} onCambio={setSeguir} titulo={t("Cámara tras el balón")} /></div>
+              </div>
+              <p className="inspector-pie">{t("De la segunda fase en adelante, mueve las fichas a su nueva posición: el estudio anima la diferencia desde la fase anterior.")}</p>
             </section>
 
             <section className="inspector-grupo">
@@ -905,7 +946,7 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
         <div className="abp-principal">
           <div className={`abp-escenario herramienta-${herramienta}`} ref={contenedorRef}
             onPointerDownCapture={alPulsar} onPointerMove={alMover} onPointerUp={alSoltar} onPointerCancel={alSoltar}>
-            {!lista && !error && <p className="abp-cargando">{t("Preparando el estadio 3D…")}</p>}
+            {!lista && !error && <p className="abp-cargando">{dimension === "3d" ? t("Preparando el estadio 3D…") : t("Preparando el tablero…")}</p>}
             {error && <p className="abp-cargando">{error}</p>}
             {fase && jugada && <div className="abp-flotante abp-fase-titulo" aria-live="polite">
               {/* "Fase 1 · Fase 1" no dice nada: el número solo va si la fase tiene nombre propio. */}
@@ -913,9 +954,17 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
               {fase.nota.trim() && <span>{deSerieEn(fase.nota)}</span>}
             </div>}
             <div className="abp-flotante abp-vistas" role="group" aria-label={t("Vistas de cámara")}>
-              <div className="inspector-segmentos">
+              {/* El tablero plano o el estadio: la misma jugada, dos maneras de verla. */}
+              {jugada && <div className="inspector-segmentos abp-dimension">
+                <button type="button" className={dimension === "2d" ? "activa" : ""} onClick={() => cambiarAmbiente({ dimension: "2d" })}>{t("2D")}</button>
+                <button type="button" className={dimension === "3d" ? "activa" : ""} onClick={() => cambiarAmbiente({ dimension: "3d" })}>{t("3D")}</button>
+              </div>}
+              {dimension === "3d" ? <div className="inspector-segmentos">
                 {vistas.map((v) => <button key={v.id} type="button" className={vista === v.id ? "activa" : ""} onClick={() => { setVista(v.id); escenaRef.current?.vista(v.id, encuadre, fase ? centroDe(fase) : null); }}>{v.nombre}</button>)}
-              </div>
+              </div> : jugada && <div className="inspector-segmentos">
+                <button type="button" className={orientacion === "horizontal" ? "activa" : ""} onClick={() => cambiarAmbiente({ orientacion: "horizontal" })}>{t("Horizontal")}</button>
+                <button type="button" className={orientacion === "vertical" ? "activa" : ""} onClick={() => cambiarAmbiente({ orientacion: "vertical" })}>{t("Vertical")}</button>
+              </div>}
               <button type="button" className="abp-boton-flotante" onClick={() => fase && escenaRef.current?.centrar(puntosDe(fase))}><Cubo size={14} />{t("Centrar jugada")}</button>
             </div>
             {(aviso || origen) && <p className="abp-flotante abp-aviso" role="status">{aviso}</p>}
@@ -964,6 +1013,7 @@ function SegmentosFlecha({ valor, onCambio }: { valor: EstiloFlecha; onCambio: (
     { id: "discontinua", nombre: t("Discontinua"), titulo: t("Línea discontinua: un desmarque sin balón.") },
     { id: "ondulada", nombre: t("Ondulada"), titulo: t("Línea ondulada: el balón pegado al pie.") },
     { id: "linea", nombre: t("Línea"), titulo: t("Sin punta: una altura, un límite o la línea de fuera de juego.") },
+    { id: "presion", nombre: t("Presión"), titulo: t("Una cuña desde quien presiona hacia el balón: el ángulo por donde llega.") },
   ];
   return <div className="inspector-segmentos">
     {opciones.map((o) => <button key={o.id} type="button" title={o.titulo} className={valor === o.id ? "activa" : ""} onClick={() => onCambio(o.id)}>{o.nombre}</button>)}
