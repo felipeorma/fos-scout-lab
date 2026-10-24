@@ -7588,3 +7588,37 @@ body.print-layout-check .app-shell[data-tema] .pizarra-duelos > ol { grid-templa
   .abp-vistas { top: 8px; right: 8px; left: 8px; justify-content: space-between; }
   .abp-fases-acciones { margin-left: 0; }
 }
+
+/* ---- Pizarra: el pintado de acciones ----
+   Mismo armazón que el cuaderno: el escenario 16:9 lleva el fondo (imagen,
+   vídeo o YouTube) encajado sin recortar y, encima, el lienzo de los trazos. */
+.pintado-escenario { background: #08080a; }
+.pintado-fondo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; border: 0; display: block; }
+.pintado-congelado { z-index: 1; }
+.pintado-lienzo { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; display: block; touch-action: none; pointer-events: none; }
+.pintado-escenario.dibujando .pintado-lienzo { pointer-events: auto; cursor: crosshair; }
+.pintado-escenario .abp-aviso { z-index: 3; }
+.pintado-vacio { z-index: 0; max-width: 46ch; margin: auto; line-height: 1.5; }
+
+.pintado-dorsales { margin-top: 8px; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 5px; }
+.app-shell[data-tema] .pintado-dorsales > button {
+  min-height: 30px; padding: 0;
+  border: 0; border-radius: 50%; aspect-ratio: 1; background: var(--paper); box-shadow: 0 0 0 1px var(--line);
+  color: var(--ink); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; cursor: pointer;
+}
+.app-shell[data-tema] .pintado-dorsales > button.activa { color: #fff; background: var(--acento-degradado, var(--acento)); box-shadow: 0 0 0 1px var(--acento-borde); }
+
+.app-shell[data-tema] label.pintado-subir { cursor: pointer; }
+.app-shell[data-tema] label.pintado-subir:hover { background: color-mix(in srgb, var(--ink) 4%, transparent); }
+.app-shell[data-tema] .pintado-youtube { gap: 8px; }
+.app-shell[data-tema] .pintado-youtube input.abp-campo { max-width: none; text-align: left; color: var(--ink); }
+.app-shell[data-tema] .pintado-youtube > button {
+  flex: none; min-height: 28px; padding: 0 12px;
+  border: 0; border-radius: var(--radio-pill); background: var(--acento-degradado, var(--acento)); color: #fff; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.app-shell[data-tema] .pintado-youtube > button:disabled { opacity: .4; cursor: default; }
+
+.pintado-modo { display: inline-flex; align-items: center; gap: 8px; color: var(--ink); font-size: 12.5px; font-weight: 500; }
+.pintado-tiempo { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.pintado-nota { flex: 1; min-width: 160px; color: var(--muted); font-size: 12px; }
+.pintado-cuenta { color: var(--muted); font-size: 11px; }

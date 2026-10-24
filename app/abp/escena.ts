@@ -217,7 +217,7 @@ export class EscenaABP {
       pos = mira.clone().addScaledVector(hacia, 30).add(new THREE.Vector3(0, 17, 0));
     } else {
       // Lejos y alto, como la cámara principal de una retransmisión: entra el campo entero y la grada de este lado.
-      const lejos = Math.max(100, ((LARGO + 10) / 2 / aspecto) / tanMedia * 1.12);
+      const lejos = Math.max(92, ((LARGO + 10) / 2 / aspecto) / tanMedia * 1.06);
       mira = new THREE.Vector3(0, 0, 4);
       pos = new THREE.Vector3(0, lejos * 0.72, lejos * 0.7);
     }

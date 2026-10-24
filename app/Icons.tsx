@@ -97,3 +97,5 @@ export const Video = icono(<><rect x="3" y="6" width="13" height="12" rx="2" /><
 export const Cubo = icono(<><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z" /><path d="m4 7.5 8 4.5 8-4.5" /><path d="M12 12v9" /></>);
 export const Play = icono(<path d="M7 4.8v14.4a1 1 0 0 0 1.5.9l11.3-7.2a1 1 0 0 0 0-1.8L8.5 3.9A1 1 0 0 0 7 4.8z" />, true);
 export const Pause = icono(<><rect x="6" y="4.5" width="4" height="15" rx="1.2" /><rect x="14" y="4.5" width="4" height="15" rx="1.2" /></>, true);
+export const FlechaRecta = icono(<><path d="M4 12h15" /><path d="m14 7 5 5-5 5" /></>);
+export const ZonaSuelo = icono(<><ellipse cx="12" cy="14" rx="8.5" ry="4.8" fill="currentColor" fillOpacity=".22" /><path d="M12 9.2v9.6" opacity=".55" /></>);
