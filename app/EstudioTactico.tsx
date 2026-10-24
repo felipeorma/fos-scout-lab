@@ -4,19 +4,23 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as EventoDePunt
 import {
   agregarAnotacion, agregarFase, agregarFicha, anotacionCerca, cambiarAnotacion, cambiarDuracion, cambiarFicha, carreraDe, cuadernoInicial,
   curvarCarrera, desplazarAnotacion, distancia, duplicarFase, duracionTotal, fichaCerca, fijarCarrera, fijarPase, inicioDeFase, instanteEn,
-  moverBalon, moverFicha, normalizarCuaderno, nuevoId, plantilla, quitarAnotacion, quitarCarrera, quitarFase, quitarFicha, quitarPase,
-  renombrarFase, tipoDePase, TIPOS_ABP, deSerie, type Cuaderno, type EstiloZona, type Fase, type Jugada, type Pase, type Punto, type TipoABP,
+  moverBalon, moverFicha, normalizarCuaderno, nuevoId, quitarAnotacion, quitarCarrera, quitarFase, quitarFicha, quitarPase,
+  renombrarFase, tipoDePase, deSerie, CATEGORIAS, ENCUADRES, SUPERFICIES, ZONAS,
+  type Ambiente, type Categoria, type Cuaderno, type EstiloFlecha, type EstiloZona, type Fase, type Jugada, type Pase, type Punto,
 } from "@/lib/abp";
 import { t, tf, type Lang } from "@/lib/i18n";
 import type { Borrador, EscenaABP, Opciones, Seleccion, Vista } from "./abp/escena";
 import { useFirma } from "./FirmaDelInforme";
 import { Interruptor } from "./Interruptor";
+import { Portal, archivoDeCuaderno, archivoDeSistema } from "./PortalDeSistemas";
 import {
-  ArrowDownToLine, Balon, Carrera, Cubo, Duplicar, Elipse, Etiqueta, Flecha, Mover, Pase as PaseIcono, Pause, Play, Plus, Rectangulo,
+  ArrowDownToLine, Balon, Carrera, ChevronLeft, Cubo, Duplicar, Elipse, Etiqueta, Flecha, Mover, Pase as PaseIcono, Pause, Play, Plus, Rectangulo,
   RotateCcw, TextIcon, Trash, Video,
 } from "./Icons";
 
+// La clave no cambia al pasar de cuaderno a estudio: así se abre lo ya guardado.
 const CLAVE = "fos-scout-abp-v1";
+const CLAVE_MINIATURAS = "fos-scout-abp-miniaturas-v1";
 
 type Herramienta = "mover" | "local" | "rival" | "balon" | "carrera" | "pase" | "flecha" | "texto" | "etiqueta" | "rect" | "zona";
 
@@ -30,10 +34,10 @@ type Arrastre = {
 };
 
 const activaDe = (c: Cuaderno) => c.jugadas.find((j) => j.id === c.activa) ?? c.jugadas[0];
-const conJugada = (c: Cuaderno, j: Jugada): Cuaderno => ({ ...c, jugadas: c.jugadas.map((x) => (x.id === j.id ? j : x)) });
+const conJugada = (c: Cuaderno, j: Jugada): Cuaderno => ({ ...c, jugadas: c.jugadas.map((x) => (x.id === j.id ? { ...j, actualizada: Date.now() } : x)) });
 
 /** Un nombre de archivo sin tildes ni espacios. */
-const archivo = (texto: string) => texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "jugada";
+const archivo = (texto: string) => texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "jugada";
 
 function descargar(href: string, nombre: string) {
   const a = Object.assign(document.createElement("a"), { href, download: nombre });
@@ -42,9 +46,17 @@ function descargar(href: string, nombre: string) {
 }
 
 /** Los roles de serie, para el desplegable: se pueden escribir otros. */
-const ROLES = ["Lanzador", "Primer palo", "Segundo palo", "Remate", "Arrastre", "Bloqueo", "Rechace", "Vigilancia", "Portero", "Zona", "Marca", "Barrera", "Frontal", "Contra"];
+const ROLES = [
+  "POR", "LI", "DFC", "LD", "MCD", "MC", "MP", "EI", "ED", "DC",
+  "Lanzador", "Primer palo", "Segundo palo", "Remate", "Arrastre", "Bloqueo", "Rechace", "Vigilancia", "Portero", "Zona", "Marca", "Barrera", "Frontal", "Contra",
+];
 
-export function CuadernoABP({ claseHoja, idioma, paleta, onVolver }: {
+/**
+ * El estudio táctico: el portal con los sistemas guardados y, al abrir uno,
+ * la pizarra 3D por fases. Antes era solo el cuaderno de balón parado; lo
+ * guardado entonces se abre igual, con noche y estadio.
+ */
+export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
   claseHoja: string;
   /** Solo para volver a dibujar los rótulos al cambiar de idioma. */
   idioma: Lang;
@@ -64,7 +76,10 @@ export function CuadernoABP({ claseHoja, idioma, paleta, onVolver }: {
   const [origen, setOrigen] = useState<string | null>(null);
   const [vista, setVista] = useState<Vista>("tactica");
   const [nombres, setNombres] = useState(true);
-  const [grada, setGrada] = useState(true);
+  const [modo, setModo] = useState<"portal" | "estudio">("portal");
+  const [miniaturas, setMiniaturas] = useState<Record<string, string>>({});
+  const [estiloFlecha, setEstiloFlecha] = useState<EstiloFlecha>("continua");
+  const [seguir, setSeguir] = useState(false);
   const [estiloZona, setEstiloZona] = useState<EstiloZona>("translucida");
   const [tipoPase, setTipoPase] = useState<Pase["tipo"]>("aereo");
   const [reproduciendo, setReproduciendo] = useState(false);
@@ -94,13 +109,23 @@ export function CuadernoABP({ claseHoja, idioma, paleta, onVolver }: {
   // ---- Leer y guardar ----
   useEffect(() => {
     let leido: Cuaderno | null = null;
+    let fotos: Record<string, string> = {};
     try {
       const crudo = window.localStorage.getItem(CLAVE);
       if (crudo) leido = normalizarCuaderno(JSON.parse(crudo));
+      const guardadas = JSON.parse(window.localStorage.getItem(CLAVE_MINIATURAS) ?? "{}");
+      if (guardadas && typeof guardadas === "object") fotos = guardadas;
     } catch { /* sin almacenamiento: se empieza de cero */ }
     // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage solo existe en el cliente
     setCuaderno(leido ?? cuadernoInicial());
+    setMiniaturas(fotos);
   }, []);
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      try { window.localStorage.setItem(CLAVE_MINIATURAS, JSON.stringify(miniaturas)); } catch { /* sin sitio: el portal enseña el icono */ }
+    }, 600);
+    return () => window.clearTimeout(id);
+  }, [miniaturas]);
   useEffect(() => {
     if (!cuaderno) return;
     const id = window.setTimeout(() => {
@@ -143,10 +168,12 @@ export function CuadernoABP({ claseHoja, idioma, paleta, onVolver }: {
   const colorLocal = jugada?.colores.local ?? acento;
   const colorRival = jugada?.colores.rival ?? "#e8e8ed";
   const colorAnotacion = jugada?.colores.anotacion ?? "#f3b64c";
+  const ambiente = jugada?.ambiente;
   const opciones = useMemo<Opciones>(() => ({
-    colorLocal, colorRival, colorAnotacion, acento, nombres, grada, fuente,
+    colorLocal, colorRival, colorAnotacion, acento, nombres, fuente,
+    ambiente: ambiente ?? { superficie: "noche", estadio: true, zonas: "ninguna", encuadre: "campo" },
     rotulo: (rol) => deSerie(rol, idioma),
-  }), [colorLocal, colorRival, colorAnotacion, acento, nombres, grada, fuente, idioma]);
+  }), [colorLocal, colorRival, colorAnotacion, acento, nombres, fuente, idioma, ambiente]);
 
   useEffect(() => {
     const escena = escenaRef.current;
@@ -158,7 +185,29 @@ export function CuadernoABP({ claseHoja, idioma, paleta, onVolver }: {
     if (ahora.fase === indice) escena.instante(ahora.t);
   }, [lista, jugada, indice, opciones, seleccion, borrador, remontar]);
 
-  useEffect(() => { escenaRef.current?.vista(vista, fase ? centroDe(fase) : null); }, [vista, lista]); // eslint-disable-line react-hooks/exhaustive-deps
+  // La cámara va al encuadre al cambiar de vista, de encuadre o de sistema.
+  const encuadre = ambiente?.encuadre ?? "campo";
+  const jugadaId = jugada?.id;
+  useEffect(() => { escenaRef.current?.vista(vista, encuadre, fase ? centroDe(fase) : null); }, [vista, lista, encuadre, jugadaId, modo]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { if (escenaRef.current) escenaRef.current.seguirBalon = seguir && reproduciendo; }, [seguir, reproduciendo, lista]);
+
+  // La foto del portal: un rato después del último cambio, lo que se ve en el campo.
+  useEffect(() => {
+    if (modo !== "estudio" || !lista || !jugada || reproduciendo || grabando) return;
+    const id = window.setTimeout(() => {
+      const escena = escenaRef.current;
+      if (!escena || !escena.canvas.width) return;
+      escena.renderizarAhora();
+      const lienzo = document.createElement("canvas");
+      lienzo.width = 384;
+      lienzo.height = 216;
+      lienzo.getContext("2d")!.drawImage(escena.canvas, 0, 0, 384, 216);
+      const foto = lienzo.toDataURL("image/jpeg", 0.72);
+      setMiniaturas((actuales) => ({ ...actuales, [jugada.id]: foto }));
+    }, 1200);
+    return () => window.clearTimeout(id);
+  }, [modo, lista, jugada, reproduciendo, grabando, indice]);
 
   // ---- Reproducir ----
   useEffect(() => {
@@ -179,10 +228,11 @@ export function CuadernoABP({ claseHoja, idioma, paleta, onVolver }: {
     return () => cancelAnimationFrame(cuadro);
   }, [reproduciendo, jugada, total]);
 
-  function irAFase(i: number) {
-    if (!jugada) return;
+  /** `nueva`: se acaba de abrir otro sistema y el de este render ya no vale para medir el tiempo. */
+  function irAFase(i: number, nueva = false) {
+    if (!jugada && !nueva) return;
     setReproduciendo(false);
-    tiempoRef.current = inicioDeFase(jugada, i);
+    tiempoRef.current = nueva || !jugada ? 0 : inicioDeFase(jugada, i);
     if (barraRef.current) barraRef.current.value = String(tiempoRef.current);
     setFaseIdx(i);
     setSeleccion(null);
@@ -240,9 +290,16 @@ export function CuadernoABP({ claseHoja, idioma, paleta, onVolver }: {
       if (!raizRef.current?.offsetParent) return;
       const objetivo = evento.target as HTMLElement;
       if (objetivo.closest("input, textarea, select, [contenteditable='true']")) return;
+      if (modo !== "estudio" || !jugada) return;
       if ((evento.key === "Delete" || evento.key === "Backspace") && seleccion) { evento.preventDefault(); borrarSeleccion(); }
       else if ((evento.metaKey || evento.ctrlKey) && evento.key.toLowerCase() === "z") { evento.preventDefault(); deshacer(); }
       else if (evento.key === "Escape") { setOrigen(null); setBorrador(null); setSeleccion(null); }
+      else if (evento.metaKey || evento.ctrlKey || evento.altKey) return;
+      // Los atajos de siempre: espacio reproduce, N añade una fase, [ y ] cambian de fase.
+      else if (evento.key === " ") { evento.preventDefault(); alternarReproduccion(); }
+      else if (evento.key.toLowerCase() === "n") { guardar(agregarFase(jugada, indice, tf("Fase {n}", { n: jugada.fases.length + 1 }))); irAFase(indice + 1); }
+      else if (evento.key === "[" && indice > 0) irAFase(indice - 1);
+      else if (evento.key === "]" && indice < jugada.fases.length - 1) irAFase(indice + 1);
     };
     window.addEventListener("keydown", alPulsarTecla);
     return () => window.removeEventListener("keydown", alPulsarTecla);
@@ -313,7 +370,7 @@ export function CuadernoABP({ claseHoja, idioma, paleta, onVolver }: {
       case "flecha":
       case "rect":
       case "zona":
-        setBorrador({ tipo: herramienta, a: p, b: p });
+        setBorrador({ tipo: herramienta, a: p, b: p, estilo: estiloFlecha });
         tomar(evento, { tipo: herramienta, base, desde: p, movido: false });
         return;
       case "texto":
@@ -387,7 +444,7 @@ export function CuadernoABP({ claseHoja, idioma, paleta, onVolver }: {
         if (distancia(p, arrastre.desde) < 0.8) return;
         const id = nuevoId("a");
         confirmar(agregarAnotacion(j, indice, arrastre.tipo === "flecha"
-          ? { id, tipo: "flecha", a: arrastre.desde, b: p, color: j.colores.anotacion }
+          ? { id, tipo: "flecha", a: arrastre.desde, b: p, color: j.colores.anotacion, estilo: estiloFlecha }
           : { id, tipo: arrastre.tipo, a: arrastre.desde, b: p, color: j.colores.anotacion, estilo: estiloZona }));
         setSeleccion({ tipo: "anotacion", id });
         return;
@@ -395,37 +452,69 @@ export function CuadernoABP({ claseHoja, idioma, paleta, onVolver }: {
     }
   }
 
-  // ---- La jugada y el cuaderno ----
-  function nuevaJugada(tipo: TipoABP) {
-    if (!cuaderno) return;
-    const nueva = plantilla(tipo);
-    nueva.nombre = deSerie(nueva.nombre, idioma);
-    nueva.fases = nueva.fases.map((f) => ({ ...f, nombre: deSerie(f.nombre, idioma) }));
-    historial.current.push(cuaderno);
-    setCuaderno({ ...cuaderno, activa: nueva.id, jugadas: [...cuaderno.jugadas, nueva] });
-    irAFase(0);
-  }
-
-  function duplicarJugada() {
-    if (!cuaderno || !jugada) return;
-    const copia: Jugada = { ...structuredClone(jugada), id: nuevoId("j"), nombre: tf("{nombre} · copia", { nombre: jugada.nombre }) };
-    historial.current.push(cuaderno);
-    setCuaderno({ ...cuaderno, activa: copia.id, jugadas: [...cuaderno.jugadas, copia] });
-  }
-
-  function eliminarJugada() {
-    if (!cuaderno || !jugada || cuaderno.jugadas.length < 2) return;
-    if (!window.confirm(tf("¿Quitar «{nombre}» del cuaderno?", { nombre: jugada.nombre }))) return;
-    historial.current.push(cuaderno);
-    const resto = cuaderno.jugadas.filter((j) => j.id !== jugada.id);
-    setCuaderno({ ...cuaderno, activa: resto[0].id, jugadas: resto });
-    irAFase(0);
-  }
-
-  function elegirJugada(id: string) {
+  // ---- El portal: abrir, crear, duplicar, quitar y archivos ----
+  function abrir(id: string) {
     if (!cuaderno) return;
     setCuaderno({ ...cuaderno, activa: id });
-    irAFase(0);
+    setModo("estudio");
+    historial.current = [];
+    irAFase(0, true);
+  }
+
+  function crear(nueva: Jugada) {
+    if (!cuaderno) return;
+    setCuaderno({ ...cuaderno, activa: nueva.id, jugadas: [...cuaderno.jugadas, nueva] });
+    setModo("estudio");
+    historial.current = [];
+    irAFase(0, true);
+  }
+
+  function duplicar(id: string) {
+    if (!cuaderno) return;
+    const original = cuaderno.jugadas.find((j) => j.id === id);
+    if (!original) return;
+    const copia: Jugada = { ...structuredClone(original), id: nuevoId("j"), nombre: tf("{nombre} · copia", { nombre: original.nombre }), actualizada: Date.now() };
+    setCuaderno({ ...cuaderno, jugadas: [...cuaderno.jugadas, copia] });
+    if (miniaturas[id]) setMiniaturas((m) => ({ ...m, [copia.id]: m[id] }));
+  }
+
+  function quitar(id: string) {
+    if (!cuaderno) return;
+    const sistema = cuaderno.jugadas.find((j) => j.id === id);
+    if (!sistema || !window.confirm(tf("¿Quitar «{nombre}» del estudio?", { nombre: sistema.nombre }))) return;
+    const resto = cuaderno.jugadas.filter((j) => j.id !== id);
+    // Sin ningún sistema el estudio no tiene qué abrir: queda uno en blanco, como al principio.
+    const quedan = resto.length ? resto : cuadernoInicial().jugadas;
+    setCuaderno({ ...cuaderno, activa: quedan[0].id, jugadas: quedan });
+    setMiniaturas((m) => { const copia = { ...m }; delete copia[id]; return copia; });
+  }
+
+  function importar(nuevas: Jugada[]) {
+    if (!cuaderno) return;
+    setCuaderno({ ...cuaderno, jugadas: [...cuaderno.jugadas, ...nuevas] });
+  }
+
+  function descargarJson(datos: unknown, nombre: string) {
+    descargar(URL.createObjectURL(new Blob([JSON.stringify(datos, null, 1)], { type: "application/json" })), nombre);
+  }
+  function descargarSistema(id: string) {
+    const sistema = cuaderno?.jugadas.find((j) => j.id === id);
+    if (sistema) descargarJson(archivoDeSistema(sistema), `${archivo(sistema.nombre)}.json`);
+  }
+  function copiaDeTodo() {
+    if (cuaderno) descargarJson(archivoDeCuaderno(cuaderno.jugadas), `estudio-tactico-${new Date().toISOString().slice(0, 10)}.json`);
+  }
+
+  function volverAlPortal() {
+    setReproduciendo(false);
+    setSeleccion(null);
+    setOrigen(null);
+    setBorrador(null);
+    setModo("portal");
+  }
+
+  function cambiarAmbiente(cambio: Partial<Ambiente>) {
+    if (jugada) guardar({ ...jugada, ambiente: { ...jugada.ambiente, ...cambio } });
   }
 
   // ---- Descargar: imagen, PDF y vídeo ----
@@ -446,7 +535,7 @@ export function CuadernoABP({ claseHoja, idioma, paleta, onVolver }: {
     ctx.textBaseline = "alphabetic";
     ctx.fillStyle = acento;
     ctx.font = `700 ${13 * u}px ${fuente}`;
-    ctx.fillText(t("CUADERNO ABP").split("").join(String.fromCharCode(8202)), 32 * u, 40 * u);
+    ctx.fillText(t("ESTUDIO TÁCTICO").split("").join(String.fromCharCode(8202)), 32 * u, 40 * u);
     ctx.fillStyle = "#f5f5f7";
     ctx.font = `700 ${30 * u}px ${fuente}`;
     ctx.fillText(jugada.nombre, 32 * u, 76 * u);
@@ -454,6 +543,18 @@ export function CuadernoABP({ claseHoja, idioma, paleta, onVolver }: {
     ctx.font = `500 ${15 * u}px ${fuente}`;
     const f = jugada.fases[indiceDeFase];
     ctx.fillText(tf("Fase {n} de {total} · {nombre}", { n: indiceDeFase + 1, total: jugada.fases.length, nombre: deSerieEn(f.nombre) }), 32 * u, 102 * u);
+    // La nota de la fase, abajo, sobre una franja oscura para que se lea en cualquier césped.
+    if (f.nota.trim()) {
+      const nota = deSerieEn(f.nota);
+      ctx.font = `500 ${16 * u}px ${fuente}`;
+      const ancho = Math.min(w - 64 * u, ctx.measureText(nota).width + 28 * u);
+      ctx.fillStyle = "rgba(8,8,10,.72)";
+      ctx.beginPath();
+      ctx.roundRect(32 * u, h - 74 * u, ancho, 36 * u, 10 * u);
+      ctx.fill();
+      ctx.fillStyle = "#f5f5f7";
+      ctx.fillText(nota, 46 * u, h - 50 * u, ancho - 28 * u);
+    }
     ctx.textAlign = "right";
     ctx.fillStyle = "rgba(245,245,247,.6)";
     ctx.font = `600 ${12 * u}px ${fuente}`;
@@ -504,7 +605,7 @@ export function CuadernoABP({ claseHoja, idioma, paleta, onVolver }: {
         pdf.setTextColor(...c(acento));
         pdf.setFont("helvetica", "bold");
         pdf.setFontSize(8.5);
-        pdf.text(t("CUADERNO ABP"), M, M + 3, { charSpace: 0.6 });
+        pdf.text(t("ESTUDIO TÁCTICO"), M, M + 3, { charSpace: 0.6 });
         pdf.setTextColor(245, 245, 247);
         pdf.setFontSize(18);
         pdf.text(jugada.nombre, M, M + 11);
@@ -513,9 +614,14 @@ export function CuadernoABP({ claseHoja, idioma, paleta, onVolver }: {
         pdf.setTextColor(183, 183, 194);
         pdf.text(tf("Fase {n} de {total} · {nombre}", { n: i + 1, total: jugada.fases.length, nombre: deSerieEn(f.nombre) }), M, M + 17.5);
         const ancho = W - 2 * M;
-        const alto = Math.min(H - M - 32, ancho * escena.canvas.height / escena.canvas.width);
+        const alto = Math.min(H - M - 42, ancho * escena.canvas.height / escena.canvas.width);
         const anchoReal = alto * escena.canvas.width / escena.canvas.height;
         pdf.addImage(imagen, "JPEG", (W - anchoReal) / 2, M + 22, anchoReal, alto);
+        if (f.nota.trim()) {
+          pdf.setFontSize(10);
+          pdf.setTextColor(245, 245, 247);
+          pdf.text(deSerieEn(f.nota), M, M + 22 + alto + 7, { maxWidth: W - 2 * M });
+        }
         pdf.setFontSize(8);
         pdf.setTextColor(133, 133, 146);
         pdf.text(firma.nombre ? `${firma.nombre} · FOS Scout Lab` : "FOS Scout Lab", M, H - 7);
@@ -555,6 +661,7 @@ export function CuadernoABP({ claseHoja, idioma, paleta, onVolver }: {
     // Medio segundo quieto al principio y uno al final, para que se lea el rótulo.
     const pausa = 0.6;
     const inicio = performance.now();
+    escena.seguirBalon = seguir;
     await new Promise<void>((resolver) => {
       const cuadro = () => {
         const s = (performance.now() - inicio) / 1000 - pausa;
@@ -569,6 +676,7 @@ export function CuadernoABP({ claseHoja, idioma, paleta, onVolver }: {
       montadaRef.current = -1;
       cuadro();
     });
+    escena.seguirBalon = false;
     grabadora.stop();
     await terminado;
     flujo.getTracks().forEach((pista) => pista.stop());
@@ -610,36 +718,37 @@ export function CuadernoABP({ claseHoja, idioma, paleta, onVolver }: {
     <section className="estilo-page abp-page" ref={raizRef}>
       <header className="abp-cabecera">
         <div>
-          <span>{t("BALÓN PARADO · PIZARRA 3D")}</span>
-          <h2>{t("Cuaderno ABP")}</h2>
-          <p>{t("Dibuja cada jugada por fases, reprodúcela en 3D y descárgala como imagen, PDF o vídeo. Se guarda sola en este navegador.")}</p>
+          <span>{t("PIZARRA · ESTADIO 3D")}</span>
+          <h2>{modo === "estudio" && jugada ? jugada.nombre : t("Tus sistemas")}</h2>
+          <p>{modo === "estudio"
+            ? t("Coloca y dibuja cada fase; al reproducir, el movimiento de una fase a la siguiente se anima solo.")
+            : t("Cada sistema que construyas —salida, presión, ataque, balón parado o un ejercicio—, listo para abrir, duplicar o descargar. Se guarda en este navegador.")}</p>
         </div>
-        {onVolver && <button type="button" className="button secondary compact" onClick={onVolver}>{t("Volver al inicio")}</button>}
+        <div className="abp-cabecera-acciones">
+          {modo === "estudio" && <button type="button" className="button secondary compact" onClick={volverAlPortal}><ChevronLeft size={14} />{t("Tus sistemas")}</button>}
+          {onVolver && <button type="button" className="button secondary compact" onClick={onVolver}>{t("Volver al inicio")}</button>}
+        </div>
       </header>
 
-      <div className="abp-grid">
+      {modo === "portal" && cuaderno && <Portal jugadas={cuaderno.jugadas} miniaturas={miniaturas} idioma={idioma}
+        onAbrir={abrir} onCrear={crear} onDuplicar={duplicar} onQuitar={quitar} onImportar={importar} onDescargar={descargarSistema} onCopiaDeTodo={copiaDeTodo} />}
+
+      <div className="abp-grid" hidden={modo !== "estudio"}>
         <aside className="designer-controls inspector abp-inspector">
           {jugada && cuaderno && <>
             <section className="inspector-grupo">
-              <h3 className="inspector-titulo">{t("Jugada")}<small>{tf("{n} en el cuaderno", { n: cuaderno.jugadas.length })}</small></h3>
+              <h3 className="inspector-titulo">{t("Sistema")}<small>{tf(jugada.fases.length === 1 ? "{n} fase" : "{n} fases", { n: jugada.fases.length })}</small></h3>
               <div className="inspector-tarjeta">
-                {cuaderno.jugadas.length > 1 && <label className="inspector-fila"><span>{t("Abrir")}</span>
-                  <select className="inspector-selector" value={jugada.id} onChange={(e) => elegirJugada(e.target.value)}>
-                    {cuaderno.jugadas.map((j) => <option key={j.id} value={j.id}>{j.nombre}</option>)}
-                  </select>
-                </label>}
                 <label className="inspector-fila"><span>{t("Nombre")}</span>
                   <input className="abp-campo" value={jugada.nombre} maxLength={80} onFocus={marcarHistorial} onChange={(e) => sinHistorial({ ...jugada, nombre: e.target.value })} />
                 </label>
-                <label className="inspector-fila"><span>{t("Nueva desde")}</span>
-                  <select className="inspector-selector" value="" onChange={(e) => { if (e.target.value) nuevaJugada(e.target.value as TipoABP); }}>
-                    <option value="">{t("Elegir…")}</option>
-                    {TIPOS_ABP.map((tipo) => <option key={tipo.id} value={tipo.id}>{deSerieEn(tipo.nombre)}</option>)}
+                <label className="inspector-fila"><span>{t("Categoría")}</span>
+                  <select className="inspector-selector" value={jugada.categoria} onChange={(e) => guardar({ ...jugada, categoria: e.target.value as Categoria })}>
+                    {CATEGORIAS.map((c) => <option key={c.id} value={c.id}>{deSerieEn(c.nombre)}</option>)}
                   </select>
                 </label>
                 <div className="inspector-fila abp-acciones">
-                  <button type="button" onClick={duplicarJugada}><Duplicar size={14} />{t("Duplicar")}</button>
-                  <button type="button" onClick={eliminarJugada} disabled={cuaderno.jugadas.length < 2}><Trash size={14} />{t("Quitar")}</button>
+                  <button type="button" onClick={() => descargarSistema(jugada.id)}><ArrowDownToLine size={14} />{t("Descargar archivo")}</button>
                 </div>
               </div>
             </section>
@@ -652,6 +761,9 @@ export function CuadernoABP({ claseHoja, idioma, paleta, onVolver }: {
                   {h.icono}<span>{h.nombre}</span>
                 </button>)}
               </div>
+              {herramienta === "flecha" && <div className="inspector-tarjeta abp-tarjeta-extra">
+                <div className="inspector-fila"><span>{t("Trazo")}</span><SegmentosFlecha valor={estiloFlecha} onCambio={setEstiloFlecha} /></div>
+              </div>}
               {(herramienta === "rect" || herramienta === "zona") && <div className="inspector-tarjeta abp-tarjeta-extra">
                 <div className="inspector-fila"><span>{t("Relleno")}</span>
                   <SegmentosEstilo valor={estiloZona} onCambio={setEstiloZona} />
@@ -705,6 +817,9 @@ export function CuadernoABP({ claseHoja, idioma, paleta, onVolver }: {
                 <label className="inspector-fila"><span>{t("Color")}</span>
                   <input type="color" value={anotacionElegida.color} onFocus={marcarHistorial} onChange={(e) => sinHistorial(cambiarAnotacion(jugada, indice, anotacionElegida.id, { color: e.target.value }))} />
                 </label>
+                {anotacionElegida.tipo === "flecha" && <div className="inspector-fila"><span>{t("Trazo")}</span>
+                  <SegmentosFlecha valor={anotacionElegida.estilo} onCambio={(estilo) => guardar(cambiarAnotacion(jugada, indice, anotacionElegida.id, { estiloFlecha: estilo }))} />
+                </div>}
                 {(anotacionElegida.tipo === "rect" || anotacionElegida.tipo === "zona") && <div className="inspector-fila"><span>{t("Relleno")}</span>
                   <SegmentosEstilo valor={anotacionElegida.estilo} onCambio={(estilo) => guardar(cambiarAnotacion(jugada, indice, anotacionElegida.id, { estilo }))} />
                 </div>}
@@ -720,6 +835,10 @@ export function CuadernoABP({ claseHoja, idioma, paleta, onVolver }: {
                 <label className="inspector-fila"><span>{t("Nombre")}</span>
                   <input className="abp-campo" value={deSerieEn(fase.nombre)} maxLength={40} onFocus={marcarHistorial} onChange={(e) => sinHistorial(renombrarFase(jugada, indice, e.target.value))} />
                 </label>
+                <label className="inspector-fila abp-fila-nota"><span>{t("Nota")}</span>
+                  <textarea className="abp-nota" value={deSerieEn(fase.nota)} maxLength={160} rows={2} placeholder={t("Qué hay que ver en esta fase")} onFocus={marcarHistorial}
+                    onChange={(e) => sinHistorial({ ...jugada, fases: jugada.fases.map((f, i) => (i === indice ? { ...f, nota: e.target.value } : f)) })} />
+                </label>
                 <label className="inspector-fila inspector-deslizador"><span>{t("Duración")}</span><b>{fase.duracion.toFixed(1)} s</b>
                   <input type="range" min={1} max={8} step={0.5} value={fase.duracion} onPointerDown={marcarHistorial} onChange={(e) => sinHistorial(cambiarDuracion(jugada, indice, Number(e.target.value)))} />
                 </label>
@@ -734,7 +853,31 @@ export function CuadernoABP({ claseHoja, idioma, paleta, onVolver }: {
             </section>}
 
             <section className="inspector-grupo">
-              <h3 className="inspector-titulo">{t("Colores y vista")}</h3>
+              <h3 className="inspector-titulo">{t("Escenario")}</h3>
+              <div className="inspector-tarjeta">
+                <label className="inspector-fila"><span>{t("Césped")}</span>
+                  <select className="inspector-selector" value={jugada.ambiente.superficie} onChange={(e) => cambiarAmbiente({ superficie: e.target.value as Ambiente["superficie"] })}>
+                    {SUPERFICIES.map((x) => <option key={x.id} value={x.id}>{deSerieEn(x.nombre)}</option>)}
+                  </select>
+                </label>
+                <div className="inspector-fila"><span>{t("Estadio 3D")}</span><Interruptor activo={jugada.ambiente.estadio} onCambio={(estadio) => cambiarAmbiente({ estadio })} titulo={t("Estadio 3D")} /></div>
+                <label className="inspector-fila"><span>{t("Zonas")}</span>
+                  <select className="inspector-selector" value={jugada.ambiente.zonas} onChange={(e) => cambiarAmbiente({ zonas: e.target.value as Ambiente["zonas"] })}>
+                    {ZONAS.map((x) => <option key={x.id} value={x.id}>{deSerieEn(x.nombre)}</option>)}
+                  </select>
+                </label>
+                <label className="inspector-fila"><span>{t("Encuadre")}</span>
+                  <select className="inspector-selector" value={jugada.ambiente.encuadre} onChange={(e) => cambiarAmbiente({ encuadre: e.target.value as Ambiente["encuadre"] })}>
+                    {ENCUADRES.map((x) => <option key={x.id} value={x.id}>{deSerieEn(x.nombre)}</option>)}
+                  </select>
+                </label>
+                <div className="inspector-fila"><span>{t("Cámara tras el balón")}</span><Interruptor activo={seguir} onCambio={setSeguir} titulo={t("Cámara tras el balón")} /></div>
+                <div className="inspector-fila"><span>{t("Nombres de los roles")}</span><Interruptor activo={nombres} onCambio={setNombres} titulo={t("Nombres de los roles")} /></div>
+              </div>
+            </section>
+
+            <section className="inspector-grupo">
+              <h3 className="inspector-titulo">{t("Colores")}</h3>
               <div className="inspector-tarjeta">
                 <label className="inspector-fila"><span>{t("Local")}</span>
                   {jugada.colores.local && <button type="button" className="abp-enlace" onClick={() => guardar({ ...jugada, colores: { ...jugada.colores, local: null } })}>{t("Del espacio")}</button>}
@@ -746,8 +889,6 @@ export function CuadernoABP({ claseHoja, idioma, paleta, onVolver }: {
                 <label className="inspector-fila"><span>{t("Anotaciones")}</span>
                   <input type="color" value={colorAnotacion} onFocus={marcarHistorial} onChange={(e) => sinHistorial({ ...jugada, colores: { ...jugada.colores, anotacion: e.target.value } })} />
                 </label>
-                <div className="inspector-fila"><span>{t("Nombres de los roles")}</span><Interruptor activo={nombres} onCambio={setNombres} titulo={t("Nombres de los roles")} /></div>
-                <div className="inspector-fila"><span>{t("Grada")}</span><Interruptor activo={grada} onCambio={setGrada} titulo={t("Grada")} /></div>
               </div>
             </section>
 
@@ -755,6 +896,7 @@ export function CuadernoABP({ claseHoja, idioma, paleta, onVolver }: {
               <div className="inspector-tarjeta">
                 <button type="button" className="inspector-fila inspector-restablecer" onClick={deshacer}><RotateCcw size={14} />{t("Deshacer")}</button>
               </div>
+              <p className="inspector-pie">{t("Atajos: espacio reproduce, N añade una fase, [ y ] cambian de fase, Supr borra, Ctrl+Z deshace.")}</p>
             </section>
           </>}
           <datalist id="abp-roles">{ROLES.map((rol) => <option key={rol} value={deSerieEn(rol)} />)}</datalist>
@@ -763,11 +905,16 @@ export function CuadernoABP({ claseHoja, idioma, paleta, onVolver }: {
         <div className="abp-principal">
           <div className={`abp-escenario herramienta-${herramienta}`} ref={contenedorRef}
             onPointerDownCapture={alPulsar} onPointerMove={alMover} onPointerUp={alSoltar} onPointerCancel={alSoltar}>
-            {!lista && !error && <p className="abp-cargando">{t("Preparando el campo 3D…")}</p>}
+            {!lista && !error && <p className="abp-cargando">{t("Preparando el estadio 3D…")}</p>}
             {error && <p className="abp-cargando">{error}</p>}
+            {fase && jugada && <div className="abp-flotante abp-fase-titulo" aria-live="polite">
+              {/* "Fase 1 · Fase 1" no dice nada: el número solo va si la fase tiene nombre propio. */}
+              <b>{/^(fase|phase) \d+$/i.test(fase.nombre.trim()) ? deSerieEn(fase.nombre) : tf("Fase {n} · {nombre}", { n: indice + 1, nombre: deSerieEn(fase.nombre) })}</b>
+              {fase.nota.trim() && <span>{deSerieEn(fase.nota)}</span>}
+            </div>}
             <div className="abp-flotante abp-vistas" role="group" aria-label={t("Vistas de cámara")}>
               <div className="inspector-segmentos">
-                {vistas.map((v) => <button key={v.id} type="button" className={vista === v.id ? "activa" : ""} onClick={() => { setVista(v.id); escenaRef.current?.vista(v.id, fase ? centroDe(fase) : null); }}>{v.nombre}</button>)}
+                {vistas.map((v) => <button key={v.id} type="button" className={vista === v.id ? "activa" : ""} onClick={() => { setVista(v.id); escenaRef.current?.vista(v.id, encuadre, fase ? centroDe(fase) : null); }}>{v.nombre}</button>)}
               </div>
               <button type="button" className="abp-boton-flotante" onClick={() => fase && escenaRef.current?.centrar(puntosDe(fase))}><Cubo size={14} />{t("Centrar jugada")}</button>
             </div>
@@ -811,6 +958,18 @@ export function CuadernoABP({ claseHoja, idioma, paleta, onVolver }: {
   </div>;
 }
 
+function SegmentosFlecha({ valor, onCambio }: { valor: EstiloFlecha; onCambio: (estilo: EstiloFlecha) => void }) {
+  const opciones: Array<{ id: EstiloFlecha; nombre: string; titulo: string }> = [
+    { id: "continua", nombre: t("Continua"), titulo: t("Línea continua: un pase o un movimiento.") },
+    { id: "discontinua", nombre: t("Discontinua"), titulo: t("Línea discontinua: un desmarque sin balón.") },
+    { id: "ondulada", nombre: t("Ondulada"), titulo: t("Línea ondulada: el balón pegado al pie.") },
+    { id: "linea", nombre: t("Línea"), titulo: t("Sin punta: una altura, un límite o la línea de fuera de juego.") },
+  ];
+  return <div className="inspector-segmentos">
+    {opciones.map((o) => <button key={o.id} type="button" title={o.titulo} className={valor === o.id ? "activa" : ""} onClick={() => onCambio(o.id)}>{o.nombre}</button>)}
+  </div>;
+}
+
 function SegmentosEstilo({ valor, onCambio }: { valor: EstiloZona; onCambio: (estilo: EstiloZona) => void }) {
   const opciones: Array<{ id: EstiloZona; nombre: string; titulo: string }> = [
     { id: "translucida", nombre: t("Velo"), titulo: t("Zona con color translúcido.") },
@@ -839,4 +998,4 @@ function centroDe(fase: Fase): Punto {
   return { x: puntos.reduce((s, p) => s + p.x, 0) / puntos.length, z: puntos.reduce((s, p) => s + p.z, 0) / puntos.length };
 }
 
-export default CuadernoABP;
+export default EstudioTactico;

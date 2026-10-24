@@ -11,7 +11,7 @@ import { EstiloPage } from "./EstiloPage";
 import { SnapshotPage } from "./SnapshotPage";
 import { ReportPageDesigner } from "./ReportPageDesigner";
 import { SimilarityStudio } from "./SimilarityStudio";
-import { CuadernoABP } from "./CuadernoABP";
+import { EstudioTactico } from "./EstudioTactico";
 import { PintadoAcciones } from "./PintadoAcciones";
 import { CLIENT_THEMES, DEFAULT_REPORT_THEME, reportThemeStyle, type ReportTheme } from "./reportTheme";
 import { LogoPlataforma } from "./LogosPlataforma";
@@ -93,8 +93,8 @@ const DATA_PAGE = 96;
 const STYLE_PAGE = 97;
 // Ficha ampliada del jugador: la página 2 del dossier con eventos de StatsBomb.
 const SNAPSHOT_PAGE = 98;
-// El cuaderno de balón parado en 3D. No necesita base cargada: se abre también
-// desde la portada.
+// El estudio táctico en 3D (empezó como cuaderno de balón parado). No necesita
+// base cargada: se abre también desde la portada.
 const ABP_PAGE = 99;
 // El pintado de acciones: dibujar sobre una imagen o un vídeo. Tampoco necesita base.
 const PINTADO_PAGE = 100;
@@ -118,7 +118,7 @@ const NOMBRE_DE_SECCION: Record<number, string> = {
   [DATA_PAGE]: "Base activa",
   [STYLE_PAGE]: "Estilo de juego",
   [SNAPSHOT_PAGE]: "Ficha ampliada",
-  [ABP_PAGE]: "Cuaderno ABP",
+  [ABP_PAGE]: "Estudio táctico",
   [PINTADO_PAGE]: "Pintado de acciones",
 };
 
@@ -2380,8 +2380,8 @@ export default function ScoutStudio() {
                     <button type="button" className="portada-opcion" onClick={() => setReportPage(ABP_PAGE)}>
                       <span className="portada-opcion-icono"><Cancha size={18} /></span>
                       <span className="portada-opcion-texto">
-                        <b>{t("Cuaderno de balón parado")}</b>
-                        <small>{t("Córners, faltas y saques por fases, en un campo 3D. No hace falta cargar datos.")}</small>
+                        <b>{t("Estudio táctico")}</b>
+                        <small>{t("Salida, presión, ataque, balón parado y ejercicios por fases, en un estadio 3D. No hace falta cargar datos.")}</small>
                       </span>
                       <ChevronRight size={16} className="portada-opcion-galon" />
                     </button>
@@ -2497,7 +2497,7 @@ export default function ScoutStudio() {
                   <h3 className="seccion-grupo-titulo">{t("Pizarra")}</h3>
                   <div className="seccion-lista">
                     <FilaSeccion activa={reportPage === ABP_PAGE} onClick={() => setReportPage(ABP_PAGE)}
-                      icono={<Cancha size={16} />} titulo={t("Cuaderno ABP")} detalle={t("Balón parado en 3D")} />
+                      icono={<Cancha size={16} />} titulo={t("Estudio táctico")} detalle={t("Sistemas, balón parado y estadio 3D")} />
                     <FilaSeccion activa={reportPage === PINTADO_PAGE} onClick={() => setReportPage(PINTADO_PAGE)}
                       icono={<Pincel size={16} />} titulo={t("Pintado de acciones")} detalle={t("Dibujar sobre vídeo e imagen")} />
                   </div>
@@ -2896,7 +2896,7 @@ export default function ScoutStudio() {
             </>}
             {/* La pizarra vive fuera de la base: el cuaderno de balón parado
                 y el pintado se dibujan igual con datos cargados o sin ellos. */}
-            {paginaMontada(ABP_PAGE) && <CuadernoABP claseHoja={claseHoja(ABP_PAGE)} idioma={lang} paleta={paleta} onVolver={dataReady ? undefined : () => setReportPage(CARD_PAGE)} />}
+            {paginaMontada(ABP_PAGE) && <EstudioTactico claseHoja={claseHoja(ABP_PAGE)} idioma={lang} paleta={paleta} onVolver={dataReady ? undefined : () => setReportPage(CARD_PAGE)} />}
             {paginaMontada(PINTADO_PAGE) && <PintadoAcciones claseHoja={claseHoja(PINTADO_PAGE)} onVolver={dataReady ? undefined : () => setReportPage(CARD_PAGE)} />}
           </div>
       </main>

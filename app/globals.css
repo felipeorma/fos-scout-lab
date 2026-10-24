@@ -7622,3 +7622,89 @@ body.print-layout-check .app-shell[data-tema] .pizarra-duelos > ol { grid-templa
 .pintado-tiempo { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .pintado-nota { flex: 1; min-width: 160px; color: var(--muted); font-size: 12px; }
 .pintado-cuenta { color: var(--muted); font-size: 11px; }
+
+/* ---- Pizarra: el estudio táctico (portal de sistemas y escenario) ----
+   El portal es una rejilla de tarjetas con la foto del último estado de
+   cada sistema, como las páginas de Visuales: misma superficie, mismo radio. */
+.abp-grid[hidden] { display: none; }
+.abp-cabecera-acciones { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.tactico-portal { display: flex; flex-direction: column; gap: 14px; }
+.tactico-portal-barra { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.tactico-filtros { display: flex; flex-wrap: wrap; gap: 6px; }
+.app-shell[data-tema] .tactico-filtros > button {
+  min-height: 30px; padding: 0 6px 0 12px;
+  display: inline-flex; align-items: center; gap: 7px;
+  border: 0; border-radius: var(--radio-pill); background: color-mix(in srgb, var(--ink) 6%, transparent);
+  color: var(--ink); font-size: 12.5px; font-weight: 500; cursor: pointer;
+}
+.app-shell[data-tema] .tactico-filtros > button > b {
+  min-width: 20px; height: 20px; padding: 0 6px; display: grid; place-items: center;
+  border-radius: var(--radio-pill); background: color-mix(in srgb, var(--ink) 10%, transparent);
+  font-size: 11px; font-variant-numeric: tabular-nums;
+}
+.app-shell[data-tema] .tactico-filtros > button.activa { color: #fff; background: var(--acento-degradado, var(--acento)); font-weight: 600; }
+.app-shell[data-tema] .tactico-filtros > button.activa > b { background: rgba(255,255,255,.22); }
+.tactico-portal-acciones { display: flex; flex-wrap: wrap; gap: 6px; }
+.app-shell[data-tema] .tactico-portal-acciones .button.compact { min-height: 32px; gap: 6px; }
+.tactico-aviso { margin: 0; color: var(--muted); font-size: 12.5px; }
+
+.app-shell[data-tema] .tactico-nuevo { padding: 14px 16px 16px; border-radius: 16px; background: var(--paper); box-shadow: 0 0 0 1px var(--line), var(--shadow); }
+.tactico-nuevo > header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.app-shell[data-tema] .tactico-nuevo > header h3 { margin: 0; color: var(--ink); font-size: 16px; font-weight: 650; }
+.tactico-pestanas { display: grid; margin-bottom: 14px; }
+.tactico-formulario { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) auto; align-items: end; gap: 12px; }
+.tactico-formulario > label, .tactico-formulario > div { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.app-shell[data-tema] .tactico-formulario span { color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.app-shell[data-tema] .tactico-formulario select {
+  min-height: 34px; padding: 0 10px; border: 0; border-radius: 9px;
+  background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); font: inherit; font-size: 13px;
+}
+.app-shell[data-tema] .tactico-formulario .button { min-height: 34px; }
+.tactico-plantillas { display: flex; flex-wrap: wrap; gap: 8px; }
+.app-shell[data-tema] .tactico-plantillas > button {
+  min-height: 40px; padding: 0 14px;
+  display: inline-flex; align-items: center; gap: 8px;
+  border: 0; border-radius: 11px; background: color-mix(in srgb, var(--ink) 6%, transparent);
+  color: var(--ink); font-size: 13px; font-weight: 500; cursor: pointer;
+}
+.app-shell[data-tema] .tactico-plantillas > button:hover { background: var(--acento-suave); color: var(--acento-claro); }
+
+.tactico-rejilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+.app-shell[data-tema] .tactico-tarjeta {
+  display: flex; flex-direction: column; overflow: hidden;
+  border-radius: 16px; background: var(--paper); box-shadow: 0 0 0 1px var(--line);
+  transition: box-shadow var(--transicion), transform var(--transicion);
+}
+.app-shell[data-tema] .tactico-tarjeta:hover { box-shadow: 0 0 0 1px var(--acento-borde), 0 14px 34px -18px rgba(0,0,0,.6); transform: translateY(-1px); }
+.app-shell[data-tema] .tactico-tarjeta-abrir { position: relative; display: block; width: 100%; aspect-ratio: 16 / 9; padding: 0; border: 0; background: #08080a; cursor: pointer; }
+.tactico-tarjeta-abrir > img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.tactico-tarjeta-vacia { position: absolute; inset: 0; display: grid; place-items: center; color: rgba(255,255,255,.35); }
+.tactico-tarjeta-texto { padding: 10px 12px 2px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.app-shell[data-tema] .tactico-tarjeta-texto > b { overflow: hidden; color: var(--ink); font-size: 14px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.app-shell[data-tema] .tactico-tarjeta-texto > small { overflow: hidden; color: var(--muted); font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap; }
+.tactico-tarjeta-acciones { padding: 6px 8px 8px; display: flex; justify-content: flex-end; gap: 2px; }
+.app-shell[data-tema] .tactico-tarjeta-acciones > button {
+  width: 30px; height: 30px; display: grid; place-items: center;
+  border: 0; border-radius: 8px; background: none; color: var(--muted); cursor: pointer;
+}
+.app-shell[data-tema] .tactico-tarjeta-acciones > button:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.app-shell[data-tema] .tactico-tarjeta-acciones > button.peligro:hover { color: #ff6961; }
+.tactico-vacio { margin: 24px 0; color: var(--muted); font-size: 13px; text-align: center; }
+
+/* La fase sobre el campo: su nombre y la nota, arriba a la izquierda. */
+.abp-fase-titulo { top: 12px; left: 12px; max-width: min(440px, calc(100% - 330px)); padding: 8px 12px; display: flex; flex-direction: column; gap: 2px; border-radius: 11px; pointer-events: none; }
+.abp-fase-titulo > b { font-size: 13px; font-weight: 650; }
+.abp-fase-titulo > span { color: rgba(245,245,247,.78); font-size: 12px; line-height: 1.4; }
+.app-shell[data-tema] .abp-fila-nota { align-items: flex-start; }
+.app-shell[data-tema] textarea.abp-nota {
+  flex: 1; min-width: 0; max-width: 70%; margin: 0; padding: 4px 6px;
+  border: 0; border-radius: 7px; background: color-mix(in srgb, var(--ink) 5%, transparent);
+  color: var(--ink); font: inherit; font-size: 12.5px; line-height: 1.4; resize: vertical;
+}
+.app-shell[data-tema] textarea.abp-nota:focus-visible { outline: 2px solid var(--acento-borde); outline-offset: 1px; }
+
+@media screen and (max-width: 900px) {
+  .tactico-formulario { grid-template-columns: 1fr 1fr; }
+  .abp-fase-titulo { max-width: calc(100% - 24px); top: auto; bottom: 12px; }
+}

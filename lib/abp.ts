@@ -1,5 +1,10 @@
 /**
- * El cuaderno de balón parado: cada jugada en 3D, por fases.
+ * El estudio táctico: cada sistema de juego en 3D, por fases.
+ *
+ * Empezó como cuaderno de balón parado (de ahí el nombre del archivo) y ahora
+ * guarda cualquier sistema: una salida de balón, una presión, un córner o un
+ * rondo. Cada uno lleva su ambiente —el césped, si se ve el estadio, las
+ * zonas pintadas y el encuadre— para que salga igual al abrirlo otro día.
  *
  * Una jugada es un reparto de fichas (las nuestras y las del rival) y una
  * sucesión de fases. Cada fase guarda dónde empieza cada ficha y el balón, y
@@ -14,6 +19,8 @@
  * desajusten.
  */
 
+import { DIBUJOS, SITIO } from "./pizarra.ts";
+
 export type Punto = { x: number; z: number };
 export type Equipo = "local" | "rival";
 export type Ficha = { id: string; equipo: Equipo; dorsal: string; rol: string };
@@ -21,8 +28,10 @@ export type Ficha = { id: string; equipo: Equipo; dorsal: string; rol: string };
 export type Carrera = { fichaId: string; hasta: Punto; curva: number };
 export type Pase = { hasta: Punto; tipo: "aereo" | "raso" };
 export type EstiloZona = "translucida" | "rayas" | "borde";
+/** Continua: un pase o un movimiento. Discontinua: sin balón. Ondulada: conducción. Línea: una altura o un límite, sin punta. */
+export type EstiloFlecha = "continua" | "discontinua" | "ondulada" | "linea";
 export type Anotacion =
-  | { id: string; tipo: "flecha"; a: Punto; b: Punto; color: string }
+  | { id: string; tipo: "flecha"; a: Punto; b: Punto; color: string; estilo: EstiloFlecha }
   | { id: string; tipo: "rect" | "zona"; a: Punto; b: Punto; color: string; estilo: EstiloZona }
   | { id: string; tipo: "texto" | "etiqueta"; a: Punto; texto: string; color: string };
 export type Fase = {
@@ -35,22 +44,73 @@ export type Fase = {
   anotaciones: Anotacion[];
   /** Segundos que dura al reproducirla. */
   duracion: number;
+  /** Una línea que explica el momento: sale bajo el campo, en el PDF y en el vídeo. */
+  nota: string;
 };
-export type TipoABP = "corner_der" | "corner_izq" | "falta_frontal" | "falta_lateral" | "banda" | "salida" | "libre";
+export type TipoABP = "corner_der" | "corner_izq" | "falta_frontal" | "falta_lateral" | "banda" | "salida" | "rondo" | "partido" | "libre";
+export type Categoria = "salida" | "presion" | "ataque" | "defensa" | "abp" | "entrenamiento" | "libre";
+/** Papel imprime mejor; Retransmisión y Noche se leen como un partido en la tele; Tiza, como la pizarra del vestuario. */
+export type Superficie = "noche" | "retransmision" | "papel" | "tiza";
+export type Zonas = "ninguna" | "tercios" | "carriles" | "rejilla" | "zonas18";
+export type Encuadre = "campo" | "dos_tercios" | "su_mitad" | "nuestra_mitad" | "su_area" | "centro";
+export type Ambiente = { superficie: Superficie; estadio: boolean; zonas: Zonas; encuadre: Encuadre };
 export type Colores = {
   /** null: el color del espacio de trabajo (rojo en Cavalry, verde en Maldonado). */
   local: string | null;
   rival: string;
   anotacion: string;
 };
-export type Jugada = { id: string; nombre: string; tipo: TipoABP; colores: Colores; fichas: Ficha[]; fases: Fase[] };
+export type Jugada = {
+  id: string;
+  nombre: string;
+  tipo: TipoABP;
+  categoria: Categoria;
+  colores: Colores;
+  ambiente: Ambiente;
+  fichas: Ficha[];
+  fases: Fase[];
+  /** Cuándo se tocó por última vez (ms), para ordenar el portal. */
+  actualizada: number;
+};
 export type Cuaderno = { version: 1; activa: string; jugadas: Jugada[] };
 
 export const CAMPO = { largo: 105, ancho: 68 } as const;
+const MEDIO_LARGO = CAMPO.largo / 2;
 /** Cuánto puede salirse una ficha del rectángulo de juego: el lanzador de un córner o el que saca de banda están fuera. */
 const MARGEN = 4;
 export const DURACION_POR_DEFECTO = 3;
 export const COLORES_POR_DEFECTO: Colores = { local: null, rival: "#e8e8ed", anotacion: "#f3b64c" };
+export const AMBIENTE_POR_DEFECTO: Ambiente = { superficie: "noche", estadio: true, zonas: "ninguna", encuadre: "campo" };
+
+export const CATEGORIAS: Array<{ id: Categoria; nombre: string }> = [
+  { id: "salida", nombre: "Salida" },
+  { id: "presion", nombre: "Presión" },
+  { id: "ataque", nombre: "Ataque" },
+  { id: "defensa", nombre: "Defensa" },
+  { id: "abp", nombre: "Balón parado" },
+  { id: "entrenamiento", nombre: "Entrenamiento" },
+  { id: "libre", nombre: "Libre" },
+];
+export const SUPERFICIES: Array<{ id: Superficie; nombre: string }> = [
+  { id: "noche", nombre: "Noche" }, { id: "retransmision", nombre: "Retransmisión" }, { id: "papel", nombre: "Papel" }, { id: "tiza", nombre: "Tiza" },
+];
+export const ZONAS: Array<{ id: Zonas; nombre: string }> = [
+  { id: "ninguna", nombre: "Sin zonas" }, { id: "tercios", nombre: "Tercios" }, { id: "carriles", nombre: "Cinco carriles" },
+  { id: "rejilla", nombre: "Carriles y tercios" }, { id: "zonas18", nombre: "18 zonas" },
+];
+export const ENCUADRES: Array<{ id: Encuadre; nombre: string }> = [
+  { id: "campo", nombre: "Campo entero" }, { id: "dos_tercios", nombre: "Dos tercios" }, { id: "su_mitad", nombre: "Su mitad" },
+  { id: "nuestra_mitad", nombre: "Nuestra mitad" }, { id: "su_area", nombre: "Su área" }, { id: "centro", nombre: "Círculo central" },
+];
+/** El rectángulo que enseña cada encuadre, en metros. */
+export const CAJA_DE_ENCUADRE: Record<Encuadre, { x0: number; x1: number; z0: number; z1: number }> = {
+  campo: { x0: -52.5, x1: 52.5, z0: -34, z1: 34 },
+  dos_tercios: { x0: -17.5, x1: 52.5, z0: -34, z1: 34 },
+  su_mitad: { x0: 0, x1: 52.5, z0: -34, z1: 34 },
+  nuestra_mitad: { x0: -52.5, x1: 0, z0: -34, z1: 34 },
+  su_area: { x0: 30, x1: 52.5, z0: -24, z1: 24 },
+  centro: { x0: -20, x1: 20, z0: -15, z1: 15 },
+};
 
 export const TIPOS_ABP: Array<{ id: TipoABP; nombre: string }> = [
   { id: "corner_der", nombre: "Córner derecho" },
@@ -59,6 +119,7 @@ export const TIPOS_ABP: Array<{ id: TipoABP; nombre: string }> = [
   { id: "falta_lateral", nombre: "Falta lateral" },
   { id: "banda", nombre: "Saque de banda" },
   { id: "salida", nombre: "Salida de balón" },
+  { id: "rondo", nombre: "Rondo 4 contra 2" },
   { id: "libre", nombre: "Pizarra libre" },
 ];
 
@@ -82,6 +143,18 @@ const EN_ABP: Record<string, string> = {
   "Frontal": "Edge of box", "Contra": "Counter", "Línea": "Line", "Barrera": "Wall", "Amago": "Dummy", "Sacador": "Thrower", "Apoyo": "Support",
   "Desmarque": "Check run", "Profundidad": "Run in behind", "Interior": "Midfielder", "Mediapunta": "No. 10", "Lateral": "Full-back",
   "Medio": "Midfielder", "Central": "Centre-back", "Extremo": "Winger", "Pivote": "Holding mid", "Delantero": "Striker",
+  "Rondo 4 contra 2": "Rondo 4 v 2", "Circular": "Move it round", "Cambio de orientación": "Switch of play", "Presión": "Pressing", "Cobertura": "Cover",
+  "POR": "GK", "LI": "LB", "LD": "RB", "DFC": "CB", "CAI": "LWB", "CAD": "RWB", "MCD": "DM", "MC": "CM", "MI": "LM", "MD": "RM",
+  "MP": "AM", "EI": "LW", "ED": "RW", "SD": "SS", "DC": "ST",
+  "Ataque": "Attacking", "Defensa": "Defending", "Balón parado": "Set pieces", "Entrenamiento": "Training", "Libre": "Free",
+  "Noche": "Night", "Retransmisión": "Broadcast", "Papel": "Paper", "Tiza": "Chalk",
+  "Sin zonas": "No zones", "Tercios": "Thirds", "Cinco carriles": "Five channels", "Carriles y tercios": "Channels and thirds", "18 zonas": "18 zones",
+  "Campo entero": "Full pitch", "Dos tercios": "Two thirds", "Su mitad": "Their half", "Nuestra mitad": "Our half", "Su área": "Their box", "Círculo central": "Centre circle",
+  "El 3 se pone delante del zonal del primer palo; el 7 arrastra a su marca.": "No. 3 stands in front of the near-post zonal marker; No. 7 drags his man away.",
+  "Primer palo, punto de penalti y segundo palo a la vez: el envío va al 9 en el centro.": "Near post, penalty spot and far post at once: the delivery goes to the 9 in the middle.",
+  "Remate al palo largo; el 8 cierra el rechace en la frontal.": "Header to the far post; No. 8 covers the second ball at the edge of the box.",
+  "Pase al compañero libre; el primero presiona, el segundo tapa la línea de pase interior.": "Pass to the free teammate; the first defender presses, the second blocks the inside lane.",
+  "Cuando se cierran por un lado, el balón cruza al apoyo opuesto.": "When they close one side, the ball crosses to the opposite support.",
 };
 
 /** Un nombre de serie en el idioma pedido; cualquier otro texto, sin tocar. */
@@ -159,7 +232,7 @@ export function balonEn(fase: Fase, t: number): Punto & { y: number } {
 export function faseSiguiente(fase: Fase, nombre: string): Fase {
   const pos: Record<string, Punto> = {};
   for (const id of Object.keys(fase.pos)) pos[id] = { ...posFinal(fase, id)! };
-  return { id: nuevoId("f"), nombre, pos, balon: { ...balonFinal(fase) }, carreras: [], pase: null, anotaciones: [], duracion: fase.duracion };
+  return { id: nuevoId("f"), nombre, pos, balon: { ...balonFinal(fase) }, carreras: [], pase: null, anotaciones: [], duracion: fase.duracion, nota: "" };
 }
 
 /**
@@ -250,12 +323,20 @@ export function quitarFicha(jugada: Jugada, id: string): Jugada {
 export const agregarAnotacion = (jugada: Jugada, indice: number, anotacion: Anotacion) =>
   ({ ...jugada, fases: jugada.fases.map((f, i) => (i === indice ? { ...f, anotaciones: [...f.anotaciones, anotacion] } : f)) });
 
-export function cambiarAnotacion(jugada: Jugada, indice: number, id: string, cambios: Partial<{ texto: string; color: string; estilo: EstiloZona }>): Jugada {
+export function cambiarAnotacion(
+  jugada: Jugada, indice: number, id: string, cambios: Partial<{ texto: string; color: string; estilo: EstiloZona; estiloFlecha: EstiloFlecha }>,
+): Jugada {
+  const { estiloFlecha, ...resto } = cambios;
   return {
     ...jugada,
     fases: jugada.fases.map((f, i) => (i !== indice ? f : {
       ...f,
-      anotaciones: f.anotaciones.map((a) => (a.id !== id ? a : { ...a, ...cambios } as Anotacion)),
+      anotaciones: f.anotaciones.map((a) => {
+        if (a.id !== id) return a;
+        // El estilo de una flecha y el de una zona se llaman igual pero no son lo mismo.
+        if (a.tipo === "flecha") return { ...a, ...(resto.color ? { color: resto.color } : {}), ...(estiloFlecha ? { estilo: estiloFlecha } : {}) };
+        return { ...a, ...resto } as Anotacion;
+      }),
     })),
   };
 }
@@ -365,7 +446,7 @@ export function anotacionCerca(fase: Fase, p: Punto, tolerancia = 1.2): string |
 // ---- Las plantillas ----------------------------------------------------------------------
 
 type Sitio = [dorsal: string, rol: string, x: number, z: number];
-type DefFase = { nombre: string; carreras?: Record<string, [number, number, number?]>; pase?: [number, number, Pase["tipo"]] };
+type DefFase = { nombre: string; nota?: string; carreras?: Record<string, [number, number, number?]>; pase?: [number, number, Pase["tipo"]]; anotaciones?: Anotacion[] };
 type DefJugada = { local: Sitio[]; rival: Sitio[]; balon: [number, number]; fases: DefFase[] };
 
 /*
@@ -385,13 +466,14 @@ const CORNER_DERECHO: DefJugada = {
     ["3", "Marca", 39.2, 6], ["8", "Marca", 40.2, -1.6], ["7", "Marca", 40.8, -7.2], ["10", "Frontal", 35.5, 2.5], ["9", "Contra", 16, 0],
   ],
   fases: [
-    { nombre: "Preparación", carreras: { L3: [46.8, 6.2], L7: [38.5, 5], R3: [39.5, 6.8] } },
+    { nombre: "Preparación", nota: "El 3 se pone delante del zonal del primer palo; el 7 arrastra a su marca.", carreras: { L3: [46.8, 6.2], L7: [38.5, 5], R3: [39.5, 6.8] } },
     {
       nombre: "Ataque de zonas",
+      nota: "Primer palo, punto de penalti y segundo palo a la vez: el envío va al 9 en el centro.",
       carreras: { L4: [47.8, 3.6, -2], L9: [46.3, -0.3, 2], L5: [48.4, -4.8], L7: [44.2, 9.5], L8: [36.5, 2], R3: [46.4, 4.4], R8: [45.2, -0.9], R7: [47, -5.4] },
       pase: [46.3, -0.3, "aereo"],
     },
-    { nombre: "Finalización", carreras: { L8: [41, 1.5], L9: [47.4, -0.8], R1: [51.9, -1.2] }, pase: [52.7, -2.4, "raso"] },
+    { nombre: "Finalización", nota: "Remate al palo largo; el 8 cierra el rechace en la frontal.", carreras: { L8: [41, 1.5], L9: [47.4, -0.8], R1: [51.9, -1.2] }, pase: [52.7, -2.4, "raso"] },
   ],
 };
 
@@ -465,6 +547,29 @@ const SALIDA_DE_BALON: DefJugada = {
 
 const PIZARRA_LIBRE: DefJugada = { balon: [0, 0], local: [], rival: [], fases: [{ nombre: "Fase 1" }] };
 
+/** Un rondo en un cuadrado de 20 × 20 en el círculo central: cuatro fuera, dos dentro. */
+const RONDO: DefJugada = {
+  balon: [-9.2, 0.5],
+  local: [["1", "Apoyo", -10.5, 0], ["2", "Apoyo", 0, -10.5], ["3", "Apoyo", 10.5, 0], ["4", "Apoyo", 0, 10.5]],
+  rival: [["1", "Presión", -3, 1.5], ["2", "Cobertura", 2.5, -1.5]],
+  fases: [
+    {
+      nombre: "Circular",
+      nota: "Pase al compañero libre; el primero presiona, el segundo tapa la línea de pase interior.",
+      anotaciones: [{ id: "rejilla", tipo: "rect", a: { x: -10, z: -10 }, b: { x: 10, z: 10 }, color: "#e8e8ed", estilo: "borde" }],
+      carreras: { R1: [-3.5, -5], R2: [4, 2] },
+      pase: [-0.6, -9.3, "raso"],
+    },
+    {
+      nombre: "Cambio de orientación",
+      nota: "Cuando se cierran por un lado, el balón cruza al apoyo opuesto.",
+      anotaciones: [{ id: "rejilla2", tipo: "rect", a: { x: -10, z: -10 }, b: { x: 10, z: 10 }, color: "#e8e8ed", estilo: "borde" }],
+      carreras: { R1: [3, -6], R2: [6.5, 0.5] },
+      pase: [9.3, 0.4, "raso"],
+    },
+  ],
+};
+
 const espejo = (def: DefJugada): DefJugada => ({
   balon: [def.balon[0], -def.balon[1]],
   local: def.local.map(([d, r, x, z]) => [d, r, x, -z]),
@@ -483,7 +588,18 @@ const DEFINICIONES: Record<TipoABP, DefJugada> = {
   falta_lateral: FALTA_LATERAL,
   banda: SAQUE_DE_BANDA,
   salida: SALIDA_DE_BALON,
+  rondo: RONDO,
+  partido: PIZARRA_LIBRE,
   libre: PIZARRA_LIBRE,
+};
+
+const CATEGORIA_DE_TIPO: Record<TipoABP, Categoria> = {
+  corner_der: "abp", corner_izq: "abp", falta_frontal: "abp", falta_lateral: "abp", banda: "abp",
+  salida: "salida", rondo: "entrenamiento", partido: "ataque", libre: "libre",
+};
+const ENCUADRE_DE_TIPO: Record<TipoABP, Encuadre> = {
+  corner_der: "su_area", corner_izq: "su_area", falta_frontal: "su_area", falta_lateral: "su_area", banda: "su_mitad",
+  salida: "nuestra_mitad", rondo: "centro", partido: "campo", libre: "campo",
 };
 
 /** Una jugada de partida del tipo pedido, lista para editar. */
@@ -506,15 +622,85 @@ export function plantilla(tipo: TipoABP): Jugada {
       balon,
       carreras: Object.entries(d.carreras ?? {}).map(([fichaId, [x, z, curva]]) => ({ fichaId, hasta: { x, z }, curva: curva ?? 0 })),
       pase: d.pase ? { hasta: { x: d.pase[0], z: d.pase[1] }, tipo: d.pase[2] } : null,
-      anotaciones: [],
+      anotaciones: (d.anotaciones ?? []).map((a) => ({ ...a, id: nuevoId("a") })),
       duracion: DURACION_POR_DEFECTO,
+      nota: d.nota ?? "",
     };
     const siguiente = faseSiguiente(fase, "");
     pos = siguiente.pos;
     balon = siguiente.balon;
     return fase;
   });
-  return { id: nuevoId("j"), nombre: nombreDeTipo(tipo), tipo, colores: { ...COLORES_POR_DEFECTO }, fichas, fases };
+  return {
+    id: nuevoId("j"), nombre: nombreDeTipo(tipo), tipo, categoria: CATEGORIA_DE_TIPO[tipo] ?? "libre",
+    colores: { ...COLORES_POR_DEFECTO }, ambiente: { ...AMBIENTE_POR_DEFECTO, encuadre: ENCUADRE_DE_TIPO[tipo] ?? "campo" },
+    fichas, fases, actualizada: Date.now(),
+  };
+}
+
+// ---- Sistemas de partido: dos dibujos frente a frente ------------------------------------
+
+/** Los dibujos que se pueden poner, los de la pizarra del partido. */
+export const FORMACIONES = Object.keys(DIBUJOS);
+/** "4231" se lee "4-2-3-1". */
+export const nombreDeFormacion = (codigo: string) => codigo.split("").join("-");
+
+/** El rótulo corto de cada puesto, en español; el inglés sale de `deSerie`. */
+const PUESTO: Record<string, string> = {
+  GK: "POR", LB: "LI", RB: "LD", LCB: "DFC", CB: "DFC", RCB: "DFC", LWB: "CAI", RWB: "CAD",
+  LDMF: "MCD", DMF: "MCD", RDMF: "MCD", LCMF: "MC", CMF: "MC", RCMF: "MC", LM: "MI", RM: "MD",
+  LAMF: "MP", AMF: "MP", RAMF: "MP", LW: "EI", RW: "ED", SS: "SD", LCF: "DC", CF: "DC", RCF: "DC",
+};
+/** Los dorsales de toda la vida, por puesto; si ya está cogido, el siguiente libre. */
+const DORSAL_DE_PUESTO: Record<string, number[]> = {
+  GK: [1], RB: [2], RWB: [2], LB: [3], LWB: [3], LCB: [4, 6], CB: [5, 4, 6], RCB: [5, 6], DMF: [6, 5, 8], LDMF: [6, 5], RDMF: [8, 5],
+  LCMF: [8, 6, 10], CMF: [8, 6], RCMF: [10, 8, 6], LM: [11, 7], RM: [7, 11], LAMF: [10, 11], AMF: [10, 8], RAMF: [7, 10],
+  LW: [11, 7], RW: [7, 11], SS: [10, 9], LCF: [9, 11], CF: [9], RCF: [10, 9],
+};
+
+function onceDe(puestos: string[]) {
+  const usados = new Set<number>();
+  return puestos.map((codigo) => {
+    const preferidos = DORSAL_DE_PUESTO[codigo] ?? [];
+    let n = preferidos.find((d) => !usados.has(d));
+    if (n === undefined) { n = 2; while (usados.has(n)) n += 1; }
+    usados.add(n);
+    return { codigo, dorsal: String(n), rol: PUESTO[codigo] ?? codigo };
+  });
+}
+
+/**
+ * Dos once frente a frente con sus dibujos. Los sitios salen de la pizarra
+ * del partido (lib/pizarra.ts): profundidad desde la propia portería y ancho;
+ * nosotros atacamos hacia +x, ellos hacia −x, y los dos dibujos se encajan
+ * como en un partido: sus puntas caen sobre nuestros centrales.
+ */
+export function sistemaDePartido(propia: string, rival: string, balon: "nuestro" | "suyo", categoria: Categoria): Jugada {
+  const ponerLado = (codigo: string, equipo: Equipo) => {
+    const once = onceDe(DIBUJOS[codigo] ?? DIBUJOS["433"]);
+    return once.map(({ codigo: puesto, dorsal, rol }) => {
+      const [hondo, ancho] = SITIO[puesto] ?? [50, 40];
+      // Profundidad 0–100 a lo largo del campo; el portero, un metro y medio dentro de su línea.
+      const x = -MEDIO_LARGO + 1.5 + (hondo / 100) * (CAMPO.largo - 3);
+      const z = (ancho / 80) * CAMPO.ancho - CAMPO.ancho / 2;
+      return { id: `${equipo === "local" ? "L" : "R"}${dorsal}`, equipo, dorsal, rol, sitio: equipo === "local" ? { x, z } : { x: -x, z: -z } };
+    });
+  };
+  const todos = [...ponerLado(propia, "local"), ...ponerLado(rival, "rival")];
+  const pos = Object.fromEntries(todos.map((f) => [f.id, f.sitio]));
+  const portero = todos.find((f) => f.equipo === (balon === "nuestro" ? "local" : "rival") && f.rol === "POR");
+  const balonEn = portero ? { x: portero.sitio.x + (balon === "nuestro" ? 1.2 : -1.2), z: portero.sitio.z + 0.6 } : { x: 0, z: 0 };
+  return {
+    id: nuevoId("j"),
+    nombre: `${nombreDeFormacion(propia)} vs ${nombreDeFormacion(rival)}`,
+    tipo: "partido",
+    categoria,
+    colores: { ...COLORES_POR_DEFECTO },
+    ambiente: { ...AMBIENTE_POR_DEFECTO },
+    fichas: todos.map(({ id, equipo, dorsal, rol }) => ({ id, equipo, dorsal, rol })),
+    fases: [{ id: nuevoId("f"), nombre: "Fase 1", pos, balon: balonEn, carreras: [], pase: null, anotaciones: [], duracion: DURACION_POR_DEFECTO, nota: "" }],
+    actualizada: Date.now(),
+  };
 }
 
 export const cuadernoInicial = (): Cuaderno => {
@@ -535,7 +721,10 @@ function anotacionValida(v: unknown): Anotacion | null {
   const c = color(a.color, COLORES_POR_DEFECTO.anotacion);
   if (a.tipo === "texto" || a.tipo === "etiqueta") return { id: a.id, tipo: a.tipo, a: a.a, texto: texto(a.texto), color: c };
   if (!esPunto(a.b)) return null;
-  if (a.tipo === "flecha") return { id: a.id, tipo: "flecha", a: a.a, b: a.b, color: c };
+  if (a.tipo === "flecha") {
+    const estilo = a.estilo === "discontinua" || a.estilo === "ondulada" || a.estilo === "linea" ? a.estilo : "continua";
+    return { id: a.id, tipo: "flecha", a: a.a, b: a.b, color: c, estilo };
+  }
   if (a.tipo === "rect" || a.tipo === "zona") {
     const estilo = a.estilo === "rayas" || a.estilo === "borde" ? a.estilo : "translucida";
     return { id: a.id, tipo: a.tipo, a: a.a, b: a.b, color: c, estilo };
@@ -543,7 +732,7 @@ function anotacionValida(v: unknown): Anotacion | null {
   return null;
 }
 
-function jugadaValida(v: unknown): Jugada | null {
+export function jugadaValida(v: unknown): Jugada | null {
   const j = v as Record<string, unknown>;
   if (!j || typeof j.id !== "string" || !Array.isArray(j.fichas) || !Array.isArray(j.fases) || j.fases.length === 0) return null;
   const fichas: Ficha[] = (j.fichas as Array<Record<string, unknown>>)
@@ -575,14 +764,26 @@ function jugadaValida(v: unknown): Jugada | null {
       pase,
       anotaciones: Array.isArray(bruta.anotaciones) ? (bruta.anotaciones as unknown[]).map(anotacionValida).filter((a): a is Anotacion => a !== null) : [],
       duracion: esNumero(bruta.duracion) ? Math.max(0.5, Math.min(15, bruta.duracion)) : DURACION_POR_DEFECTO,
+      nota: typeof bruta.nota === "string" ? bruta.nota.slice(0, 160) : "",
     });
   }
   const colores = (j.colores ?? {}) as Record<string, unknown>;
-  const tipo = TIPOS_ABP.some((x) => x.id === j.tipo) ? j.tipo as TipoABP : "libre";
+  const ambiente = (j.ambiente ?? {}) as Record<string, unknown>;
+  const tipo = TIPOS_ABP.some((x) => x.id === j.tipo) || j.tipo === "partido" ? j.tipo as TipoABP : "libre";
+  const elegir = <T extends string>(v: unknown, lista: Array<{ id: T }>, respaldo: T) => (lista.some((x) => x.id === v) ? v as T : respaldo);
   return {
     id: j.id,
     nombre: texto(j.nombre, nombreDeTipo(tipo)),
     tipo,
+    // Lo guardado antes de que hubiera categorías y ambiente se abre como estaba: noche, con estadio.
+    categoria: elegir(j.categoria, CATEGORIAS, CATEGORIA_DE_TIPO[tipo] ?? "libre"),
+    ambiente: {
+      superficie: elegir(ambiente.superficie, SUPERFICIES, AMBIENTE_POR_DEFECTO.superficie),
+      estadio: typeof ambiente.estadio === "boolean" ? ambiente.estadio : AMBIENTE_POR_DEFECTO.estadio,
+      zonas: elegir(ambiente.zonas, ZONAS, AMBIENTE_POR_DEFECTO.zonas),
+      encuadre: elegir(ambiente.encuadre, ENCUADRES, AMBIENTE_POR_DEFECTO.encuadre),
+    },
+    actualizada: esNumero(j.actualizada) ? j.actualizada : 0,
     colores: {
       local: colores.local === null ? null : color(colores.local, "") || null,
       rival: color(colores.rival, COLORES_POR_DEFECTO.rival),

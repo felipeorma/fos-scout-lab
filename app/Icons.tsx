@@ -99,3 +99,4 @@ export const Play = icono(<path d="M7 4.8v14.4a1 1 0 0 0 1.5.9l11.3-7.2a1 1 0 0 
 export const Pause = icono(<><rect x="6" y="4.5" width="4" height="15" rx="1.2" /><rect x="14" y="4.5" width="4" height="15" rx="1.2" /></>, true);
 export const FlechaRecta = icono(<><path d="M4 12h15" /><path d="m14 7 5 5-5 5" /></>);
 export const ZonaSuelo = icono(<><ellipse cx="12" cy="14" rx="8.5" ry="4.8" fill="currentColor" fillOpacity=".22" /><path d="M12 9.2v9.6" opacity=".55" /></>);
+export const ChevronLeft = icono(<path d="m14.5 6-6 6 6 6" />);

@@ -132,3 +132,59 @@ test("lo guardado se comprueba: lo que no se entiende se descarta", () => {
   assert.equal(arreglado.jugadas[0].colores.rival, "#e8e8ed");
   assert.equal(arreglado.activa, bueno.activa);
 });
+
+test("un sistema de partido: once contra once, dorsales sin repetir y cada equipo en su campo", async () => {
+  const { sistemaDePartido, FORMACIONES, nombreDeFormacion } = await import("../lib/abp.ts");
+  assert.ok(FORMACIONES.includes("433") && FORMACIONES.includes("4231"));
+  assert.equal(nombreDeFormacion("4231"), "4-2-3-1");
+  for (const [a, b] of [["433", "442"], ["352", "4231"], ["541", "343"]]) {
+    const j = sistemaDePartido(a, b, "nuestro", "salida");
+    const locales = j.fichas.filter((f) => f.equipo === "local"), rivales = j.fichas.filter((f) => f.equipo === "rival");
+    assert.equal(locales.length, 11, a);
+    assert.equal(rivales.length, 11, b);
+    assert.equal(new Set(locales.map((f) => f.dorsal)).size, 11, `${a}: dorsales repetidos`);
+    assert.equal(new Set(j.fichas.map((f) => f.id)).size, 22, "ids repetidos");
+    const pos = j.fases[0].pos;
+    const porteroLocal = locales.find((f) => f.rol === "POR"), porteroRival = rivales.find((f) => f.rol === "POR");
+    assert.ok(pos[porteroLocal.id].x < -48, "nuestro portero en nuestra portería");
+    assert.ok(pos[porteroRival.id].x > 48, "el suyo en la suya");
+    for (const p of Object.values(pos)) assert.ok(Math.abs(p.x) <= 52.5 && Math.abs(p.z) <= 34);
+    // Con el balón nuestro, sale de nuestro portero.
+    assert.ok(j.fases[0].balon.x < -45);
+    assert.equal(j.categoria, "salida");
+  }
+  const suyo = sistemaDePartido("433", "442", "suyo", "presion");
+  assert.ok(suyo.fases[0].balon.x > 45, "con el balón suyo, sale de su portero");
+});
+
+test("el rondo trae su cuadrado y se encuadra en el círculo central", () => {
+  const rondo = plantilla("rondo");
+  assert.equal(rondo.categoria, "entrenamiento");
+  assert.equal(rondo.ambiente.encuadre, "centro");
+  assert.ok(rondo.fases.every((f) => f.anotaciones.some((a) => a.tipo === "rect")));
+  assert.notEqual(rondo.fases[0].anotaciones[0].id, rondo.fases[1].anotaciones[0].id);
+});
+
+test("lo guardado antes de las categorías se abre con noche, estadio y su categoría de siempre", () => {
+  const vieja = JSON.parse(JSON.stringify(cuadernoInicial()));
+  for (const j of vieja.jugadas) {
+    delete j.categoria; delete j.ambiente; delete j.actualizada;
+    for (const f of j.fases) delete f.nota;
+  }
+  vieja.jugadas[0].fases[0].anotaciones.push({ id: "f1", tipo: "flecha", a: { x: 0, z: 0 }, b: { x: 5, z: 5 }, color: "#ffffff" });
+  const abierta = normalizarCuaderno(vieja).jugadas[0];
+  assert.equal(abierta.categoria, "abp");
+  assert.deepEqual(abierta.ambiente, { superficie: "noche", estadio: true, zonas: "ninguna", encuadre: "campo" });
+  assert.equal(abierta.fases[0].nota, "");
+  assert.equal(abierta.fases[0].anotaciones[0].estilo, "continua");
+});
+
+test("cambiar el trazo de una flecha no le pone el relleno de una zona", async () => {
+  const { cambiarAnotacion, agregarAnotacion } = await import("../lib/abp.ts");
+  const base = plantilla("libre");
+  const con = agregarAnotacion(base, 0, { id: "f", tipo: "flecha", a: { x: 0, z: 0 }, b: { x: 5, z: 0 }, color: "#ffffff", estilo: "continua" });
+  const ondulada = cambiarAnotacion(con, 0, "f", { estiloFlecha: "ondulada" });
+  assert.equal(ondulada.fases[0].anotaciones[0].estilo, "ondulada");
+  const zona = agregarAnotacion(base, 0, { id: "z", tipo: "zona", a: { x: 0, z: 0 }, b: { x: 5, z: 5 }, color: "#ffffff", estilo: "translucida" });
+  assert.equal(cambiarAnotacion(zona, 0, "z", { estilo: "rayas" }).fases[0].anotaciones[0].estilo, "rayas");
+});
