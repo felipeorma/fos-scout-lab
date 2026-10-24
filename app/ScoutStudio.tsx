@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BarChart3, Check, ChevronDown, ChevronRight, Crosshair, Database, FileSpreadsheet, ImageIcon, LockKeyhole, Menu, MoreHorizontal, Plus, Printer, RadarChart, RotateCcw, Route, Search, Sparkles, Trash, Trophy, Upload, X, ShieldCheck, LayoutDashboard } from "./Icons";
+import { BarChart3, Cancha, Check, ChevronDown, ChevronRight, Crosshair, Database, FileSpreadsheet, ImageIcon, LockKeyhole, Menu, MoreHorizontal, Plus, Printer, RadarChart, RotateCcw, Route, Search, Sparkles, Trash, Trophy, Upload, X, ShieldCheck, LayoutDashboard } from "./Icons";
 import { PizzaRadar } from "./PizzaRadar";
 import { ContextPage } from "./ContextPage";
 import { ScoutingBoard } from "./ScoutingBoard";
@@ -11,6 +11,7 @@ import { EstiloPage } from "./EstiloPage";
 import { SnapshotPage } from "./SnapshotPage";
 import { ReportPageDesigner } from "./ReportPageDesigner";
 import { SimilarityStudio } from "./SimilarityStudio";
+import { CuadernoABP } from "./CuadernoABP";
 import { CLIENT_THEMES, DEFAULT_REPORT_THEME, reportThemeStyle, type ReportTheme } from "./reportTheme";
 import { LogoPlataforma } from "./LogosPlataforma";
 import { ligasDeBases, origenPorFila, basesDelRadar, ligaYAnioDe } from "@/lib/procedencia";
@@ -91,6 +92,9 @@ const DATA_PAGE = 96;
 const STYLE_PAGE = 97;
 // Ficha ampliada del jugador: la página 2 del dossier con eventos de StatsBomb.
 const SNAPSHOT_PAGE = 98;
+// El cuaderno de balón parado en 3D. No necesita base cargada: se abre también
+// desde la portada.
+const ABP_PAGE = 99;
 
 /**
  * Cómo se llama cada sección, en un solo sitio.
@@ -109,6 +113,7 @@ const NOMBRE_DE_SECCION: Record<number, string> = {
   [DATA_PAGE]: "Base activa",
   [STYLE_PAGE]: "Estilo de juego",
   [SNAPSHOT_PAGE]: "Ficha ampliada",
+  [ABP_PAGE]: "Cuaderno ABP",
 };
 
 /**
@@ -2186,7 +2191,7 @@ export default function ScoutStudio() {
           </div>
 
           <h1 className="nav-titulo">
-            {dataReady ? t(NOMBRE_DE_SECCION[reportPage] ?? "Visuales") : t("Reportes de scouting")}
+            {dataReady || reportPage === ABP_PAGE ? t(NOMBRE_DE_SECCION[reportPage] ?? "Visuales") : t("Reportes de scouting")}
           </h1>
 
           <div className="top-actions">
@@ -2238,7 +2243,7 @@ export default function ScoutStudio() {
             se usa a diario. Baja al contenido y solo mientras hace falta: en
             cuanto hay datos y jugador ya no dice nada que la propia pantalla
             no diga. */}
-        {espacio === "cavalry" && !report && <ol className="studio-flow" aria-label={t("Flujo del reporte")}>
+        {espacio === "cavalry" && !report && reportPage !== ABP_PAGE && <ol className="studio-flow" aria-label={t("Flujo del reporte")}>
           <li className={dataReady ? "done" : "current"}><span>{dataReady ? <Check size={13} /> : "1"}</span><div><b>{t("Cargar datos")}</b><small>{dataReady ? tDefault(reportFileName) : t("Excel o CSV")}</small></div></li>
           <li className={dataReady ? "current" : ""}><span>2</span><div><b>{t("Elegir jugador")}</b><small>{t("Equipo y jugador")}</small></div></li>
           <li><span>3</span><div><b>{t("Construir reporte")}</b><small>{t("Ficha, similitud y visuales")}</small></div></li>
@@ -2298,7 +2303,7 @@ export default function ScoutStudio() {
                 </div>
               </div>}
 
-            {!dataReady ? (
+            {!dataReady ? (reportPage === ABP_PAGE ? null :
               <section className="portada">
                 {/* La portada, como la primera pantalla de una app de Apple.
 
@@ -2360,6 +2365,17 @@ export default function ScoutStudio() {
                       <span className="portada-opcion-texto">
                         <b>{t("Subir archivos de Wyscout")}</b>
                         <small>{t("Para las ligas que no están en la API. Puedes elegir varios y se combinan solos.")}</small>
+                      </span>
+                      <ChevronRight size={16} className="portada-opcion-galon" />
+                    </button>
+                  </div>
+                  <h2 className="portada-pizarra-titulo">{t("Pizarra")}</h2>
+                  <div className="portada-opciones">
+                    <button type="button" className="portada-opcion" onClick={() => setReportPage(ABP_PAGE)}>
+                      <span className="portada-opcion-icono"><Cancha size={18} /></span>
+                      <span className="portada-opcion-texto">
+                        <b>{t("Cuaderno de balón parado")}</b>
+                        <small>{t("Córners, faltas y saques por fases, en un campo 3D. No hace falta cargar datos.")}</small>
                       </span>
                       <ChevronRight size={16} className="portada-opcion-galon" />
                     </button>
@@ -2460,6 +2476,14 @@ export default function ScoutStudio() {
                         <span className="seccion-texto"><b>{t("Quitar página")}</b></span>
                       </button>
                     )}
+                  </div>
+                </section>
+
+                <section className="seccion-grupo" data-tono="pizarra">
+                  <h3 className="seccion-grupo-titulo">{t("Pizarra")}</h3>
+                  <div className="seccion-lista">
+                    <FilaSeccion activa={reportPage === ABP_PAGE} onClick={() => setReportPage(ABP_PAGE)}
+                      icono={<Cancha size={16} />} titulo={t("Cuaderno ABP")} detalle={t("Balón parado en 3D")} />
                   </div>
                 </section>
               </nav>}
@@ -2854,6 +2878,9 @@ export default function ScoutStudio() {
                 </div>
               </div>}
             </>}
+            {/* El cuaderno de balón parado vive fuera de la base: se dibuja
+                igual con datos cargados o sin ellos. */}
+            {paginaMontada(ABP_PAGE) && <CuadernoABP claseHoja={claseHoja(ABP_PAGE)} idioma={lang} paleta={paleta} onVolver={dataReady ? undefined : () => setReportPage(CARD_PAGE)} />}
           </div>
       </main>
     </div>
