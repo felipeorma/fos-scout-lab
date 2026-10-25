@@ -89,7 +89,11 @@ Los Excel se procesan completamente en el navegador. No se suben a un servidor.
    `python3.11 -m venv ~/.rembg-venv && ~/.rembg-venv/bin/pip install "rembg[cpu,cli]" fastapi uvicorn python-multipart`.
 4. **Diseñar reporte:** revisar la ficha imprimible inspirada en
    `Radar Jordhy Thompson v2` y elegir qué hojas van al PDF: Ficha y radar,
-   Similitud, Ficha ampliada y Carreras.
+   Similitud, Ficha ampliada y Carreras. Carreras sigue al jugador del
+   informe como las demás —su liga, su club y él, desde SkillCorner— y en la
+   hoja lleva el mapa, sus cifras, el reparto por tipo y el Top 10 del plantel
+   por amenaza. El aspecto del PDF (Cavalry, Cavalry claro, Noche…) se elige en
+   el diálogo de Imprimir / PDF.
    La etiqueta “Base analizada” y el nombre de la liga o temporada también son
    editables desde el panel de datos.
 

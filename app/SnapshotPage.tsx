@@ -19,11 +19,9 @@ import type { TransfermarktProfile } from "@/lib/transfermarkt";
  * Las piezas se reparten en columnas para que no quede hueco: debajo del
  * Top 10, la jugada; debajo de los puestos, quién se la da; debajo de tiros
  * y ocasiones, sus mapas de pases. "Frente a su grupo", "Construcción frente a
- * asociación" y el encaje con un equipo salieron de esta página (siguen en
- * Visuales, sueltos).
+ * asociación" y el encaje con un equipo salieron de esta página.
  *
- * Cada gráfico es una pieza de PiezasFicha: los mismos que Visuales ofrece
- * sueltos para montar una hoja a medida.
+ * Cada gráfico es una pieza de PiezasFicha.
  */
 export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, destinatario = "", logoDestinatario = "", onAbrirJugador, claseHoja = "legal-page-shell", temporada, clavesPorFila = null, feedOpta = null, ligasDeFila = null, avisoSkillcorner = "" }: {
   /** Si SkillCorner no publica su liga en esta temporada (o solo los físicos): una línea bajo el título. */

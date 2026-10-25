@@ -2032,17 +2032,29 @@ body.print-layout-check .ai-error { display: none !important; }
 /* Los controles son herramientas de trabajo, no contenido del informe.
 
    En el PDF de Carreras salían los rótulos «Paso 1 · Qué competición y qué
-   equipo» y «Paso 2 · Qué jugador y qué carreras», el recuento de partidos
-   bajados y la lista entera del plantel. Nada de eso habla del jugador que se
-   está enseñando: la hoja se queda con el mapa, sus cifras y el reparto por
-   tipo de carrera, que es lo que el club mira.
+   equipo» y «Paso 2 · Qué jugador y qué carreras» y el recuento de partidos
+   bajados: nada de eso habla del jugador que se está enseñando.
 
    Los rótulos de paso se van en todas las pantallas, no solo aquí: numeran el
    orden de uso de la herramienta, y en la hoja impresa no hay nada que hacer
    en orden. */
 @media print {
   .paso-rotulo,
-  .runs-controls, .runs-estado, .runs-sin-ficha, .runs-squad { display: none !important; }
+  .runs-controls, .runs-estado, .runs-sin-ficha { display: none !important; }
+}
+/* El plantel en la hoja: un Top 10 a dos columnas, como el de la Ficha
+   ampliada, con el jugador de la hoja resaltado aunque quede más abajo. Sin
+   él, media hoja Legal salía en blanco debajo del mapa. Va dos veces, como el
+   resto de las hojas: así lo mide la app antes de imprimir y así sale. */
+body.print-layout-check .runs-squad { margin-top: 14px; }
+body.print-layout-check .runs-lista { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 14px; }
+body.print-layout-check .runs-lista > li:nth-child(n + 11):not(.activa),
+body.print-layout-check .runs-lista .rank-chevron { display: none; }
+@media print {
+  .runs-squad { margin-top: 14px; break-inside: avoid; }
+  .runs-lista { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 14px; }
+  .runs-lista > li:nth-child(n + 11):not(.activa),
+  .runs-lista .rank-chevron { display: none !important; }
 }
 
 
@@ -4921,6 +4933,22 @@ button.menu-fila:active { transform: scale(.985); }
 .app-shell[data-tema] .print-dialog label.impresion-fila + label.impresion-fila.impresion-subfila::before { left: 80px; }
 .app-shell[data-tema] .impresion-subfila .impresion-marca { width: 20px; height: 20px; }
 .app-shell[data-tema] .print-dialog .impresion-subfila .impresion-fila-texto > b { font-size: 12.5px; font-weight: 500; }
+/* El aspecto del informe: cada tema con su papel y su acento en una muestra. */
+.impresion-seccion.impresion-aspecto { margin-top: 16px; }
+.app-shell[data-tema] .impresion-temas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.app-shell[data-tema] .impresion-temas > button {
+  min-width: 0; min-height: 36px; padding: 6px 8px;
+  display: flex; align-items: center; gap: 8px;
+  border: 0; border-radius: 10px; background: var(--paper); box-shadow: 0 0 0 1px var(--line);
+  color: var(--ink); font: inherit; font-size: 12px; text-align: left; cursor: pointer;
+}
+.app-shell[data-tema] .impresion-temas > button:hover { background: color-mix(in srgb, var(--ink) 4%, var(--paper)); }
+.app-shell[data-tema] .impresion-temas > button.activo { box-shadow: 0 0 0 2px var(--acento); font-weight: 600; }
+.app-shell[data-tema] .impresion-temas > button:focus-visible { outline: 2px solid var(--acento-borde); outline-offset: 2px; }
+.app-shell[data-tema] .impresion-temas i { flex: none; width: 20px; height: 20px; display: grid; place-items: center; border-radius: 6px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .18); }
+.app-shell[data-tema] .impresion-temas i > b { width: 8px; height: 8px; border-radius: 50%; }
+.app-shell[data-tema] .impresion-temas span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 520px) { .app-shell[data-tema] .impresion-temas { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .app-shell[data-tema] .impresion-archivo {
   margin: 16px 0 0; padding: 10px 14px;
   display: flex; flex-direction: column; gap: 2px;
@@ -4982,6 +5010,11 @@ button.menu-fila:active { transform: scale(.985); }
     --material: #fff;
     --material-alto: #fff;
     --acento-claro: var(--acento);
+    /* Las tarjetas del look Night (la franja de cifras de Carreras) van con
+       su propio degradado: sin esto salían negras con la tinta ya oscura. */
+    --tarjeta-arriba: #fff;
+    --tarjeta-abajo: #fff;
+    --faint: #737885;
     /* Las tres paletas propias que quedan de antes del rediseño. */
     --brd-ink: #1d1d1f; --brd-dim: #5b6472;
     --rk-ink: #1d1d1f; --rk-dim: #5b6472;
@@ -4989,6 +5022,31 @@ button.menu-fila:active { transform: scale(.985); }
     color: #1d1d1f;
     background: #fff;
   }
+}
+/* Lo mismo mientras la app mide la hoja antes de imprimir: ahí se aplanan los
+   degradados a imagen, y con los tokens de pantalla la franja de cifras salía
+   negra en el informe claro. */
+body.print-layout-check .app-shell[data-tema]:not([data-informe="oscuro"]) :is(.runs-page, .flujo-page, .blueprints-page, .rank-page, .pool-page, .scouting-board, .estilo-page, .snap-page) {
+  --ink: #1d1d1f;
+  --muted: #5b6472;
+  --line: rgba(0, 0, 0, .16);
+  --linea: rgba(0, 0, 0, .16);
+  --paper: #fff;
+  --canvas: #fff;
+  --material: #fff;
+  --material-alto: #fff;
+  --acento-claro: var(--acento);
+  /* Las tarjetas del look Night (la franja de cifras de Carreras) van con
+     su propio degradado: sin esto salían negras con la tinta ya oscura. */
+  --tarjeta-arriba: #fff;
+  --tarjeta-abajo: #fff;
+  --faint: #737885;
+  /* Las tres paletas propias que quedan de antes del rediseño. */
+  --brd-ink: #1d1d1f; --brd-dim: #5b6472;
+  --rk-ink: #1d1d1f; --rk-dim: #5b6472;
+  --pl-ink: #1d1d1f; --pl-dim: #5b6472;
+  color: #1d1d1f;
+  background: #fff;
 }
 
 /* El enlace que abre la ficha en Transfermarkt usa el mismo botón que el resto;

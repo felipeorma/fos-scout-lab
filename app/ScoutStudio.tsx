@@ -10,7 +10,7 @@ import { EstiloPage } from "./EstiloPage";
 import { BlueprintsPage } from "./BlueprintsPage";
 import { SnapshotPage } from "./SnapshotPage";
 import { SimilarityStudio } from "./SimilarityStudio";
-import { CLIENT_THEMES, DEFAULT_REPORT_THEME, reportThemeStyle, type ReportTheme } from "./reportTheme";
+import { CLIENT_THEMES, DEFAULT_REPORT_THEME, REPORT_THEMES, reportThemeStyle, type ReportTheme } from "./reportTheme";
 import { LogoPlataforma } from "./LogosPlataforma";
 import { ligasDeBases, origenPorFila, basesDelRadar, ligaYAnioDe } from "@/lib/procedencia";
 import { aplicarNombre, conNombresGuardados, guardarNombre, identidadDeBase, nombreActual, type NombreDeBase, temporadaAnteriorDe } from "@/lib/nombresDeBase";
@@ -57,6 +57,7 @@ import { cruzarEnSegundoPlano } from "@/lib/cruceEnSegundoPlano";
 import { AutorDelInforme, ContextoDeFirma, type FirmaDelInforme } from "./FirmaDelInforme";
 import { FieldLabel, FilaSeccion, InlineText, MenuDeCompeticiones, ReportImage } from "./estudio/piezas";
 import { useCruceDeAnios } from "./estudio/useCruceDeAnios";
+import type { JugadorDelInforme } from "@/lib/carrerasDelInforme";
 import { alphabeticCollator, blobToDataUrl, cohortLabel, firstPlayerSelection, horaActual, inicioDe, numberFormat, playerOptionsFor, profileFromReport, readWorkbook } from "./estudio/datos";
 import { FECHA_NIVEL_RESPALDO, LIGA_DE_REFERENCIA, PUNTOS_POR_RATING, indiceANivel, nivelDeLiga, ratingDeTramos, type EntradaOpta, LIGAS_CON_NIVEL } from "@/lib/nivelDeLiga";
 import { METRIC_SOURCE_COLORS, SIMILARITY_METRIC_GROUPS, similarityMetricGroup } from "@/lib/similarityMetricGroups";
@@ -563,6 +564,18 @@ export default function ScoutStudio() {
     [filasDelInforme, indiceDelInforme, minimumMinutes, cohort, lang, metricPicks, medirContra, clavesDelInforme],
   );
   /*
+   * A quién siguen las Carreras: el jugador del informe en la temporada que
+   * se mira, con su club y sus ligas de esa temporada. Se arma con valores
+   * sueltos para que la hoja no vuelva a buscar en cada render.
+   */
+  const jugadorDeCarreras = report?.player ?? "";
+  const equipoDeCarreras = temporadaDeReferencia?.equipo || report?.team || "";
+  const ligasDeCarreras = (temporadaDeReferencia?.ligas ?? []).join("\n");
+  const anioDeCarreras = temporadaDeReferencia?.anio || null;
+  const carrerasDelInforme = useMemo<JugadorDelInforme | null>(() => (jugadorDeCarreras
+    ? { jugador: jugadorDeCarreras, equipo: equipoDeCarreras, ligas: ligasDeCarreras ? ligasDeCarreras.split("\n") : [], anio: anioDeCarreras }
+    : null), [jugadorDeCarreras, equipoDeCarreras, ligasDeCarreras, anioDeCarreras]);
+  /*
    * El nivel de la liga donde jugó, junto al índice, y ese índice llevado a la
    * CPL con la regla calibrada en lib/nivelDeLiga. Solo en Cavalry: la mesa de
    * Maldonado tiene su propio descuento. La equivalencia solo se da cuando el
@@ -884,9 +897,15 @@ export default function ScoutStudio() {
            * corregir los de Cavalry, la ficha seguía saliendo con el verde
            * militar de antes y no había forma de enterarse. Un tema elegido a
            * mano —Noche, Arena— sí se respeta tal cual: ese es del scout.
+           *
+           * Uno de la lista también sale del código y no de la mezcla con el
+           * predeterminado: "Cavalry claro" no guarda `oscuro`, así que al
+           * mezclarlo heredaba el `oscuro` del look Night y la ficha salía con
+           * papel claro sobre fondos oscuros.
            */
           const deCliente = Object.values(CLIENT_THEMES).find((tema) => tema.name === guardado.name);
-          setReportTheme(deCliente ?? guardado);
+          const deLaLista = REPORT_THEMES.find((tema) => tema.name === guardado.name);
+          setReportTheme(deCliente ?? deLaLista ?? guardado);
         }
       } catch { /* El estilo predeterminado sigue disponible si no hay persistencia local. */ }
       setReportThemeLoaded(true);
@@ -2690,7 +2709,7 @@ export default function ScoutStudio() {
                   destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} onAbrirJugador={(indice) => { const enBase = enLaBase(indice); if (enBase >= 0) selectPlayer(enBase); }} />
               )}
               {paginaMontada(RUNS_PAGE) && (
-                <div className={claseHoja(RUNS_PAGE)}><RunsPage destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
+                <div className={claseHoja(RUNS_PAGE)}><RunsPage destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} delInforme={carrerasDelInforme} activa={reportPage === RUNS_PAGE} /></div>
               )}
               {/* Ranking, Entre ligas, Estilo de juego, Flujo de posesión y Ficha ampliada —con el
                   encaje de equipo— son de Cavalry: en el espacio Maldonado no
@@ -2778,6 +2797,20 @@ export default function ScoutStudio() {
                       </label>;
                       return fila;
                     })}
+                  </div>
+                  {/* El aspecto del PDF. Se elegía en el panel de Visuales; sin
+                      Visuales, se elige donde se decide cómo sale el informe. */}
+                  <div className="impresion-seccion impresion-aspecto">
+                    <h4>{t("Aspecto")}</h4>
+                  </div>
+                  <div className="impresion-temas" role="radiogroup" aria-label={t("Aspecto del informe")}>
+                    {REPORT_THEMES.map((opcion) => (
+                      <button key={opcion.name} type="button" role="radio" aria-checked={reportTheme.name === opcion.name}
+                        className={reportTheme.name === opcion.name ? "activo" : undefined} onClick={() => setReportTheme(opcion)}>
+                        <i style={{ background: opcion.oscuro ? opcion.surface : opcion.paper }} aria-hidden="true"><b style={{ background: opcion.accent }} /></i>
+                        <span>{opcion.name}</span>
+                      </button>
+                    ))}
                   </div>
                   <div className="impresion-archivo">
                     <span>{t("Nombre sugerido")}</span>

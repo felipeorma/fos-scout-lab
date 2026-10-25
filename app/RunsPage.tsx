@@ -8,6 +8,7 @@ import { Interruptor } from "./Interruptor";
 import { PieDeReporte } from "./PieDeReporte";
 import { useBaseActiva } from "./BaseActiva";
 import { casarPlantilla } from "@/lib/plantilla";
+import { edicionDelInforme, equipoDelInforme, jugadorEnCarreras, type JugadorDelInforme } from "@/lib/carrerasDelInforme";
 import { numberLocale, t, tf } from "@/lib/i18n";
 import { RepartoCarreras, RunMap, TIPOS_CARRERA } from "./RunMap";
 import { Antetitulo, BarraDegradada, FranjaDeCifras, tonosDeColor } from "./KitNight";
@@ -70,10 +71,21 @@ function etiquetaPartido(partido: PartidoCarreras) {
   return `${fecha ? `${fecha} · ` : ""}${partido.local}${marcador}${partido.visitante}`;
 }
 
-export function RunsPage({ destinatario = "", logoDestinatario = "" }: {
+export function RunsPage({ destinatario = "", logoDestinatario = "", delInforme = null, activa = true }: {
   /** Club destinatario del PDF, para firmar la hoja como las de diseño. */
   destinatario?: string;
   logoDestinatario?: string;
+  /**
+   * El jugador del informe. Carreras es una hoja del reporte, así que lo
+   * sigue como las demás: su liga y temporada, su club y él, y carga sola.
+   * Lo que se elija a mano manda hasta que cambie el jugador del informe.
+   */
+  delInforme?: JugadorDelInforme | null;
+  /**
+   * Si la hoja está a la vista. Montada pero oculta no baja nada: cambiar de
+   * jugador en otra sección no puede ponerse a pedir la temporada de su club.
+   */
+  activa?: boolean;
 } = {}) {
   /*
    * Era la única pantalla fuera de la barra de filtros compartida, y por un
@@ -89,20 +101,49 @@ export function RunsPage({ destinatario = "", logoDestinatario = "" }: {
    */
   const { rows, filtros, cambiarFiltros, opciones, pasaFiltrosDeJugador, filtrosDeJugador, competiciones: cargadas } = useBaseActiva();
   const [competiciones, setCompeticiones] = useState<ApiCompetition[]>([]);
-  const [edicion, setEdicion] = useState("");
-  const [equipo, setEquipo] = useState("");
+  const [edicionPorDefecto, setEdicionPorDefecto] = useState("");
+  const [equipoPorDefecto, setEquipoPorDefecto] = useState("");
   const [equipos, setEquipos] = useState<string[]>([]);
   const [cargandoEquipos, setCargandoEquipos] = useState(false);
   const [datos, setDatos] = useState<RespuestaCarreras | null>(null);
-  const [jugador, setJugador] = useState("TODOS");
+  /** De qué competición y equipo son las carreras cargadas. */
+  const [cargados, setCargados] = useState<{ clave: string; edicion: string; equipo: string } | null>(null);
+  /** Lo último que se pidió, para no volver a pedirlo solo si falló. */
+  const [pedidoDe, setPedidoDe] = useState("");
   const [partido, setPartido] = useState("TODOS");
   const [tipo, setTipo] = useState("TODOS");
+  const [estado, setEstado] = useState("");
+  const [cargando, setCargando] = useState(false);
+
+  /*
+   * Qué se mira. Cada elección a mano recuerda para qué jugador del informe
+   * (y para qué carreras) se hizo: mientras sigan siendo los mismos, manda; si
+   * el informe pasa a otro jugador, la hoja vuelve a seguirlo.
+   */
+  const claveInforme = delInforme ? [delInforme.jugador, delInforme.equipo, delInforme.ligas.join("+"), delInforme.anio ?? ""].join("|") : "";
+  const [edicionAMano, setEdicionAMano] = useState<{ para: string; valor: string } | null>(null);
+  const [equipoAMano, setEquipoAMano] = useState<{ para: string; valor: string } | null>(null);
+  const [jugadorAMano, setJugadorAMano] = useState<{ para: string; valor: string } | null>(null);
+  const [intensasAMano, setIntensasAMano] = useState<{ para: string; valor: boolean } | null>(null);
+
+  const suya = useMemo(() => (delInforme ? edicionDelInforme(competiciones, delInforme) : null), [delInforme, competiciones]);
+  const edicion = (edicionAMano?.para === claveInforme ? edicionAMano.valor : "") || (suya ? String(suya.id) : "") || edicionPorDefecto;
+  const paraEquipo = `${claveInforme}|${edicion}`;
+  const suyoEquipo = delInforme && suya && edicion === String(suya.id) ? equipoDelInforme(equipos, delInforme) : null;
+  const equipo = (equipoAMano?.para === paraEquipo ? equipoAMano.valor : "") || suyoEquipo || equipoPorDefecto;
+  const claveDatos = `${edicion}|${equipo}`;
+  const paraJugador = `${claveInforme}|${cargados?.clave ?? ""}`;
+  const suyoJugador = delInforme && datos && cargados && cargados.equipo === suyoEquipo ? jugadorEnCarreras(datos.jugadores, delInforme) : null;
+  const jugador = jugadorAMano?.para === paraJugador ? jugadorAMano.valor : suyoJugador ?? "TODOS";
   // Con el plantel entero son miles de flechas y el mapa se vuelve una mancha.
   // SkillCorner resuelve lo mismo mostrando solo la alta intensidad cuando
   // dibuja un equipo completo; al bajar a un jugador ya caben todas.
-  const [soloIntensas, setSoloIntensas] = useState(true);
-  const [estado, setEstado] = useState("");
-  const [cargando, setCargando] = useState(false);
+  const soloIntensas = intensasAMano?.para === `${paraJugador}|${jugador}` ? intensasAMano.valor : jugador === "TODOS";
+  /* La hoja sigue al informe (nadie eligió otra cosa a mano) pero lo cargado
+     es de otro club u otra temporada: imprimirla mezclaría dos jugadores en el
+     mismo PDF, así que cuenta como vacía hasta que se abra y cargue. */
+  const sigueAlInforme = Boolean(suya) && edicionAMano?.para !== claveInforme && equipoAMano?.para !== paraEquipo;
+  const desfasada = sigueAlInforme && (!suyoEquipo || cargados?.clave !== `${String(suya?.id)}|${suyoEquipo}`);
 
   useEffect(() => {
     let montado = true;
@@ -132,7 +173,7 @@ export function RunsPage({ destinatario = "", logoDestinatario = "" }: {
         const elegida = deLaBase
           ?? cplTodas.find((competicion) => String(competicion.season ?? "").includes(anio))
           ?? cplTodas[cplTodas.length - 1];
-        if (elegida) setEdicion(String(elegida.id));
+        if (elegida) setEdicionPorDefecto(String(elegida.id));
       })
       .catch(() => {
         if (montado) setEstado(t("El servidor local no está corriendo. Arranca npm run bg:server y recarga."));
@@ -144,7 +185,7 @@ export function RunsPage({ destinatario = "", logoDestinatario = "" }: {
   }, []);
 
   useEffect(() => {
-    if (!edicion) { setEquipos([]); setEquipo(""); return; }
+    if (!edicion) { setEquipos([]); setEquipoPorDefecto(""); return; }
     let montado = true;
     setCargandoEquipos(true);
     setEquipos([]);
@@ -158,7 +199,7 @@ export function RunsPage({ destinatario = "", logoDestinatario = "" }: {
           ? lista.find((nombre) => nombre.toLowerCase() === filtros.equipo.toLowerCase())
           : undefined;
         const propio = lista.find((nombre) => /cavalry/i.test(nombre));
-        setEquipo(delFiltro ?? propio ?? lista[0] ?? "");
+        setEquipoPorDefecto(delFiltro ?? propio ?? lista[0] ?? "");
       })
       .catch(() => { if (montado) setEstado(t("No se pudieron leer los equipos de esta competición.")); })
       .finally(() => { if (montado) setCargandoEquipos(false); });
@@ -170,12 +211,16 @@ export function RunsPage({ destinatario = "", logoDestinatario = "" }: {
 
   async function cargar() {
     if (!edicion || !equipo.trim()) return;
+    const pedido = { clave: claveDatos, edicion, equipo: equipo.trim() };
+    setPedidoDe(pedido.clave);
     setCargando(true);
     setEstado(t("Bajando los partidos de la temporada… la primera vez tarda varios minutos."));
     try {
-      const respuesta = await fetchOffBallRuns(Number(edicion), equipo.trim());
+      const respuesta = await fetchOffBallRuns(Number(pedido.edicion), pedido.equipo);
       setDatos(respuesta);
-      setJugador("TODOS");
+      setCargados(pedido);
+      setJugadorAMano(null);
+      setIntensasAMano(null);
       setPartido("TODOS");
       const faltan = Object.entries(respuesta.estados).filter(([clave]) => clave !== "ok");
       setEstado(faltan.length
@@ -186,11 +231,25 @@ export function RunsPage({ destinatario = "", logoDestinatario = "" }: {
         : tf("{c} de {p} partidos con datos.", { c: respuesta.partidosConDatos, p: respuesta.partidos }));
     } catch (error) {
       setDatos(null);
+      setCargados(null);
       setEstado(error instanceof Error ? error.message : String(error));
     } finally {
       setCargando(false);
     }
   }
+
+  /* Cuando la competición y el club son los del jugador del informe, sus
+     carreras se cargan solas, una vez: si falla, el botón queda para
+     reintentar. */
+  useEffect(() => {
+    if (!activa || !suyoEquipo || equipo !== suyoEquipo || cargando || pedidoDe === claveDatos) return;
+    // Pedir datos al llegar a ellos es trabajo de un efecto; cargar() marca la
+    // carga en curso antes de esperar al puente, y eso es lo que avisa la regla.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void cargar();
+    // cargar() lee lo mismo que se vigila aquí.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activa, suyoEquipo, equipo, cargando, pedidoDe, claveDatos]);
 
   /**
    * Qué fila de la base activa es cada nombre del plantel.
@@ -200,8 +259,8 @@ export function RunsPage({ destinatario = "", logoDestinatario = "" }: {
    * que acota el emparejamiento.
    */
   const plantilla = useMemo(
-    () => casarPlantilla(rows, equipo, datos?.jugadores ?? []),
-    [rows, equipo, datos],
+    () => casarPlantilla(rows, cargados?.equipo ?? equipo, datos?.jugadores ?? []),
+    [rows, cargados, equipo, datos],
   );
 
   /**
@@ -289,18 +348,32 @@ export function RunsPage({ destinatario = "", logoDestinatario = "" }: {
 
   /* Con un filtro puesto ya no es "todo el plantel": decirlo igual haría pasar
      una parte por el todo, y el mapa se guarda y se enseña. */
+  const equipoDeLosDatos = cargados?.equipo ?? equipo;
   const tituloDelMapa = jugador !== "TODOS" ? jugador
     : filtrosDeJugador
-      ? tf("{equipo} · {n} del plantel", { equipo, n: jugadoresVisibles.length })
-      : tf("{equipo} · todo el plantel", { equipo });
+      ? tf("{equipo} · {n} del plantel", { equipo: equipoDeLosDatos, n: jugadoresVisibles.length })
+      : tf("{equipo} · todo el plantel", { equipo: equipoDeLosDatos });
 
   const edicionElegida = competiciones.find((competicion) => String(competicion.id) === edicion);
+  const edicionDeLosDatos = competiciones.find((competicion) => String(competicion.id) === cargados?.edicion);
+  /* SkillCorner no tiene su liga y temporada: se dice, y se elige a mano. */
+  const sinSuLiga = delInforme?.anio && competiciones.length > 0 && !suya
+    ? tf("SkillCorner no tiene {liga} {anio} en la suscripción: elige la competición y el equipo a mano.", {
+      liga: delInforme.ligas.join(" / ") || t("su liga"), anio: delInforme.anio ?? "",
+    })
+    : "";
+  const sinSuEquipo = delInforme && suya && edicion === String(suya.id) && equipos.length > 0 && !cargandoEquipos && !suyoEquipo
+    ? tf("SkillCorner no tiene a {equipo} en {liga} {temporada}: elige el equipo a mano.", { equipo: delInforme.equipo, liga: suya.name, temporada: suya.season })
+    : "";
+  const sinSusCarreras = delInforme && datos && cargados && cargados.equipo === suyoEquipo && !suyoJugador
+    ? tf("{jugador} no tiene carreras de SkillCorner con {equipo} esta temporada: se ve el plantel.", { jugador: delInforme.jugador, equipo: cargados.equipo })
+    : "";
   const mapaRef = useRef<HTMLDivElement>(null);
 
   /** Un jugador solo cabe entero en el mapa; el plantel, no. */
   const elegirJugador = (nombre: string) => {
-    setJugador(nombre);
-    setSoloIntensas(nombre === "TODOS");
+    setJugadorAMano({ para: paraJugador, valor: nombre });
+    setIntensasAMano(null);
   };
 
   /* Si el jugador elegido no jugó ese partido, el mapa quedaría vacío sin
@@ -332,13 +405,20 @@ export function RunsPage({ destinatario = "", logoDestinatario = "" }: {
     verJugador(nombre);
   };
 
-  return <section className="runs-page" data-hoja-vacia={datos ? undefined : ""}>
+  return <section className="runs-page" data-hoja-vacia={datos && !desfasada ? undefined : ""}>
     {/* La explicación de la leyenda se lee una vez: pasa a un desplegable. */}
     <header>
       <div>
         <Antetitulo>{t("SkillCorner · carreras sin balón")}</Antetitulo>
-        <h2>{t("Mapa de carreras sin balón")}</h2>
-        <p>{t("Una flecha por carrera, de donde empieza a donde termina. El ataque va siempre hacia arriba.")}</p>
+        {/* Como en las demás hojas del reporte: de quién es la hoja, y debajo su contexto. */}
+        <h2>{datos ? (jugador !== "TODOS" ? jugador : equipoDeLosDatos) : t("Mapa de carreras sin balón")}</h2>
+        <p>{datos
+          ? `${[
+            jugador !== "TODOS" ? equipoDeLosDatos : "",
+            edicionDeLosDatos ? `${edicionDeLosDatos.name} ${edicionDeLosDatos.season}` : "",
+            partidoElegido ? etiquetaPartido(partidoElegido) : tf("{n} partidos con datos", { n: datos.partidosConDatos }),
+          ].filter(Boolean).join(" · ")}. ${t("Una flecha por carrera, de donde empieza a donde termina. El ataque va siempre hacia arriba.")}`
+          : t("Una flecha por carrera, de donde empieza a donde termina. El ataque va siempre hacia arriba.")}</p>
         <details className="como-se-calcula">
           <summary><ChevronDown size={13} />{t("Cómo se lee el mapa")}</summary>
           <p>{t("Una flecha por carrera, del punto de inicio al de fin, como en el artículo Open Data #4 de SkillCorner. El color marca la intensidad y el círculo blanco, que la carrera terminó en recepción. El ataque va siempre hacia arriba.")}</p>
@@ -355,7 +435,7 @@ export function RunsPage({ destinatario = "", logoDestinatario = "" }: {
         <Desplegable etiqueta={t("Competición")}
           valor={edicionElegida ? `${edicionElegida.name} · ${edicionElegida.season}` : t("Elegir competición")}
           activo={false} apagado={!competiciones.length}>
-          <select aria-label={t("Competición")} value={edicion} disabled={!competiciones.length} onChange={(event) => setEdicion(event.target.value)}>
+          <select aria-label={t("Competición")} value={edicion} disabled={!competiciones.length} onChange={(event) => setEdicionAMano({ para: claveInforme, valor: event.target.value })}>
             <option value="">{t("Elegir competición")}…</option>
             {competiciones.map((competicion) => (
               <option key={competicion.id} value={competicion.id}>{competicion.name} · {competicion.season}</option>
@@ -367,7 +447,7 @@ export function RunsPage({ destinatario = "", logoDestinatario = "" }: {
           activo={false} apagado={cargandoEquipos || !equipos.length}>
           <select aria-label={t("Equipo")} value={equipo} disabled={cargandoEquipos || !equipos.length} onChange={(event) => {
             const elegido = event.target.value;
-            setEquipo(elegido);
+            setEquipoAMano({ para: paraEquipo, valor: elegido });
             /* Se propaga al filtro compartido SOLO si ese club existe en la base
                activa. Si no, las demás pantallas se quedarían en cero jugadores
                por un club que no tienen, y el usuario no sabría por qué. */
@@ -387,7 +467,10 @@ export function RunsPage({ destinatario = "", logoDestinatario = "" }: {
         </button>
       </div>
     </div>
+    {sinSuLiga && <p className="runs-estado" role="status">{sinSuLiga}</p>}
+    {sinSuEquipo && <p className="runs-estado" role="status">{sinSuEquipo}</p>}
     {estado && <p className="runs-estado" role="status">{estado}</p>}
+    {sinSusCarreras && <p className="runs-estado" role="status">{sinSusCarreras}</p>}
 
     {datos && <>
       <Paso numero={2}>Qué jugador y qué carreras</Paso>
@@ -432,7 +515,7 @@ export function RunsPage({ destinatario = "", logoDestinatario = "" }: {
         </div>
         <div className="runs-intensidad">
           <span>{t("Solo alta intensidad")}</span>
-          <Interruptor activo={soloIntensas} onCambio={setSoloIntensas} titulo={t("Solo alta intensidad")} />
+          <Interruptor activo={soloIntensas} onCambio={(valor) => setIntensasAMano({ para: `${paraJugador}|${jugador}`, valor })} titulo={t("Solo alta intensidad")} />
         </div>
       </div>
 
