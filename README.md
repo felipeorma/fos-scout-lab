@@ -144,7 +144,14 @@ npm run bg:inicio     # Windows: que arranque solo al iniciar sesión
   credenciales de StatsBomb y SkillCorner y las claves `anthropic` y
   `api-football`. Ese archivo vive fuera del repositorio y no se sube nunca.
   `bg:inicio` deja un acceso en la carpeta Inicio que lo arranca oculto al
-  entrar; para quitarlo, se borra `fos-puente.vbs` de esa carpeta.
+  entrar (con la salida en `.fos-scouting\puente.log`); para quitarlo, se
+  borra `fos-puente.vbs` de esa carpeta.
+- **Windows sin repositorio ni Node:** la carpeta `scripts/windows/`, junto con
+  una copia de `bg-server.py` en `scripts/windows/sistema/`, se copia tal cual
+  al escritorio. `1 - Instalar` lo hace todo con doble clic (Python 3.11 con
+  winget si falta, entorno, librerías, credenciales y arranque al iniciar
+  sesión) y la app completa queda en http://127.0.0.1:7001/. Los pasos están
+  en su `LEEME.txt`.
 - Desde la web publicada en GitHub Pages, Chrome puede preguntar si se permite
   el acceso a la red local: hay que aceptarlo para que la página hable con el
   puente.

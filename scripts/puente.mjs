@@ -42,6 +42,18 @@ export function ordenDelPuente(python, carpetaScripts = CARPETA_SCRIPTS) {
   return [python, ["-m", "uvicorn", "bg-server:app", "--app-dir", carpetaScripts, "--port", String(PUERTO), "--log-level", "warning"]];
 }
 
+/**
+ * El .vbs de la carpeta Inicio de Windows que arranca el puente oculto.
+ * pythonw.exe no sirve: sin consola, uvicorn falla al montar su registro. Es
+ * python.exe en una consola oculta (el 0 de Run), con la salida a un archivo.
+ */
+export function lanzadorDeWindows(python, registro, carpetaScripts = CARPETA_SCRIPTS) {
+  const [, argumentos] = ordenDelPuente(python, carpetaScripts);
+  const comillas = (parte) => (/\s/.test(parte) ? `"${parte}"` : parte);
+  const orden = `cmd /c ""${python}" -X utf8 ${argumentos.map(comillas).join(" ")} > "${registro}" 2>&1"`;
+  return `CreateObject("WScript.Shell").Run "${orden.replaceAll('"', '""')}", 0, False\r\n`;
+}
+
 async function enMarcha() {
   try {
     const respuesta = await fetch(`http://127.0.0.1:${PUERTO}/api/sources/status`, { signal: AbortSignal.timeout(2000) });
@@ -127,11 +139,10 @@ function arranqueAlIniciar() {
   }
   const inicio = join(process.env.APPDATA ?? join(homedir(), "AppData", "Roaming"), "Microsoft", "Windows", "Start Menu", "Programs", "Startup");
   const archivo = join(inicio, "fos-puente.vbs");
-  // pythonw.exe no abre ventana; el 0 de Run la esconde por si acaso.
-  const pythonw = python.replace(/python\.exe$/i, "pythonw.exe");
-  const [, argumentos] = ordenDelPuente(existsSync(pythonw) ? pythonw : python);
-  const linea = [existsSync(pythonw) ? pythonw : python, ...argumentos].map((parte) => `""${parte}""`).join(" ");
-  writeFileSync(archivo, `CreateObject("WScript.Shell").Run "${linea}", 0, False\r\n`);
+  const datos = join(homedir(), ".fos-scouting");
+  mkdirSync(datos, { recursive: true });
+  // En UTF-16 con BOM, para que una ruta con tildes no se rompa al leerla Windows.
+  writeFileSync(archivo, `\ufeff${lanzadorDeWindows(python, join(datos, "puente.log"))}`, "utf16le");
   console.log(`Hecho: el puente arrancará solo al iniciar sesión (${archivo}).`);
   console.log("Para quitarlo, borra ese archivo.");
   return 0;

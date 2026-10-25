@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import test from "node:test";
-import { DEPENDENCIAS, PUERTO, ordenDelPuente, pythonsCandidatos, rutaDelPython } from "../scripts/puente.mjs";
+import { fileURLToPath } from "node:url";
+import { DEPENDENCIAS, PUERTO, lanzadorDeWindows, ordenDelPuente, pythonsCandidatos, rutaDelPython } from "../scripts/puente.mjs";
 
 /**
  * El puente tiene que arrancar igual en el Mac y en Windows. Lo que cambia
@@ -29,4 +32,32 @@ test("la orden del puente: uvicorn con la app de scripts/ en el puerto 7001", ()
   assert.equal(PUERTO, 7001);
   // requests lo usa el puente para StatsBomb y SkillCorner: no puede faltar en la instalación.
   assert.ok(DEPENDENCIAS.includes("requests") && DEPENDENCIAS.includes("fastapi"));
+});
+
+test("el lanzador de Windows: python.exe en una consola oculta con registro, nunca pythonw", () => {
+  const vbs = lanzadorDeWindows("C:\\Users\\Ana Pérez\\py.exe", "C:\\Users\\Ana Pérez\\puente.log", "C:\\Mis cosas\\scripts");
+  // Con pythonw.exe sys.stdout es None y uvicorn no llega a montar su registro.
+  assert.doesNotMatch(vbs, /pythonw/i);
+  assert.equal(
+    vbs,
+    'CreateObject("WScript.Shell").Run "cmd /c """"C:\\Users\\Ana Pérez\\py.exe"" -X utf8 -m uvicorn bg-server:app --app-dir ""C:\\Mis cosas\\scripts"" --port 7001 --log-level warning > ""C:\\Users\\Ana Pérez\\puente.log"" 2>&1""", 0, False\r\n',
+  );
+});
+
+test("la carpeta de Windows: cada .cmd es ASCII y llama a una acción que fos-puente.ps1 conoce", () => {
+  const carpeta = fileURLToPath(new URL("../scripts/windows/", import.meta.url));
+  const script = readFileSync(join(carpeta, "sistema", "fos-puente.ps1"));
+  // Sin BOM, PowerShell 5.1 lo lee en la página de códigos de Windows y rompe las tildes.
+  assert.deepEqual([...script.subarray(0, 3)], [0xef, 0xbb, 0xbf]);
+  const acciones = new Set([...script.toString("utf8").matchAll(/^\s*"([a-z]+)" \{/gm)].map((m) => m[1]));
+  const lanzadores = readdirSync(carpeta).filter((nombre) => nombre.endsWith(".cmd"));
+  assert.ok(lanzadores.length >= 5);
+  for (const nombre of lanzadores) {
+    const texto = readFileSync(join(carpeta, nombre), "latin1");
+    // cmd.exe lee el .cmd en la página de códigos OEM: una tilde saldría rota.
+    assert.match(texto, /^[\x00-\x7f]*$/, `${nombre}: solo ASCII`);
+    const llamadas = [...texto.matchAll(/fos-puente\.ps1" ([a-z]+)/g)].map((m) => m[1]);
+    assert.ok(llamadas.length > 0, nombre);
+    for (const accion of llamadas) assert.ok(acciones.has(accion), `${nombre} llama a «${accion}»`);
+  }
 });
