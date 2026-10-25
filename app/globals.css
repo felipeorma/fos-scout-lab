@@ -5360,7 +5360,9 @@ body.print-layout-check .app-shell[data-tema]:not([data-informe="oscuro"]) :is(.
 .snap-ocasion.centro line { stroke: var(--azul); stroke-dasharray: 1.2 .8; } .snap-ocasion.centro circle { fill: var(--azul); }
 .snap-ocasion.parado line { stroke: var(--naranja); } .snap-ocasion.parado circle { fill: var(--naranja); }
 .app-shell[data-tema] .snap-ocasion.asistencia line { stroke: var(--acento); stroke-width: .8; } .app-shell[data-tema] .snap-ocasion.asistencia circle { fill: var(--acento); }
-.snap-regate.bien { fill: var(--verde); } .snap-regate.mal { fill: var(--rojo); }
+/* Acciones ganadas: azul las defensivas, ámbar las ofensivas y claro si van a
+   la par (los colores salen de lib/snapshot.ts, COLORES_GANADAS). */
+.snap-l.defensiva { background: #3d9bff; } .snap-l.ambas { background: #e8edf2; } .snap-l.ofensiva { background: #ffb020; }
 .app-shell[data-tema] .snap-puesto { fill: var(--acento); fill-opacity: .85; stroke: var(--paper); stroke-width: .4; }
 .snap-puesto-pct { fill: #fff; font-size: 2.9px; font-weight: 700; text-anchor: middle; }
 .app-shell[data-tema] .snap-puesto-codigo { fill: var(--muted); font-size: 2.7px; text-anchor: middle; }
@@ -5425,7 +5427,7 @@ body.print-layout-check .app-shell[data-tema]:not([data-informe="oscuro"]) :is(.
   .snap-fila-3 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .snap-page :is(.snap-tarjeta, .snap-ficha, .snap-tabla, .snap-fila) { break-inside: avoid; }
   :is(.snap-top, .snap-con-chip) .filtro-chip > :is(svg, select) { display: none !important; }
-  .snap-page .snap-punto, .snap-page .snap-regate, .snap-page .snap-ocasion, .snap-page .snap-tiro { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .snap-page .snap-punto, .snap-page .snap-calor-ganadas, .snap-page .snap-ocasion, .snap-page .snap-tiro { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
 }
 
 /* Las fichas de filtro también fuera de la barra: en los dos "Top 10" la
@@ -6247,7 +6249,6 @@ body.print-layout-check .app-shell[data-informe="oscuro"] .legal-page-shell > :i
 .app-shell[data-tema] .snap-l.gol { background: #2fb65a; } .app-shell[data-tema] .snap-l.tiro { background: #ff4d43; box-shadow: none; }
 .app-shell[data-tema] .snap-l.juego { background: #2f96e0; } .app-shell[data-tema] .snap-l.centro { background: #f2b01e; }
 .app-shell[data-tema] .snap-l.parado { background: #e08cbb; } .app-shell[data-tema] .snap-l.asistencia { background: #2fb65a; } .app-shell[data-tema] .snap-l.fallo { background: #ff6b5e; }
-.app-shell[data-tema] .snap-regate.bien { fill: #32d583; stroke: #0a2018; stroke-width: .3; } .app-shell[data-tema] .snap-regate.mal { fill: #ff6b5e; stroke: #0a2018; stroke-width: .3; }
 /* Puestos: la rampa de la red de pases con halo del césped. */
 .app-shell[data-tema] .snap-puesto { fill-opacity: 1; stroke: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .snap-puesto-halo { fill: #0a2018; opacity: .85; }

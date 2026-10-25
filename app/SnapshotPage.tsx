@@ -16,8 +16,8 @@ import type { TransfermarktProfile } from "@/lib/transfermarkt";
  * ficha y las familias, el Top 10 con cómo participa en la jugada, y con quién
  * se parece y cómo recibe. Debajo, los campos en dos filas de cinco columnas
  * iguales, así que todos los campos enteros salen del mismo tamaño: qué hace
- * con el balón (tiros y ocasiones en el último tercio, regates, pases y mapa
- * de calor) y dónde juega y cómo le llega (defensa, puestos, dónde recibe, de
+ * con el balón (tiros y ocasiones en el último tercio, acciones ganadas,
+ * pases y mapa de calor) y dónde juega y cómo le llega (defensa, puestos, dónde recibe, de
  * dónde y de quién). Cada fila estira sus piezas al mismo alto. "Frente a su grupo", "Construcción frente a
  * asociación" y el encaje con un equipo salieron de esta página.
  *
@@ -117,7 +117,7 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
           {pieza("tiros")}
           {pieza("ocasiones")}
         </div>
-        {pieza("regates")}
+        {pieza("ganadas")}
         {pieza("pases_inicio")}
         {pieza("pases_fin")}
         {pieza("calor")}

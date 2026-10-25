@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { BarraDegradada, Cesped, ChipDeCambio, Cometa, FilaDeMetrica, tonosDeColor, type Tonos } from "./KitNight";
 import { SIMILARITY_METRIC_GROUPS, type SimilarityMetricGroup } from "@/lib/similarityMetricGroups";
 import { Desplegable } from "./BarraDeFiltros";
@@ -25,6 +25,7 @@ import {
   anchoDeTexto,
   carriles,
   colocarEtiquetas,
+  defensivasGanadas,
   densidad,
   enjambre,
   esJuegoAbierto,
@@ -32,6 +33,8 @@ import {
   familiasCompuestas,
   fuenteStatsbomb,
   grupoDeRecepcion,
+  mapaDeGanadas,
+  ofensivasGanadas,
   rejilla,
   resumenRecepciones,
   ROLES_SECUENCIA,
@@ -79,7 +82,7 @@ export type ContextoFicha = {
 
 export type IdPieza =
   | "ficha" | "tabla" | "radar" | "top10" | "puestos" | "parecidos"
-  | "tiros" | "ocasiones" | "regates" | "pases_inicio" | "pases_fin"
+  | "tiros" | "ocasiones" | "ganadas" | "pases_inicio" | "pases_fin"
   | "calor" | "defensa" | "enjambres" | "dispersion"
   | "recepciones" | "recepciones_tipo" | "recepciones_origen" | "recepciones_pasadores"
   | "roles" | "encaje";
@@ -197,7 +200,6 @@ function useEventos(clave: string, activo: boolean, club: string) {
 function separar(lista: EventoSB[]) {
   const tiros = lista.filter((e) => e.t === "Shot" && e.l);
   const ocasiones = lista.filter((e) => e.t === "Pass" && (e.sa || e.ga) && e.l && e.e);
-  const regates = lista.filter((e) => e.t === "Dribble" && e.l);
   const defensivas = lista.filter((e) => ((e.t === "Duel" && e.dt === "Tackle") || ["Ball Recovery", "Interception", "Clearance", "Block"].includes(e.t)) && e.l);
   return {
     tiros,
@@ -205,8 +207,8 @@ function separar(lista: EventoSB[]) {
     xgTotal: tiros.reduce((s, e) => s + (e.xg ?? 0), 0),
     ocasiones,
     asistencias: ocasiones.filter((e) => e.ga).length,
-    regates,
-    regatesBien: regates.filter((e) => e.o === "Complete").length,
+    defensivasGanadas: defensivasGanadas(lista),
+    ofensivasGanadas: ofensivasGanadas(lista),
     pasesJuego: lista.filter((e) => esPaseEnJuego(e) && e.l),
     acciones: lista.filter((e) => ["Pass", "Carry", "Ball Receipt*", "Dribble", "Shot"].includes(e.t) && esJuegoAbierto(e) && e.l),
     defensivas,
@@ -550,6 +552,8 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion }: {
 }) {
   const { contexto, jugador, equipo, fuente, eventos, grupo, propias, nombreGrupo, parecidos, destacados, nombres, sinEventos } = datos;
   const { rows, indice, informe, perfilTm, onAbrirJugador } = contexto;
+  // Para el difuminado del mapa de acciones ganadas: un id por pieza.
+  const idDifuso = `snap-difuso-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const conGrupo = datos.marco?.modo === "liga"
     ? tf("frente a {n} {grupo} de su liga ({marco})", { n: grupo.indices.length, grupo: nombreGrupo.toLowerCase(), marco: datos.marco.texto })
     : tf("frente a {n} {grupo}", { n: grupo.indices.length, grupo: nombreGrupo.toLowerCase() });
@@ -740,13 +744,31 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion }: {
       </Tarjeta>;
     }
 
-    case "regates": {
-      const { regates, regatesBien } = datos;
-      return <Tarjeta titulo={t("Regates")} subtitulo={sinEventos ? undefined : tf("{b} de {n} completados · {p}%", { b: regatesBien, n: regates.length, p: regates.length ? Math.round((regatesBien / regates.length) * 100) : 0 })}
-        leyenda={<><i className="snap-l gol" />{t("Completado")}<i className="snap-l fallo" />{t("Fallido")}</>}>
-        <Cancha etiqueta={t("Regates")}>
-          {regates.map((e, i) => { const [X, Y] = aVertical(e.l!); return <circle key={i} cx={X} cy={Y} r={1.4} className={e.o === "Complete" ? "snap-regate bien" : "snap-regate mal"} />; })}
-        </Cancha>
+    case "ganadas": {
+      // Dónde gana el balón en defensa y dónde gana la acción en ataque, en un
+      // solo mapa de calor de dos colores (lib/snapshot.ts, mapaDeGanadas).
+      const celdas = mapaDeGanadas(
+        datos.defensivasGanadas.map((e) => [e.l![0], e.l![1]] as Punto),
+        datos.ofensivasGanadas.map((e) => [e.l![0], e.l![1]] as Punto),
+      );
+      return <Tarjeta titulo={t("Acciones ganadas")} subtitulo={sinEventos ? undefined : tf("{d} defensivas · {o} ofensivas", { d: datos.defensivasGanadas.length, o: datos.ofensivasGanadas.length })}
+        leyenda={<>
+          <i className="snap-l defensiva" /><span title={t("Entradas e intercepciones ganadas, recuperaciones, bloqueos y despejes.")}>{t("Defensivas")}</span>
+          <i className="snap-l ambas" /><span>{t("Las dos")}</span>
+          <i className="snap-l ofensiva" /><span title={t("Regates completados, faltas recibidas y duelos aéreos ganados.")}>{t("Ofensivas")}</span>
+        </>}>
+        <Cancha etiqueta={t("Acciones ganadas")} fondo={<>
+          <defs>
+            <filter id={idDifuso} x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation={2.2} /></filter>
+            <clipPath id={`${idDifuso}-campo`}><rect x={0} y={0} width={80} height={120} /></clipPath>
+          </defs>
+          <g clipPath={`url(#${idDifuso}-campo)`}>
+            <g filter={`url(#${idDifuso})`}>
+              {celdas.map((celda) => <rect key={`${celda.x}-${celda.y}`} x={celda.x} y={celda.y} width={celda.w + 0.1} height={celda.h + 0.1}
+                className="snap-calor-ganadas" style={{ fill: celda.color, fillOpacity: celda.opacidad }} />)}
+            </g>
+          </g>
+        </>} />
       </Tarjeta>;
     }
 

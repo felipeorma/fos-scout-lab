@@ -94,6 +94,15 @@ Los Excel se procesan completamente en el navegador. No se suben a un servidor.
    hoja lleva el mapa, sus cifras, el reparto por tipo y el Top 10 del plantel
    por amenaza. El aspecto del PDF (Cavalry, Cavalry claro, Noche…) se elige en
    el diálogo de Imprimir / PDF.
+   En la Ficha ampliada todos los campos enteros salen del mismo tamaño, y
+   tiros y ocasiones, del último tercio a la misma escala. El mapa de
+   **acciones ganadas** pinta en un solo calor dónde gana en defensa (azul:
+   entradas e intercepciones ganadas, recuperaciones, bloqueos y despejes) y
+   dónde gana en ataque (ámbar: regates completados, faltas recibidas y
+   duelos aéreos ganados); claro donde van a la par. Necesita el puente al
+   día (`npm run bg:actualizar`): guarda esos resultados desde la versión 4 de
+   los partidos recortados, así que la primera vez de cada equipo vuelve a
+   bajar sus eventos.
    La etiqueta “Base analizada” y el nombre de la liga o temporada también son
    editables desde el panel de datos.
 
