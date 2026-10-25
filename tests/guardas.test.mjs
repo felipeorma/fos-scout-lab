@@ -15,14 +15,14 @@ test("toda hoja imprimible entra en el ajuste automático de página", () => {
   const selector = scoutStudio.match(/FIT_SELECTOR = "([^"]+)"/)?.[1] ?? "";
   // Si una hoja no está aquí, al exportar se recorta en silencio: el ajuste
   // nunca la mide y el shell tiene overflow hidden.
-  for (const hoja of [".scout-report", ".visual-report-page", ".context-page"]) {
+  for (const hoja of [".scout-report", ".snap-page", ".runs-page"]) {
     assert.ok(selector.includes(hoja), `${hoja} fuera del ajuste de impresión: se recortaría al exportar`);
   }
 });
 
 test("las páginas del informe se registran en el diálogo de exportación", () => {
   // Una página que se ve pero no se puede exportar es media función.
-  for (const pagina of ["CARD_PAGE", "SIMILARITY_PAGE", "CONTEXT_PAGE"]) {
+  for (const pagina of ["CARD_PAGE", "SIMILARITY_PAGE", "SNAPSHOT_PAGE", "RUNS_PAGE"]) {
     const enDialogo = new RegExp(`\\{ page: ${pagina},`).test(scoutStudio);
     assert.ok(enDialogo, `${pagina} no aparece en el diálogo de impresión`);
   }
@@ -30,20 +30,10 @@ test("las páginas del informe se registran en el diálogo de exportación", () 
 
 test("los controles de trabajo nunca se imprimen", () => {
   // Botones y filtros son herramientas, no contenido del informe.
-  for (const clase of ["ctx-toolbar", "ctx-controls", "ctx-picker", "ctx-source", "reading-ai",
-    "datos-barra", "espacio-switch", "rank-filters", "runs-controls"]) {
+  for (const clase of ["reading-ai", "datos-barra", "espacio-switch", "rank-filters", "runs-controls"]) {
     const oculto = new RegExp(`\\.${clase}[^{]*\\{[^}]*display:\\s*none`).test(globals)
       || new RegExp(`@media print[^@]*\\.${clase}`, "s").test(globals);
     assert.ok(oculto, `.${clase} se imprimiría dentro del informe`);
-  }
-});
-
-test("cada ficha del catálogo declara los perfiles a los que responde", async () => {
-  const { CATALOGO } = await import("../app/ContextCatalog.ts");
-  for (const ficha of CATALOGO) {
-    assert.ok(Array.isArray(ficha.perfiles), `${ficha.id} sin perfiles declarados`);
-    assert.ok(ficha.titulo && ficha.lectura, `${ficha.id} sin título o lectura`);
-    assert.ok(["cuadrante", "ranking", "zscores", "swarm"].includes(ficha.tipo), `${ficha.id} con tipo desconocido`);
   }
 });
 

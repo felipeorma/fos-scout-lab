@@ -45,11 +45,9 @@ import {
 /**
  * Las piezas de la ficha ampliada, cada una por separado.
  *
- * La ficha ampliada las monta todas en una hoja; Visuales las usa sueltas,
- * como bloques que se colocan, se estiran y se imprimen junto a los demás.
- * Las dos leen lo mismo: el grupo de familias, los parecidos y los eventos de
- * StatsBomb se calculan o se piden una vez por jugador y se reparten, así que
- * diez bloques en Visuales no son diez descargas.
+ * La ficha ampliada las monta todas en una hoja. Todas leen lo mismo: el
+ * grupo de familias, los parecidos y los eventos de StatsBomb se calculan o se
+ * piden una vez por jugador y se reparten entre las piezas.
  *
  * Todo en SVG: la hoja se imprime, y un vector sale nítido en el PDF.
  */
@@ -74,7 +72,7 @@ export type ContextoFicha = {
   /**
    * Medir siempre contra su liga y su cohorte, aunque su liga tenga menos de
    * diez de su puesto (con cinco basta para las familias). La Ficha ampliada
-   * lo pide; las piezas sueltas de Visuales siguen el ajuste de la ficha.
+   * lo pide.
    */
   siempreSuLiga?: boolean;
 };
@@ -85,49 +83,6 @@ export type IdPieza =
   | "calor" | "defensa" | "enjambres" | "dispersion"
   | "recepciones" | "recepciones_tipo" | "recepciones_origen" | "recepciones_pasadores"
   | "roles" | "encaje";
-
-/**
- * El catálogo que ofrece Visuales. `ancho` y `alto` son el tamaño con el que
- * nace el bloque —en doceavos y píxeles—, pensado para que la pieza se lea sin
- * tocar nada; `eventos` dice si necesita los partidos de StatsBomb.
- */
-export const PIEZAS_FICHA: Array<{ id: IdPieza; titulo: string; ancho: number; alto: number; eventos: boolean; roles?: boolean }> = [
-  { id: "ficha", titulo: "Ficha del jugador", ancho: 6, alto: 280, eventos: false },
-  { id: "tabla", titulo: "Familias en tabla", ancho: 6, alto: 460, eventos: false },
-  { id: "radar", titulo: "Radar de familias", ancho: 6, alto: 440, eventos: false },
-  { id: "top10", titulo: "Top 10 de una familia", ancho: 6, alto: 580, eventos: false },
-  { id: "parecidos", titulo: "Los más parecidos", ancho: 6, alto: 580, eventos: false },
-  { id: "puestos", titulo: "Tiempo en cada puesto", ancho: 4, alto: 500, eventos: true },
-  { id: "tiros", titulo: "Tiros", ancho: 6, alto: 380, eventos: true },
-  { id: "ocasiones", titulo: "Ocasiones creadas", ancho: 6, alto: 380, eventos: true },
-  { id: "regates", titulo: "Regates", ancho: 4, alto: 500, eventos: true },
-  { id: "pases_inicio", titulo: "Dónde empieza sus pases", ancho: 4, alto: 500, eventos: true },
-  { id: "pases_fin", titulo: "Dónde terminan sus pases", ancho: 4, alto: 500, eventos: true },
-  { id: "calor", titulo: "Mapa de calor", ancho: 4, alto: 500, eventos: true },
-  { id: "defensa", titulo: "Acciones defensivas", ancho: 4, alto: 500, eventos: true },
-  { id: "recepciones", titulo: "Dónde recibe", ancho: 4, alto: 560, eventos: true },
-  { id: "recepciones_tipo", titulo: "Cómo recibe", ancho: 4, alto: 500, eventos: true },
-  { id: "recepciones_origen", titulo: "De dónde le llega", ancho: 4, alto: 500, eventos: true },
-  { id: "recepciones_pasadores", titulo: "Quién se la da", ancho: 4, alto: 420, eventos: true },
-  { id: "roles", titulo: "Cómo participa en la jugada", ancho: 12, alto: 420, eventos: false, roles: true },
-  { id: "encaje", titulo: "Encaje con un equipo", ancho: 12, alto: 720, eventos: false, roles: true },
-  { id: "enjambres", titulo: "Frente a su grupo", ancho: 12, alto: 380, eventos: false },
-  { id: "dispersion", titulo: "Construcción frente a asociación", ancho: 6, alto: 400, eventos: false },
-];
-
-export const esPieza = (id: unknown): id is IdPieza => PIEZAS_FICHA.some((pieza) => pieza.id === id);
-
-/**
- * El ajuste propio de una pieza, si lo tiene: la familia del Top 10 o cómo se
- * agrupan las recepciones. Visuales lo ofrece en el inspector del bloque.
- */
-export function opcionesDePieza(id: IdPieza): { etiqueta: string; inicial: string; opciones: Array<{ valor: string; etiqueta: string }> } | null {
-  if (id === "top10") return { etiqueta: "Familia", inicial: "progresion", opciones: COMPUESTAS.map((c) => ({ valor: c.id, etiqueta: c.etiqueta })) };
-  if (id === "recepciones" || id === "recepciones_tipo") {
-    return { etiqueta: "Agrupar por", inicial: "tipo", opciones: AGRUPACIONES_RECEPCION.map((a) => ({ valor: a.id, etiqueta: a.etiqueta })) };
-  }
-  return null;
-}
 
 /*
  * Look Night. Cada familia toma el color de su conjunto —el mismo que en el
@@ -578,21 +533,15 @@ function Dispersion({ grupo, objetivo, destacados, nombres, ejeX, ejeY }: {
 
 // ---- Una pieza --------------------------------------------------------------
 
-/**
- * Dibuja una pieza. `suelta` es para Visuales: allí cada bloque va por su
- * cuenta y, si faltan los eventos, avisa dentro del propio bloque en vez de en
- * la cabecera de la hoja. `opcion` es la familia del Top 10.
- */
-export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
+/** Dibuja una pieza. `opcion` es la familia del Top 10 o cómo se agrupan las recepciones. */
+export function PiezaFicha({ pieza, datos, opcion, onOpcion }: {
   pieza: IdPieza;
   datos: DatosFicha;
   opcion?: string;
   onOpcion?: (valor: string) => void;
-  suelta?: boolean;
 }) {
   const { contexto, jugador, equipo, fuente, eventos, grupo, propias, nombreGrupo, parecidos, destacados, nombres, sinEventos } = datos;
   const { rows, indice, informe, perfilTm, onAbrirJugador } = contexto;
-  const aviso = suelta && sinEventos ? datos.estado || undefined : undefined;
   const conGrupo = datos.marco?.modo === "liga"
     ? tf("frente a {n} {grupo} de su liga ({marco})", { n: grupo.indices.length, grupo: nombreGrupo.toLowerCase(), marco: datos.marco.texto })
     : tf("frente a {n} {grupo}", { n: grupo.indices.length, grupo: nombreGrupo.toLowerCase() });
@@ -679,7 +628,7 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
     }
 
     case "radar":
-      return <Tarjeta titulo={t("Familias")} subtitulo={suelta ? `${t("Largo: percentil · cifra: desviaciones típicas")} · ${conGrupo}` : t("Largo: percentil · cifra: desviaciones típicas")} clase="snap-radar-tarjeta">
+      return <Tarjeta titulo={t("Familias")} subtitulo={t("Largo: percentil · cifra: desviaciones típicas")} clase="snap-radar-tarjeta">
         <RadarFamilias valores={propias} />
       </Tarjeta>;
 
@@ -690,7 +639,7 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
         .filter((p) => Number.isFinite(p.z))
         .sort((a, b) => b.z - a.z)
         .slice(0, 10);
-      return <Tarjeta titulo={t("Top 10")} subtitulo={datos.ligasDeLaLista ? tf("{f} · cada uno en su liga · {ligas}", { f: t(familia.etiqueta), ligas: datos.ligasDeLaLista }) : suelta ? `${t(familia.etiqueta)} · ${conGrupo}` : undefined} clase="snap-top">
+      return <Tarjeta titulo={t("Top 10")} subtitulo={datos.ligasDeLaLista ? tf("{f} · cada uno en su liga · {ligas}", { f: t(familia.etiqueta), ligas: datos.ligasDeLaLista }) : undefined} clase="snap-top">
         <Desplegable etiqueta={t("Familia")} valor={t(familia.etiqueta)} activo={false}>
           <select aria-label={t("Familia")} value={familia.id} onChange={(evento) => onOpcion?.(evento.target.value)} onClick={(evento) => evento.stopPropagation()}>
             {COMPUESTAS.map((c) => <option key={c.id} value={c.id}>{c.fuente === "skillcorner" ? `${t(c.etiqueta)} · SkillCorner` : t(c.etiqueta)}</option>)}
@@ -710,7 +659,7 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
 
     case "puestos": {
       const { minutosPos, totalPos } = datos;
-      return <Tarjeta titulo={t("Tiempo en cada puesto")} subtitulo={eventos ? tf("{m} minutos en {n} puestos", { m: num(totalPos), n: minutosPos.length }) : undefined} aviso={aviso} clase="snap-puestos">
+      return <Tarjeta titulo={t("Tiempo en cada puesto")} subtitulo={eventos ? tf("{m} minutos en {n} puestos", { m: num(totalPos), n: minutosPos.length }) : undefined} clase="snap-puestos">
         <Cancha etiqueta={t("Tiempo en cada puesto")}>
           {minutosPos.map(([codigo, minutos]) => {
             const lugar = POSICION_EN_CAMPO[codigo];
@@ -731,9 +680,7 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
     }
 
     case "parecidos": {
-      // Suelto, en un bloque de media hoja, van diez: quince pedían un bloque
-      // más alto que el resto de la fila.
-      const lista = suelta ? parecidos.slice(0, 10) : parecidos;
+      const lista = parecidos;
       return <Tarjeta titulo={tf("Los que más se parecen a {nombre}", { nombre: apellido(jugador) })}
         subtitulo={datos.ligasDeLaLista
           ? tf("{n} más cercanos de su puesto · {ligas}", { n: lista.length, ligas: datos.ligasDeLaLista })
@@ -753,7 +700,7 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
     }
 
     case "tiros":
-      return <Tarjeta titulo={t("Tiros")} subtitulo={sinEventos ? undefined : tf("{n} tiros · {g} goles · {x} xG", { n: datos.tiros.length, g: datos.goles, x: num(datos.xgTotal, 2) })} aviso={aviso}
+      return <Tarjeta titulo={t("Tiros")} subtitulo={sinEventos ? undefined : tf("{n} tiros · {g} goles · {x} xG", { n: datos.tiros.length, g: datos.goles, x: num(datos.xgTotal, 2) })}
         leyenda={<><i className="snap-l gol" />{t("Gol")}<i className="snap-l tiro" />{t("Sin gol")}<span>{t("tamaño = xG")}</span></>}>
         <Cancha mitad etiqueta={t("Tiros")}>
           {/* Gol = estrella verde con borde blanco; el resto, círculo rojo. Tamaño = xG. */}
@@ -769,7 +716,7 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
 
     case "ocasiones": {
       const claseOcasion = (e: EventoSB) => (e.ga ? "asistencia" : e.pt === "Corner" || e.pt === "Free Kick" ? "parado" : e.cr ? "centro" : "juego");
-      return <Tarjeta titulo={t("Ocasiones creadas")} subtitulo={sinEventos ? undefined : tf("{n} pases a tiro · {a} asistencias", { n: datos.ocasiones.length, a: datos.asistencias })} aviso={aviso}
+      return <Tarjeta titulo={t("Ocasiones creadas")} subtitulo={sinEventos ? undefined : tf("{n} pases a tiro · {a} asistencias", { n: datos.ocasiones.length, a: datos.asistencias })}
         leyenda={<><i className="snap-l juego" />{t("Juego")}<i className="snap-l centro" />{t("Centro")}<i className="snap-l parado" />{t("Balón parado")}<i className="snap-l asistencia" />{t("Asistencia")}</>}>
         <Cancha mitad etiqueta={t("Ocasiones creadas")}>
           {datos.ocasiones.map((e, i) => {
@@ -783,7 +730,7 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
 
     case "regates": {
       const { regates, regatesBien } = datos;
-      return <Tarjeta titulo={t("Regates")} subtitulo={sinEventos ? undefined : tf("{b} de {n} completados · {p}%", { b: regatesBien, n: regates.length, p: regates.length ? Math.round((regatesBien / regates.length) * 100) : 0 })} aviso={aviso}
+      return <Tarjeta titulo={t("Regates")} subtitulo={sinEventos ? undefined : tf("{b} de {n} completados · {p}%", { b: regatesBien, n: regates.length, p: regates.length ? Math.round((regatesBien / regates.length) * 100) : 0 })}
         leyenda={<><i className="snap-l gol" />{t("Completado")}<i className="snap-l fallo" />{t("Fallido")}</>}>
         <Cancha etiqueta={t("Regates")}>
           {regates.map((e, i) => { const [X, Y] = aVertical(e.l!); return <circle key={i} cx={X} cy={Y} r={1.4} className={e.o === "Complete" ? "snap-regate bien" : "snap-regate mal"} />; })}
@@ -792,19 +739,19 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
     }
 
     case "pases_inicio":
-      return <Tarjeta titulo={t("Dónde empieza sus pases")} subtitulo={sinEventos ? undefined : tf("{n} pases en juego abierto", { n: num(datos.pasesJuego.length) })} aviso={aviso}>
+      return <Tarjeta titulo={t("Dónde empieza sus pases")} subtitulo={sinEventos ? undefined : tf("{n} pases en juego abierto", { n: num(datos.pasesJuego.length) })}>
         <RejillaCampo puntos={datos.pasesJuego.map((e) => [e.l![0], e.l![1]] as Punto)} modo="pct" etiqueta={t("Dónde empieza sus pases")} />
       </Tarjeta>;
 
     case "pases_fin":
-      return <Tarjeta titulo={t("Dónde terminan sus pases")} subtitulo={sinEventos ? undefined : tf("{n} destinos", { n: num(datos.pasesJuego.filter((e) => e.e).length) })} aviso={aviso}>
+      return <Tarjeta titulo={t("Dónde terminan sus pases")} subtitulo={sinEventos ? undefined : tf("{n} destinos", { n: num(datos.pasesJuego.filter((e) => e.e).length) })}>
         <RejillaCampo puntos={datos.pasesJuego.filter((e) => e.e).map((e) => [e.e![0], e.e![1]] as Punto)} modo="pct" etiqueta={t("Dónde terminan sus pases")} />
       </Tarjeta>;
 
     case "calor": {
       const { celdas, columnas, filas } = densidad(datos.acciones.map((e) => [e.l![0], e.l![1]] as Punto));
       const w = 80 / columnas, h = 120 / filas;
-      return <Tarjeta titulo={t("Mapa de calor")} subtitulo={sinEventos ? undefined : tf("{n} acciones en juego abierto", { n: num(datos.acciones.length) })} aviso={aviso}>
+      return <Tarjeta titulo={t("Mapa de calor")} subtitulo={sinEventos ? undefined : tf("{n} acciones en juego abierto", { n: num(datos.acciones.length) })}>
         <Cancha etiqueta={t("Mapa de calor")} fondo={celdas.map((fila, f) => fila.map((v, c) => v > 0.02
           ? <rect key={`${f}-${c}`} x={c * w} y={f * h} width={w + 0.1} height={h + 0.1} className="snap-calor" style={{ fillOpacity: v * 0.9 }} />
           : null))} />
@@ -815,7 +762,7 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
       const { defensivas, cuenta } = datos;
       return <Tarjeta titulo={t("Acciones defensivas")} subtitulo={sinEventos ? undefined : tf("{n} en total · {e} entradas · {r} recuperaciones · {i} intercepciones · {d} despejes", {
         n: defensivas.length, e: cuenta("Duel", "Tackle"), r: cuenta("Ball Recovery"), i: cuenta("Interception"), d: cuenta("Clearance"),
-      })} aviso={aviso}>
+      })}>
         <RejillaCampo puntos={defensivas.map((e) => [e.l![0], e.l![1]] as Punto)} modo="n" etiqueta={t("Acciones defensivas")} />
       </Tarjeta>;
     }
@@ -841,7 +788,7 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
       const orden = r.lista
         .map((e) => ({ e, grupo: grupoDeRecepcion(e, agrupacion.id) }))
         .sort((a, b) => (frecuencia.get(b.grupo ?? "") ?? 0) - (frecuencia.get(a.grupo ?? "") ?? 0));
-      return <Tarjeta titulo={t("Dónde recibe")} subtitulo={sinEventos ? undefined : tf("{n} recepciones · {p} por 90", { n: num(r.total), p: num(porNoventa, 1) })} aviso={aviso} clase="snap-con-chip snap-recepciones"
+      return <Tarjeta titulo={t("Dónde recibe")} subtitulo={sinEventos ? undefined : tf("{n} recepciones · {p} por 90", { n: num(r.total), p: num(porNoventa, 1) })} clase="snap-con-chip snap-recepciones"
         leyenda={<>
           {r.grupos.filter((g) => g.n).map((g) => <span key={g.id} className="snap-l-grupo"><i style={{ background: g.color }} />{t(g.etiqueta)} <b>{num(g.n)}</b></span>)}
           {r.fallidas > 0 && <span className="snap-l-grupo"><i className="hueco" />{t("No controlada")}</span>}
@@ -878,7 +825,7 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
       const r = resumenRecepciones(eventos?.eventos ?? [], agrupacion.id);
       const agrupadas = r.grupos.reduce((s, g) => s + g.n, 0);
       const maximo = Math.max(1, ...r.grupos.map((g) => g.n));
-      return <Tarjeta titulo={t("Cómo recibe")} subtitulo={sinEventos ? undefined : `${t(agrupacion.etiqueta)} · ${tf("{n} recepciones", { n: num(r.total) })}`} aviso={aviso} clase="snap-como-recibe">
+      return <Tarjeta titulo={t("Cómo recibe")} subtitulo={sinEventos ? undefined : `${t(agrupacion.etiqueta)} · ${tf("{n} recepciones", { n: num(r.total) })}`} clase="snap-como-recibe">
         <ol className="snap-barras">
           {r.grupos.map((g) => (
             <li key={g.id}>
@@ -901,7 +848,7 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
 
     case "recepciones_origen": {
       const r = resumenRecepciones(eventos?.eventos ?? [], "tipo");
-      return <Tarjeta titulo={t("De dónde le llega")} subtitulo={sinEventos ? undefined : tf("Origen de {n} pases que recibe", { n: num(r.origenes.length) })} aviso={aviso}>
+      return <Tarjeta titulo={t("De dónde le llega")} subtitulo={sinEventos ? undefined : tf("Origen de {n} pases que recibe", { n: num(r.origenes.length) })}>
         <RejillaCampo puntos={r.origenes} modo="pct" etiqueta={t("De dónde le llega")} />
       </Tarjeta>;
     }
@@ -909,7 +856,7 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
     case "recepciones_pasadores": {
       const r = resumenRecepciones(eventos?.eventos ?? [], "tipo");
       const lista = r.pasadores.slice(0, 8);
-      return <Tarjeta titulo={t("Quién se la da")} subtitulo={sinEventos ? undefined : tf("{n} compañeros distintos", { n: r.pasadores.length })} aviso={aviso} clase="snap-parecidos snap-pasadores">
+      return <Tarjeta titulo={t("Quién se la da")} subtitulo={sinEventos ? undefined : tf("{n} compañeros distintos", { n: r.pasadores.length })} clase="snap-parecidos snap-pasadores">
         <ol>
           {lista.map((p, posicion) => (
             <li key={p.nombre}>
@@ -984,7 +931,7 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
     case "encaje":
       // En Visuales, sin el detalle dimensión a dimensión: el resumen cabe en
       // un bloque; el detalle es la hoja entera de la ficha ampliada.
-      return <figure className="snap-tarjeta snap-encaje snap-con-chip"><EncajeEquipo datos={datos} equipo={opcion} onEquipo={onOpcion} detalle={!suelta} /></figure>;
+      return <figure className="snap-tarjeta snap-encaje snap-con-chip"><EncajeEquipo datos={datos} equipo={opcion} onEquipo={onOpcion} detalle /></figure>;
 
     case "enjambres":
       return <Tarjeta titulo={tf("Frente a su grupo: {grupo}", { grupo: nombreGrupo.toLowerCase() })} subtitulo={t("Cada punto es un jugador; relleno, él; con aro, sus cinco más parecidos")} clase="snap-enjambres">
@@ -1001,16 +948,4 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
         <Dispersion grupo={grupo} objetivo={indice} destacados={destacados} nombres={nombres} ejeX="construccion" ejeY="asociacion" />
       </Tarjeta>;
   }
-}
-
-/** Una pieza por su cuenta, para un bloque de Visuales. */
-export function PiezaSuelta({ pieza, contexto, opcion, onOpcion }: {
-  pieza: IdPieza;
-  contexto: ContextoFicha;
-  opcion?: string;
-  onOpcion?: (valor: string) => void;
-}) {
-  const ficha = PIEZAS_FICHA.find((p) => p.id === pieza);
-  const datos = useDatosFicha(contexto, ficha?.eventos ?? false, ficha?.roles ?? false);
-  return <PiezaFicha pieza={pieza} datos={datos} opcion={opcion} onOpcion={onOpcion} suelta />;
 }

@@ -66,32 +66,6 @@ Antes de exportar la comparación se puede asignar un color independiente a cada
 jugador mediante colores predefinidos o un selector personalizado. Los colores
 se aplican al radar, las fichas, las barras de percentiles y el PNG final.
 
-## Editor visual de páginas
-
-Las páginas 2 y 3 del reporte incluyen un editor local con:
-
-- el mismo sistema visual de la Página 01: paleta, tipografías, encabezados,
-  numeración, formato de página y pie editorial (sin banda de título, para
-  aprovechar el alto de la hoja);
-- un tema compartido: cualquier cambio de paleta se aplica automáticamente a
-  Ficha, Visuales y Observaciones;
-- bloques nuevos que nacen a media hoja (6 de 12 columnas), no en tiras
-  estrechas, y con los dos tiradores separados —el de alto abajo a la
-  izquierda, el de ancho y alto en la esquina— para que ninguno tape al otro
-  en bloques angostos;
-- tamaño de letra por bloque, de 11 a 42 px, desde el panel;
-- una rejilla editorial de 12 columnas: los anchos se eligen por fracciones
-  (1/4, 1/3, 1/2, 2/3, 3/4, completo) o arrastrando, y siempre encajan en la
-  rejilla, con guías visibles mientras se arrastra o se redimensiona;
-- plantillas de una columna, mitades, destacado y mosaico de tercios;
-- bloques de imagen y texto que se pueden agregar, eliminar y reordenar;
-- comentarios independientes debajo o al lado de cualquier imagen cargada;
-- arrastre de bloques y controles alternativos para moverlos;
-- ancho y alto ajustables desde el panel o arrastrando la esquina; el ancho encaja en columnas y el alto en pasos de 10 px para conservar márgenes y alineación;
-- temas de color y colores personalizados;
-- tipografías, tamaño, color, negrita, cursiva y alineación para los textos;
-- guardado automático del diseño en el navegador e impresión de la página activa.
-
 Los Excel se procesan completamente en el navegador. No se suben a un servidor.
 
 ## Flujo del reporte
@@ -114,7 +88,8 @@ Los Excel se procesan completamente en el navegador. No se suben a un servidor.
    Instalación del servidor (una sola vez):
    `python3.11 -m venv ~/.rembg-venv && ~/.rembg-venv/bin/pip install "rembg[cpu,cli]" fastapi uvicorn python-multipart`.
 4. **Diseñar reporte:** revisar la ficha imprimible inspirada en
-   `Radar Jordhy Thompson v2`, y editar las páginas de visuales y observaciones.
+   `Radar Jordhy Thompson v2` y elegir qué hojas van al PDF: Ficha y radar,
+   Similitud, Ficha ampliada y Carreras.
    La etiqueta “Base analizada” y el nombre de la liga o temporada también son
    editables desde el panel de datos.
 
@@ -213,12 +188,10 @@ tarjeta del paso 01, o desde el panel de datos con un informe abierto).
 
 ## Lecturas escritas por Claude
 
-Tres textos del informe se pueden redactar con IA, siempre sobre los números
+Dos textos del informe se pueden redactar con IA, siempre sobre los números
 reales que ya calcula la app —nunca plantillas guardadas—:
 
 - **Lectura rápida** (Página 01): 2-3 frases, 55 palabras como máximo.
-- **Informe extendido** (Páginas de visuales): unas 200 palabras en tres
-  bloques —perfil, fortalezas y a revisar— dentro del bloque de texto elegido.
 - **Opinión de la comparación** (Página 02): unas 110 palabras sobre el jugador
   objetivo frente al comparado, cerrando con una recomendación.
 

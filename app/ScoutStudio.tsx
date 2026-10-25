@@ -1,16 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BarChart3, Check, ChevronDown, ChevronRight, Crosshair, Database, FileSpreadsheet, ImageIcon, LockKeyhole, Menu, MoreHorizontal, Plus, Printer, RadarChart, RotateCcw, Route, Search, Sparkles, Trash, Trophy, Upload, X, ShieldCheck, LayoutDashboard, Wind } from "./Icons";
+import { BarChart3, Check, ChevronDown, ChevronRight, Database, FileSpreadsheet, ImageIcon, LockKeyhole, Menu, MoreHorizontal, Plus, Printer, RadarChart, RotateCcw, Route, Search, Sparkles, Trophy, Upload, X, ShieldCheck, LayoutDashboard, Wind } from "./Icons";
 import { PizzaRadar } from "./PizzaRadar";
-import { ContextPage } from "./ContextPage";
 import { ScoutingBoard } from "./ScoutingBoard";
 import { RunsPage } from "./RunsPage";
 import { RankingPage } from "./RankingPage";
 import { EstiloPage } from "./EstiloPage";
 import { BlueprintsPage } from "./BlueprintsPage";
 import { SnapshotPage } from "./SnapshotPage";
-import { ReportPageDesigner } from "./ReportPageDesigner";
 import { SimilarityStudio } from "./SimilarityStudio";
 import { CLIENT_THEMES, DEFAULT_REPORT_THEME, reportThemeStyle, type ReportTheme } from "./reportTheme";
 import { LogoPlataforma } from "./LogosPlataforma";
@@ -64,18 +62,15 @@ import { FECHA_NIVEL_RESPALDO, LIGA_DE_REFERENCIA, PUNTOS_POR_RATING, indiceANiv
 import { METRIC_SOURCE_COLORS, SIMILARITY_METRIC_GROUPS, similarityMetricGroup } from "@/lib/similarityMetricGroups";
 import { setActiveLang, t, tDefault, tf, type Lang } from "@/lib/i18n";
 
-// Página 1 = ficha del jugador · Página 2 = comparación de similitud ·
-// Página 3 en adelante = páginas libres de visualizaciones que el usuario agrega.
+// Página 1 = ficha del jugador · Página 2 = comparación de similitud.
 type ReportPage = number;
 const CARD_PAGE = 1;
 const SIMILARITY_PAGE = 2;
-const FIRST_VISUAL_PAGE = 3;
-// Fuera del rango de las páginas visuales para no chocar con el editor, que
-// guarda sus diseños indexados por número de página.
-const CONTEXT_PAGE = 90;
-// Mesa de detección mensual para Maldonado: fuera del rango de páginas visuales.
+// Del 3 al 89 eran las páginas libres de "Visuales" y el 90 era "Contexto":
+// se quitaron del informe. Los números no se reutilizan.
+// Mesa de detección mensual para Maldonado.
 const BOARD_PAGE = 91;
-// Carreras sin balón de SkillCorner: vive fuera del rango visual, como las anteriores.
+// Carreras sin balón de SkillCorner: una hoja más del reporte.
 const RUNS_PAGE = 92;
 // Flujo de posesión: las rutas del balón de cada equipo, como un mapa de viento.
 // 93 era "Flujo de posesión": ahora es una sección de Estilo de juego, con
@@ -105,7 +100,6 @@ const BLUEPRINTS_PAGE = 99;
 const NOMBRE_DE_SECCION: Record<number, string> = {
   [CARD_PAGE]: "Ficha y radar",
   [SIMILARITY_PAGE]: "Similitud",
-  [CONTEXT_PAGE]: "Contexto",
   [BOARD_PAGE]: "Mesa de detección",
   [RUNS_PAGE]: "Carreras",
   [RANK_PAGE]: "Ranking",
@@ -182,9 +176,8 @@ export default function ScoutStudio() {
   // solo abre el mismo reporte encima en una ventana. Se cierra sola si se
   // recarga el jugador desde la mesa: el clic siguiente ya la deja abierta.
   const [boardPreviewOpen, setBoardPreviewOpen] = useState(false);
-  const [visualPages, setVisualPages] = useState<ReportPage[]>([FIRST_VISUAL_PAGE]);
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
-  const [printPages, setPrintPages] = useState<ReportPage[]>([CARD_PAGE, SIMILARITY_PAGE, FIRST_VISUAL_PAGE]);
+  const [printPages, setPrintPages] = useState<ReportPage[]>([CARD_PAGE, SIMILARITY_PAGE]);
   const [printRun, setPrintRun] = useState<ReportPage[] | null>(null);
   /*
    * Las hojas que hoy saldrían en blanco: Entre ligas sin jugador de
@@ -468,7 +461,7 @@ export default function ScoutStudio() {
   const filasDelInforme = cruceDeTemporadas && indiceEnElCruce >= 0 ? cruceDeTemporadas : reportRows;
   const indiceDelInforme = cruceDeTemporadas && indiceEnElCruce >= 0 ? indiceEnElCruce : selectedPlayer;
   /*
-   * La ficha ampliada y las páginas visuales enseñan UNA temporada —la de
+   * La ficha ampliada enseña UNA temporada —la de
    * referencia, por defecto la última—, no la suma: sus mapas son de los
    * partidos de esa temporada, y con la fila fusionada los minutos y las
    * familias mezclaban dos clubes y dos ligas. Solo se calcula si alguna de
@@ -477,7 +470,7 @@ export default function ScoutStudio() {
   const aniosAbiertos = paginasAbiertas.join(",");
   const anioDeReferencia = temporadaDeReferencia?.anio ?? null;
   const conVariasTemporadas = temporadasDeLaFila.length > 1;
-  const conPiezas = aniosAbiertos.split(",").map(Number).some((pagina) => pagina === SNAPSHOT_PAGE || pagina >= FIRST_VISUAL_PAGE && pagina < CONTEXT_PAGE);
+  const conPiezas = aniosAbiertos.split(",").map(Number).includes(SNAPSHOT_PAGE);
   const cruceDeLaTemporada = useCruceDeAnios(basesActivas, conPiezas && anioDeReferencia !== null && conVariasTemporadas ? String(anioDeReferencia) : "");
   const indiceEnLaTemporada = useMemo(() => {
     if (!cruceDeLaTemporada || !filaElegida) return -1;
@@ -526,18 +519,13 @@ export default function ScoutStudio() {
     return new Set(claves.flat()).size > 1 ? claves : null;
   }, [filasDelInforme, procedencias]);
   const porLiga = medirContra === "liga" && clavesDelInforme ? { clavesPorFila: clavesDelInforme } : undefined;
-  // Lo mismo para la Ficha ampliada y las piezas de Visuales, que arman su
-  // grupo sobre las filas de la temporada que se mira.
   // Las ligas de cada fila, se mida como se mida: el Top 10 y los parecidos de
-  // la Ficha ampliada se acotan a su liga por defecto.
+  // la Ficha ampliada, que arma su grupo sobre las filas de la temporada que
+  // se mira, se acotan a su liga por defecto.
   const ligasDeLasPiezas = useMemo(
     () => (procedencias.length ? origenPorFila(filasDeLasPiezas, procedencias).map((origen) => origen.claves) : null),
     [procedencias, filasDeLasPiezas],
   );
-  const clavesDeLasPiezas = useMemo(() => {
-    if (medirContra !== "liga" || procedencias.length < 2) return null;
-    return origenPorFila(filasDeLasPiezas, procedencias).map((origen) => origen.claves);
-  }, [medirContra, procedencias, filasDeLasPiezas]);
   const report = useMemo(
     () => {
       // El perfil solo se conoce tras construir el informe, y la selección se
@@ -987,7 +975,7 @@ export default function ScoutStudio() {
         // ensanchar la caja antes de escalarla vuelve a repartir el texto.
         // Las páginas de análisis y la hoja de similitud entran igual que la
         // ficha: si su contenido pasa del alto de la hoja, se encoge entera.
-        const FIT_SELECTOR = ".scout-report, .visual-report-page, .context-page, .snap-page, .estilo-page, .rank-page, .pool-page, .runs-page, .scouting-board, .similarity-report-sheet, .similarity-native-block, .similarity-native-content, .similarity-report-main, .similarity-metric-section, .visual-text-content";
+        const FIT_SELECTOR = ".scout-report, .snap-page, .estilo-page, .rank-page, .pool-page, .runs-page, .scouting-board, .similarity-report-sheet, .similarity-native-block, .similarity-native-content, .similarity-report-main, .similarity-metric-section";
         const MIN_FIT = 0.55;
         const shells = Array.from(document.querySelectorAll<HTMLElement>(".legal-page-shell"));
 
@@ -1123,31 +1111,6 @@ export default function ScoutStudio() {
       if (value.trim()) window.localStorage.setItem(key, value);
       else window.localStorage.removeItem(key);
     } catch { /* Sin persistencia la edición vive durante la sesión. */ }
-  }
-
-  function addVisualPage() {
-    const next = (visualPages.at(-1) ?? SIMILARITY_PAGE) + 1;
-    setVisualPages((pages) => [...pages, next]);
-    setPrintPages((pages) => [...pages, next].sort((a, b) => a - b));
-    setReportPage(next);
-  }
-
-  function removeVisualPage(page: ReportPage) {
-    if (page < FIRST_VISUAL_PAGE) return;
-    const remaining = visualPages.filter((item) => item !== page);
-    if (!remaining.length) return;
-    setVisualPages(remaining);
-    setPrintPages((pages) => pages.filter((item) => item !== page));
-    setReportPage(remaining.at(-1) ?? SIMILARITY_PAGE);
-    // Purga el diseño guardado de esa página: si se agrega una página nueva
-    // con el mismo número, arranca con la plantilla y no con contenido viejo.
-    try {
-      const saved = leerConImagenes<Record<string, unknown>>("fos-scout-page-designer-v1");
-      if (saved) {
-        delete saved[String(page)];
-        guardarConImagenes("fos-scout-page-designer-v1", saved);
-      }
-    } catch { /* Sin persistencia no hay nada que purgar. */ }
   }
 
   function startPrint() {
@@ -2120,11 +2083,9 @@ export default function ScoutStudio() {
       { page: CARD_PAGE, title: t("Ficha y radar"), hint: t("Percentiles del jugador") },
       { page: SIMILARITY_PAGE, title: t("Similitud"), hint: t("Jugadores comparables") },
       { page: SNAPSHOT_PAGE, title: t("Ficha ampliada"), hint: t("Familias, mapas y parecidos") },
-      { page: CONTEXT_PAGE, title: t("Contexto"), hint: t("Dónde destaca y por qué") },
       { page: RUNS_PAGE, title: t("Carreras"), hint: t("Mapa sin balón") },
       { page: RANK_PAGE, title: t("Ranking"), hint: t("Los mejores por puesto") },
       { page: STYLE_PAGE, title: t("Estilo de juego"), hint: t("Cómo juega, el partido y el flujo") },
-      ...visualPages.map((page, index) => ({ page, title: tf("Visuales {n}", { n: index + 1 }), hint: t("Mapas, imágenes y texto") })),
     ];
   const todasMarcadas = paginasParaImprimir.every(({ page }) => printPages.includes(page));
   const paginasQuePidenElegir: ReportPage[] = [RUNS_PAGE, STYLE_PAGE];
@@ -2190,7 +2151,7 @@ export default function ScoutStudio() {
           </div>
 
           <h1 className="nav-titulo">
-            {dataReady ? t(NOMBRE_DE_SECCION[reportPage] ?? "Visuales") : t("Reportes de scouting")}
+            {dataReady ? t(NOMBRE_DE_SECCION[reportPage] ?? "Ficha y radar") : t("Reportes de scouting")}
           </h1>
 
           <div className="top-actions">
@@ -2245,7 +2206,7 @@ export default function ScoutStudio() {
         {espacio === "cavalry" && !report && <ol className="studio-flow" aria-label={t("Flujo del reporte")}>
           <li className={dataReady ? "done" : "current"}><span>{dataReady ? <Check size={13} /> : "1"}</span><div><b>{t("Cargar datos")}</b><small>{dataReady ? tDefault(reportFileName) : t("Excel o CSV")}</small></div></li>
           <li className={dataReady ? "current" : ""}><span>2</span><div><b>{t("Elegir jugador")}</b><small>{t("Equipo y jugador")}</small></div></li>
-          <li><span>3</span><div><b>{t("Construir reporte")}</b><small>{t("Ficha, similitud y visuales")}</small></div></li>
+          <li><span>3</span><div><b>{t("Construir reporte")}</b><small>{t("Ficha, similitud y carreras")}</small></div></li>
         </ol>}
 
         <div className="page-content reports-page">
@@ -2433,16 +2394,6 @@ export default function ScoutStudio() {
                   </div>
                 </section>
 
-                <section className="seccion-grupo" data-tono="jugador">
-                  <h3 className="seccion-grupo-titulo">{t("Jugador")}</h3>
-                  <div className="seccion-lista">
-                    <FilaSeccion activa={reportPage === CONTEXT_PAGE} onClick={() => setReportPage(CONTEXT_PAGE)}
-                      icono={<Crosshair size={16} />} titulo={t("Contexto")} detalle={t("Dónde destaca y por qué")} />
-                    <FilaSeccion activa={reportPage === RUNS_PAGE} onClick={() => setReportPage(RUNS_PAGE)}
-                      icono={<Route size={16} />} titulo={t("Carreras")} detalle={t("Mapa sin balón")} api />
-                  </div>
-                </section>
-
                 <section className="seccion-grupo" data-tono="reporte">
                   <h3 className="seccion-grupo-titulo">{t("Reporte")}</h3>
                   <div className="seccion-lista">
@@ -2452,20 +2403,8 @@ export default function ScoutStudio() {
                       icono={<Sparkles size={16} />} titulo={t("Similitud")} detalle={t("Jugadores comparables")} />
                     <FilaSeccion activa={reportPage === SNAPSHOT_PAGE} onClick={() => setReportPage(SNAPSHOT_PAGE)}
                       icono={<LayoutDashboard size={16} />} titulo={t("Ficha ampliada")} detalle={t("Familias, mapas y parecidos")} api />
-                    {visualPages.map((page, index) => (
-                      <FilaSeccion key={page} activa={reportPage === page} onClick={() => setReportPage(page)}
-                        icono={<ImageIcon size={16} />} titulo={tf("Visuales {n}", { n: index + 1 })} detalle={t("Mapas, imágenes y texto")} />
-                    ))}
-                    <button type="button" className="seccion-fila accion" onClick={addVisualPage}>
-                      <span className="seccion-icono" aria-hidden="true"><Plus size={16} /></span>
-                      <span className="seccion-texto"><b>{t("Agregar página")}</b></span>
-                    </button>
-                    {visualPages.length > 1 && reportPage >= FIRST_VISUAL_PAGE && (
-                      <button type="button" className="seccion-fila peligro" onClick={() => removeVisualPage(reportPage)}>
-                        <span className="seccion-icono" aria-hidden="true"><Trash size={16} /></span>
-                        <span className="seccion-texto"><b>{t("Quitar página")}</b></span>
-                      </button>
-                    )}
+                    <FilaSeccion activa={reportPage === RUNS_PAGE} onClick={() => setReportPage(RUNS_PAGE)}
+                      icono={<Route size={16} />} titulo={t("Carreras")} detalle={t("Mapa sin balón")} api />
                   </div>
                 </section>
               </nav>}
@@ -2742,21 +2681,13 @@ export default function ScoutStudio() {
 
               {/* Las hojas van en el mismo orden que la lista del diálogo de
                   imprimir: el PDF sale en el orden del DOM, no en el de la
-                  lista, y antes Contexto y la Ficha ampliada salían al final
-                  aunque el diálogo los pusiera terceros. Lo vigila
+                  lista, y antes la Ficha ampliada salía al final aunque el
+                  diálogo la pusiera tercera. Lo vigila
                   tests/orden-del-pdf.test.mjs. */}
               {espacio === "cavalry" && report && paginaMontada(SNAPSHOT_PAGE) && (
                 <SnapshotPage rows={filasDeLasPiezas} indice={indiceDeLasPiezas} informe={report} perfilTm={profile} minutosMin={minimumMinutes} claseHoja={claseHoja(SNAPSHOT_PAGE)} temporada={temporadaDeReferencia?.etiqueta}
                   clavesPorFila={ligasDeLasPiezas} ligasDeFila={ligasDeLasPiezas} feedOpta={feedOpta} avisoSkillcorner={avisoSc}
                   destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} onAbrirJugador={(indice) => { const enBase = enLaBase(indice); if (enBase >= 0) selectPlayer(enBase); }} />
-              )}
-              {report && paginaMontada(CONTEXT_PAGE) && (
-                <ContextPage claseHoja={claseHoja(CONTEXT_PAGE)} report={report} rows={reportRows} bases={sourceDatasets} minutosFiltro={minimumMinutes} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl}
-                  medirEnSuLiga={medirContra === "liga"} feedOpta={feedOpta} controles={{
-                  equipos: teams, jugadores: teamPlayers, equipo: selectedTeam, jugador: selectedPlayer,
-                  cohorte: cohort,
-                  onEquipo: selectTeam, onJugador: selectPlayer, onCohorte: setCohort,
-                }} />
               )}
               {paginaMontada(RUNS_PAGE) && (
                 <div className={claseHoja(RUNS_PAGE)}><RunsPage destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
@@ -2775,10 +2706,6 @@ export default function ScoutStudio() {
               {espacio === "cavalry" && paginaMontada(BLUEPRINTS_PAGE) && (
                 <div className={claseHoja(BLUEPRINTS_PAGE)}><BlueprintsPage destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
               )}
-              {report ? visualPages.filter((page) => printRun ? printRun.includes(page) : reportPage === page).map((page) => (
-                <ReportPageDesigner key={page} pageNumber={page} persist={!printRun || reportPage === page} player={report.player} team={profile.club || report.team} position={formatPlayerPositions(profile.position || report.position)} theme={reportTheme} onThemeChange={setReportTheme} recipientName={recipientName} recipientLogoUrl={reportRecipientLogoUrl} aiFacts={aiControlsHidden ? undefined : () => ({ lang, player: aiPlayerFacts(report), metrics: aiMetricFacts(report) })}
-                  ficha={{ rows: filasDeLasPiezas, indice: indiceDeLasPiezas, informe: report, perfilTm: profile, minutosMin: minimumMinutes, temporada: temporadaDeReferencia?.etiqueta, clavesPorFila: clavesDeLasPiezas, ligasDeFila: ligasDeLasPiezas, feedOpta }} />
-              )) : !printRun && reportPage >= FIRST_VISUAL_PAGE ? <div className="empty-preview">{t("Selecciona un jugador para diseñar las páginas.")}</div> : null}
               {report && paginaMontada(BOARD_PAGE) && (
                 <div className={claseHoja(BOARD_PAGE)}><ScoutingBoard rows={reportRows} minimumMinutes={minimumMinutes} onSelectPlayer={(indice) => { selectPlayer(indice); setBoardPreviewOpen(true); }} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
               )}
@@ -2847,7 +2774,6 @@ export default function ScoutStudio() {
                         <span className="impresion-fila-texto"><b>{title}</b><small>{vacia
                           ? t("Vacía ahora: ábrela y elige qué mostrar para que salga en el PDF.")
                           : page === SNAPSHOT_PAGE ? t("1 hoja: familias, acciones y mapas")
-                          : page === CONTEXT_PAGE ? t("2 hojas: el jugador y la comparación")
                           : hint}</small></span>
                       </label>;
                       return fila;
