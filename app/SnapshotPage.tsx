@@ -12,13 +12,13 @@ import type { TransfermarktProfile } from "@/lib/transfermarkt";
 /**
  * Ficha ampliada: la página 2 del dossier ("Player Snapshot") con StatsBomb.
  *
- * Una sola hoja, como Ficha y radar: quién es y en qué destaca (la ficha,
- * las familias, el Top 10, dónde juega y dónde recibe), con quién se parece
- * y qué hace con el balón —tiros, ocasiones, regates y cómo participa en la
- * jugada—, y dónde lo hace y cómo le llega —mapa de calor, defensa, de dónde,
- * cómo y de quién—. Las piezas se reparten en columnas de alto parecido y
- * cada fila las estira al mismo alto: debajo del Top 10, la jugada; debajo de
- * los puestos, dónde recibe; debajo de tiros y ocasiones, sus mapas de pases. "Frente a su grupo", "Construcción frente a
+ * Una sola hoja, como Ficha y radar. Arriba, quién es y en qué destaca: la
+ * ficha y las familias, el Top 10 con cómo participa en la jugada, y con quién
+ * se parece y cómo recibe. Debajo, los campos en dos filas de cinco columnas
+ * iguales, así que todos los campos enteros salen del mismo tamaño: qué hace
+ * con el balón (tiros y ocasiones en el último tercio, acciones ganadas,
+ * pases y mapa de calor) y dónde juega y cómo le llega (defensa, puestos, dónde recibe, de
+ * dónde y de quién). Cada fila estira sus piezas al mismo alto. "Frente a su grupo", "Construcción frente a
  * asociación" y el encaje con un equipo salieron de esta página.
  *
  * Cada gráfico es una pieza de PiezasFicha.
@@ -92,7 +92,7 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
       {cabecera}
       {datos.estado && <p className="snap-estado" role="status">{datos.estado}</p>}
 
-      {/* Quién es: la ficha y sus familias; el Top 10 con la jugada debajo; dónde juega y dónde recibe. */}
+      {/* Quién es: la ficha y sus familias; el Top 10 con la jugada debajo; con quién se parece y cómo recibe. */}
       <div className="snap-fila snap-una-1">
         <div className="snap-columna">
           {pieza("ficha")}
@@ -103,33 +103,32 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
           {pieza("roles")}
         </div>
         <div className="snap-columna">
-          {pieza("puestos")}
-          <PiezaFicha pieza="recepciones" datos={datos} opcion={agruparRecepciones} onOpcion={setAgruparRecepciones} />
+          {pieza("parecidos")}
+          <PiezaFicha pieza="recepciones_tipo" datos={datos} opcion={agruparRecepciones} onOpcion={setAgruparRecepciones} />
         </div>
       </div>
 
-      {/* Qué hace con el balón: tiros y ocasiones con los mapas de pases debajo, y los regates. */}
-      <div className="snap-fila snap-una-2">
-        {pieza("parecidos")}
+      {/* Los campos, todos del mismo tamaño: dos filas de cinco columnas iguales.
+          Tiros y ocasiones solo necesitan el último tercio: van uno sobre otro,
+          a la misma escala que los campos enteros. */}
+      {/* Qué hace con el balón. */}
+      <div className="snap-fila snap-campos">
         <div className="snap-columna">
-          <div className="snap-pareja">
-            {pieza("tiros")}
-            {pieza("ocasiones")}
-          </div>
-          <div className="snap-pareja">
-            {pieza("pases_inicio")}
-            {pieza("pases_fin")}
-          </div>
+          {pieza("tiros")}
+          {pieza("ocasiones")}
         </div>
-        {pieza("regates")}
+        {pieza("ganadas")}
+        {pieza("pases_inicio")}
+        {pieza("pases_fin")}
+        {pieza("calor")}
       </div>
 
-      {/* Dónde lo hace y cómo le llega: de dónde, cómo y de quién. */}
-      <div className="snap-fila snap-una-3">
-        {pieza("calor")}
+      {/* Dónde juega y cómo le llega: dónde defiende, sus puestos, dónde recibe, de dónde y de quién. */}
+      <div className="snap-fila snap-campos">
         {pieza("defensa")}
+        {pieza("puestos")}
+        <PiezaFicha pieza="recepciones" datos={datos} opcion={agruparRecepciones} onOpcion={setAgruparRecepciones} />
         {pieza("recepciones_origen")}
-        <PiezaFicha pieza="recepciones_tipo" datos={datos} opcion={agruparRecepciones} onOpcion={setAgruparRecepciones} />
         {pieza("recepciones_pasadores")}
       </div>
       {pie}

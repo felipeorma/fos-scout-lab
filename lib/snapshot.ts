@@ -138,7 +138,10 @@ export type EventoSB = {
   sa?: boolean;
   ga?: boolean;
   dt?: string | null;
+  /** Duelo aéreo ganado (en despejes, pases y remates). */
   aw?: boolean;
+  /** La recuperación falló (solo en "Ball Recovery"). */
+  rf?: boolean;
   // Solo en las recepciones ("Ball Receipt*"): el pase que se la da.
   /** Recibió presionado. */
   up?: boolean;
@@ -163,6 +166,74 @@ export type EventosJugador = {
   posiciones: Record<string, number>;
   eventos: EventoSB[];
 };
+
+// ---- Acciones ganadas -------------------------------------------------------
+
+/** Los resultados de StatsBomb que cuentan como ganar la acción (entradas, intercepciones). */
+const GANADA = new Set(["Won", "Success", "Success In Play", "Success Out"]);
+
+/**
+ * Acciones defensivas ganadas: entradas e intercepciones ganadas,
+ * recuperaciones que no fallaron, bloqueos y despejes.
+ *
+ * Los eventos de un puente anterior a la versión 4 no traen el resultado de
+ * la intercepción ni si la recuperación falló: entonces cuentan como ganadas
+ * salvo que digan lo contrario, que es lo que pasa en la gran mayoría.
+ */
+export function defensivasGanadas(lista: EventoSB[]) {
+  return lista.filter((e) => e.l && (
+    (e.t === "Duel" && e.dt === "Tackle" && GANADA.has(e.o ?? ""))
+    || (e.t === "Interception" && !/^Lost/.test(e.o ?? ""))
+    || (e.t === "Ball Recovery" && !e.rf)
+    || e.t === "Block"
+    || e.t === "Clearance"
+  ));
+}
+
+/** Acciones ofensivas ganadas: regates completados, faltas recibidas y duelos aéreos ganados en pases y remates. */
+export function ofensivasGanadas(lista: EventoSB[]) {
+  return lista.filter((e) => e.l && (
+    (e.t === "Dribble" && e.o === "Complete")
+    || e.t === "Foul Won"
+    || ((e.t === "Pass" || e.t === "Shot") && Boolean(e.aw))
+  ));
+}
+
+/** Los tres colores del mapa de acciones ganadas: defensa, las dos a la par, ataque. */
+export const COLORES_GANADAS = { defensiva: "#3d9bff", ambas: "#e8edf2", ofensiva: "#ffb020" } as const;
+
+/**
+ * El mapa de acciones ganadas, celda a celda: una sola capa en la que el color
+ * dice qué gana más en esa zona —azul la defensa, ámbar el ataque, claro si
+ * las dos van a la par— y la opacidad, cuánto gana ahí.
+ *
+ * Dos capas superpuestas se tapaban y mezclaban los colores en un barro sin
+ * lectura. Cada tipo se mide contra su propio máximo, así que los dos cuentan
+ * aunque uno tenga el doble de acciones; la intensidad se escala contra el
+ * percentil 90 de las zonas con algo, para que una sola zona muy cargada no
+ * apague el resto.
+ */
+export function mapaDeGanadas(defensivas: Punto[], ofensivas: Punto[], columnas = 16, filas = 24) {
+  const def = densidad(defensivas, columnas, filas).celdas;
+  const of = densidad(ofensivas, columnas, filas).celdas;
+  const totales = def.flatMap((fila, f) => fila.map((d, c) => Math.max(d, of[f][c]))).filter((v) => v > 0.02).sort((a, b) => a - b);
+  const techo = totales[Math.floor((totales.length - 1) * 0.9)] || 1;
+  const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  const [azul, medio, ambar] = [rgb(COLORES_GANADAS.defensiva), rgb(COLORES_GANADAS.ambas), rgb(COLORES_GANADAS.ofensiva)];
+  const mezcla = (a: number[], b: number[], k: number) => `rgb(${a.map((x, i) => Math.round(x + (b[i] - x) * k)).join(",")})`;
+  const w = 80 / columnas, h = 120 / filas;
+  const celdas: Array<{ x: number; y: number; w: number; h: number; color: string; opacidad: number; parte: number }> = [];
+  def.forEach((fila, f) => fila.forEach((d, c) => {
+    const o = of[f][c];
+    const total = Math.min(1, Math.max(d, o) / techo);
+    if (total <= 0.12) return;
+    // 0 = todo defensa, 1 = todo ataque.
+    const parte = o / (d + o);
+    celdas.push({ x: c * w, y: f * h, w, h, parte, opacidad: total * 0.9,
+      color: parte < 0.5 ? mezcla(azul, medio, parte / 0.5) : mezcla(medio, ambar, (parte - 0.5) / 0.5) });
+  }));
+  return celdas;
+}
 
 /** Las jugadas a balón parado; lo que no es esto, es juego abierto. */
 const TIPOS_PARADO = new Set(["Corner", "Free Kick", "Throw-in", "Goal Kick", "Kick Off"]);

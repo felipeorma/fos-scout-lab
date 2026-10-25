@@ -94,6 +94,15 @@ Los Excel se procesan completamente en el navegador. No se suben a un servidor.
    hoja lleva el mapa, sus cifras, el reparto por tipo y el Top 10 del plantel
    por amenaza. El aspecto del PDF (Cavalry, Cavalry claro, Noche…) se elige en
    el diálogo de Imprimir / PDF.
+   En la Ficha ampliada todos los campos enteros salen del mismo tamaño, y
+   tiros y ocasiones, del último tercio a la misma escala. El mapa de
+   **acciones ganadas** pinta en un solo calor dónde gana en defensa (azul:
+   entradas e intercepciones ganadas, recuperaciones, bloqueos y despejes) y
+   dónde gana en ataque (ámbar: regates completados, faltas recibidas y
+   duelos aéreos ganados); claro donde van a la par. Necesita el puente al
+   día (`npm run bg:actualizar`): guarda esos resultados desde la versión 4 de
+   los partidos recortados, así que la primera vez de cada equipo vuelve a
+   bajar sus eventos.
    La etiqueta “Base analizada” y el nombre de la liga o temporada también son
    editables desde el panel de datos.
 
@@ -110,6 +119,20 @@ tarjeta del paso 01, o desde el panel de datos con un informe abierto).
 - Los datos llegan a través del mismo servidor local del recorte de fondos
   (`npm run bg:server`, puerto 7001). Las credenciales viven **solo en esta
   máquina**: nunca se suben al repositorio ni viajan al navegador de terceros.
+- **El puente, en Mac y en Windows** (`scripts/puente.mjs`):
+  `npm run bg:server` lo arranca en la ventana, `npm run bg:reiniciar` lo
+  para y lo vuelve a arrancar aparte, y `npm run bg:actualizar` se pone en
+  `main`, baja lo último y lo reinicia. En el Mac usa el servicio de launchd si
+  está instalado; en Windows deja el registro en
+  `%USERPROFILE%\.fos-scouting\puente.log` y no arranca solo al encender el
+  PC: tras reiniciarlo, `npm run bg:reiniciar`.
+- **Windows, una sola vez:** Python 3.11 y su entorno,
+  `py -3.11 -m venv %USERPROFILE%\.rembg-venv` y
+  `%USERPROFILE%\.rembg-venv\Scripts\pip install "rembg[cpu,cli]" fastapi uvicorn python-multipart requests`.
+  Sin el Llavero del Mac, las credenciales van en
+  `%USERPROFILE%\.fos-scouting\credentials.json`
+  (`{"statsbomb": {"username", "password"}, "skillcorner": {...}}`) o en las
+  variables `SB_USERNAME`/`SB_PASSWORD` y `SKILLCORNER_USERNAME`/`SKILLCORNER_PASSWORD`.
 - **Enlace automático con SkillCorner:** al cargar cualquier base (Excel de
   Wyscout o StatsBomb por API), si hay credenciales de SkillCorner la app
   ofrece cruzar los datos físicos. Propone la competición más probable (por
