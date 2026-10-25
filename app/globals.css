@@ -6750,25 +6750,52 @@ body.print-layout-check .app-shell[data-informe="oscuro"] .legal-page-shell > :i
 /* =====================================================================
    Ficha ampliada en una sola hoja
    =====================================================================
-   Tres filas y, dentro, columnas que apilan piezas para no dejar hueco:
-   bajo el Top 10 la jugada, bajo los puestos dónde recibe, bajo tiros y
-   ocasiones los mapas de pases.
+   Arriba, tres columnas que apilan piezas: la ficha con sus familias, el Top
+   10 con la jugada, los parecidos con cómo recibe. Debajo, los campos en dos
+   filas de cinco columnas iguales: cada campo entero toma el ancho de su
+   columna, así que todos salen del mismo tamaño, y tiros y ocasiones —solo el
+   último tercio— van uno sobre otro a la misma escala.
 
    Cada fila estira sus columnas al alto de la más alta y la última pieza de
    cada columna se queda con lo que sobra: los bordes de abajo coinciden y no
-   quedan huecos sueltos en mitad de la hoja. Los anchos están repartidos para
-   que las columnas pidan alturas parecidas —regates más ancho que los pares de
-   mapas, las dos listas de la última fila más anchas que sus mapas—, y son los
-   mismos en pantalla, al medir y al imprimir: antes la primera columna medía
-   240 px en el PDF y entre 250 y 300 al medir, y la app ajustaba una hoja
-   distinta de la que salía. */
+   quedan huecos sueltos en mitad de la hoja. Los anchos son los mismos en
+   pantalla, al medir y al imprimir: antes la primera columna medía 240 px en
+   el PDF y entre 250 y 300 al medir, y la app ajustaba una hoja distinta de la
+   que salía. */
 .snap-una-1 { grid-template-columns: 270px minmax(0, 1.4fr) minmax(0, 1fr); }
-.snap-una-2 { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.6fr) minmax(0, 1.4fr); }
-.snap-una-3 { grid-template-columns: repeat(3, minmax(0, .9fr)) repeat(2, minmax(0, 1.4fr)); }
-.snap-pareja { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
+.snap-campos { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .snap-hoja-unica > .snap-fila { align-items: stretch; }
 .snap-hoja-unica .snap-columna > :last-child { flex: 1 1 auto; }
-.snap-hoja-unica .snap-pareja { align-items: stretch; }
+/* Quién se la da en una columna de campo: el nombre arriba y, debajo, sus
+   balones; a lo ancho cada nombre ocupaba tres líneas. */
+.app-shell[data-tema] .snap-campos .snap-pasadores li { grid-template-columns: 18px minmax(0, 1fr) auto; grid-template-areas: "n nombre pct" "n balones balones"; row-gap: 0; }
+.app-shell[data-tema] .snap-campos .snap-pasadores li > span { grid-area: n; }
+.app-shell[data-tema] .snap-campos .snap-pasadores li > b { grid-area: nombre; }
+.app-shell[data-tema] .snap-campos .snap-pasadores li > small { grid-area: balones; }
+.app-shell[data-tema] .snap-campos .snap-pasadores li > em { grid-area: pct; }
+/* En la hoja, los campos de una fila comparten filas (subgrid): título, campo
+   y leyenda. Así cada campo empieza a la misma altura que sus vecinos aunque
+   un título o un subtítulo ocupe dos líneas, y la leyenda va justo debajo de
+   su campo; lo que sobra queda al pie. Una lista (quién se la da) ocupa el
+   campo y la leyenda, para no alargar la franja de los campos. El selector de agrupar de "Dónde
+   recibe" no se imprime: lo dice su leyenda. Va al medir y al imprimir; en
+   pantalla las columnas cambian con el ancho y cada tarjeta va por su cuenta. */
+body.print-layout-check .snap-hoja-unica > .snap-campos { grid-template-rows: auto auto 1fr; row-gap: 0; }
+body.print-layout-check .snap-hoja-unica > .snap-campos > * { grid-row: span 3; }
+body.print-layout-check .app-shell[data-tema] .snap-hoja-unica > .snap-campos > .snap-tarjeta { display: grid; grid-template-rows: subgrid; }
+body.print-layout-check .app-shell[data-tema] .snap-hoja-unica > .snap-campos > .snap-tarjeta > :is(svg.snap-cancha, .snap-leyenda) { align-self: start; }
+body.print-layout-check .app-shell[data-tema] .snap-hoja-unica > .snap-campos > .snap-tarjeta > .snap-leyenda { margin-top: 6px; }
+body.print-layout-check .app-shell[data-tema] .snap-hoja-unica > .snap-campos > .snap-pasadores > ol { grid-row: 2 / span 2; align-self: start; }
+body.print-layout-check .snap-hoja-unica > .snap-campos .snap-con-chip > .filtro-chip { display: none; }
+@media print {
+  .snap-hoja-unica > .snap-campos { grid-template-rows: auto auto 1fr; row-gap: 0; }
+  .snap-hoja-unica > .snap-campos > * { grid-row: span 3; }
+  .app-shell[data-tema] .snap-hoja-unica > .snap-campos > .snap-tarjeta { display: grid; grid-template-rows: subgrid; }
+  .app-shell[data-tema] .snap-hoja-unica > .snap-campos > .snap-tarjeta > :is(svg.snap-cancha, .snap-leyenda) { align-self: start; }
+  .app-shell[data-tema] .snap-hoja-unica > .snap-campos > .snap-tarjeta > .snap-leyenda { margin-top: 6px; }
+  .app-shell[data-tema] .snap-hoja-unica > .snap-campos > .snap-pasadores > ol { grid-row: 2 / span 2; align-self: start; }
+  .snap-hoja-unica > .snap-campos .snap-con-chip > .filtro-chip { display: none !important; }
+}
 .app-shell[data-tema] .snap-hoja-unica .snap-tarjeta { display: flex; flex-direction: column; }
 /* En una tarjeta estirada, el campo crece y el dibujo se centra en él (el SVG
    encaja su viewBox), en vez de dejar todo el blanco abajo; la leyenda, al pie. */
@@ -6790,11 +6817,12 @@ body.print-layout-check .app-shell[data-informe="oscuro"] .legal-page-shell > :i
 .snap-participacion p.snap-roles-nota { display: none; }
 .app-shell[data-tema] p.snap-roles-clave { margin: 4px 0 0; color: var(--muted); font-size: 10.5px; line-height: 1.4; text-align: center; }
 @media screen and (max-width: 1100px) {
-  body:not(.print-layout-check) :is(.snap-una-1, .snap-una-2) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  body:not(.print-layout-check) .snap-una-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  body:not(.print-layout-check) .snap-una-1 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  body:not(.print-layout-check) .snap-campos { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media screen and (max-width: 640px) {
-  body:not(.print-layout-check) :is(.snap-una-1, .snap-una-2, .snap-una-3, .snap-pareja) { grid-template-columns: minmax(0, 1fr); }
+  body:not(.print-layout-check) .snap-una-1 { grid-template-columns: minmax(0, 1fr); }
+  body:not(.print-layout-check) .snap-campos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 /* El aviso de SkillCorner: su liga no está en la suscripción, o solo con físicos. */

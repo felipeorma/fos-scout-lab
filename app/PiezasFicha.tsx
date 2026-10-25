@@ -341,10 +341,17 @@ export type DatosFicha = ReturnType<typeof useDatosFicha>;
 
 // ---- Piezas de dibujo -----------------------------------------------------
 
-/** Campo vertical con el ataque hacia arriba, en unidades de StatsBomb (80 × 120). */
-function Cancha({ mitad = false, fondo, children, etiqueta }: { mitad?: boolean; fondo?: ReactNode; children?: ReactNode; etiqueta: string }) {
-  const alto = mitad ? 64 : 120;
-  return <svg className={mitad ? "snap-cancha mitad" : "snap-cancha"} viewBox={`-2 -3 84 ${alto + 5}`} role="img" aria-label={etiqueta}>
+/**
+ * Campo vertical con el ataque hacia arriba, en unidades de StatsBomb (80 × 120).
+ *
+ * `tercio` dibuja solo el último tercio (40 de los 120): los tiros y las
+ * ocasiones pasan ahí, y con el mismo ancho que el campo entero sale a la
+ * misma escala que los demás mapas.
+ */
+const TERCIO = 40;
+function Cancha({ tercio = false, fondo, children, etiqueta }: { tercio?: boolean; fondo?: ReactNode; children?: ReactNode; etiqueta: string }) {
+  const alto = tercio ? TERCIO : 120;
+  return <svg className={tercio ? "snap-cancha tercio" : "snap-cancha"} viewBox={`-2 -3 84 ${alto + 5}`} role="img" aria-label={etiqueta}>
     <Cesped ancho={80} largo={alto} franja={10} radio={1.5} />
     {fondo}
     <g className="snap-lineas">
@@ -357,6 +364,7 @@ function Cancha({ mitad = false, fondo, children, etiqueta }: { mitad?: boolean;
       <rect x={18} y={102} width={44} height={18} />
       <rect x={30} y={114} width={20} height={6} />
       <path d="M32 102 A10 10 0 0 1 48 102" />
+      {tercio && <line x1={0} y1={TERCIO} x2={80} y2={TERCIO} />}
     </g>
     {children}
   </svg>;
@@ -699,10 +707,13 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion }: {
       </Tarjeta>;
     }
 
-    case "tiros":
+    case "tiros": {
+      // Los de más lejos que el último tercio no caben en el dibujo: se dice cuántos.
+      const lejos = datos.tiros.filter((e) => aVertical(e.l!)[1] > TERCIO + 2).length;
       return <Tarjeta titulo={t("Tiros")} subtitulo={sinEventos ? undefined : tf("{n} tiros · {g} goles · {x} xG", { n: datos.tiros.length, g: datos.goles, x: num(datos.xgTotal, 2) })}
-        leyenda={<><i className="snap-l gol" />{t("Gol")}<i className="snap-l tiro" />{t("Sin gol")}<span>{t("tamaño = xG")}</span></>}>
-        <Cancha mitad etiqueta={t("Tiros")}>
+        leyenda={<><i className="snap-l gol" />{t("Gol")}<i className="snap-l tiro" />{t("Sin gol")}<span>{t("tamaño = xG")}</span>
+          {lejos > 0 && <span>{tf("{n} desde fuera del último tercio", { n: lejos })}</span>}</>}>
+        <Cancha tercio etiqueta={t("Tiros")}>
           {/* Gol = estrella verde con borde blanco; el resto, círculo rojo. Tamaño = xG. */}
           {datos.tiros.map((e, i) => {
             const [X, Y] = aVertical(e.l!);
@@ -713,12 +724,13 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion }: {
           })}
         </Cancha>
       </Tarjeta>;
+    }
 
     case "ocasiones": {
       const claseOcasion = (e: EventoSB) => (e.ga ? "asistencia" : e.pt === "Corner" || e.pt === "Free Kick" ? "parado" : e.cr ? "centro" : "juego");
       return <Tarjeta titulo={t("Ocasiones creadas")} subtitulo={sinEventos ? undefined : tf("{n} pases a tiro · {a} asistencias", { n: datos.ocasiones.length, a: datos.asistencias })}
         leyenda={<><i className="snap-l juego" />{t("Juego")}<i className="snap-l centro" />{t("Centro")}<i className="snap-l parado" />{t("Balón parado")}<i className="snap-l asistencia" />{t("Asistencia")}</>}>
-        <Cancha mitad etiqueta={t("Ocasiones creadas")}>
+        <Cancha tercio etiqueta={t("Ocasiones creadas")}>
           {datos.ocasiones.map((e, i) => {
             const [x0, y0] = aVertical(e.l!), [x1, y1] = aVertical(e.e!);
             // Cometa que engorda hacia el destino, en el color de su tipo de acción.
@@ -760,9 +772,12 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion }: {
 
     case "defensa": {
       const { defensivas, cuenta } = datos;
-      return <Tarjeta titulo={t("Acciones defensivas")} subtitulo={sinEventos ? undefined : tf("{n} en total · {e} entradas · {r} recuperaciones · {i} intercepciones · {d} despejes", {
-        n: defensivas.length, e: cuenta("Duel", "Tackle"), r: cuenta("Ball Recovery"), i: cuenta("Interception"), d: cuenta("Clearance"),
-      })}>
+      // El desglose va en la leyenda: en el subtítulo ocupaba cuatro líneas y
+      // bajaba el campo respecto de los de su fila.
+      return <Tarjeta titulo={t("Acciones defensivas")} subtitulo={sinEventos ? undefined : tf("{n} en total", { n: defensivas.length })}
+        leyenda={sinEventos ? undefined : <span>{tf("{e} entradas · {r} recuperaciones · {i} intercepciones · {d} despejes", {
+          e: cuenta("Duel", "Tackle"), r: cuenta("Ball Recovery"), i: cuenta("Interception"), d: cuenta("Clearance"),
+        })}</span>}>
         <RejillaCampo puntos={defensivas.map((e) => [e.l![0], e.l![1]] as Punto)} modo="n" etiqueta={t("Acciones defensivas")} />
       </Tarjeta>;
     }
