@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { gunzipSync } from "node:zlib";
 import { DEPENDENCIAS, PUERTO, lanzadorDeWindows, ordenDelPuente, pythonsCandidatos, rutaDelPython } from "../scripts/puente.mjs";
+import { MARCA_PUENTE, MARCA_SCRIPT, empaquetar } from "../scripts/windows/empaquetar.mjs";
 
 /**
  * El puente tiene que arrancar igual en el Mac y en Windows. Lo que cambia
@@ -44,28 +45,37 @@ test("el lanzador de Windows: python.exe en una consola oculta con registro, nun
   );
 });
 
-test("la carpeta de Windows: cada .cmd es ASCII y llama a una acción que fos-puente.ps1 conoce", () => {
-  const carpeta = fileURLToPath(new URL("../scripts/windows/", import.meta.url));
-  const script = readFileSync(join(carpeta, "sistema", "fos-puente.ps1"));
+test("fos-puente.ps1: un solo BOM al principio y ninguna variable que pise a otra", () => {
+  const script = readFileSync(fileURLToPath(new URL("../scripts/windows/fos-puente.ps1", import.meta.url)));
   // Sin BOM, PowerShell 5.1 lo lee en la página de códigos de Windows y rompe las tildes.
   assert.deepEqual([...script.subarray(0, 3)], [0xef, 0xbb, 0xbf]);
-  const acciones = new Set([...script.toString("utf8").matchAll(/^\s*"([a-z]+)" \{/gm)].map((m) => m[1]));
+  const texto = script.toString("utf8").slice(1);
+  // Un segundo BOM en medio rompe el param() del principio.
+  assert.ok(!texto.includes("\uFEFF"));
   // PowerShell no distingue mayúsculas: un $python local pisaba al $Python del
   // entorno y la instalación se paraba en el paso de las librerías.
-  const codigo = script.toString("utf8").split(/\r?\n/).filter((linea) => !linea.trim().startsWith("#")).join("\n");
+  const codigo = texto.split(/\r?\n/).filter((linea) => !linea.trim().startsWith("#")).join("\n");
   const globales = [...codigo.matchAll(/^\$([A-Za-z]+) = /gm)].map((m) => m[1]);
   for (const [, variable] of codigo.matchAll(/\$([A-Za-z]+)\b/g)) {
     const pisada = globales.find((g) => g !== variable && g.toLowerCase() === variable.toLowerCase());
     assert.equal(pisada, undefined, `$${variable} pisa a $${pisada}`);
   }
-  const lanzadores = readdirSync(carpeta).filter((nombre) => nombre.endsWith(".cmd"));
-  assert.ok(lanzadores.length >= 5);
-  for (const nombre of lanzadores) {
-    const texto = readFileSync(join(carpeta, nombre), "latin1");
-    // cmd.exe lee el .cmd en la página de códigos OEM: una tilde saldría rota.
-    assert.match(texto, /^[\x00-\x7f]*$/, `${nombre}: solo ASCII`);
-    const llamadas = [...texto.matchAll(/fos-puente\.ps1" ([a-z]+)/g)].map((m) => m[1]);
-    assert.ok(llamadas.length > 0, nombre);
-    for (const accion of llamadas) assert.ok(acciones.has(accion), `${nombre} llama a «${accion}»`);
-  }
+});
+
+test("FOS Scout Lab.cmd: un solo archivo con el lanzador, el script y el puente dentro", () => {
+  const script = readFileSync(fileURLToPath(new URL("../scripts/windows/fos-puente.ps1", import.meta.url)), "utf8");
+  const puente = readFileSync(fileURLToPath(new URL("../scripts/bg-server.py", import.meta.url)));
+  const cmd = empaquetar(script, puente);
+  // Cada marca una vez: PowerShell parte el archivo por la primera que encuentra.
+  for (const marca of [MARCA_SCRIPT, MARCA_PUENTE]) assert.equal(cmd.split(marca).length, 2, marca);
+  const [lanzador, resto] = cmd.split(MARCA_SCRIPT);
+  const [cuerpo, comprimido] = resto.split(MARCA_PUENTE);
+  // cmd.exe lee el lanzador en la página de códigos OEM, y un BOM delante rompería "@echo off".
+  assert.match(lanzador, /^@echo off\r\n/);
+  assert.match(lanzador, /^[\x00-\x7f]*$/);
+  assert.match(lanzador, /\r\nexit \/b\r\n$/);
+  assert.ok(!cuerpo.includes("\uFEFF"));
+  assert.match(cuerpo, /"todo" \{ Todo \}/);
+  // El puente sale de dentro byte a byte.
+  assert.ok(gunzipSync(Buffer.from(comprimido, "base64")).equals(puente));
 });

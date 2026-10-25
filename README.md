@@ -125,12 +125,14 @@ npm run bg:inicio     # Windows: que arranque solo al iniciar sesión
   `bg:inicio` deja un acceso en la carpeta Inicio que lo arranca oculto al
   entrar (con la salida en `.fos-scouting\puente.log`); para quitarlo, se
   borra `fos-puente.vbs` de esa carpeta.
-- **Windows sin repositorio ni Node:** la carpeta `scripts/windows/`, junto con
-  una copia de `bg-server.py` en `scripts/windows/sistema/`, se copia tal cual
-  al escritorio. `1 - Instalar` lo hace todo con doble clic (Python 3.11 con
-  winget si falta, entorno, librerías, credenciales y arranque al iniciar
-  sesión) y la app completa queda en http://127.0.0.1:7001/. Los pasos están
-  en su `LEEME.txt`.
+- **Windows sin repositorio ni Node:** `npm run bg:windows` deja en
+  `dist/FOS Scout Lab.cmd` un solo archivo con el script
+  (`scripts/windows/fos-puente.ps1`) y el puente dentro. Se copia al escritorio
+  y cada doble clic hace lo que falte: Python 3.11 con winget, entorno y
+  librerías, pone el puente al día, usa las credenciales ya guardadas en
+  `credentials.json` (solo abre el Bloc de notas si faltan), lo deja
+  arrancando al iniciar sesión, comprueba que StatsBomb responde y abre
+  http://127.0.0.1:7001/. Hay que rehacerlo cuando cambia `bg-server.py`.
 - Desde la web publicada en GitHub Pages, Chrome puede preguntar si se permite
   el acceso a la red local: hay que aceptarlo para que la página hable con el
   puente.

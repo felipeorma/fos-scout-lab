@@ -1,2 +1,2 @@
-# Los lanzadores de Windows salen del repositorio con finales de línea de Windows.
-scripts/windows/** text eol=crlf
+# El script de Windows sale del repositorio con finales de línea de Windows.
+*.ps1 text eol=crlf
