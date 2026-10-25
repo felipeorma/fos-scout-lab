@@ -795,7 +795,10 @@ _SB_EVENTS_CACHE_DIR = Path.home() / ".fos-scouting" / "sb-events-cache"
 # versión anterior se vuelven a bajar en vez de servir campos que faltan.
 # 2: cada recepción lleva el pase que la origina (altura, tipo, quién la da).
 # 3: cada evento lleva su posesión y su equipo, para los roles en la secuencia.
-_SB_COMPACTO_VERSION = 3
+# 4: lo que hace falta para contar acciones ganadas: el resultado de las
+#    intercepciones, si la recuperación falló, las faltas recibidas y los
+#    duelos aéreos ganados en pases y remates.
+_SB_COMPACTO_VERSION = 4
 
 # Los eventos recortados de cada partido (m-*.json, medio mega cada uno) iban
 # a disco sin tope y llegaron a 2,3 GB. Por encima del tope —3 GB por defecto,
@@ -834,7 +837,7 @@ import threading as _threading_poda
 _threading_poda.Thread(target=_podar_cache_eventos, daemon=True).start()
 # Lo que dibuja la ficha ampliada. Presiones y demás se quedan fuera: una
 # temporada de un equipo son 30 partidos y así cada uno pesa ~250 KB, no 2,7 MB.
-_SB_TIPOS_FICHA = {"Shot", "Pass", "Carry", "Dribble", "Duel", "Ball Recovery", "Interception", "Clearance", "Block", "Ball Receipt*"}
+_SB_TIPOS_FICHA = {"Shot", "Pass", "Carry", "Dribble", "Duel", "Ball Recovery", "Interception", "Clearance", "Block", "Ball Receipt*", "Foul Won"}
 # Las alineaciones escriben "Center" (inglés de EE. UU.) donde las
 # estadísticas de temporada dicen "Centre": su propia tabla.
 _SB_POS_ALINEACION = {
@@ -900,11 +903,13 @@ def _sb_partido_compacto(match_id: int, auth):
                 "po": e.get("possession"), "eq": (e.get("team") or {}).get("id"), "pq": (e.get("possession_team") or {}).get("id")}
         if tipo == "Shot":
             tiro = e.get("shot") or {}
-            fila.update({"xg": tiro.get("statsbomb_xg"), "o": (tiro.get("outcome") or {}).get("name"), "st": (tiro.get("type") or {}).get("name")})
+            fila.update({"xg": tiro.get("statsbomb_xg"), "o": (tiro.get("outcome") or {}).get("name"), "st": (tiro.get("type") or {}).get("name"),
+                         "aw": bool(tiro.get("aerial_won"))})
         elif tipo == "Pass":
             pase = e.get("pass") or {}
             fila.update({"e": pase.get("end_location"), "o": (pase.get("outcome") or {}).get("name"), "pt": (pase.get("type") or {}).get("name"),
-                         "cr": bool(pase.get("cross")), "sa": bool(pase.get("shot_assist")), "ga": bool(pase.get("goal_assist"))})
+                         "cr": bool(pase.get("cross")), "sa": bool(pase.get("shot_assist")), "ga": bool(pase.get("goal_assist")),
+                         "aw": bool(pase.get("aerial_won"))})
         elif tipo == "Carry":
             fila["e"] = (e.get("carry") or {}).get("end_location")
         elif tipo == "Dribble":
@@ -914,6 +919,10 @@ def _sb_partido_compacto(match_id: int, auth):
             fila.update({"dt": (duelo.get("type") or {}).get("name"), "o": (duelo.get("outcome") or {}).get("name")})
         elif tipo == "Clearance":
             fila["aw"] = bool((e.get("clearance") or {}).get("aerial_won"))
+        elif tipo == "Interception":
+            fila["o"] = ((e.get("interception") or {}).get("outcome") or {}).get("name")
+        elif tipo == "Ball Recovery":
+            fila["rf"] = bool((e.get("ball_recovery") or {}).get("recovery_failure"))
         elif tipo == "Ball Receipt*":
             fila.update({"o": ((e.get("ball_receipt") or {}).get("outcome") or {}).get("name"), "up": bool(e.get("under_pressure"))})
             pase = next((pases[i] for i in e.get("related_events") or [] if i in pases), None)

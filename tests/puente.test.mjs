@@ -41,7 +41,7 @@ test("el lanzador de Windows: python.exe en una consola oculta con registro, nun
   assert.doesNotMatch(vbs, /pythonw/i);
   assert.equal(
     vbs,
-    'CreateObject("WScript.Shell").Run "cmd /c """"C:\\Users\\Ana Pérez\\py.exe"" -X utf8 -m uvicorn bg-server:app --app-dir ""C:\\Mis cosas\\scripts"" --port 7001 --log-level warning > ""C:\\Users\\Ana Pérez\\puente.log"" 2>&1""", 0, False\r\n',
+    'CreateObject("WScript.Shell").Run "cmd /c """"C:\\Users\\Ana Pérez\\py.exe"" -X utf8 -m uvicorn bg-server:app --app-dir ""C:\\Mis cosas\\scripts"" --host 127.0.0.1 --port 7001 --log-level warning > ""C:\\Users\\Ana Pérez\\puente.log"" 2>&1""", 0, False\r\n',
   );
 });
 

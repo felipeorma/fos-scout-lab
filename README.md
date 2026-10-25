@@ -94,6 +94,15 @@ Los Excel se procesan completamente en el navegador. No se suben a un servidor.
    hoja lleva el mapa, sus cifras, el reparto por tipo y el Top 10 del plantel
    por amenaza. El aspecto del PDF (Cavalry, Cavalry claro, Noche…) se elige en
    el diálogo de Imprimir / PDF.
+   En la Ficha ampliada todos los campos enteros salen del mismo tamaño, y
+   tiros y ocasiones, del último tercio a la misma escala. El mapa de
+   **acciones ganadas** pinta en un solo calor dónde gana en defensa (azul:
+   entradas e intercepciones ganadas, recuperaciones, bloqueos y despejes) y
+   dónde gana en ataque (ámbar: regates completados, faltas recibidas y
+   duelos aéreos ganados); claro donde van a la par. Necesita el puente al
+   día (`npm run bg:actualizar`): guarda esos resultados desde la versión 4 de
+   los partidos recortados, así que la primera vez de cada equipo vuelve a
+   bajar sus eventos.
    La etiqueta “Base analizada” y el nombre de la liga o temporada también son
    editables desde el panel de datos.
 
@@ -111,8 +120,10 @@ acciones) no lo necesita. Los mismos comandos sirven en los dos sistemas:
 ```bash
 npm run bg:instalar   # una vez: crea ~/.rembg-venv con Python 3.11 e instala rembg, FastAPI y uvicorn
 npm run bg:server     # lo arranca (o avisa si ya está en marcha)
-npm run bg:reiniciar  # tras cambiar su código
+npm run bg:reiniciar  # lo para y lo vuelve a arrancar aparte (tras cambiar su código)
+npm run bg:actualizar # se pone en main, baja lo último y lo reinicia
 npm run bg:inicio     # Windows: que arranque solo al iniciar sesión
+npm run bg:windows    # Windows sin Node: todo en un solo .cmd (abajo)
 ```
 
 - **Mac:** lo mantiene vivo el servicio `com.felipeormazabal.fos-puente`; las
@@ -129,10 +140,12 @@ npm run bg:inicio     # Windows: que arranque solo al iniciar sesión
   `dist/FOS Scout Lab.cmd` un solo archivo con el script
   (`scripts/windows/fos-puente.ps1`) y el puente dentro. Se copia al escritorio
   y cada doble clic hace lo que falte: Python 3.11 con winget, entorno y
-  librerías, pone el puente al día, usa las credenciales ya guardadas en
-  `credentials.json` (solo abre el Bloc de notas si faltan), lo deja
-  arrancando al iniciar sesión, comprueba que StatsBomb responde y abre
-  http://127.0.0.1:7001/. Hay que rehacerlo cuando cambia `bg-server.py`.
+  librerías, pone el puente al día, encuentra las credenciales de StatsBomb y
+  SkillCorner donde estén guardadas (`credentials.json` o una nota del
+  Escritorio, Documentos o Descargas; si no hay, las pide en la ventana), lo
+  deja arrancando al iniciar sesión, comprueba que las dos plataformas
+  responden y abre http://127.0.0.1:7001/. Hay que rehacerlo cuando cambia
+  `bg-server.py`.
 - Desde la web publicada en GitHub Pages, Chrome puede preguntar si se permite
   el acceso a la red local: hay que aceptarlo para que la página hable con el
   puente.
@@ -146,6 +159,21 @@ tarjeta del paso 01, o desde el panel de datos con un informe abierto).
 - Los datos llegan a través del mismo servidor local del recorte de fondos
   (`npm run bg:server`, puerto 7001). Las credenciales viven **solo en esta
   máquina**: nunca se suben al repositorio ni viajan al navegador de terceros.
+- **El puente, en Mac y en Windows** (`scripts/puente.mjs`):
+  `npm run bg:server` lo arranca en la ventana, `npm run bg:reiniciar` lo
+  para y lo vuelve a arrancar aparte, y `npm run bg:actualizar` se pone en
+  `main`, baja lo último y lo reinicia. En el Mac usa el servicio de launchd si
+  está instalado; en Windows deja el registro en
+  `%USERPROFILE%\.fos-scouting\puente.log`, y `npm run bg:inicio` hace que
+  arranque solo al iniciar sesión. Todos los comandos, en «El puente local en
+  el Mac y en Windows».
+- **Windows, una sola vez:** `npm run bg:instalar`, o a mano Python 3.11 y su
+  entorno, `py -3.11 -m venv %USERPROFILE%\.rembg-venv` y
+  `%USERPROFILE%\.rembg-venv\Scripts\pip install "rembg[cpu,cli]" fastapi uvicorn python-multipart requests`.
+  Sin el Llavero del Mac, las credenciales van en
+  `%USERPROFILE%\.fos-scouting\credentials.json`
+  (`{"statsbomb": {"username", "password"}, "skillcorner": {...}}`) o en las
+  variables `SB_USERNAME`/`SB_PASSWORD` y `SKILLCORNER_USERNAME`/`SKILLCORNER_PASSWORD`.
 - **Enlace automático con SkillCorner:** al cargar cualquier base (Excel de
   Wyscout o StatsBomb por API), si hay credenciales de SkillCorner la app
   ofrece cruzar los datos físicos. Propone la competición más probable (por
