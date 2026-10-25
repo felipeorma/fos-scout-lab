@@ -51,6 +51,8 @@ function Ejecutar([string]$Exe, [string[]]$Argumentos) {
 }
 
 # El Python con el que crear el entorno: el lanzador py, o el que deja winget.
+# Ojo: PowerShell no distingue mayúsculas, así que se llama $base y nunca
+# $python, que pisaría a $Python (el del entorno).
 # Va en un objeto y no en un array: PowerShell desarma los arrays de un
 # elemento al devolverlos.
 function Buscar-Python {
@@ -66,10 +68,10 @@ function Buscar-Python {
 }
 
 function Instalar-Python {
-  $python = Buscar-Python
-  if ($python) {
-    Bien "Python encontrado: $($python.Exe) $($python.Args -join ' ')"
-    return $python
+  $base = Buscar-Python
+  if ($base) {
+    Bien "Python encontrado: $($base.Exe) $($base.Args -join ' ')"
+    return $base
   }
   if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
     throw "No hay Python 3.11 ni winget para instalarlo. Instala Python 3.11 desde https://www.python.org/downloads/ (marca 'Add python.exe to PATH') y vuelve a abrir '1 - Instalar'."
@@ -78,9 +80,9 @@ function Instalar-Python {
   Ejecutar "winget" @("install", "-e", "--id", "Python.Python.3.11", "--scope", "user", "--accept-package-agreements", "--accept-source-agreements") | Out-Null
   # winget deja el PATH nuevo para las ventanas que se abran después: se recarga aquí.
   $env:Path = [Environment]::GetEnvironmentVariable("Path", "User") + ";" + [Environment]::GetEnvironmentVariable("Path", "Machine")
-  $python = Buscar-Python
-  if (-not $python) { throw "Python se instaló pero no lo encuentro. Cierra esta ventana y vuelve a abrir '1 - Instalar'." }
-  return $python
+  $base = Buscar-Python
+  if (-not $base) { throw "Python se instaló pero no lo encuentro. Cierra esta ventana y vuelve a abrir '1 - Instalar'." }
+  return $base
 }
 
 # El puente que viene en la carpeta (junto a este script, o en scripts\ si
@@ -230,10 +232,10 @@ function Comprobar {
 
 function Instalar {
   Paso "1/6 Python"
-  $python = Instalar-Python
+  $base = Instalar-Python
   Paso "2/6 Entorno de Python en $Venv"
   if (-not (Test-Path $Python)) {
-    $codigo = Ejecutar $python.Exe (@($python.Args) + @("-m", "venv", $Venv))
+    $codigo = Ejecutar $base.Exe (@($base.Args) + @("-m", "venv", $Venv))
     if ($codigo -ne 0) { throw "No pude crear el entorno de Python." }
   }
   Bien "Entorno listo."

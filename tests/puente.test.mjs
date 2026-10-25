@@ -50,6 +50,14 @@ test("la carpeta de Windows: cada .cmd es ASCII y llama a una acción que fos-pu
   // Sin BOM, PowerShell 5.1 lo lee en la página de códigos de Windows y rompe las tildes.
   assert.deepEqual([...script.subarray(0, 3)], [0xef, 0xbb, 0xbf]);
   const acciones = new Set([...script.toString("utf8").matchAll(/^\s*"([a-z]+)" \{/gm)].map((m) => m[1]));
+  // PowerShell no distingue mayúsculas: un $python local pisaba al $Python del
+  // entorno y la instalación se paraba en el paso de las librerías.
+  const codigo = script.toString("utf8").split(/\r?\n/).filter((linea) => !linea.trim().startsWith("#")).join("\n");
+  const globales = [...codigo.matchAll(/^\$([A-Za-z]+) = /gm)].map((m) => m[1]);
+  for (const [, variable] of codigo.matchAll(/\$([A-Za-z]+)\b/g)) {
+    const pisada = globales.find((g) => g !== variable && g.toLowerCase() === variable.toLowerCase());
+    assert.equal(pisada, undefined, `$${variable} pisa a $${pisada}`);
+  }
   const lanzadores = readdirSync(carpeta).filter((nombre) => nombre.endsWith(".cmd"));
   assert.ok(lanzadores.length >= 5);
   for (const nombre of lanzadores) {
