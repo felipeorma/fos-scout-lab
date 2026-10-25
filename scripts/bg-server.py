@@ -259,8 +259,9 @@ def _keychain_credentials(platform: str) -> dict:
 def _file_credentials(platform: str) -> dict:
     try:
         import json as _json
-        # En utf-8 siempre: Windows lee por defecto en su página de códigos.
-        return _json.loads(_CREDENTIALS_FILE.read_text(encoding="utf-8")).get(platform, {})
+        # En utf-8 siempre: Windows lee por defecto en su página de códigos. Y
+        # con -sig, porque el Bloc de notas puede guardarlo con BOM.
+        return _json.loads(_CREDENTIALS_FILE.read_text(encoding="utf-8-sig")).get(platform, {})
     except Exception:
         return {}
 

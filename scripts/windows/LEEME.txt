@@ -31,7 +31,9 @@ CADA DÍA
   Pages también funciona con el puente encendido.
 
 SI ALGO FALLA
-  Comprobar puente      dice si responde y qué credenciales ve.
+  Comprobar puente      lo revisa todo (instalación, credenciales, puente y
+                        StatsBomb) y termina diciendo qué hacer. Si me
+                        escribes por un fallo, pega lo que sale aquí.
   3 - Reiniciar puente  lo para y lo vuelve a arrancar.
   Puente con ventana    lo arranca a la vista, con el registro: el error
                         sale ahí. Cierra la ventana para pararlo.

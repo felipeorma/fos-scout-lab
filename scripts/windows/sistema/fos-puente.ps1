@@ -130,16 +130,23 @@ function Preparar-Credenciales {
   return $true
 }
 
+# Lo que va detrás de "cmd /c": el puente con python.exe y la salida a
+# puente.log. Con pythonw.exe uvicorn no arranca (sin consola, su registro
+# falla), así que es python.exe en una consola que se esconde.
+function Orden-Del-Puente {
+  return "`"`"$Python`" -X utf8 -m uvicorn bg-server:app --app-dir `"$CarpetaPuente`" --port $Puerto --log-level warning > `"$Registro`" 2>&1`""
+}
+
 # Un .vbs en la carpeta Inicio arranca el puente oculto al entrar en Windows,
-# como el servicio del Mac; arrancar a mano usa el mismo lanzador. Con
-# pythonw.exe uvicorn no arranca (sin consola, su registro falla), así que es
-# python.exe en una consola oculta con la salida a puente.log. Va en UTF-16
-# para que una ruta con tildes (C:\Users\Felipe Ormazábal) no se rompa.
+# como el servicio del Mac. Si la ruta lleva tildes (C:\Users\Felipe
+# Ormazábal) va en UTF-16, que Windows Script Host también lee.
 function Escribir-Lanzador {
   New-Item -ItemType Directory -Force -Path $Inicio | Out-Null
-  $linea = "cmd /c `"`"$Python`" -X utf8 -m uvicorn bg-server:app --app-dir `"$CarpetaPuente`" --port $Puerto --log-level warning > `"$Registro`" 2>&1`""
+  $linea = "cmd /c " + (Orden-Del-Puente)
   $vbs = 'CreateObject("WScript.Shell").Run "' + $linea.Replace('"', '""') + '", 0, False' + "`r`n"
-  [System.IO.File]::WriteAllText($Lanzador, $vbs, [System.Text.Encoding]::Unicode)
+  $codificacion = [System.Text.Encoding]::ASCII
+  if ($vbs -match '[^\x00-\x7F]') { $codificacion = [System.Text.Encoding]::Unicode }
+  [System.IO.File]::WriteAllText($Lanzador, $vbs, $codificacion)
   Bien "Arranque automático al iniciar sesión: $Lanzador"
 }
 
@@ -175,17 +182,22 @@ function Arrancar {
     Bien "El puente ya está en marcha en http://127.0.0.1:$Puerto"
     return
   }
-  if (-not (Test-Path $Lanzador)) { throw "El puente no está instalado. Abre primero '1 - Instalar'." }
-  Start-Process -FilePath "wscript.exe" -ArgumentList "`"$Lanzador`""
-  for ($i = 0; $i -lt 40; $i++) {
-    Start-Sleep -Milliseconds 500
+  if (-not (Test-Path $Python)) { throw "El puente no está instalado. Abre primero '1 - Instalar'." }
+  # Directo y no por el .vbs: así arranca aunque Windows tenga VBScript apagado.
+  Start-Process -WindowStyle Hidden -FilePath $env:ComSpec -ArgumentList ("/c " + (Orden-Del-Puente))
+  # La primera vez, cargar rembg y onnxruntime en Windows puede pasar del medio minuto.
+  Write-Host -NoNewline "    Esperando a que responda"
+  for ($i = 0; $i -lt 90; $i++) {
+    Start-Sleep -Seconds 1
     if (Esta-En-Marcha) {
+      Write-Host ""
       Bien "Puente en marcha en http://127.0.0.1:$Puerto"
       return
     }
+    if ($i % 5 -eq 4) { Write-Host -NoNewline "." }
   }
-  Aviso "Lo he arrancado pero aún no responde. Prueba 'Comprobar puente' en un minuto;"
-  Aviso "si sigue sin responder, abre 'Puente con ventana' para ver el error."
+  Write-Host ""
+  Aviso "Lo he arrancado pero no responde. 'Comprobar puente' te dice por qué."
   Mostrar-Registro
 }
 
@@ -212,22 +224,112 @@ function Parar {
   }
 }
 
+# De abajo arriba, todo lo que hace falta para que la app lea StatsBomb, con un
+# veredicto al final. No muestra contraseñas ni claves.
 function Comprobar {
-  try {
-    $estado = Invoke-RestMethod -Uri "http://127.0.0.1:$Puerto/api/sources/status" -TimeoutSec 3
-  } catch {
-    Aviso "El puente no responde. Ábrelo con '3 - Reiniciar puente'."
+  $problemas = New-Object System.Collections.ArrayList
+
+  Paso "Instalación"
+  $piezas = [ordered]@{ "Python del entorno" = $Python; "Puente" = (Join-Path $CarpetaPuente "bg-server.py"); "Arranque al iniciar sesión" = $Lanzador }
+  foreach ($pieza in $piezas.GetEnumerator()) {
+    if (Test-Path $pieza.Value) { Bien "$($pieza.Key): sí" }
+    else { Aviso "$($pieza.Key): NO ($($pieza.Value))"; [void]$problemas.Add("Falta '$($pieza.Key)': vuelve a abrir '1 - Instalar'.") }
+  }
+
+  Paso "Credenciales ($Credenciales)"
+  $creds = $null
+  if (-not (Test-Path $Credenciales)) {
+    Aviso "No existe."
+    [void]$problemas.Add("Crea las credenciales con '2 - Credenciales'.")
+  } else {
+    # Se valida con el Python del puente: PowerShell perdona cosas, como una
+    # coma de más al final, que a Python le hacen tirar el archivo entero.
+    $fallo = ""
+    if (Test-Path $Python) {
+      $fallo = (& { $ErrorActionPreference = "Continue"; & $Python -X utf8 -c "import json, sys`ntry: json.loads(open(sys.argv[1], encoding='utf-8-sig').read())`nexcept ValueError as e: print(e)" $Credenciales } | Out-String).Trim()
+    }
+    if (-not $fallo) {
+      try { $creds = ConvertFrom-Json -InputObject ([System.IO.File]::ReadAllText($Credenciales)) } catch { $fallo = "no es JSON" }
+    }
+    if ($fallo) {
+      Aviso "No se puede leer: $fallo"
+      [void]$problemas.Add("Corrige credentials.json con '2 - Credenciales': cada valor entre comillas, una coma entre líneas y ninguna tras la última, como en la plantilla.")
+    } else {
+      foreach ($plataforma in @("statsbomb", "skillcorner")) {
+        $c = $creds.$plataforma
+        if ($c -and $c.username -and $c.password) { Bien "${plataforma}: usuario $($c.username) y contraseña rellenos" }
+        else { Aviso "${plataforma}: falta el usuario o la contraseña" }
+      }
+      if ($creds.anthropic) { Bien "anthropic: clave rellena" } else { Write-Host "    anthropic: vacía (solo hace falta para los textos con IA)" }
+      if (-not ($creds.statsbomb -and $creds.statsbomb.username -and $creds.statsbomb.password)) {
+        [void]$problemas.Add("Rellena usuario y contraseña de StatsBomb con '2 - Credenciales'.")
+      }
+    }
+  }
+
+  Paso "Puente en http://127.0.0.1:$Puerto"
+  if (Esta-En-Marcha) {
+    Bien "Responde."
+    $estado = Invoke-RestMethod -Uri "http://127.0.0.1:$Puerto/api/sources/status" -TimeoutSec 5
+    $ve = "no"; if ($estado.statsbomb) { $ve = "sí" }
+    Write-Host "    Ve credenciales de StatsBomb: $ve"
+    Write-Host "    Pidiendo el catálogo a StatsBomb (puede tardar unos segundos)..."
+    try {
+      $r = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Puerto/api/statsbomb/competitions" -TimeoutSec 90
+      $texto = $r.Content
+      if ($texto -is [byte[]]) { $texto = [System.Text.Encoding]::UTF8.GetString($texto) }
+      $n = (ConvertFrom-Json -InputObject $texto).Count
+      Bien "StatsBomb responde: $n competiciones."
+    } catch {
+      $codigo = 0
+      if ($_.Exception.Response) { $codigo = [int]$_.Exception.Response.StatusCode }
+      if ($codigo -eq 503) {
+        Aviso "StatsBomb: el puente no ve credenciales."
+        [void]$problemas.Add("El puente no ve las credenciales de StatsBomb: revisa credentials.json y usa '3 - Reiniciar puente'.")
+      } else {
+        Aviso "StatsBomb falla (respuesta $codigo): $($_.Exception.Message)"
+        Mostrar-Registro
+        [void]$problemas.Add("StatsBomb rechaza la petición: si el registro dice 401, el usuario o la contraseña no son correctos.")
+      }
+    }
+  } else {
+    Aviso "No responde."
+    $proceso = Proceso-Del-Puente
+    if ($proceso) {
+      $nombre = (Get-Process -Id $proceso -ErrorAction SilentlyContinue).ProcessName
+      Aviso "El puerto $Puerto lo tiene otro programa: $nombre (PID $proceso)."
+    }
     Mostrar-Registro
-    return
+    if (Test-Path $Python) {
+      Write-Host "    Probando las librerías del puente (unos segundos)..."
+      # Los errores de Python a la salida normal, para leerlos aquí; lo que
+      # onnxruntime escriba aparte sale en pantalla y no es un error del script.
+      $salida = & { $ErrorActionPreference = "Continue"; & $Python -X utf8 -c "import sys; sys.stderr = sys.stdout; import fastapi, uvicorn, requests, rembg; print('ok')" }
+      $texto = ($salida | Out-String).Trim()
+      if ($LASTEXITCODE -eq 0) {
+        Bien "Las librerías cargan bien."
+        [void]$problemas.Add("El puente no está en marcha: abre '3 - Reiniciar puente'. Si sigue igual, 'Puente con ventana' muestra el error.")
+      } else {
+        ($texto -split "`n" | Select-Object -Last 6) | ForEach-Object { Write-Host "      $_" }
+        if ($texto -match "DLL load failed|onnxruntime") {
+          [void]$problemas.Add("A Windows le falta el Visual C++ Redistributable: instálalo desde https://aka.ms/vs/17/release/vc_redist.x64.exe y abre '3 - Reiniciar puente'.")
+        } else {
+          [void]$problemas.Add("Las librerías del puente no cargan: vuelve a abrir '1 - Instalar'.")
+        }
+      }
+    }
   }
-  Bien "El puente responde en http://127.0.0.1:$Puerto"
-  $sb = "no"; if ($estado.statsbomb) { $sb = "sí" }
-  $sc = "no"; if ($estado.skillcorner) { $sc = "sí" }
-  Write-Host "    StatsBomb con credenciales: $sb"
-  Write-Host "    SkillCorner con credenciales: $sc"
-  if (-not $estado.statsbomb -or -not $estado.skillcorner) {
-    Aviso "Si falta alguno, rellénalo en '2 - Credenciales' y después usa '3 - Reiniciar puente'."
+
+  Write-Host ""
+  if ($problemas.Count -eq 0) {
+    Write-Host "TODO BIEN: el puente lee StatsBomb." -ForegroundColor Green
+  } else {
+    Write-Host "QUÉ HACER:" -ForegroundColor Yellow
+    foreach ($problema in $problemas) { Write-Host "  - $problema" -ForegroundColor Yellow }
   }
+  Write-Host ""
+  Write-Host "Abre la app con 'Abrir FOS Scout Lab' (http://127.0.0.1:$Puerto/). Desde la página de"
+  Write-Host "github.io, Chrome tiene que permitir el acceso a la red local (candado de la barra de direcciones)."
 }
 
 function Instalar {
