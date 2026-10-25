@@ -13,17 +13,15 @@ import type { TransfermarktProfile } from "@/lib/transfermarkt";
  * Ficha ampliada: la página 2 del dossier ("Player Snapshot") con StatsBomb.
  *
  * Una sola hoja, como Ficha y radar: quién es y en qué destaca (la ficha,
- * las familias, el Top 10 y dónde juega), con quién se parece y qué hace con
- * el balón —tiros, ocasiones, regates y cómo participa en la jugada—, y
- * dónde lo hace —pases, mapa de calor, defensa y cómo le llega el balón—.
- * Las piezas se reparten en columnas para que no quede hueco: debajo del
- * Top 10, la jugada; debajo de los puestos, quién se la da; debajo de tiros
- * y ocasiones, sus mapas de pases. "Frente a su grupo", "Construcción frente a
- * asociación" y el encaje con un equipo salieron de esta página (siguen en
- * Visuales, sueltos).
+ * las familias, el Top 10, dónde juega y dónde recibe), con quién se parece
+ * y qué hace con el balón —tiros, ocasiones, regates y cómo participa en la
+ * jugada—, y dónde lo hace y cómo le llega —mapa de calor, defensa, de dónde,
+ * cómo y de quién—. Las piezas se reparten en columnas de alto parecido y
+ * cada fila las estira al mismo alto: debajo del Top 10, la jugada; debajo de
+ * los puestos, dónde recibe; debajo de tiros y ocasiones, sus mapas de pases. "Frente a su grupo", "Construcción frente a
+ * asociación" y el encaje con un equipo salieron de esta página.
  *
- * Cada gráfico es una pieza de PiezasFicha: los mismos que Visuales ofrece
- * sueltos para montar una hoja a medida.
+ * Cada gráfico es una pieza de PiezasFicha.
  */
 export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, destinatario = "", logoDestinatario = "", onAbrirJugador, claseHoja = "legal-page-shell", temporada, clavesPorFila = null, feedOpta = null, ligasDeFila = null, avisoSkillcorner = "" }: {
   /** Si SkillCorner no publica su liga en esta temporada (o solo los físicos): una línea bajo el título. */
@@ -94,7 +92,7 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
       {cabecera}
       {datos.estado && <p className="snap-estado" role="status">{datos.estado}</p>}
 
-      {/* Quién es: la ficha y sus familias; el Top 10 con la jugada debajo; dónde juega y quién se la da. */}
+      {/* Quién es: la ficha y sus familias; el Top 10 con la jugada debajo; dónde juega y dónde recibe. */}
       <div className="snap-fila snap-una-1">
         <div className="snap-columna">
           {pieza("ficha")}
@@ -106,7 +104,7 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
         </div>
         <div className="snap-columna">
           {pieza("puestos")}
-          {pieza("recepciones_pasadores")}
+          <PiezaFicha pieza="recepciones" datos={datos} opcion={agruparRecepciones} onOpcion={setAgruparRecepciones} />
         </div>
       </div>
 
@@ -126,13 +124,13 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
         {pieza("regates")}
       </div>
 
-      {/* Dónde lo hace y cómo le llega. */}
+      {/* Dónde lo hace y cómo le llega: de dónde, cómo y de quién. */}
       <div className="snap-fila snap-una-3">
         {pieza("calor")}
         {pieza("defensa")}
-        <PiezaFicha pieza="recepciones" datos={datos} opcion={agruparRecepciones} onOpcion={setAgruparRecepciones} />
         {pieza("recepciones_origen")}
         <PiezaFicha pieza="recepciones_tipo" datos={datos} opcion={agruparRecepciones} onOpcion={setAgruparRecepciones} />
+        {pieza("recepciones_pasadores")}
       </div>
       {pie}
     </section>
