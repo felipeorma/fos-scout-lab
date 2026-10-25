@@ -6751,12 +6751,36 @@ body.print-layout-check .app-shell[data-informe="oscuro"] .legal-page-shell > :i
    Ficha ampliada en una sola hoja
    =====================================================================
    Tres filas y, dentro, columnas que apilan piezas para no dejar hueco:
-   bajo el Top 10 la jugada, bajo los puestos quién se la da, bajo tiros y
-   ocasiones los mapas de pases. */
-.snap-una-1 { grid-template-columns: minmax(250px, 300px) minmax(0, 1.5fr) minmax(0, 1fr); }
-.snap-una-2 { grid-template-columns: minmax(0, 1.1fr) minmax(0, 2fr) minmax(0, 1fr); }
-.snap-una-3 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+   bajo el Top 10 la jugada, bajo los puestos dónde recibe, bajo tiros y
+   ocasiones los mapas de pases.
+
+   Cada fila estira sus columnas al alto de la más alta y la última pieza de
+   cada columna se queda con lo que sobra: los bordes de abajo coinciden y no
+   quedan huecos sueltos en mitad de la hoja. Los anchos están repartidos para
+   que las columnas pidan alturas parecidas —regates más ancho que los pares de
+   mapas, las dos listas de la última fila más anchas que sus mapas—, y son los
+   mismos en pantalla, al medir y al imprimir: antes la primera columna medía
+   240 px en el PDF y entre 250 y 300 al medir, y la app ajustaba una hoja
+   distinta de la que salía. */
+.snap-una-1 { grid-template-columns: 270px minmax(0, 1.4fr) minmax(0, 1fr); }
+.snap-una-2 { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.6fr) minmax(0, 1.4fr); }
+.snap-una-3 { grid-template-columns: repeat(3, minmax(0, .9fr)) repeat(2, minmax(0, 1.4fr)); }
 .snap-pareja { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
+.snap-hoja-unica > .snap-fila { align-items: stretch; }
+.snap-hoja-unica .snap-columna > :last-child { flex: 1 1 auto; }
+.snap-hoja-unica .snap-pareja { align-items: stretch; }
+.app-shell[data-tema] .snap-hoja-unica .snap-tarjeta { display: flex; flex-direction: column; }
+/* En una tarjeta estirada, el campo crece y el dibujo se centra en él (el SVG
+   encaja su viewBox), en vez de dejar todo el blanco abajo; la leyenda, al pie. */
+.app-shell[data-tema] .snap-hoja-unica .snap-tarjeta > svg.snap-cancha { flex: 1 1 auto; min-height: 0; }
+.app-shell[data-tema] .snap-hoja-unica .snap-tarjeta > .snap-leyenda { margin-top: auto; padding-top: 6px; }
+/* La tarjeta del jugador en su columna: la foto más estrecha y los datos a dos
+   columnas. A tres, en 104 px, las etiquetas se pisaban ("EDAD ALTURA") y el
+   nombre se partía a media palabra. */
+.app-shell[data-tema] .snap-hoja-unica .snap-ficha { grid-template-columns: 112px minmax(0, 1fr); }
+.snap-hoja-unica .snap-retrato-info dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.snap-hoja-unica .snap-retrato-info dt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-shell[data-tema] .snap-hoja-unica .snap-retrato-info h3 { font-size: 19px; }
 /* La jugada, compacta bajo el Top 10: sin la leyenda de los ocho
    papeles (cada burbuja la lleva al pasar el cursor) y el dibujo más bajo. */
 .snap-participacion .snap-roles-leyenda { display: none; }
@@ -6771,11 +6795,6 @@ body.print-layout-check .app-shell[data-informe="oscuro"] .legal-page-shell > :i
 }
 @media screen and (max-width: 640px) {
   body:not(.print-layout-check) :is(.snap-una-1, .snap-una-2, .snap-una-3, .snap-pareja) { grid-template-columns: minmax(0, 1fr); }
-}
-@media print {
-  .snap-una-1 { grid-template-columns: 240px minmax(0, 1.5fr) minmax(0, 1fr); }
-  .snap-una-2 { grid-template-columns: minmax(0, 1.1fr) minmax(0, 2fr) minmax(0, 1fr); }
-  .snap-una-3 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 }
 
 /* El aviso de SkillCorner: su liga no está en la suscripción, o solo con físicos. */
