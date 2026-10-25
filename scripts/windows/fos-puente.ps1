@@ -9,7 +9,7 @@
 #   comprobar     revisa instalación, credenciales, puente y StatsBomb
 #   reiniciar     lo para y lo vuelve a arrancar
 #   ventana       lo arranca a la vista, con el registro en pantalla
-#   credenciales  abre el archivo de credenciales
+#   credenciales  te pide usuario y contraseña de StatsBomb de nuevo
 #   actualizar    baja la última versión del puente de GitHub (main)
 #   desinstalar   quita el arranque automático y lo para
 #
@@ -34,7 +34,7 @@ $UrlPuente = "https://raw.githubusercontent.com/felipeorma/fos-scout-lab/main/sc
 $Dependencias = @("rembg[cpu,cli]", "fastapi", "uvicorn", "python-multipart", "requests")
 # Lo que dejan dicho las funciones. En un diccionario y no en $script:, porque
 # dentro del .cmd este script corre como bloque y $script: sería otro ámbito.
-$Ultimo = @{ FalloLibrerias = "" }
+$Ultimo = @{ FalloLibrerias = ""; StatsBomb401 = $false }
 
 function Paso([string]$Texto) {
   Write-Host ""
@@ -166,20 +166,132 @@ function Copiar-Puente([switch]$DeGitHub) {
   return $true
 }
 
-function Preparar-Credenciales {
-  New-Item -ItemType Directory -Force -Path $Datos | Out-Null
-  if (Test-Path $Credenciales) { return }
-  $plantilla = @"
-{
-  "statsbomb": { "username": "", "password": "" },
-  "skillcorner": { "username": "", "password": "" },
-  "anthropic": "",
-  "api-football": ""
+# El texto de un archivo en la codificación que tenga: UTF-8 (con o sin BOM),
+# UTF-16 (el "Unicode" del Bloc de notas) o ANSI.
+function Leer-Texto([string]$Ruta) {
+  $bytes = [System.IO.File]::ReadAllBytes($Ruta)
+  if ($bytes.Length -ge 2 -and $bytes[0] -eq 0xFF -and $bytes[1] -eq 0xFE) { return [System.Text.Encoding]::Unicode.GetString($bytes, 2, $bytes.Length - 2) }
+  if ($bytes.Length -ge 2 -and $bytes[0] -eq 0xFE -and $bytes[1] -eq 0xFF) { return [System.Text.Encoding]::BigEndianUnicode.GetString($bytes, 2, $bytes.Length - 2) }
+  try {
+    return (New-Object System.Text.UTF8Encoding($false, $true)).GetString($bytes).TrimStart([char]0xFEFF)
+  } catch {
+    return [System.Text.Encoding]::Default.GetString($bytes)
+  }
 }
-"@
-  # Sin BOM: el puente lo lee en utf-8 y un BOM rompería el JSON.
-  [System.IO.File]::WriteAllText($Credenciales, $plantilla, (New-Object System.Text.UTF8Encoding($false)))
-  Bien "Plantilla de credenciales creada en $Credenciales"
+
+function Par([string]$Usuario, [string]$Clave) {
+  return [pscustomobject]@{ Usuario = $Usuario.Trim(); Clave = $Clave }
+}
+
+$NombresUsuario = "username|user|usuario|email|e-mail|correo|login"
+$NombresClave = "password|pass|contraseña|contrasena|clave"
+
+# El valor que sigue a una etiqueta ("usuario: x", "password": "y").
+function Valor-Etiquetado([string]$Tramo, [string]$Nombres) {
+  $m = [regex]::Match($Tramo, "(?i)`"?\b($Nombres)\b`"?\s*[:=]\s*`"((?:[^`"\\]|\\.)*)`"")
+  if ($m.Success -and $m.Groups[2].Value) { return ($m.Groups[2].Value -replace '\\(.)', '$1') }
+  $m = [regex]::Match($Tramo, "(?i)\b($Nombres)\b\s*[:=]\s*([^\s`",}]+)")
+  if ($m.Success) { return $m.Groups[2].Value }
+  return $null
+}
+
+# Usuario y contraseña de una plataforma dentro de un texto cualquiera: el JSON
+# de la plantilla (aunque las claves se llamen de otra forma o haya una coma de
+# más), "usuario:contraseña" en una línea, o etiquetas sueltas cerca del nombre.
+function Par-En-Texto([string]$Texto, [string]$Plataforma) {
+  $json = $null
+  try { $json = ConvertFrom-Json -InputObject $Texto } catch { }
+  if ($json) {
+    $valor = $null
+    foreach ($p in $json.PSObject.Properties) { if (($p.Name -replace '[^a-zA-Z]', '') -eq $Plataforma) { $valor = $p.Value } }
+    if ($valor -is [string] -and $valor.Contains(":")) {
+      $i = $valor.IndexOf(":")
+      if ($i -gt 0 -and $i -lt $valor.Length - 1) { return Par $valor.Substring(0, $i) $valor.Substring($i + 1) }
+    } elseif ($valor) {
+      $u = $null; $c = $null
+      foreach ($p in $valor.PSObject.Properties) {
+        if ($p.Name -match "^($NombresUsuario)$" -and $p.Value) { $u = [string]$p.Value }
+        if ($p.Name -match "^($NombresClave)$" -and $p.Value) { $c = [string]$p.Value }
+      }
+      if ($u -and $c) { return Par $u $c }
+    }
+  }
+  # Texto libre: lo que va del nombre de la plataforma a la siguiente.
+  $i = $Texto.IndexOf($Plataforma, [System.StringComparison]::OrdinalIgnoreCase)
+  if ($i -lt 0) { return $null }
+  $tramo = $Texto.Substring($i + $Plataforma.Length)
+  $siguiente = [regex]::Match($tramo, "(?i)statsbomb|skillcorner|anthropic|api-football|wyscout")
+  if ($siguiente.Success) { $tramo = $tramo.Substring(0, $siguiente.Index) }
+  $m = [regex]::Match($tramo, '^[\s"'':=]*([^\s":,{}]+):([^\s",{}]+)')
+  if ($m.Success) { return Par $m.Groups[1].Value $m.Groups[2].Value }
+  $u = Valor-Etiquetado $tramo $NombresUsuario
+  $c = Valor-Etiquetado $tramo $NombresClave
+  if ($u -and $c) { return Par $u $c }
+  return $null
+}
+
+# Las credenciales de StatsBomb estén donde estén: primero credentials.json y
+# después el texto más reciente que hable de StatsBomb en el Escritorio,
+# Documentos, Descargas o la carpeta de este archivo.
+function Buscar-Credenciales {
+  $archivos = New-Object System.Collections.ArrayList
+  if (Test-Path $Credenciales) { [void]$archivos.Add((Get-Item $Credenciales)) }
+  $carpetas = @([Environment]::GetFolderPath("Desktop"), [Environment]::GetFolderPath("MyDocuments"), (Join-Path $Casa "Downloads"), $Datos)
+  if ($Archivo) { $carpetas += (Split-Path -Parent $Archivo) }
+  $otros = foreach ($carpeta in ($carpetas | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique)) {
+    Get-ChildItem -Path $carpeta -File -ErrorAction SilentlyContinue |
+      Where-Object { (@(".txt", ".json", "") -contains $_.Extension.ToLower()) -and $_.Length -lt 65536 -and $_.FullName -ne $Credenciales }
+  }
+  foreach ($otro in ($otros | Sort-Object LastWriteTime -Descending)) { [void]$archivos.Add($otro) }
+  foreach ($candidato in $archivos) {
+    $texto = Leer-Texto $candidato.FullName
+    if ($texto -notmatch "(?i)statsbomb") { continue }
+    $sb = Par-En-Texto $texto "statsbomb"
+    if ($sb) { return [pscustomobject]@{ Origen = $candidato.FullName; Texto = $texto; StatsBomb = $sb } }
+  }
+  return $null
+}
+
+# Las pide en esta misma ventana: la contraseña no se ve al escribirla.
+function Pedir-Credenciales {
+  Aviso "Escribe tus credenciales de StatsBomb una vez y quedan guardadas (la contraseña no se ve al escribirla)."
+  $usuario = [string](Read-Host "    Usuario de StatsBomb (el mismo que en el Mac)")
+  $segura = Read-Host "    Contraseña de StatsBomb" -AsSecureString
+  $clave = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($segura))
+  if (-not $usuario.Trim() -or -not $clave) { return $null }
+  return [pscustomobject]@{ Origen = "lo que has escrito aquí"; Texto = ""; StatsBomb = (Par $usuario $clave) }
+}
+
+# credentials.json en la forma exacta que lee el puente ("statsbomb" en
+# minúsculas, username y password, UTF-8 sin BOM), sin perder lo demás que haya.
+function Guardar-Credenciales($Encontradas) {
+  New-Item -ItemType Directory -Force -Path $Datos | Out-Null
+  $antes = ""
+  if (Test-Path $Credenciales) { $antes = Leer-Texto $Credenciales }
+  $fuentes = @($Encontradas.Texto, $antes) | Where-Object { $_ }
+  $sc = $null; $anthropic = ""; $apiFootball = ""
+  foreach ($fuente in $fuentes) {
+    if (-not $sc) { $sc = Par-En-Texto $fuente "skillcorner" }
+    if (-not $anthropic) { $m = [regex]::Match($fuente, "sk-ant-[A-Za-z0-9_\-]+"); if ($m.Success) { $anthropic = $m.Value } }
+    if (-not $apiFootball) {
+      $json = $null
+      try { $json = ConvertFrom-Json -InputObject $fuente } catch { }
+      if ($json -and $json."api-football" -is [string]) { $apiFootball = $json."api-football".Trim() }
+    }
+  }
+  $scUsuario = ""; $scClave = ""
+  if ($sc) { $scUsuario = $sc.Usuario; $scClave = $sc.Clave }
+  $nuevo = [ordered]@{
+    statsbomb = [ordered]@{ username = $Encontradas.StatsBomb.Usuario; password = $Encontradas.StatsBomb.Clave }
+    skillcorner = [ordered]@{ username = $scUsuario; password = $scClave }
+    anthropic = $anthropic
+    "api-football" = $apiFootball
+  }
+  $json = ($nuevo | ConvertTo-Json -Depth 4) -replace "`r`n", "`n"
+  if ($json.Trim() -ne $antes.Trim()) {
+    if ($antes) { Copy-Item -Force $Credenciales "$Credenciales.bak" }
+    [System.IO.File]::WriteAllText($Credenciales, $json + "`n", (New-Object System.Text.UTF8Encoding($false)))
+  }
 }
 
 # credentials.json tal como lo leerá el puente. Se valida con su mismo Python:
@@ -193,7 +305,7 @@ function Leer-Credenciales {
   }
   $leidas = $null
   if (-not $fallo) {
-    try { $leidas = ConvertFrom-Json -InputObject ([System.IO.File]::ReadAllText($Credenciales)) } catch { $fallo = "no es JSON" }
+    try { $leidas = ConvertFrom-Json -InputObject (Leer-Texto $Credenciales) } catch { $fallo = "no es JSON" }
   }
   return [pscustomobject]@{ Fallo = $fallo; Datos = $leidas }
 }
@@ -204,30 +316,27 @@ function Tiene-Plataforma($Leidas, [string]$Plataforma) {
   return [bool]($c -and $c.username -and $c.password)
 }
 
-# Usa las credenciales que ya están guardadas, sin pedirlas otra vez. Solo si
-# falta el archivo, no se puede leer o no tiene StatsBomb, lo abre en el Bloc
-# de notas y espera a que lo guardes.
-function Asegurar-Credenciales {
-  Preparar-Credenciales
-  for ($intento = 0; $intento -lt 3; $intento++) {
-    $leidas = Leer-Credenciales
-    if ($leidas.Fallo) {
-      Aviso "credentials.json no se puede leer: $($leidas.Fallo)"
-      Aviso "(cada valor entre comillas, una coma entre líneas y ninguna tras la última)"
-    } elseif (Tiene-Plataforma $leidas.Datos "statsbomb") {
-      Bien "Uso las credenciales guardadas en $Credenciales"
-      Bien "StatsBomb: usuario $($leidas.Datos.statsbomb.username)"
-      if (Tiene-Plataforma $leidas.Datos "skillcorner") { Bien "SkillCorner: usuario $($leidas.Datos.skillcorner.username)" } else { Write-Host "    SkillCorner: sin credenciales" }
-      if ($leidas.Datos.anthropic) { Bien "Anthropic: clave guardada" } else { Write-Host "    Anthropic: sin clave (solo hace falta para los textos con IA)" }
-      return
-    } else {
-      Aviso "En $Credenciales falta el usuario o la contraseña de StatsBomb."
-    }
-    Aviso "Se abre en el Bloc de notas: rellénalo y guárdalo (Ctrl+S)."
-    Start-Process notepad.exe "`"$Credenciales`""
-    Read-Host "    Pulsa Intro aquí cuando lo hayas guardado" | Out-Null
+# Las credenciales que ya guardaste, donde estén y como estén escritas: las
+# encuentra, las deja en credentials.json tal como las lee el puente y solo
+# si no hay ningunas te las pide aquí mismo.
+function Asegurar-Credenciales([switch]$Pedir) {
+  $encontradas = $null
+  if (-not $Pedir) { $encontradas = Buscar-Credenciales }
+  if (-not $encontradas) {
+    if (-not $Pedir) { Aviso "No encuentro credenciales de StatsBomb en $Credenciales ni en el Escritorio, Documentos o Descargas." }
+    $encontradas = Pedir-Credenciales
   }
-  Aviso "Sigo sin credenciales de StatsBomb: la app abrirá, pero sin sus datos."
+  if (-not $encontradas) {
+    Aviso "Sin usuario o contraseña de StatsBomb: la app abrirá, pero sin sus datos."
+    return
+  }
+  Guardar-Credenciales $encontradas
+  $sb = $encontradas.StatsBomb
+  Bien "StatsBomb: usuario $($sb.Usuario), contraseña de $($sb.Clave.Length) caracteres ($($encontradas.Origen))."
+  $leidas = Leer-Credenciales
+  if (Tiene-Plataforma $leidas.Datos "skillcorner") { Bien "SkillCorner: usuario $($leidas.Datos.skillcorner.username)" } else { Write-Host "    SkillCorner: sin credenciales" }
+  if ($leidas.Datos.anthropic) { Bien "Anthropic: clave guardada" } else { Write-Host "    Anthropic: sin clave (solo hace falta para los textos con IA)" }
+  Bien "Guardadas para el puente en $Credenciales"
 }
 
 # Lo que va detrás de "cmd /c": el puente con python.exe y la salida a
@@ -326,6 +435,7 @@ function Parar {
 # veredicto al final. No muestra contraseñas ni claves.
 function Comprobar {
   $problemas = New-Object System.Collections.ArrayList
+  $Ultimo.StatsBomb401 = $false
 
   $piezas = [ordered]@{ "Python del entorno" = $Python; "Puente" = (Join-Path $CarpetaPuente "bg-server.py"); "Arranque al iniciar sesión" = $Lanzador }
   foreach ($pieza in $piezas.GetEnumerator()) {
@@ -359,7 +469,8 @@ function Comprobar {
         if (Test-Path $Registro) { $cola = @(Get-Content -Tail 40 $Registro) }
         if ($cola -match "401") {
           Aviso "StatsBomb dice que el usuario o la contraseña no son correctos (401)."
-          [void]$problemas.Add("Corrige usuario y contraseña de StatsBomb en $Credenciales (los mismos con los que entras en StatsBomb) y vuelve a abrir FOS Scout Lab.")
+          $Ultimo.StatsBomb401 = $true
+          [void]$problemas.Add("Usuario o contraseña de StatsBomb incorrectos: usa los mismos que en el Mac (Llavero, fos-scouting > statsbomb).")
         } else {
           Aviso "StatsBomb falla: $fallo"
           Mostrar-Registro
@@ -429,6 +540,13 @@ function Todo {
 
   Paso "5/5 Comprobación"
   Comprobar
+  # Si StatsBomb las rechaza, se piden aquí mismo y se vuelve a probar: el
+  # puente lee el archivo en cada petición, no hace falta reiniciarlo.
+  for ($intento = 0; $Ultimo.StatsBomb401 -and $intento -lt 2; $intento++) {
+    Paso "Credenciales de StatsBomb, otra vez"
+    Asegurar-Credenciales -Pedir
+    Comprobar
+  }
   Start-Process "http://127.0.0.1:$Puerto/"
 }
 
@@ -456,7 +574,7 @@ try {
     "reiniciar" { Parar; Arrancar }
     "ventana" { Arrancar-Con-Ventana }
     "parar" { Parar }
-    "credenciales" { Preparar-Credenciales; Start-Process notepad.exe "`"$Credenciales`"" }
+    "credenciales" { Asegurar-Credenciales -Pedir; if (Esta-En-Marcha) { Comprobar } }
     "actualizar" { Actualizar }
     "desinstalar" { Desinstalar }
     default { throw "Acción desconocida: $Accion" }
