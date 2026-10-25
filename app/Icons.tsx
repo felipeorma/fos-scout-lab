@@ -77,3 +77,26 @@ export const Columns = icono(<><rect x="3.5" y="4.5" width="17" height="15" rx="
 export const MoveUp = icono(<><path d="M12 19.5V5" /><path d="m6.5 10.5 5.5-5.5 5.5 5.5" /></>);
 export const MoveDown = icono(<><path d="M12 4.5V19" /><path d="m6.5 13.5 5.5 5.5 5.5-5.5" /></>);
 export const Pencil = icono(<><path d="M15.2 5.3 18.7 8.8" /><path d="M5 19l1-4.2L16.2 4.6a1.6 1.6 0 0 1 2.3 0l.9.9a1.6 1.6 0 0 1 0 2.3L9.2 18 5 19z" /></>);
+// Los de la pizarra: el cuaderno de balón parado y el pintado de acciones.
+export const Cancha = icono(<><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M12 5v14" /><circle cx="12" cy="12" r="2.6" /><path d="M3 9.5h2.5v5H3" /><path d="M21 9.5h-2.5v5H21" /></>);
+export const Pincel = icono(<><path d="m14 4.5 5.5 5.5-7.8 7.8-5.5-5.5z" /><path d="M6.2 12.3c-2.1.2-3.2 1.8-3.2 3.7 0 1.6-.6 3-1 3.5 2.6.6 5.6.1 6.8-1.6.7-1 .6-2.1.1-2.9" /></>);
+export const Mover = icono(<><path d="M12 3.5v17" /><path d="M3.5 12h17" /><path d="m9.5 6 2.5-2.5L14.5 6" /><path d="m9.5 18 2.5 2.5 2.5-2.5" /><path d="M6 9.5 3.5 12 6 14.5" /><path d="M18 9.5l2.5 2.5-2.5 2.5" /></>);
+export const Balon = icono(<><circle cx="12" cy="12" r="8.5" /><path d="m12 8.6 3.2 2.3-1.2 3.8h-4l-1.2-3.8z" /><path d="M12 3.5v5.1" /><path d="m15.2 10.9 4.6-1.5" /><path d="m14 14.7 2.8 4" /><path d="m10 14.7-2.8 4" /><path d="M8.8 10.9 4.2 9.4" /></>);
+export const Carrera = icono(<><circle cx="5.5" cy="17.5" r="2" /><path d="M7.8 16.2c3.3-1.3 5.6-3.9 7.2-7.6" strokeDasharray="2.2 2.6" /><path d="m12.4 8.1 3.4-1.9 1 3.6" /></>);
+export const Pase = icono(<><path d="M4 18.5C6 10.5 12 6.4 19 7" /><path d="m15.6 4.4 3.4 2.6-2.5 3.4" /></>);
+export const Flecha = icono(<><path d="M5 19 19 5" /><path d="M10 5h9v9" /></>);
+export const Etiqueta = icono(<path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v7a2.5 2.5 0 0 1-2.5 2.5H11l-4 4v-4h-.5A2.5 2.5 0 0 1 4 13.5z" />);
+export const Rectangulo = icono(<rect x="4" y="6" width="16" height="12" rx="1.5" />);
+export const Elipse = icono(<ellipse cx="12" cy="12" rx="8.5" ry="6" />);
+export const Triangulo = icono(<path d="M12 4.5 20.5 19h-17z" />);
+export const Foco = icono(<><path d="M12 19.5 6.2 5.6" /><path d="M12 19.5l5.8-13.9" /><ellipse cx="12" cy="5.5" rx="5.8" ry="1.9" /><circle cx="12" cy="19.5" r="1.3" /></>);
+export const Conector = icono(<><circle cx="5" cy="17" r="2" /><circle cx="12" cy="7" r="2" /><circle cx="19" cy="15" r="2" /><path d="m6.2 15.3 4.6-6.6" /><path d="m13.4 8.6 4.3 4.9" /></>);
+export const Duplicar = icono(<><rect x="8.5" y="8.5" width="11.5" height="11.5" rx="2" /><path d="M15.5 8.5V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7.5a2 2 0 0 0 2 2h2.5" /></>);
+export const Camara = icono(<><path d="M4 8.5a2 2 0 0 1 2-2h2l1.5-2h5l1.5 2h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" /><circle cx="12" cy="13" r="3.5" /></>);
+export const Video = icono(<><rect x="3" y="6" width="13" height="12" rx="2" /><path d="m16 10.5 5-3v9l-5-3" /></>);
+export const Cubo = icono(<><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z" /><path d="m4 7.5 8 4.5 8-4.5" /><path d="M12 12v9" /></>);
+export const Play = icono(<path d="M7 4.8v14.4a1 1 0 0 0 1.5.9l11.3-7.2a1 1 0 0 0 0-1.8L8.5 3.9A1 1 0 0 0 7 4.8z" />, true);
+export const Pause = icono(<><rect x="6" y="4.5" width="4" height="15" rx="1.2" /><rect x="14" y="4.5" width="4" height="15" rx="1.2" /></>, true);
+export const FlechaRecta = icono(<><path d="M4 12h15" /><path d="m14 7 5 5-5 5" /></>);
+export const ZonaSuelo = icono(<><ellipse cx="12" cy="14" rx="8.5" ry="4.8" fill="currentColor" fillOpacity=".22" /><path d="M12 9.2v9.6" opacity=".55" /></>);
+export const ChevronLeft = icono(<path d="m14.5 6-6 6 6 6" />);

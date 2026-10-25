@@ -205,6 +205,7 @@ async def remove_background(
 
 import datetime as _dt
 import os
+import sys
 from pathlib import Path
 
 import requests as _requests
@@ -279,7 +280,9 @@ def _keychain_credentials(platform: str) -> dict:
 def _file_credentials(platform: str) -> dict:
     try:
         import json as _json
-        return _json.loads(_CREDENTIALS_FILE.read_text()).get(platform, {})
+        # En utf-8 siempre: Windows lee por defecto en su página de códigos. Y
+        # con -sig, porque el Bloc de notas puede guardarlo con BOM.
+        return _json.loads(_CREDENTIALS_FILE.read_text(encoding="utf-8-sig")).get(platform, {})
     except Exception:
         return {}
 
@@ -2598,7 +2601,15 @@ def skillcorner_player_stats(competition_edition_id: int):
 
 def _keychain_secret(account: str):
     """Valor crudo del Llavero: las llaves de API son un token único, no
-    el par usuario:contraseña que guardan las plataformas de datos."""
+    el par usuario:contraseña que guardan las plataformas de datos.
+
+    Fuera del Mac no hay Llavero: la llave se lee de
+    ~/.fos-scouting/credentials.json ({"anthropic": "sk-ant-..."}), el mismo
+    archivo de las credenciales de StatsBomb y SkillCorner.
+    """
+    if sys.platform != "darwin":
+        valor = _file_credentials(account)
+        return valor.strip() if isinstance(valor, str) else ""
     try:
         import subprocess as _sp
         out = _sp.run(
@@ -3317,6 +3328,9 @@ _AF_AVISO_GUARDADA = "Clave guardada en el Llavero de macOS (fos-scouting / api-
 
 
 def _af_importar_de_fichero():
+    # El paso al Llavero solo existe en el Mac; en Windows la clave va en credentials.json.
+    if sys.platform != "darwin":
+        return
     try:
         texto = _AF_FICHERO_CLAVE.read_text(encoding="utf-8").strip()
     except OSError:

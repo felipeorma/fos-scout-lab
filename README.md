@@ -110,6 +110,46 @@ Los datos extraídos y las personalizaciones del perfil se guardan localmente po
 jugador en el navegador. Transfermarkt solo se consulta cuando el usuario pega
 una URL y presiona el botón de extracción.
 
+## El puente local en el Mac y en Windows
+
+Las secciones con datos de StatsBomb y SkillCorner, los textos con IA y el
+recorte de fotos pasan por un servidor que corre en tu propio ordenador
+(`scripts/bg-server.py`, puerto 7001). La Pizarra (Estudio táctico y Pintado de
+acciones) no lo necesita. Los mismos comandos sirven en los dos sistemas:
+
+```bash
+npm run bg:instalar   # una vez: crea ~/.rembg-venv con Python 3.11 e instala rembg, FastAPI y uvicorn
+npm run bg:server     # lo arranca (o avisa si ya está en marcha)
+npm run bg:reiniciar  # lo para y lo vuelve a arrancar aparte (tras cambiar su código)
+npm run bg:actualizar # se pone en main, baja lo último y lo reinicia
+npm run bg:inicio     # Windows: que arranque solo al iniciar sesión
+npm run bg:windows    # Windows sin Node: todo en un solo .cmd (abajo)
+```
+
+- **Mac:** lo mantiene vivo el servicio `com.felipeormazabal.fos-puente`; las
+  credenciales van en el Llavero, como se explica más abajo.
+- **Windows:** hace falta Python 3.11 de python.org (con «Add python.exe to
+  PATH»). No hay Llavero: `bg:instalar` deja preparado
+  `C:\Users\<tú>\.fos-scouting\credentials.json` para rellenar con las
+  credenciales de StatsBomb y SkillCorner y las claves `anthropic` y
+  `api-football`. Ese archivo vive fuera del repositorio y no se sube nunca.
+  `bg:inicio` deja un acceso en la carpeta Inicio que lo arranca oculto al
+  entrar (con la salida en `.fos-scouting\puente.log`); para quitarlo, se
+  borra `fos-puente.vbs` de esa carpeta.
+- **Windows sin repositorio ni Node:** `npm run bg:windows` deja en
+  `dist/FOS Scout Lab.cmd` un solo archivo con el script
+  (`scripts/windows/fos-puente.ps1`) y el puente dentro. Se copia al escritorio
+  y cada doble clic hace lo que falte: Python 3.11 con winget, entorno y
+  librerías, pone el puente al día, encuentra las credenciales de StatsBomb y
+  SkillCorner donde estén guardadas (`credentials.json` o una nota del
+  Escritorio, Documentos o Descargas; si no hay, las pide en la ventana), lo
+  deja arrancando al iniciar sesión, comprueba que las dos plataformas
+  responden y abre http://127.0.0.1:7001/. Hay que rehacerlo cuando cambia
+  `bg-server.py`.
+- Desde la web publicada en GitHub Pages, Chrome puede preguntar si se permite
+  el acceso a la red local: hay que aceptarlo para que la página hable con el
+  puente.
+
 ## Plataformas por API (StatsBomb / SkillCorner)
 
 Además de los Excel de Wyscout, la app puede cargar temporadas completas desde
@@ -124,10 +164,11 @@ tarjeta del paso 01, o desde el panel de datos con un informe abierto).
   para y lo vuelve a arrancar aparte, y `npm run bg:actualizar` se pone en
   `main`, baja lo último y lo reinicia. En el Mac usa el servicio de launchd si
   está instalado; en Windows deja el registro en
-  `%USERPROFILE%\.fos-scouting\puente.log` y no arranca solo al encender el
-  PC: tras reiniciarlo, `npm run bg:reiniciar`.
-- **Windows, una sola vez:** Python 3.11 y su entorno,
-  `py -3.11 -m venv %USERPROFILE%\.rembg-venv` y
+  `%USERPROFILE%\.fos-scouting\puente.log`, y `npm run bg:inicio` hace que
+  arranque solo al iniciar sesión. Todos los comandos, en «El puente local en
+  el Mac y en Windows».
+- **Windows, una sola vez:** `npm run bg:instalar`, o a mano Python 3.11 y su
+  entorno, `py -3.11 -m venv %USERPROFILE%\.rembg-venv` y
   `%USERPROFILE%\.rembg-venv\Scripts\pip install "rembg[cpu,cli]" fastapi uvicorn python-multipart requests`.
   Sin el Llavero del Mac, las credenciales van en
   `%USERPROFILE%\.fos-scouting\credentials.json`

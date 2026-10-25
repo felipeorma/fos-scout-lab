@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BarChart3, Check, ChevronDown, ChevronRight, Database, FileSpreadsheet, ImageIcon, LockKeyhole, Menu, MoreHorizontal, Plus, Printer, RadarChart, RotateCcw, Route, Search, Sparkles, Trophy, Upload, X, ShieldCheck, LayoutDashboard, Wind } from "./Icons";
+import { BarChart3, Cancha, Check, Pincel, ChevronDown, ChevronRight, Database, FileSpreadsheet, ImageIcon, LockKeyhole, Menu, MoreHorizontal, Plus, Printer, RadarChart, RotateCcw, Route, Search, Sparkles, Trophy, Upload, X, ShieldCheck, LayoutDashboard, Wind } from "./Icons";
 import { PizzaRadar } from "./PizzaRadar";
 import { ScoutingBoard } from "./ScoutingBoard";
 import { RunsPage } from "./RunsPage";
@@ -10,6 +10,8 @@ import { EstiloPage } from "./EstiloPage";
 import { BlueprintsPage } from "./BlueprintsPage";
 import { SnapshotPage } from "./SnapshotPage";
 import { SimilarityStudio } from "./SimilarityStudio";
+import { EstudioTactico } from "./EstudioTactico";
+import { PintadoAcciones } from "./PintadoAcciones";
 import { CLIENT_THEMES, DEFAULT_REPORT_THEME, REPORT_THEMES, reportThemeStyle, type ReportTheme } from "./reportTheme";
 import { LogoPlataforma } from "./LogosPlataforma";
 import { ligasDeBases, origenPorFila, basesDelRadar, ligaYAnioDe } from "@/lib/procedencia";
@@ -90,6 +92,13 @@ const STYLE_PAGE = 97;
 const SNAPSHOT_PAGE = 98;
 // Football Blueprints: la liga entera como mapa conceptual y el reel para LinkedIn.
 const BLUEPRINTS_PAGE = 99;
+// El estudio táctico en 3D (empezó como cuaderno de balón parado). No necesita
+// base cargada: se abre también desde la portada.
+const ABP_PAGE = 100;
+// El pintado de acciones: dibujar sobre una imagen o un vídeo. Tampoco necesita base.
+const PINTADO_PAGE = 101;
+/** Las hojas de la pizarra: se abren sin datos y no son páginas del informe. */
+const esPizarra = (pagina: number) => pagina === ABP_PAGE || pagina === PINTADO_PAGE;
 
 /**
  * Cómo se llama cada sección, en un solo sitio.
@@ -108,6 +117,8 @@ const NOMBRE_DE_SECCION: Record<number, string> = {
   [STYLE_PAGE]: "Estilo de juego",
   [BLUEPRINTS_PAGE]: "Football Blueprints",
   [SNAPSHOT_PAGE]: "Ficha ampliada",
+  [ABP_PAGE]: "Estudio táctico",
+  [PINTADO_PAGE]: "Pintado de acciones",
 };
 
 /**
@@ -2170,7 +2181,7 @@ export default function ScoutStudio() {
           </div>
 
           <h1 className="nav-titulo">
-            {dataReady ? t(NOMBRE_DE_SECCION[reportPage] ?? "Ficha y radar") : t("Reportes de scouting")}
+            {dataReady || esPizarra(reportPage) ? t(NOMBRE_DE_SECCION[reportPage] ?? "Ficha y radar") : t("Reportes de scouting")}
           </h1>
 
           <div className="top-actions">
@@ -2222,7 +2233,7 @@ export default function ScoutStudio() {
             se usa a diario. Baja al contenido y solo mientras hace falta: en
             cuanto hay datos y jugador ya no dice nada que la propia pantalla
             no diga. */}
-        {espacio === "cavalry" && !report && <ol className="studio-flow" aria-label={t("Flujo del reporte")}>
+        {espacio === "cavalry" && !report && !esPizarra(reportPage) && <ol className="studio-flow" aria-label={t("Flujo del reporte")}>
           <li className={dataReady ? "done" : "current"}><span>{dataReady ? <Check size={13} /> : "1"}</span><div><b>{t("Cargar datos")}</b><small>{dataReady ? tDefault(reportFileName) : t("Excel o CSV")}</small></div></li>
           <li className={dataReady ? "current" : ""}><span>2</span><div><b>{t("Elegir jugador")}</b><small>{t("Equipo y jugador")}</small></div></li>
           <li><span>3</span><div><b>{t("Construir reporte")}</b><small>{t("Ficha, similitud y carreras")}</small></div></li>
@@ -2282,7 +2293,7 @@ export default function ScoutStudio() {
                 </div>
               </div>}
 
-            {!dataReady ? (
+            {!dataReady ? (esPizarra(reportPage) ? null :
               <section className="portada">
                 {/* La portada, como la primera pantalla de una app de Apple.
 
@@ -2344,6 +2355,25 @@ export default function ScoutStudio() {
                       <span className="portada-opcion-texto">
                         <b>{t("Subir archivos de Wyscout")}</b>
                         <small>{t("Para las ligas que no están en la API. Puedes elegir varios y se combinan solos.")}</small>
+                      </span>
+                      <ChevronRight size={16} className="portada-opcion-galon" />
+                    </button>
+                  </div>
+                  <h2 className="portada-pizarra-titulo">{t("Pizarra")}</h2>
+                  <div className="portada-opciones">
+                    <button type="button" className="portada-opcion" onClick={() => setReportPage(ABP_PAGE)}>
+                      <span className="portada-opcion-icono"><Cancha size={18} /></span>
+                      <span className="portada-opcion-texto">
+                        <b>{t("Estudio táctico")}</b>
+                        <small>{t("Salida, presión, ataque, balón parado y ejercicios por fases, en un estadio 3D. No hace falta cargar datos.")}</small>
+                      </span>
+                      <ChevronRight size={16} className="portada-opcion-galon" />
+                    </button>
+                    <button type="button" className="portada-opcion" onClick={() => setReportPage(PINTADO_PAGE)}>
+                      <span className="portada-opcion-icono"><Pincel size={18} /></span>
+                      <span className="portada-opcion-texto">
+                        <b>{t("Pintado de acciones")}</b>
+                        <small>{t("Flechas, focos y zonas encima de una imagen o un vídeo, también de YouTube.")}</small>
                       </span>
                       <ChevronRight size={16} className="portada-opcion-galon" />
                     </button>
@@ -2424,6 +2454,16 @@ export default function ScoutStudio() {
                       icono={<LayoutDashboard size={16} />} titulo={t("Ficha ampliada")} detalle={t("Familias, mapas y parecidos")} api />
                     <FilaSeccion activa={reportPage === RUNS_PAGE} onClick={() => setReportPage(RUNS_PAGE)}
                       icono={<Route size={16} />} titulo={t("Carreras")} detalle={t("Mapa sin balón")} api />
+                  </div>
+                </section>
+
+                <section className="seccion-grupo" data-tono="pizarra">
+                  <h3 className="seccion-grupo-titulo">{t("Pizarra")}</h3>
+                  <div className="seccion-lista">
+                    <FilaSeccion activa={reportPage === ABP_PAGE} onClick={() => setReportPage(ABP_PAGE)}
+                      icono={<Cancha size={16} />} titulo={t("Estudio táctico")} detalle={t("Sistemas, balón parado y estadio 3D")} />
+                    <FilaSeccion activa={reportPage === PINTADO_PAGE} onClick={() => setReportPage(PINTADO_PAGE)}
+                      icono={<Pincel size={16} />} titulo={t("Pintado de acciones")} detalle={t("Dibujar sobre vídeo e imagen")} />
                   </div>
                 </section>
               </nav>}
@@ -2822,6 +2862,10 @@ export default function ScoutStudio() {
                 </div>
               </div>}
             </>}
+            {/* La pizarra vive fuera de la base: el cuaderno de balón parado
+                y el pintado se dibujan igual con datos cargados o sin ellos. */}
+            {paginaMontada(ABP_PAGE) && <EstudioTactico claseHoja={claseHoja(ABP_PAGE)} idioma={lang} paleta={paleta} onVolver={dataReady ? undefined : () => setReportPage(CARD_PAGE)} />}
+            {paginaMontada(PINTADO_PAGE) && <PintadoAcciones claseHoja={claseHoja(PINTADO_PAGE)} onVolver={dataReady ? undefined : () => setReportPage(CARD_PAGE)} />}
           </div>
       </main>
     </div>

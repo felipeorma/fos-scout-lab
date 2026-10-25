@@ -6965,3 +6965,245 @@ body.print-layout-check .app-shell[data-tema] .pizarra-duelos > ol { grid-templa
 .temporadas-incluidas-quitar:focus-visible { outline: 2px solid var(--acento); outline-offset: 1px; }
 .temporadas-incluidas-acciones { display: flex; flex-wrap: wrap; gap: 6px; }
 .temporadas-incluidas:disabled :is(.temporadas-incluidas-opcion, button) { cursor: default; opacity: .6; }
+
+/* =====================================================================
+   Pizarra: el cuaderno de balón parado (Cuaderno ABP)
+   =====================================================================
+   El inspector es el mismo de las páginas de Visuales (inspector-grupo,
+   inspector-tarjeta, inspector-fila…), así que solo se añade lo propio: la
+   rejilla de herramientas, el escenario 3D y la línea de tiempo de fases.
+   El campo va siempre en oscuro, también con el tema claro: es una pizarra. */
+.seccion-grupo[data-tono="pizarra"] { --tono: #0f9d74; }
+.app-shell[data-tema] .portada h2.portada-pizarra-titulo { margin-top: 22px; }
+
+.app-shell[data-tema] .abp-page { max-width: 1440px; }
+.app-shell[data-tema] .abp-page > header.abp-cabecera { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
+.abp-grid { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 16px; align-items: start; }
+.app-shell[data-tema] aside.abp-inspector { position: sticky; top: 14px; max-height: calc(100vh - 28px); overflow-y: auto; overscroll-behavior: contain; }
+
+.abp-herramientas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.app-shell[data-tema] .abp-herramientas > button {
+  min-height: 52px; padding: 7px 4px 6px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  border: 0; border-radius: 10px; background: var(--paper); box-shadow: 0 0 0 1px var(--line);
+  color: var(--ink); font-size: 11px; font-weight: 500; cursor: pointer;
+  transition: background-color var(--transicion), box-shadow var(--transicion), color var(--transicion);
+}
+.app-shell[data-tema] .abp-herramientas > button:hover { background: color-mix(in srgb, var(--ink) 5%, var(--paper)); }
+.app-shell[data-tema] .abp-herramientas > button.activa { color: #fff; background: var(--acento-degradado, var(--acento)); box-shadow: 0 0 0 1px var(--acento-borde), 0 6px 16px var(--acento-suave); font-weight: 600; }
+.app-shell[data-tema] .abp-herramientas > button:focus-visible { outline: 2px solid var(--acento-borde); outline-offset: 2px; }
+.abp-ficha-icono { width: 14px; height: 14px; display: block; border-radius: 50%; box-shadow: 0 0 0 2px rgba(255,255,255,.85); }
+.app-shell[data-tema] .abp-tarjeta-extra { margin-top: 8px; }
+
+.app-shell[data-tema] input.abp-campo {
+  flex: 1; min-width: 0; max-width: 62%; min-height: 28px; margin: 0; padding: 0 2px;
+  border: 0; border-radius: 6px; background: none; box-shadow: none;
+  color: var(--acento-claro); font: inherit; font-size: 13px; font-weight: 500; text-align: right;
+}
+.app-shell[data-tema] input.abp-campo.corto { flex: none; width: 56px; }
+.app-shell[data-tema] input.abp-campo:focus-visible { outline: 2px solid var(--acento-borde); outline-offset: 1px; }
+.app-shell[data-tema] input.abp-campo::placeholder { color: var(--muted); }
+.app-shell[data-tema] .abp-acciones { flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.app-shell[data-tema] .abp-acciones > button {
+  min-height: 28px; padding: 0 10px;
+  display: inline-flex; align-items: center; gap: 5px;
+  border: 0; border-radius: var(--radio-pill); background: color-mix(in srgb, var(--ink) 7%, transparent);
+  color: var(--ink); font-size: 12px; font-weight: 500; cursor: pointer;
+}
+.app-shell[data-tema] .abp-acciones > button:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 12%, transparent); }
+.app-shell[data-tema] .abp-acciones > button:disabled { opacity: .4; cursor: default; }
+.app-shell[data-tema] .abp-acciones > button.peligro { color: #ff6961; }
+.app-shell[data-tema] .abp-enlace { margin: 0; padding: 0 4px; border: 0; background: none; color: var(--acento-claro); font-size: 12px; cursor: pointer; }
+
+/* El escenario: el lienzo 3D llena la caja, y las piezas flotantes van encima. */
+.abp-principal { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.abp-escenario {
+  position: relative; width: 100%; aspect-ratio: 16 / 9; min-height: 340px; max-height: calc(100vh - 210px);
+  overflow: hidden; border-radius: 16px; background: #08080a;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.08), 0 24px 60px -30px rgba(0,0,0,.7);
+  touch-action: none; user-select: none; -webkit-user-select: none;
+}
+.abp-escenario > canvas.abp-lienzo { position: absolute; inset: 0; width: 100% !important; height: 100% !important; display: block; outline: none; }
+.abp-escenario:not(.herramienta-mover) > canvas.abp-lienzo { cursor: crosshair; }
+.abp-escenario.herramienta-mover > canvas.abp-lienzo { cursor: grab; }
+.abp-cargando { position: absolute; inset: 0; margin: 0; display: grid; place-items: center; padding: 24px; color: #b7b7c2; font-size: 13px; text-align: center; }
+
+/* Lo flotante siempre en oscuro, como un HUD sobre el campo. */
+.abp-flotante {
+  --ink: #f5f5f7; --segmento: rgba(255,255,255,.16);
+  position: absolute; z-index: 2;
+  color: #f5f5f7;
+  background: rgba(14,14,18,.72); -webkit-backdrop-filter: blur(14px) saturate(1.4); backdrop-filter: blur(14px) saturate(1.4);
+  box-shadow: 0 0 0 1px rgba(255,255,255,.1), 0 8px 24px rgba(0,0,0,.35);
+}
+.abp-vistas { top: 12px; right: 12px; display: flex; align-items: center; gap: 6px; padding: 4px; border-radius: 11px; }
+.app-shell[data-tema] .abp-vistas .inspector-segmentos { background: rgba(255,255,255,.07); }
+.app-shell[data-tema] .abp-vistas .inspector-segmentos > button { color: #f5f5f7; }
+.abp-boton-flotante {
+  min-height: 26px; padding: 0 10px;
+  display: inline-flex; align-items: center; gap: 5px;
+  border: 0; border-radius: 7px; background: none; color: #f5f5f7; font-size: 12px; font-weight: 500; cursor: pointer;
+}
+.abp-boton-flotante:hover { background: rgba(255,255,255,.1); }
+.abp-aviso { left: 12px; bottom: 12px; max-width: min(460px, calc(100% - 24px)); margin: 0; padding: 8px 12px; border-radius: 10px; font-size: 12px; line-height: 1.4; pointer-events: none; }
+.abp-aviso:empty { display: none; }
+
+/* Fases y reproducción, debajo del campo. */
+.abp-linea-de-tiempo { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 14px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); }
+.abp-fases { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.app-shell[data-tema] .abp-fases > button {
+  min-height: 30px; padding: 0 12px 0 6px;
+  display: inline-flex; align-items: center; gap: 7px;
+  border: 0; border-radius: var(--radio-pill); background: color-mix(in srgb, var(--ink) 6%, transparent);
+  color: var(--ink); font-size: 12.5px; font-weight: 500; cursor: pointer;
+}
+.app-shell[data-tema] .abp-fases > button > b {
+  width: 20px; height: 20px; display: grid; place-items: center;
+  border-radius: 50%; background: color-mix(in srgb, var(--ink) 12%, transparent); font-size: 11px; font-variant-numeric: tabular-nums;
+}
+.app-shell[data-tema] .abp-fases > button.activa { color: #fff; background: var(--acento-degradado, var(--acento)); font-weight: 600; }
+.app-shell[data-tema] .abp-fases > button.activa > b { background: rgba(255,255,255,.22); }
+.abp-fases-acciones { margin-left: auto; display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.app-shell[data-tema] .abp-fases-acciones > button {
+  min-height: 28px; padding: 0 9px;
+  display: inline-flex; align-items: center; gap: 4px;
+  border: 0; border-radius: 7px; background: none; color: var(--muted); font-size: 12px; cursor: pointer;
+}
+.app-shell[data-tema] .abp-fases-acciones > button:hover:not(:disabled) { color: var(--ink); background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.app-shell[data-tema] .abp-fases-acciones > button:disabled { opacity: .35; cursor: default; }
+.abp-reproductor { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.app-shell[data-tema] .abp-reproductor .button.compact { min-height: 32px; gap: 6px; }
+.app-shell[data-tema] .abp-play { min-width: 112px; }
+.abp-progreso { flex: 1 1 160px; min-width: 120px; height: 4px; margin: 0 6px; accent-color: var(--acento); cursor: pointer; }
+.abp-descargas { display: inline-flex; gap: 6px; }
+
+@media screen and (max-width: 1080px) {
+  .abp-grid { grid-template-columns: 1fr; }
+  .app-shell[data-tema] aside.abp-inspector { position: static; max-height: none; order: 2; }
+  .abp-escenario { max-height: none; }
+}
+@media screen and (max-width: 640px) {
+  .abp-escenario { aspect-ratio: 4 / 5; }
+  .abp-vistas { top: 8px; right: 8px; left: 8px; justify-content: space-between; }
+  .abp-fases-acciones { margin-left: 0; }
+}
+
+/* ---- Pizarra: el pintado de acciones ----
+   Mismo armazón que el cuaderno: el escenario 16:9 lleva el fondo (imagen,
+   vídeo o YouTube) encajado sin recortar y, encima, el lienzo de los trazos. */
+.pintado-escenario { background: #08080a; }
+.pintado-fondo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; border: 0; display: block; }
+.pintado-congelado { z-index: 1; }
+.pintado-lienzo { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; display: block; touch-action: none; pointer-events: none; }
+.pintado-escenario.dibujando .pintado-lienzo { pointer-events: auto; cursor: crosshair; }
+.pintado-escenario .abp-aviso { z-index: 3; }
+.pintado-vacio { z-index: 0; max-width: 46ch; margin: auto; line-height: 1.5; }
+
+.pintado-dorsales { margin-top: 8px; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 5px; }
+.app-shell[data-tema] .pintado-dorsales > button {
+  min-height: 30px; padding: 0;
+  border: 0; border-radius: 50%; aspect-ratio: 1; background: var(--paper); box-shadow: 0 0 0 1px var(--line);
+  color: var(--ink); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; cursor: pointer;
+}
+.app-shell[data-tema] .pintado-dorsales > button.activa { color: #fff; background: var(--acento-degradado, var(--acento)); box-shadow: 0 0 0 1px var(--acento-borde); }
+
+.app-shell[data-tema] label.pintado-subir { cursor: pointer; }
+.app-shell[data-tema] label.pintado-subir:hover { background: color-mix(in srgb, var(--ink) 4%, transparent); }
+.app-shell[data-tema] .pintado-youtube { gap: 8px; }
+.app-shell[data-tema] .pintado-youtube input.abp-campo { max-width: none; text-align: left; color: var(--ink); }
+.app-shell[data-tema] .pintado-youtube > button {
+  flex: none; min-height: 28px; padding: 0 12px;
+  border: 0; border-radius: var(--radio-pill); background: var(--acento-degradado, var(--acento)); color: #fff; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.app-shell[data-tema] .pintado-youtube > button:disabled { opacity: .4; cursor: default; }
+
+.pintado-modo { display: inline-flex; align-items: center; gap: 8px; color: var(--ink); font-size: 12.5px; font-weight: 500; }
+.pintado-tiempo { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.pintado-nota { flex: 1; min-width: 160px; color: var(--muted); font-size: 12px; }
+.pintado-cuenta { color: var(--muted); font-size: 11px; }
+
+/* ---- Pizarra: el estudio táctico (portal de sistemas y escenario) ----
+   El portal es una rejilla de tarjetas con la foto del último estado de
+   cada sistema, como las páginas de Visuales: misma superficie, mismo radio. */
+.abp-grid[hidden] { display: none; }
+.abp-cabecera-acciones { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.tactico-portal { display: flex; flex-direction: column; gap: 14px; }
+.tactico-portal-barra { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.tactico-filtros { display: flex; flex-wrap: wrap; gap: 6px; }
+.app-shell[data-tema] .tactico-filtros > button {
+  min-height: 30px; padding: 0 6px 0 12px;
+  display: inline-flex; align-items: center; gap: 7px;
+  border: 0; border-radius: var(--radio-pill); background: color-mix(in srgb, var(--ink) 6%, transparent);
+  color: var(--ink); font-size: 12.5px; font-weight: 500; cursor: pointer;
+}
+.app-shell[data-tema] .tactico-filtros > button > b {
+  min-width: 20px; height: 20px; padding: 0 6px; display: grid; place-items: center;
+  border-radius: var(--radio-pill); background: color-mix(in srgb, var(--ink) 10%, transparent);
+  font-size: 11px; font-variant-numeric: tabular-nums;
+}
+.app-shell[data-tema] .tactico-filtros > button.activa { color: #fff; background: var(--acento-degradado, var(--acento)); font-weight: 600; }
+.app-shell[data-tema] .tactico-filtros > button.activa > b { background: rgba(255,255,255,.22); }
+.tactico-portal-acciones { display: flex; flex-wrap: wrap; gap: 6px; }
+.app-shell[data-tema] .tactico-portal-acciones .button.compact { min-height: 32px; gap: 6px; }
+.tactico-aviso { margin: 0; color: var(--muted); font-size: 12.5px; }
+
+.app-shell[data-tema] .tactico-nuevo { padding: 14px 16px 16px; border-radius: 16px; background: var(--paper); box-shadow: 0 0 0 1px var(--line), var(--shadow); }
+.tactico-nuevo > header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.app-shell[data-tema] .tactico-nuevo > header h3 { margin: 0; color: var(--ink); font-size: 16px; font-weight: 650; }
+.tactico-pestanas { display: grid; margin-bottom: 14px; }
+.tactico-formulario { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) auto; align-items: end; gap: 12px; }
+.tactico-formulario > label, .tactico-formulario > div { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.app-shell[data-tema] .tactico-formulario span { color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.app-shell[data-tema] .tactico-formulario select {
+  min-height: 34px; padding: 0 10px; border: 0; border-radius: 9px;
+  background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); font: inherit; font-size: 13px;
+}
+.app-shell[data-tema] .tactico-formulario .button { min-height: 34px; }
+.tactico-plantillas { display: flex; flex-wrap: wrap; gap: 8px; }
+.app-shell[data-tema] .tactico-plantillas > button {
+  min-height: 40px; padding: 0 14px;
+  display: inline-flex; align-items: center; gap: 8px;
+  border: 0; border-radius: 11px; background: color-mix(in srgb, var(--ink) 6%, transparent);
+  color: var(--ink); font-size: 13px; font-weight: 500; cursor: pointer;
+}
+.app-shell[data-tema] .tactico-plantillas > button:hover { background: var(--acento-suave); color: var(--acento-claro); }
+
+.tactico-rejilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+.app-shell[data-tema] .tactico-tarjeta {
+  display: flex; flex-direction: column; overflow: hidden;
+  border-radius: 16px; background: var(--paper); box-shadow: 0 0 0 1px var(--line);
+  transition: box-shadow var(--transicion), transform var(--transicion);
+}
+.app-shell[data-tema] .tactico-tarjeta:hover { box-shadow: 0 0 0 1px var(--acento-borde), 0 14px 34px -18px rgba(0,0,0,.6); transform: translateY(-1px); }
+.app-shell[data-tema] .tactico-tarjeta-abrir { position: relative; display: block; width: 100%; aspect-ratio: 16 / 9; padding: 0; border: 0; background: #08080a; cursor: pointer; }
+.tactico-tarjeta-abrir > img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.tactico-tarjeta-vacia { position: absolute; inset: 0; display: grid; place-items: center; color: rgba(255,255,255,.35); }
+.tactico-tarjeta-texto { padding: 10px 12px 2px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.app-shell[data-tema] .tactico-tarjeta-texto > b { overflow: hidden; color: var(--ink); font-size: 14px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.app-shell[data-tema] .tactico-tarjeta-texto > small { overflow: hidden; color: var(--muted); font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap; }
+.tactico-tarjeta-acciones { padding: 6px 8px 8px; display: flex; justify-content: flex-end; gap: 2px; }
+.app-shell[data-tema] .tactico-tarjeta-acciones > button {
+  width: 30px; height: 30px; display: grid; place-items: center;
+  border: 0; border-radius: 8px; background: none; color: var(--muted); cursor: pointer;
+}
+.app-shell[data-tema] .tactico-tarjeta-acciones > button:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.app-shell[data-tema] .tactico-tarjeta-acciones > button.peligro:hover { color: #ff6961; }
+.tactico-vacio { margin: 24px 0; color: var(--muted); font-size: 13px; text-align: center; }
+
+/* La fase sobre el campo: su nombre y la nota, arriba a la izquierda. */
+.abp-fase-titulo { top: 12px; left: 12px; max-width: min(440px, calc(100% - 330px)); padding: 8px 12px; display: flex; flex-direction: column; gap: 2px; border-radius: 11px; pointer-events: none; }
+.abp-fase-titulo > b { font-size: 13px; font-weight: 650; }
+.abp-fase-titulo > span { color: rgba(245,245,247,.78); font-size: 12px; line-height: 1.4; }
+.app-shell[data-tema] .abp-fila-nota { align-items: flex-start; }
+.app-shell[data-tema] textarea.abp-nota {
+  flex: 1; min-width: 0; max-width: 70%; margin: 0; padding: 4px 6px;
+  border: 0; border-radius: 7px; background: color-mix(in srgb, var(--ink) 5%, transparent);
+  color: var(--ink); font: inherit; font-size: 12.5px; line-height: 1.4; resize: vertical;
+}
+.app-shell[data-tema] textarea.abp-nota:focus-visible { outline: 2px solid var(--acento-borde); outline-offset: 1px; }
+
+@media screen and (max-width: 900px) {
+  .tactico-formulario { grid-template-columns: 1fr 1fr; }
+  .abp-fase-titulo { max-width: calc(100% - 24px); top: auto; bottom: 12px; }
+}
