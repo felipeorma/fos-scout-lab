@@ -8,7 +8,7 @@ import { t, tf } from "@/lib/i18n";
 /**
  * Las estadísticas de equipo, una sola vez para toda la plataforma.
  *
- * Estilo de juego, Ranking y Entre ligas las necesitan, y cada una bajándolas
+ * Estilo de juego, Ranking y Similitud las necesitan, y cada una bajándolas
  * por su cuenta serían tres veces dieciséis peticiones. Aquí se piden una vez
  * por sesión y se reparten: la primera página que las pida las carga y las
  * demás se suscriben. Si el puente no está, se queda en un aviso y las
@@ -95,13 +95,16 @@ export function cargarEstilos(forzar = false): Promise<void> {
   return enCurso;
 }
 
-export function useEstilos() {
+/** `activo`: pedirlas ya. Con false solo se escucha: si otra página las carga, llegan igual. */
+export function useEstilos(activo = true) {
   const [actual, setActual] = useState(estado);
   useEffect(() => {
     oyentes.add(setActual);
     setActual(estado);
-    if (!estado.filas && !estado.cargando) void cargarEstilos();
     return () => { oyentes.delete(setActual); };
   }, []);
+  useEffect(() => {
+    if (activo && !estado.filas && !estado.cargando) void cargarEstilos();
+  }, [activo]);
   return { ...actual, recargar: () => cargarEstilos(true) };
 }

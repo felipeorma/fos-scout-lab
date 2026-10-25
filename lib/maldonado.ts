@@ -7,6 +7,8 @@
  * componente solo dibuja lo que sale de aquí.
  */
 
+import { PUNTOS_POR_RATING_INDICE } from "./nivelDeLiga.ts";
+
 /**
  * Mapa de posiciones de Maldonado. Distingue lado —lo que la cohorte de
  * métricas no hace— porque para ellos un lateral izquierdo y uno derecho son
@@ -227,25 +229,32 @@ export function ratingsDesdeOpta(meta: OptaLiga[]): Record<string, number | null
 }
 
 /**
- * Factor de descuento por liga: el rating de cada una dividido por el de la
- * mejor liga presente en la carga. Un 70 en la Primera B no vale lo mismo que
- * un 70 en Primera Argentina, y sin esto el combinado premiaría a quien juega
- * contra rivales más débiles.
+ * Descuento por liga, en puntos de índice: cuánto se le resta a un jugador de
+ * cada liga para ponerlo al nivel de la mejor liga presente. Un 70 en la
+ * Primera B no vale lo mismo que un 70 en Primera Argentina, y sin esto el
+ * combinado premiaría a quien juega contra rivales más débiles.
+ *
+ * Aditivo, con la regla calibrada en lib/nivelDeLiga (0,39 puntos de índice
+ * por punto de rating de Opta, medida en 112 jugadores que cambiaron de
+ * liga). Antes era una regla de tres —el índice por el cociente de ratings—
+ * y corregía de más: un 70 en Primera B bajaba a 51, cuando con la regla
+ * calibrada baja a 61. Las fotos mensuales guardan el índice sin descontar,
+ * así que el cambio no rompe la serie de meses.
  *
  * Solo entran al cálculo las ligas realmente cargadas: si el mes trae Uruguay
  * Segunda y Primera B, la referencia es la mejor de esas dos, no una liga que
  * no está en la mesa.
  */
-export function factoresDeLiga(
+export function descuentosDeLiga(
   ratings: Record<string, number | null>,
   ligasPresentes: string[],
 ): Record<string, number> {
   const conRating = ligasPresentes.filter((id) => Number.isFinite(ratings[id] as number) && (ratings[id] as number) > 0);
   const maximo = Math.max(0, ...conRating.map((id) => ratings[id] as number));
-  const factores: Record<string, number> = {};
-  if (!maximo) return factores;
-  for (const id of conRating) factores[id] = (ratings[id] as number) / maximo;
-  return factores;
+  const descuentos: Record<string, number> = {};
+  if (!maximo) return descuentos;
+  for (const id of conRating) descuentos[id] = Math.round(PUNTOS_POR_RATING_INDICE * ((ratings[id] as number) - maximo) * 10) / 10;
+  return descuentos;
 }
 
 /** Ligas cargadas que Opta no publica: se nombran en pantalla, no se rellenan. */
@@ -253,10 +262,11 @@ export function ligasSinRating(ratings: Record<string, number | null>, ligasPres
   return ligasPresentes.filter((id) => !Number.isFinite(ratings[id] as number) || (ratings[id] as number) <= 0);
 }
 
-export function indiceAjustado(indice: number, factor: number | undefined): number {
+/** El índice con el descuento de su liga (en puntos), con tope en 0 y 100. Sin descuento conocido, tal cual. */
+export function indiceAjustado(indice: number, descuento: number | undefined): number {
   if (!Number.isFinite(indice)) return 0;
-  if (!Number.isFinite(factor as number) || !factor) return Math.round(indice);
-  return Math.round(indice * (factor as number));
+  if (!Number.isFinite(descuento as number)) return Math.round(indice);
+  return Math.max(0, Math.min(100, Math.round(indice + (descuento as number))));
 }
 
 // ---------------------------------------------------------------------------

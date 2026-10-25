@@ -59,8 +59,10 @@ export type BaseActiva = {
    * porque una lista de dieciséis no cabe ni se lee.
    */
   descripcion: string;
+  /** Cuándo se cargaron sus datos (milisegundos), o null si no hay base. Lo firma el pie del PDF. */
+  cargadaEl: number | null;
   /** Liga y año de cada fila, alineado con `rows`. */
-  procedencia: Array<{ ligas: string[]; anios: number[] }> | null;
+  procedencia: Array<{ ligas: string[]; anios: number[]; claves: string[] }> | null;
   /** Las competiciones cargadas, con sus archivos. */
   competiciones: Procedencia[];
 
@@ -93,6 +95,7 @@ const VACIA: BaseActiva = {
   datasets: [],
   nombre: "",
   descripcion: "",
+  cargadaEl: null,
   procedencia: null,
   competiciones: [],
   filtros: FILTROS_VACIOS,
@@ -137,6 +140,11 @@ export function useEstadoDeBase({
   const [filtros, setFiltros] = useState<FiltrosGlobales>(FILTROS_VACIOS);
 
   const competiciones = useMemo(() => ligasDeBases(datasets), [datasets]);
+  // La más antigua de las bases: es la fecha que limita lo que dicen los datos.
+  const cargadaEl = useMemo(() => {
+    const momentos = datasets.map((dataset) => dataset.cargadoEl).filter((momento): momento is number => Number.isFinite(momento));
+    return momentos.length ? Math.min(...momentos) : null;
+  }, [datasets]);
   const procedencia = useMemo(
     () => (competiciones.length ? origenPorFila(rows, competiciones) : null),
     [rows, competiciones],
@@ -210,6 +218,7 @@ export function useEstadoDeBase({
     datasets,
     nombre,
     descripcion,
+    cargadaEl,
     procedencia,
     competiciones,
     filtros: { ...filtros, minutosMin },
@@ -221,7 +230,7 @@ export function useEstadoDeBase({
     pasaFiltrosDeJugador,
     filtrosDeJugador,
     indicesVisibles,
-  }), [rows, datasets, nombre, descripcion, procedencia, competiciones, filtros, minutosMin, cambiarFiltros, limpiarFiltros, filtrosActivos, opciones, pasaFiltros, pasaFiltrosDeJugador, filtrosDeJugador, indicesVisibles]);
+  }), [rows, datasets, nombre, descripcion, cargadaEl, procedencia, competiciones, filtros, minutosMin, cambiarFiltros, limpiarFiltros, filtrosActivos, opciones, pasaFiltros, pasaFiltrosDeJugador, filtrosDeJugador, indicesVisibles]);
 }
 
 /** Reparte a las pantallas el estado que ya calculó `useEstadoDeBase`. */

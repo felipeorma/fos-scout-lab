@@ -52,6 +52,29 @@ const POSITION_MAP: Record<string, PositionRole> = {
   // carriles de cinco.
   SS: "Forward", "SECOND STRIKER": "Forward", "SECONDARY STRIKER": "Forward",
   STRIKER: "Forward", "CENTRE-FORWARD": "Forward", "CENTER-FORWARD": "Forward",
+  /*
+   * Posiciones escritas en texto: las de los títulos de los informes
+   * ("Defensive Midfield", "Wing (Centre-Forward)"), las de otros exports y
+   * los nombres de rol con los que la propia app escribe la posición
+   * ("Box2Box Midfielder (RCMF)"). Antes caían todas en "Otros" y el jugador
+   * se medía con el perfil genérico.
+   */
+  "DEFENSIVE MIDFIELD": "Defensive Midfielder", "CENTRAL MIDFIELD": "Defensive Midfielder",
+  "CENTRE MIDFIELD": "Defensive Midfielder", "CENTER MIDFIELD": "Defensive Midfielder",
+  "HOLDING MIDFIELDER": "Defensive Midfielder", "BOX2BOX MIDFIELDER": "Box2Box Midfielder",
+  "BOX-TO-BOX MIDFIELDER": "Box2Box Midfielder", "BOX TO BOX MIDFIELDER": "Box2Box Midfielder",
+  "ATTACKING MIDFIELD": "Attack Midfielder", "ATTACK MIDFIELD": "Attack Midfielder",
+  "LEFT WING": "Wingers", "RIGHT WING": "Wingers", WINGERS: "Wingers", "DIRECT WINGER": "Wingers",
+  "CENTRE FORWARD": "Forward", "CENTER FORWARD": "Forward",
+  "LEFT BACK": "Fullback", "RIGHT BACK": "Fullback", "FULL-BACK": "Fullback", "FULL BACK": "Fullback",
+  WINGBACK: "Fullback", "WING BACK": "Fullback",
+  "CENTRE BACK": "Defender", "CENTER BACK": "Defender", "CENTRAL DEFENDER": "Defender",
+  // En español, como los escribe un scout a mano.
+  PORTERO: "Goalkeeper", ARQUERO: "Goalkeeper", LATERAL: "Fullback", CARRILERO: "Fullback",
+  CENTRAL: "Defender", "DEFENSA CENTRAL": "Defender", DEFENSA: "Defender", PIVOTE: "Defensive Midfielder",
+  MEDIOCENTRO: "Defensive Midfielder", VOLANTE: "Defensive Midfielder", INTERIOR: "Box2Box Midfielder",
+  MEDIAPUNTA: "Attack Midfielder", ENGANCHE: "Attack Midfielder", EXTREMO: "Wingers",
+  DELANTERO: "Forward", "DELANTERO CENTRO": "Forward", "SEGUNDO DELANTERO": "Forward",
 };
 
 function lookupKey(value: string) {
@@ -64,11 +87,18 @@ function lookupKey(value: string) {
     .toUpperCase();
 }
 
+/*
+ * Las posiciones vienen separadas por comas (Wyscout) o por " · ", que es
+ * como las escribe la app al formatearlas ("Forward (CF) · 2ª Wingers (LW)").
+ * Los ordinales de la app ("2ª", "3ª", "2nd") se quitan: son orden, no puesto.
+ */
+const ORDINAL = /^(\d+\s*[ªº]|\d+(st|nd|rd|th))\s+/i;
+
 export function splitPlayerPositions(value: unknown) {
   return String(value ?? "")
-    .split(",")
-    .map((position) => position.trim())
-    .filter((position) => position && position.toLocaleLowerCase("en") !== "nan");
+    .split(/,|\s·\s/)
+    .map((position) => position.trim().replace(ORDINAL, ""))
+    .filter((position) => position && position !== "—" && position.toLocaleLowerCase("en") !== "nan");
 }
 
 export function mergePlayerPositions(values: unknown[]) {
@@ -85,15 +115,28 @@ export function mergePlayerPositions(values: unknown[]) {
   return positions.join(", ");
 }
 
+const CON_PARENTESIS = /^(.*?)\s*\(([^)]+)\)\s*$/;
+
+/** El código de una posición escrita como "Forward (CF)": el de dentro del paréntesis; si no lo hay, ella misma. */
+function codigoDe(texto: string) {
+  return texto.match(CON_PARENTESIS)?.[2]?.trim() || texto;
+}
+
 export function roleForPosition(value: unknown): PositionRole | null {
-  const key = lookupKey(String(value ?? ""));
-  return POSITION_MAP[key] ?? null;
+  const texto = String(value ?? "");
+  const directo = POSITION_MAP[lookupKey(texto)];
+  if (directo) return directo;
+  // "Forward (CF)", "Wing (Centre-Forward)": manda el código de dentro del
+  // paréntesis, que es más preciso; si no se conoce, el texto de fuera.
+  const conParentesis = texto.match(CON_PARENTESIS);
+  if (conParentesis) return POSITION_MAP[lookupKey(conParentesis[2])] ?? POSITION_MAP[lookupKey(conParentesis[1])] ?? null;
+  return null;
 }
 
 export function playerPositions(value: unknown): PlayerPosition[] {
-  return splitPlayerPositions(value).map((code, order) => ({
-    code,
-    role: roleForPosition(code) ?? code,
+  return splitPlayerPositions(value).map((texto, order) => ({
+    code: codigoDe(texto),
+    role: roleForPosition(texto) ?? texto,
     order,
   }));
 }
@@ -111,8 +154,8 @@ export type PositionSide = "left" | "right" | "center";
 // Los códigos Wyscout llevan la lateralidad en el prefijo: LW/LB/LCMF juegan
 // por izquierda, RWF/RB/RDMF por derecha; el resto ocupa el eje central.
 export function positionSides(value: unknown): PositionSide[] {
-  return [...new Set(splitPlayerPositions(value).map((code): PositionSide => {
-    const key = lookupKey(code);
+  return [...new Set(splitPlayerPositions(value).map((texto): PositionSide => {
+    const key = lookupKey(codigoDe(texto));
     if (/^L/.test(key)) return "left";
     if (/^R/.test(key)) return "right";
     return "center";

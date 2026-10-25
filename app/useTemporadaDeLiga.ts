@@ -1,0 +1,165 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { t } from "@/lib/i18n";
+import {
+  fetchBalonParado,
+  fetchFormaDeLiga,
+  fetchSkillcornerCompetitions,
+  fetchSkillcornerDataset,
+  fetchSkillcornerTeamStats,
+  fetchStatsbombCompetitions,
+  fetchStatsbombDataset,
+  fetchStatsbombTeamStats,
+  type ApiCompetition,
+} from "@/lib/remoteData";
+import { fusionarSkillcorner, type FilaEquipo } from "@/lib/estiloEquipo";
+import { aggregateDatasets, buildPlayerReport, numeric, type CellValue } from "@/lib/scouting";
+import type { LigaForma } from "@/lib/fases";
+import type { LigaDeParado } from "@/lib/balonParado";
+import type { PerfilDeDuelo } from "@/lib/duelos";
+
+/*
+ * Lo que necesita Estilo de juego de CUALQUIER liga y temporada de StatsBomb,
+ * no solo de las cargadas: el catálogo, las estadísticas de sus equipos, la
+ * forma partido a partido y el plantel con su índice. Cada cosa se pide una
+ * vez por sesión y se reparte entre quien la pida (los dos lados de un
+ * partido pueden ser la misma liga).
+ */
+
+const guardados = new Map<string, unknown>();
+const enCamino = new Map<string, Promise<unknown>>();
+
+function mensajeDeFallo(fallo: unknown) {
+  return fallo instanceof TypeError
+    ? t("El servidor local no respondió. Arranca npm run bg:server y reintenta.")
+    : fallo instanceof Error ? fallo.message : String(fallo);
+}
+
+/** Un recurso por clave, pedido una vez y compartido. Sin clave, nada. */
+export function useRecurso<T>(clave: string | null, cargar: () => Promise<T>) {
+  const [estado, setEstado] = useState<{ clave: string; datos?: T; error?: string }>({ clave: "" });
+  const guardado = clave ? guardados.get(clave) as T | undefined : undefined;
+  useEffect(() => {
+    if (!clave || guardados.has(clave)) return;
+    let vivo = true;
+    let promesa = enCamino.get(clave) as Promise<T> | undefined;
+    if (!promesa) {
+      promesa = cargar()
+        .then((datos) => { guardados.set(clave, datos); return datos; })
+        .finally(() => enCamino.delete(clave));
+      enCamino.set(clave, promesa);
+    }
+    promesa
+      .then((datos) => { if (vivo) setEstado({ clave, datos }); })
+      .catch((fallo) => { if (vivo) setEstado({ clave, error: mensajeDeFallo(fallo) }); });
+    return () => { vivo = false; };
+    // La clave identifica lo que se carga.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clave]);
+  const vigente = estado.clave === clave ? estado : null;
+  return { datos: guardado ?? vigente?.datos ?? null, error: guardado ? "" : vigente?.error ?? "", cargando: Boolean(clave) && !guardado && !vigente };
+}
+
+/** El catálogo de StatsBomb: todas las ligas y temporadas con partidos. */
+export function useCatalogo() {
+  return useRecurso<ApiCompetition[]>("catalogo-sb", async () => (await fetchStatsbombCompetitions()).filter((c) => c.hasMatches !== false));
+}
+
+const sinTildes = (valor: unknown) => String(valor ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+
+/** Las estadísticas de temporada de los equipos de una liga, con SkillCorner encima si existe esa liga y temporada. */
+export function useEquiposDeTemporada(competicion: ApiCompetition | null) {
+  const clave = competicion ? `equipos:${competicion.competition_id}:${competicion.season_id}` : null;
+  return useRecurso<FilaEquipo[]>(clave, async () => {
+    const filas = await fetchStatsbombTeamStats(competicion!);
+    try {
+      const catalogoSc = await fetchSkillcornerCompetitions();
+      const hermana = catalogoSc.find((edicion) => sinTildes(edicion.name) === sinTildes(competicion!.name) && String(edicion.season ?? "") === String(competicion!.season ?? ""));
+      return hermana && filas.length ? fusionarSkillcorner(filas, await fetchSkillcornerTeamStats(hermana)) : filas;
+    } catch {
+      return filas;
+    }
+  });
+}
+
+/**
+ * SkillCorner de una liga y temporada, si lo publica: su game intelligence
+ * por equipo (vacío fuera de CPL y MLS Next Pro 2026) y el físico de cada
+ * jugador. Null si SkillCorner no tiene esa edición.
+ */
+export type SkillcornerDeLiga = { equipos: Array<Record<string, unknown>>; jugadores: Array<Record<string, unknown>> };
+export function useSkillcornerDeLiga(competicion: ApiCompetition | null) {
+  const clave = competicion ? `sc:${competicion.competition_id}:${competicion.season_id}` : null;
+  return useRecurso<SkillcornerDeLiga | null>(clave, async () => {
+    const catalogoSc = await fetchSkillcornerCompetitions();
+    const hermana = catalogoSc.find((edicion) => sinTildes(edicion.name) === sinTildes(competicion!.name) && String(edicion.season ?? "") === String(competicion!.season ?? ""));
+    if (!hermana) return null;
+    const [equipos, jugadores] = await Promise.all([
+      fetchSkillcornerTeamStats(hermana).catch(() => [] as Array<Record<string, unknown>>),
+      fetchSkillcornerDataset(hermana).then((base) => base.rows as Array<Record<string, unknown>>).catch(() => [] as Array<Record<string, unknown>>),
+    ]);
+    return { equipos, jugadores };
+  });
+}
+
+/** Cada córner y falta al área de una liga y temporada (lib/balonParado.ts). */
+export function useBalonParadoDeLiga(competicion: number | null, temporada: number | null) {
+  const clave = competicion !== null && temporada !== null ? `parado:${competicion}:${temporada}` : null;
+  return useRecurso<LigaDeParado>(clave, () => fetchBalonParado(competicion!, temporada!));
+}
+
+/** La forma de cada equipo en cada partido de una liga y temporada. */
+export function useFormaDeLiga(competicion: number | null, temporada: number | null) {
+  const clave = competicion !== null && temporada !== null ? `forma:${competicion}:${temporada}` : null;
+  return useRecurso<LigaForma>(clave, () => fetchFormaDeLiga(competicion!, temporada!));
+}
+
+export type JugadorDePlantel = { nombre: string; equipo: string; posicion: string; minutos: number; indice: number | null; perfil: string; duelo: PerfilDeDuelo | null };
+
+const cifra = (valor: unknown) => numeric(valor as CellValue);
+
+/** Sus números de duelo (StatsBomb), o null si la base no los trae. */
+function perfilDeDuelo(fila: Record<string, unknown>, minutos: number): PerfilDeDuelo | null {
+  const regatePct = cifra(fila["Dribble success % (SB)"]) / 100;
+  const frenaPct = cifra(fila["Tackle dribbled past % (SB)"]) / 100;
+  const aereoPct = cifra(fila["Aerial win % (SB)"]) / 100;
+  if (![regatePct, frenaPct, aereoPct].some(Number.isFinite)) return null;
+  return {
+    minutos,
+    regates90: cifra(fila["Successful dribbles (SB)"]),
+    regatePct,
+    regateado90: cifra(fila["Dribbled past (SB)"]),
+    frenaPct,
+    aereos90: cifra(fila["Aerial wins (SB)"]),
+    aereoPct,
+  };
+}
+
+export const normalizarNombre = (nombre: string) => sinTildes(nombre).replace(/[^a-z ]/g, " ").replace(/\s+/g, " ").trim();
+
+/**
+ * Los jugadores de una liga y temporada con su índice, medido dentro de esa
+ * liga (como la ficha cuando mide contra su liga). El índice necesita 500′
+ * para su grupo de pares; con menos, se calcula igual pero se marca.
+ */
+export function usePlantelDeLiga(competicion: ApiCompetition | null) {
+  const clave = competicion ? `plantel:${competicion.competition_id}:${competicion.season_id}` : null;
+  return useRecurso<JugadorDePlantel[]>(clave, async () => {
+    const base = await fetchStatsbombDataset(competicion!);
+    const { rows } = aggregateDatasets([base]);
+    return rows.map((fila, indice) => {
+      const informe = buildPlayerReport(rows, indice, 500, "AUTO", null, { rescate: true });
+      const minutos = numeric(fila["Minutes played"] as CellValue) || 0;
+      return {
+        nombre: String(fila.Player ?? ""),
+        equipo: String(fila.Team ?? ""),
+        posicion: String(fila.Position ?? ""),
+        minutos,
+        indice: informe?.metrics.length ? informe.indice : null,
+        perfil: informe?.cohort ?? "",
+        duelo: perfilDeDuelo(fila, minutos),
+      };
+    });
+  });
+}

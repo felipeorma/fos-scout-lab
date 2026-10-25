@@ -9,24 +9,34 @@ import { PERFILES_FILTRO } from "@/lib/perfiles";
 import { type CSSProperties, type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDownToLine, ChevronDown, Printer, RotateCcw, Search, Sparkles, Upload } from "./Icons";
 import { reportThemeStyle, type ReportTheme } from "./reportTheme";
-import { SimilarityReportMain, similarityStarColor, similarityStarGlow, type SimilarityReportPayload } from "./SimilarityReport";
+import { SimilarityReportMain, type SimilarityReportPayload } from "./SimilarityReport";
 import {
   buildSimilaritySearch,
   secondaryRoleOptions,
   similarityOptions,
   type SimilarityFilters,
-  type SimilarityMetricComparison,
   type SimilarityMetricWeights,
   type SimilarityPlayer,
 } from "@/lib/similarity";
-import { formatCell, type DataRow, type PlayerReport } from "@/lib/scouting";
+import { type DataRow } from "@/lib/scouting";
 import { formatPlayerPositions, selectedCohortPosition, type PlayerPosition } from "@/lib/positions";
-import { SIMILARITY_METRIC_GROUPS, similarityMetricGroup } from "@/lib/similarityMetricGroups";
+import { similarityMetricGroup } from "@/lib/similarityMetricGroups";
 import { createEmptyTransfermarktProfile, profileStorageKey, readStoredJson, type TransfermarktProfile } from "@/lib/transfermarkt";
 import { removePlayerImageBackground } from "@/lib/playerImageBackground";
 import { canvasImageCandidates, fetchAiSummary, fetchTransfermarktProfile, proxiedImageUrl, type AiMetricFact, type AiPlayerFacts } from "@/lib/remoteData";
 import { reportExportBaseName } from "@/lib/reportExportName";
-import { t, tDefault, tf, numberLocale, type Lang } from "@/lib/i18n";
+import { t, tf, numberLocale, type Lang } from "@/lib/i18n";
+import { guardarConImagenes } from "@/lib/almacen";
+import { AutorDelInforme } from "./FirmaDelInforme";
+import { clavesDeSimilitud, coincidenciasYDiferencias, duelosDeSimilitud } from "@/lib/similitudClaves";
+import { coberturaDeLigas, ordenarPorCobertura } from "@/lib/cobertura";
+import { nivelDeLiga, type EntradaOpta } from "@/lib/nivelDeLiga";
+import { EQUIPO_PROPIO, crearEncaje, perfilesDeEstilo } from "@/lib/estiloEquipo";
+import { useEstilos } from "./useEstilos";
+import { equiposParaEncaje, useEncajeDeLista } from "./useEncajeDeLista";
+import { CeldaEncaje } from "./CeldaEncaje";
+import { CeldaEncajeEquipo } from "./CeldaEncajeEquipo";
+import { BotonExportar } from "./BotonExportar";
 
 type TargetOption = { index: number; player: string; team: string };
 type ProfileSide = "target" | "candidate";
@@ -48,6 +58,16 @@ type SimilarityStudioProps = {
    * percentiles contra la propia liga.
    */
   procedenciaPorFila?: Array<{ ligas: string[]; anios: number[]; claves?: string[] }> | null;
+  /** Los Opta Power Rankings, para el nivel de la liga de cada candidato. */
+  feedOpta?: EntradaOpta[] | null;
+  /**
+   * Las columnas de encaje (estilo del club con el nuestro y, si se elige, con
+   * un equipo): solo en Cavalry y cuando se mira la página, porque piden las
+   * estadísticas de equipo de todas las ligas.
+   */
+  conEncaje?: boolean;
+  /** Si la ficha mide contra su liga ("Comparar con"): entonces Similitud empieza en "Su liga y su año". */
+  medirEnSuLiga?: boolean;
   targets: TargetOption[];
   theme: ReportTheme;
   targetProfile: TransfermarktProfile;
@@ -77,10 +97,6 @@ function safeFileName(value: string) {
   return value.toLocaleLowerCase("es").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
-function formatMetricValue(value: number, key: string) {
-  return `${formatCell(value)}${key.includes("%") ? "%" : ""}`;
-}
-
 function candidateProfileSeed(candidate: SimilarityPlayer | null) {
   return createEmptyTransfermarktProfile({
     name: candidate?.name ?? "",
@@ -100,46 +116,8 @@ function loadStoredProfile(candidate: SimilarityPlayer) {
   return saved ? { ...base, ...saved } as TransfermarktProfile : base;
 }
 
-function drawRoundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
-  const corner = Math.min(radius, width / 2, height / 2);
-  ctx.beginPath();
-  ctx.moveTo(x + corner, y);
-  ctx.arcTo(x + width, y, x + width, y + height, corner);
-  ctx.arcTo(x + width, y + height, x, y + height, corner);
-  ctx.arcTo(x, y + height, x, y, corner);
-  ctx.arcTo(x, y, x + width, y, corner);
-  ctx.closePath();
-}
-
-function fitText(ctx: CanvasRenderingContext2D, value: string, maxWidth: number) {
-  if (ctx.measureText(value).width <= maxWidth) return value;
-  let text = value;
-  while (text.length > 2 && ctx.measureText(`${text}…`).width > maxWidth) text = text.slice(0, -1);
-  return `${text}…`;
-}
-
 function canvasImageSource(src: string) {
   return src.startsWith("data:image/") || src.startsWith("/") ? src : proxiedImageUrl(src);
-}
-
-function loadImageAttempt(url: string, timeoutMs = 12_000) {
-  return new Promise<HTMLImageElement | null>((resolve) => {
-    const image = new Image();
-    const timer = window.setTimeout(() => resolve(null), timeoutMs);
-    image.crossOrigin = "anonymous";
-    image.onload = () => { window.clearTimeout(timer); resolve(image); };
-    image.onerror = () => { window.clearTimeout(timer); resolve(null); };
-    image.src = url;
-  });
-}
-
-async function loadCanvasImage(src: string) {
-  // Cadena de respaldos: si un proxy falla, la foto no se pierde en silencio.
-  for (const candidate of canvasImageCandidates(src)) {
-    const image = await loadImageAttempt(candidate);
-    if (image) return image;
-  }
-  return null;
 }
 
 function blobToDataUrl(blob: Blob) {
@@ -151,430 +129,7 @@ function blobToDataUrl(blob: Blob) {
   });
 }
 
-function drawContain(ctx: CanvasRenderingContext2D, image: HTMLImageElement, x: number, y: number, width: number, height: number) {
-  const scale = Math.min(width / image.naturalWidth, height / image.naturalHeight);
-  const drawWidth = image.naturalWidth * scale;
-  const drawHeight = image.naturalHeight * scale;
-  ctx.drawImage(image, x + (width - drawWidth) / 2, y + (height - drawHeight) / 2, drawWidth, drawHeight);
-}
-
-function canvasColorWithAlpha(color: string, alpha: string) {
-  return /^#[0-9a-f]{6}$/i.test(color) ? `${color}${alpha}` : color;
-}
-
-function drawStarPath(ctx: CanvasRenderingContext2D, cx: number, cy: number, outerRadius: number, innerRadius: number) {
-  ctx.beginPath();
-  for (let point = 0; point < 10; point += 1) {
-    const radius = point % 2 === 0 ? outerRadius : innerRadius;
-    const angle = -Math.PI / 2 + point * Math.PI / 5;
-    const x = cx + Math.cos(angle) * radius;
-    const y = cy + Math.sin(angle) * radius;
-    if (point === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  }
-  ctx.closePath();
-}
-
-function drawCanvasSimilarityStar(ctx: CanvasRenderingContext2D, similarity: number, cx: number, cy: number, radius: number, theme: ReportTheme) {
-  const percentage = Math.min(Math.max(Math.round(similarity), 0), 100);
-  const glow = similarityStarGlow(percentage);
-  const innerRadius = radius * .46;
-  const fillTop = cy + radius - radius * 2 * percentage / 100;
-
-  // Silueta pendiente: permite leer de inmediato cuánto falta para el 100%.
-  ctx.save();
-  drawStarPath(ctx, cx, cy, radius, innerRadius);
-  ctx.fillStyle = canvasColorWithAlpha(theme.dark, "b8");
-  ctx.fill();
-  ctx.strokeStyle = "rgba(255,246,196,.55)";
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-  ctx.restore();
-
-  // El relleno sube desde la base de la estrella según el porcentaje real.
-  ctx.save();
-  drawStarPath(ctx, cx, cy, radius, innerRadius);
-  ctx.clip();
-  ctx.beginPath();
-  ctx.rect(cx - radius - 3, fillTop, radius * 2 + 6, cy + radius - fillTop + 2);
-  ctx.clip();
-  const fill = ctx.createLinearGradient(0, cy + radius, 0, cy - radius);
-  const starColor = similarityStarColor(percentage);
-  fill.addColorStop(0, starColor);
-  fill.addColorStop(.68, starColor);
-  fill.addColorStop(1, percentage >= 90 ? "#fffbe4" : "#fde68a");
-  ctx.fillStyle = fill;
-  ctx.fillRect(cx - radius - 3, cy - radius - 3, radius * 2 + 6, radius * 2 + 6);
-  ctx.restore();
-
-  // El halo es deliberadamente no lineal: los scores cercanos al 100% brillan más.
-  ctx.save();
-  ctx.shadowColor = `rgba(250,204,21,${Math.min(.95, .12 + glow * .82)})`;
-  ctx.shadowBlur = 2 + glow * 44;
-  drawStarPath(ctx, cx, cy, radius, innerRadius);
-  ctx.strokeStyle = `rgba(255,246,196,${.35 + glow * .6})`;
-  ctx.lineWidth = 1.4 + glow;
-  ctx.stroke();
-  ctx.restore();
-
-  ctx.save();
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.font = "800 18px Arial";
-  ctx.lineWidth = 3.2;
-  ctx.lineJoin = "round";
-  ctx.strokeStyle = canvasColorWithAlpha(theme.dark, "ed");
-  ctx.strokeText(`${percentage}%`, cx, cy + 1);
-  ctx.fillStyle = "#ffffff";
-  ctx.fillText(`${percentage}%`, cx, cy + 1);
-  ctx.restore();
-}
-
-function radarPoint(index: number, total: number, radius: number, cx: number, cy: number) {
-  const angle = -Math.PI / 2 + index * Math.PI * 2 / total;
-  return { x: cx + Math.cos(angle) * radius, y: cy + Math.sin(angle) * radius, angle };
-}
-
-function drawRadar(ctx: CanvasRenderingContext2D, metrics: SimilarityMetricComparison[], cohort: string, theme: ReportTheme, cx: number, cy: number, radius: number, targetColor: string, candidateColor: string, targetLabelColor: string, candidateLabelColor: string, targetLabelTransparency: number, candidateLabelTransparency: number) {
-  if (metrics.length < 3) return;
-  [0.25, 0.5, 0.75, 1].forEach((level) => {
-    ctx.beginPath();
-    metrics.forEach((_, index) => {
-      const value = radarPoint(index, metrics.length, radius * level, cx, cy);
-      if (index === 0) ctx.moveTo(value.x, value.y); else ctx.lineTo(value.x, value.y);
-    });
-    ctx.closePath();
-    ctx.strokeStyle = theme.line;
-    ctx.lineWidth = 2;
-    ctx.stroke();
-  });
-  metrics.forEach((_, index) => {
-    const value = radarPoint(index, metrics.length, radius, cx, cy);
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.lineTo(value.x, value.y);
-    ctx.strokeStyle = theme.line;
-    ctx.lineWidth = 1;
-    ctx.stroke();
-  });
-  metrics.forEach((metric, index) => {
-    const step = Math.PI * 2 / metrics.length;
-    const start = -Math.PI / 2 + index * step - step * .42;
-    const end = -Math.PI / 2 + index * step + step * .42;
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius + 14, start, end);
-    ctx.strokeStyle = similarityMetricGroup(metric, cohort).color;
-    ctx.lineWidth = 8;
-    ctx.lineCap = "round";
-    ctx.stroke();
-  });
-  const area = (field: "targetPercentile" | "candidatePercentile", stroke: string, fill: string) => {
-    ctx.beginPath();
-    metrics.forEach((metric, index) => {
-      const value = radarPoint(index, metrics.length, radius * metric[field] / 100, cx, cy);
-      if (index === 0) ctx.moveTo(value.x, value.y); else ctx.lineTo(value.x, value.y);
-    });
-    ctx.closePath();
-    ctx.fillStyle = fill;
-    ctx.fill();
-    ctx.strokeStyle = stroke;
-    ctx.lineWidth = 5;
-    ctx.stroke();
-  };
-  area("targetPercentile", targetColor, `${targetColor}33`);
-  area("candidatePercentile", candidateColor, `${candidateColor}2b`);
-  // Con 10+ métricas las etiquetas se escalonan en dos alturas alternadas y
-  // se envuelven en dos líneas: así no chocan entre sí ni con el radar.
-  const dense = metrics.length > 10;
-  const labelFont = dense ? 12 : 14;
-  const badgeWidth = dense ? 38 : 44;
-  const badgeHeight = dense ? 19 : 22;
-  const badgeGap = dense ? 4 : 6;
-  metrics.forEach((metric, index) => {
-    // Las etiquetas laterales se empujan más hacia afuera (el texto centrado
-    // crece en horizontal); arriba y abajo se mantiene el escalonado corto.
-    const angle = -Math.PI / 2 + index * Math.PI * 2 / metrics.length;
-    const horizontalPush = Math.abs(Math.cos(angle)) * 30;
-    const stagger = (dense ? (index % 2 === 0 ? 46 : 96) : 66) + horizontalPush;
-    const label = radarPoint(index, metrics.length, radius + stagger, cx, cy);
-    const text = t(metric.label).replace(/\s*\/90/g, "").replace(/,\s*%$/, " %").toUpperCase();
-    ctx.font = `700 ${labelFont}px Arial`;
-    let lines = [fitText(ctx, text, dense ? 175 : 175)];
-    if (dense && text.length > 14) {
-      const words = text.split(" ");
-      if (words.length > 1) {
-        let splitIndex = 1;
-        let bestDiff = Infinity;
-        for (let wordIndex = 1; wordIndex < words.length; wordIndex += 1) {
-          const diff = Math.abs(words.slice(0, wordIndex).join(" ").length - words.slice(wordIndex).join(" ").length);
-          if (diff < bestDiff) { bestDiff = diff; splitIndex = wordIndex; }
-        }
-        lines = [words.slice(0, splitIndex).join(" "), words.slice(splitIndex).join(" ")];
-      }
-    }
-    ctx.fillStyle = theme.ink;
-    ctx.textAlign = "center";
-    lines.forEach((line, lineIndex) => {
-      ctx.fillText(fitText(ctx, line, dense ? 175 : 175), label.x, label.y - (lines.length - 1 - lineIndex) * (labelFont + 1));
-    });
-    const badgesWidth = badgeWidth * 2 + badgeGap;
-    const badgesX = label.x - badgesWidth / 2;
-    const badgesY = label.y + 6;
-    const percentileBadge = (x: number, value: number, color: string, transparency: number, corner: number) => {
-      drawRoundedRect(ctx, x, badgesY, badgeWidth, badgeHeight, corner);
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, Math.min(100, 100 - transparency)) / 100;
-      ctx.fillStyle = color;
-      ctx.fill();
-      ctx.restore();
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-      ctx.fillStyle = color;
-      ctx.font = `800 ${dense ? 10 : 11}px Arial`;
-      ctx.textAlign = "center";
-      ctx.fillText(`P${value}`, x + badgeWidth / 2, badgesY + (dense ? 13.5 : 15));
-    };
-    percentileBadge(badgesX, metric.targetPercentile, targetLabelColor, targetLabelTransparency, badgeHeight / 2);
-    percentileBadge(badgesX + badgeWidth + badgeGap, metric.candidatePercentile, candidateLabelColor, candidateLabelTransparency, 4);
-  });
-}
-
-// Lupa de scouting dibujada a mano: identifica las láminas sin firmar con nombre.
-function drawMagnifier(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number, color: string) {
-  ctx.save();
-  ctx.strokeStyle = color;
-  ctx.lineWidth = Math.max(3, radius * 0.3);
-  ctx.lineCap = "round";
-  ctx.beginPath();
-  ctx.arc(x, y, radius, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(x + radius * 0.74, y + radius * 0.74);
-  ctx.lineTo(x + radius * 1.65, y + radius * 1.65);
-  ctx.stroke();
-  ctx.restore();
-}
-
-// `forReport`: la lámina va incrustada en la Página 2 del reporte, que ya trae
-// firma propia — se omiten el nombre del título y el bloque de firma inferior.
-async function comparisonImage(target: PlayerReport, candidate: SimilarityPlayer, sourceName: string, theme: ReportTheme, targetProfile: TransfermarktProfile, candidateProfile: TransfermarktProfile, recipientName: string, recipientLogoUrl: string, targetColor: string, candidateColor: string, targetLabelColor: string, candidateLabelColor: string, targetLabelTransparency: number, candidateLabelTransparency: number, forReport = false, targetPhotoScale = 100, candidatePhotoScale = 100) {
-  const canvas = document.createElement("canvas");
-  canvas.width = 1600;
-  canvas.height = forReport ? 1452 : 1566;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return "";
-  const [targetImage, targetClub, candidateImage, candidateClub, recipientLogo, transfermarktLogo] = await Promise.all([
-    loadCanvasImage(targetProfile.playerImage),
-    loadCanvasImage(targetProfile.clubLogo),
-    loadCanvasImage(candidateProfile.playerImage),
-    loadCanvasImage(candidateProfile.clubLogo),
-    loadCanvasImage(recipientLogoUrl),
-    loadCanvasImage(TRANSFERMARKT_LOGO),
-  ]);
-
-  ctx.fillStyle = theme.paper;
-  ctx.fillRect(0, 0, 1600, canvas.height);
-
-  // ---- Cinta superior: jugadores a los costados y estrella al centro ----
-  const RIBBON = 250;
-  ctx.fillStyle = theme.dark;
-  ctx.fillRect(0, 0, 1600, RIBBON);
-  ctx.fillStyle = targetColor;
-  ctx.fillRect(0, RIBBON - 4, 800, 4);
-  ctx.fillStyle = candidateColor;
-  ctx.fillRect(800, RIBBON - 4, 800, 4);
-
-  const ribbonPlayer = (side: "left" | "right", info: { name: string; team: string; position: string; age: string; passport: string }, profile: TransfermarktProfile, image: HTMLImageElement | null, club: HTMLImageElement | null, label: string, color: string, photoScale: number) => {
-    const frameX = side === "left" ? 60 : 1380;
-    const textX = side === "left" ? 254 : 1346;
-    ctx.textAlign = side === "left" ? "left" : "right";
-
-    // Marco del retrato con degradado del color del jugador
-    drawRoundedRect(ctx, frameX, 34, 160, 186, 14);
-    const frameGradient = ctx.createLinearGradient(frameX, 34, frameX, 220);
-    frameGradient.addColorStop(0, canvasColorWithAlpha(color, "55"));
-    frameGradient.addColorStop(1, canvasColorWithAlpha(color, "18"));
-    ctx.fillStyle = frameGradient;
-    ctx.fill();
-    ctx.strokeStyle = canvasColorWithAlpha(color, "aa");
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    if (image) {
-      const scale = Math.max(0.6, Math.min(1.4, photoScale / 100));
-      const boxWidth = 150 * scale;
-      const boxHeight = 176 * scale;
-      ctx.save();
-      drawRoundedRect(ctx, frameX, 34, 160, 186, 14);
-      ctx.clip();
-      drawContain(ctx, image, frameX + 80 - boxWidth / 2, 218 - boxHeight, boxWidth, boxHeight);
-      ctx.restore();
-    } else {
-      ctx.fillStyle = "rgba(255,255,255,.85)";
-      ctx.font = "800 52px Arial";
-      const initialsAlign = ctx.textAlign;
-      ctx.textAlign = "center";
-      ctx.fillText(info.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join(""), frameX + 80, 145);
-      ctx.textAlign = initialsAlign;
-    }
-    if (club) {
-      const crestX = side === "left" ? frameX + 128 : frameX - 14;
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(crestX + 23, 195, 27, 0, Math.PI * 2);
-      ctx.fillStyle = "#ffffff";
-      ctx.fill();
-      ctx.restore();
-      drawContain(ctx, club, crestX, 172, 46, 46);
-    }
-
-    // Chip de rol del jugador en su color
-    ctx.font = "800 11px Arial";
-    const chipText = label;
-    const chipWidth = ctx.measureText(chipText).width + 26;
-    const chipX = side === "left" ? textX : textX - chipWidth;
-    drawRoundedRect(ctx, chipX, 44, chipWidth, 24, 12);
-    ctx.fillStyle = color;
-    ctx.fill();
-    ctx.fillStyle = "#ffffff";
-    const chipAlign = ctx.textAlign;
-    ctx.textAlign = "center";
-    ctx.fillText(chipText, chipX + chipWidth / 2, 60);
-    ctx.textAlign = chipAlign;
-
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "800 27px Arial";
-    ctx.fillText(fitText(ctx, info.name.toUpperCase(), 420), textX, 104);
-    ctx.fillStyle = "rgba(255,255,255,.78)";
-    ctx.font = "700 15px Arial";
-    ctx.fillText(fitText(ctx, profile.club || info.team, 400), textX, 131);
-    ctx.fillStyle = "rgba(255,255,255,.6)";
-    ctx.font = "600 12px Arial";
-    ctx.fillText(fitText(ctx, formatPlayerPositions(profile.position || info.position), 420), textX, 154);
-    ctx.fillText(tf("{age} años · {passport}", { age: profile.age || info.age || "—", passport: profile.citizenship || info.passport }), textX, 175);
-    const marketValue = profile.marketValue || t("VALOR N/D");
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "800 20px Arial";
-    ctx.fillText(marketValue, textX, 205);
-    if (transfermarktLogo) {
-      const valueWidth = ctx.measureText(marketValue).width;
-      const logoX = side === "left" ? textX + valueWidth + 14 : textX - valueWidth - 14 - 88;
-      ctx.fillStyle = "#ffffff";
-      drawRoundedRect(ctx, logoX, 188, 88, 22, 4);
-      ctx.fill();
-      drawContain(ctx, transfermarktLogo, logoX + 4, 190, 80, 18);
-    }
-  };
-
-  ribbonPlayer("left", { name: target.player, team: target.team, position: target.position, age: target.age, passport: target.passport }, targetProfile, targetImage, targetClub, t("JUGADOR OBJETIVO"), targetColor, targetPhotoScale);
-  ribbonPlayer("right", { name: candidate.name, team: candidate.team, position: candidate.position, age: candidate.age === null ? "—" : String(candidate.age), passport: candidate.passport }, candidateProfile, candidateImage, candidateClub, t("JUGADOR COMPARABLE"), candidateColor, candidatePhotoScale);
-
-  // Estrella de similitud al centro, entre los dos nombres
-  drawCanvasSimilarityStar(ctx, candidate.similarity, 800, 96, 44, theme);
-  ctx.textAlign = "center";
-  ctx.fillStyle = "rgba(255,255,255,.68)";
-  ctx.font = "700 12px Arial";
-  ctx.fillText(t("SIMILITUD"), 800, 160);
-  ctx.font = "600 11px Arial";
-  const headerLine = fitText(ctx, `${t("COMPARACIÓN DE JUGADORES")} · ${t("Percentiles posicionales").toUpperCase()} · ${tDefault(sourceName).toUpperCase()}`, 560);
-  ctx.fillText(headerLine, 812, 200);
-  drawMagnifier(ctx, 812 - ctx.measureText(headerLine).width / 2 - 22, 196, 8, "rgba(255,255,255,.68)");
-  ctx.textAlign = "left";
-
-  // Radar a lo ancho, con radio generoso: la cinta liberó el espacio lateral.
-  drawRadar(ctx, candidate.metrics, target.cohort, theme, 800, 615, candidate.metrics.length > 10 ? 235 : 260, targetColor, candidateColor, targetLabelColor, candidateLabelColor, targetLabelTransparency, candidateLabelTransparency);
-
-  // Solo los grupos presentes en las métricas comparadas aparecen en la leyenda.
-  const legendGroups = SIMILARITY_METRIC_GROUPS.filter((group) => candidate.metrics.some((metric) => similarityMetricGroup(metric, target.cohort).id === group.id));
-  const legendItemWidth = 175;
-  const legendStartX = 800 - legendGroups.length * legendItemWidth / 2;
-  legendGroups.forEach((group, index) => {
-    const x = legendStartX + index * legendItemWidth;
-    ctx.fillStyle = group.color;
-    drawRoundedRect(ctx, x, 992, 12, 12, 3);
-    ctx.fill();
-    ctx.fillStyle = theme.ink;
-    ctx.font = "700 11px Arial";
-    ctx.textAlign = "left";
-    ctx.fillText(t(group.label).toUpperCase(), x + 20, 1002);
-  });
-  ctx.textAlign = "left";
-
-  // Duelo métrica a métrica: etiqueta centrada sobre una barra a todo lo
-  // ancho. El lado del jugador con mejor registro va saturado; el otro,
-  // atenuado, con los valores en los extremos.
-  candidate.metrics.slice(0, 7).forEach((metric, index) => {
-    const labelY = 1046 + index * 56;
-    const barTop = labelY + 10;
-    const targetShare = metric.targetPercentile + metric.candidatePercentile > 0
-      ? metric.targetPercentile / (metric.targetPercentile + metric.candidatePercentile)
-      : 0.5;
-    const winner = metric.targetPercentile > metric.candidatePercentile ? "target" : metric.candidatePercentile > metric.targetPercentile ? "candidate" : "tie";
-    const metricLabel = metric.weight === 1
-      ? t(metric.label)
-      : `${t(metric.label)} · ${metric.weight === 0 ? t("SIN INFLUENCIA") : tf("PESO {p}%", { p: Math.round(metric.weight * 100) })}`;
-    ctx.fillStyle = theme.ink;
-    ctx.font = "700 13px Arial";
-    ctx.textAlign = "center";
-    ctx.fillText(fitText(ctx, metricLabel.toUpperCase(), 900), 800, labelY);
-
-    const barX = 240;
-    const barWidth = 1120;
-    const splitX = barX + barWidth * targetShare;
-    ctx.save();
-    drawRoundedRect(ctx, barX, barTop, barWidth, 18, 9);
-    ctx.clip();
-    ctx.globalAlpha = winner === "candidate" ? 0.3 : 1;
-    ctx.fillStyle = targetColor;
-    ctx.fillRect(barX, barTop, barWidth * targetShare, 18);
-    ctx.globalAlpha = winner === "target" ? 0.3 : 1;
-    ctx.fillStyle = candidateColor;
-    ctx.fillRect(splitX, barTop, barWidth * (1 - targetShare), 18);
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = theme.paper;
-    ctx.fillRect(splitX - 1.5, barTop, 3, 18);
-    ctx.restore();
-
-    ctx.font = winner === "target" ? "800 15px Arial" : "700 13px Arial";
-    ctx.fillStyle = winner === "target" ? targetColor : theme.muted;
-    ctx.textAlign = "right";
-    ctx.fillText(formatMetricValue(metric.targetValue, metric.key), barX - 16, barTop + 14);
-    ctx.font = winner === "candidate" ? "800 15px Arial" : "700 13px Arial";
-    ctx.fillStyle = winner === "candidate" ? candidateColor : theme.muted;
-    ctx.textAlign = "left";
-    ctx.fillText(formatMetricValue(metric.candidateValue, metric.key), barX + barWidth + 16, barTop + 14);
-    ctx.textAlign = "left";
-  });
-
-  // La firma solo va en la lámina independiente; incrustada en el reporte,
-  // la página ya firma por sí misma.
-  if (!forReport) {
-    ctx.strokeStyle = theme.line;
-    ctx.beginPath();
-    ctx.moveTo(70, 1466);
-    ctx.lineTo(1530, 1466);
-    ctx.stroke();
-    ctx.fillStyle = theme.muted;
-    ctx.font = "700 11px Arial";
-    ctx.fillText(t("ELABORADO POR"), 70, 1500);
-    ctx.fillStyle = theme.ink;
-    ctx.font = "800 19px Arial";
-    ctx.fillText("FELIPE ORMAZABAL", 70, 1527);
-    ctx.fillStyle = theme.accent;
-    ctx.font = "700 11px Arial";
-    ctx.fillText("SCOUTING REPORT", 70, 1546);
-    if (recipientLogo) drawContain(ctx, recipientLogo, 1170, 1484, 62, 62);
-    ctx.fillStyle = theme.muted;
-    ctx.font = "700 11px Arial";
-    ctx.fillText(t("REPORTE GENERADO PARA"), 1250, 1503);
-    ctx.fillStyle = theme.ink;
-    ctx.font = "800 18px Arial";
-    ctx.fillText(fitText(ctx, recipientName.toUpperCase(), 280), 1250, 1532);
-  }
-  return canvas.toDataURL("image/png");
-}
-
-export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es", aiControlsHidden = false, metricLabels = null, minimumMinutes: minutosBase, onMinimumMinutes, reportCohort = "AUTO", procedenciaPorFila = null, targets, theme, targetProfile, recipientName, recipientLogoUrl, onSelectTarget, onTargetProfileChange, onRecipientNameChange, onRecipientLogoChange, onOpenReports }: SimilarityStudioProps) {
+export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es", aiControlsHidden = false, metricLabels = null, minimumMinutes: minutosBase, onMinimumMinutes, reportCohort = "AUTO", procedenciaPorFila = null, feedOpta = null, conEncaje = false, medirEnSuLiga = false, targets, theme, targetProfile, recipientName, recipientLogoUrl, onSelectTarget, onTargetProfileChange, onRecipientNameChange, onRecipientLogoChange, onOpenReports }: SimilarityStudioProps) {
   const [query, setQuery] = useState("");
   const [ageMin, setAgeMin] = useState("");
   const [ageMax, setAgeMax] = useState("");
@@ -613,7 +168,10 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
    */
   const [rolMetricas, setRolMetricas] = useState("");
 
-  const [baseDePercentiles, setBaseDePercentiles] = useState<"combinado" | "liga">("combinado");
+  // Empieza como "Comparar con" de la ficha: si allí se mide contra su liga,
+  // aquí también. Tocar el interruptor manda sobre eso en esta sesión.
+  const [modoElegido, setBaseDePercentiles] = useState<"combinado" | "liga" | null>(null);
+  const baseDePercentiles = modoElegido ?? (medirEnSuLiga ? "liga" : "combinado");
   /* Para MEDIR se usa la clave liga+año, no la liga sola: si no, dos
      temporadas de la misma competición caerían en el mismo grupo y comparar a
      un jugador con su propia versión del año pasado los mediría a los dos
@@ -629,7 +187,11 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     () => new Set((ligasPorFila ?? []).flat()).size > 1,
     [ligasPorFila],
   );
-  const porLiga = baseDePercentiles === "liga" && hayVariasCompeticiones && ligasPorFila?.length ? { ligasPorFila } : null;
+  // En un useMemo: un objeto nuevo en cada render rehacía la búsqueda entera en cada render.
+  const porLiga = useMemo(
+    () => (baseDePercentiles === "liga" && hayVariasCompeticiones && ligasPorFila?.length ? { ligasPorFila } : null),
+    [baseDePercentiles, hayVariasCompeticiones, ligasPorFila],
+  );
 
   /*
    * Acotar por competición, a los dos lados.
@@ -703,6 +265,10 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
   // elección se recuerda.
   // Plegado de entrada: es calibración fina, no el camino normal.
   const [pesosVisibles, setPesosVisibles] = useState(false);
+  const barraDeLaHojaRef = useRef<HTMLDivElement | null>(null);
+  const rankingRef = useRef<HTMLElement | null>(null);
+  /** La pestaña abierta de "Personalizar la hoja". */
+  const [ajusteDeHoja, setAjusteDeHoja] = useState<"texto" | "fotos" | "colores">("texto");
   useEffect(() => {
     // Plegados salvo que se hayan abierto a propósito. Con "!== off" arrancaban
     // abiertos para todo el que no los hubiera cerrado nunca —el comentario
@@ -752,7 +318,6 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     secondaryRole,
     side,
   }), [ageMax, ageMin, minimumMinutes, passport, position, query, secondaryRole, side]);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   /*
    * Cuánto cambia de verdad medir contra su liga.
    *
@@ -789,23 +354,52 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
    * "Extremo": el informe se contradecía consigo mismo. Si se ha elegido un
    * puesto a mano, manda ése; si no, la posición natural del jugador.
    */
-  const posicionMostrada = (natural: string, cohorteNatural: string) => (
+  const posicionMostrada = useCallback((natural: string, cohorteNatural: string) => (
     rolMetricas ? selectedCohortPosition(rolMetricas, natural) : (
       reportCohort !== "AUTO" ? selectedCohortPosition(cohorteNatural, natural) : natural
     )
-  );
+  ), [rolMetricas, reportCohort]);
 
-  const search = useMemo(() => buildSimilaritySearch(rows, selectedIndex, filters, metricWeights, rolMetricas || reportCohort, metricLabels, porLiga), [filters, metricWeights, rows, selectedIndex, lang, reportCohort, metricLabels, porLiga]);
+  // `lang` va a propósito: el cálculo devuelve las etiquetas ya traducidas.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const search = useMemo(() => buildSimilaritySearch(rows, selectedIndex, filters, metricWeights, rolMetricas || reportCohort, metricLabels, porLiga), [filters, metricWeights, rows, selectedIndex, lang, rolMetricas, reportCohort, metricLabels, porLiga]);
   /*
    * Los candidatos se acotan DESPUÉS del motor. La liga es una decisión de
    * mercado —"de aquí no vamos a fichar"— y no puede cambiar el percentil de
    * nadie: filtrando antes, cerrar una competición movería el parecido de
    * todos los demás, porque el grupo de referencia sería otro.
    */
-  const candidates = useMemo(
-    () => (search?.candidates ?? []).filter((candidate) => encaja(candidate.index, ligaCandidato, anioCandidato)),
-    [search, encaja, ligaCandidato, anioCandidato],
+  /*
+   * Ordenados por el parecido corregido por cobertura, como hacía Entre ligas:
+   * sin la corrección, un candidato de una liga con pocas métricas se compara
+   * en menos dimensiones y sube por tener peores datos, no por parecerse más.
+   * Y sabiendo qué publica la liga de cada uno: lo que su liga no publica (los
+   * desmarques de SkillCorner fuera de CPL y MLS Next Pro) no le resta. Sin
+   * esto, la misma persona bajaba 17 puestos por jugar en una liga sin
+   * SkillCorner; con esto, 5.
+   * Se corrige sobre todos y después se filtra (ver lib/cobertura).
+   */
+  const coberturaDe = useMemo(
+    () => (search && ligasPorFila?.length ? coberturaDeLigas(rows, ligasPorFila, search.target.metrics.map((metric) => metric.key)) : null),
+    [search, rows, ligasPorFila],
   );
+  const candidates = useMemo(
+    () => (search ? ordenarPorCobertura(search.candidates, search.target.metrics.length, coberturaDe ? (candidate) => coberturaDe(candidate.index) : undefined) : [])
+      .filter((candidate) => encaja(candidate.index, ligaCandidato, anioCandidato)),
+    [search, encaja, ligaCandidato, anioCandidato, coberturaDe],
+  );
+  // Lo que traía Entre ligas: el encaje de estilo del club de cada candidato
+  // con el nuestro y, si se elige, el encaje con un equipo concreto.
+  const estilos = useEstilos(conEncaje);
+  const encaje = useMemo(() => crearEncaje(estilos.filas ? perfilesDeEstilo(estilos.filas) : [], EQUIPO_PROPIO), [estilos.filas]);
+  const [equipoEncaje, setEquipoEncaje] = useState("");
+  const equiposEncaje = useMemo(() => (conEncaje ? equiposParaEncaje(rows) : []), [conEncaje, rows]);
+  const encajeEquipo = useEncajeDeLista(rows, Number(minimumMinutes) || 0, conEncaje ? equipoEncaje : "");
+  const ligasDeFila = (indice: number) => procedenciaPorFila?.[indice]?.ligas ?? [];
+  const opta = (liga: string) => {
+    const nivel = nivelDeLiga(feedOpta, liga);
+    return nivel ? nivel.rating.toLocaleString(numberLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : null;
+  };
   const activeMetricWeights = search?.target.metrics.filter((metric) => (metricWeights[metric.key] ?? 1) !== 1).length ?? 0;
   const selectedCandidate = candidates.find((candidate) => candidate.index === selectedCandidateIndex) ?? candidates[0] ?? null;
 
@@ -828,7 +422,8 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
         metrics: targetMetrics,
         candidate: facts(selectedCandidate.name, selectedCandidate.team, selectedCandidate.position, search.target.cohortSize),
         candidateMetrics,
-        similarity: Math.round(selectedCandidate.similarity * 100),
+        // Ya viene en % (0-100): multiplicarlo mandaba "8200%" al texto.
+        similarity: selectedCandidate.similarity,
       });
       setComparisonNote(text);
     } catch (error) {
@@ -856,8 +451,10 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
    * `colorContrastante` sigue en pie para cuando se elige a mano el color del
    * objetivo: entonces el del comparado se recalcula contra ése.
    */
-  const targetColor = targetColorChoice || "#111111";
-  const candidateColor = candidateColorChoice || (targetColorChoice ? colorContrastante(targetColor) : "#ff0000");
+  // En la hoja oscura (look Night) el par es el mismo al revés: blanco el
+  // objetivo, el rojo del acento el comparado.
+  const targetColor = targetColorChoice || (theme.oscuro ? "#f5f5f7" : "#111111");
+  const candidateColor = candidateColorChoice || (targetColorChoice ? colorContrastante(targetColor) : theme.oscuro ? "#ff3b30" : "#ff0000");
   const targetLabelColor = targetLabelColorChoice || targetColor;
   const candidateLabelColor = candidateLabelColorChoice || candidateColor;
   const paletteColors = useMemo(() => [...new Set([theme.accent, theme.dark, ...PLAYER_PALETTE])], [theme.accent, theme.dark]);
@@ -902,16 +499,43 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
         photoFit: candidatePhotoFit,
       },
       metrics: selectedCandidate.metrics,
+      extra: (() => {
+        // Duelos, coincidencias, claves y otros parecidos: se calculan aquí y
+        // viajan con la hoja, así que una comparación guardada se lee igual.
+        const ligaDe = (indice: number) => procedenciaPorFila?.[indice]?.ligas?.[0] ?? null;
+        const edadObjetivo = Number(search.target.age);
+        const metricas = selectedCandidate.metrics;
+        const otros = search.candidates.filter((c) => c.index !== selectedCandidate.index).slice(0, 5).map((c) => ({
+          nombre: c.name,
+          equipo: c.team,
+          detalle: [c.team, ligaDe(c.index), c.age === null ? "" : String(c.age)].filter(Boolean).join(" · "),
+          parecido: c.similarity,
+        }));
+        return {
+          duelos: duelosDeSimilitud(metricas, { edad: edadObjetivo, minutos: search.target.minutes }, { edad: selectedCandidate.age ?? Number.NaN, minutos: selectedCandidate.minutes }),
+          ...coincidenciasYDiferencias(metricas),
+          claves: clavesDeSimilitud({
+            metricas,
+            objetivo: { nombre: search.target.player, minutos: search.target.minutes, liga: ligaDe(selectedIndex) },
+            comparable: { nombre: selectedCandidate.name, minutos: selectedCandidate.minutes, liga: ligaDe(selectedCandidate.index) },
+          }),
+          otros,
+        };
+      })(),
     };
+    // `lang` va a propósito: las claves se escriben ya traducidas al calcularlas.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    procedenciaPorFila,
+    selectedIndex,
+    lang,
     candidateColor,
     candidateLabelColor,
     candidateLabelTransparency,
     candidatePhotoFit,
     candidatePhotoScale,
     candidateProfile,
-    position,
-    reportCohort,
+    posicionMostrada,
     search,
     selectedCandidate,
     sourceName,
@@ -923,11 +547,20 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     targetProfile,
   ]);
 
-  function chooseCandidate(candidate: SimilarityPlayer) {
+  function chooseCandidate(candidate: SimilarityPlayer, irALaHoja = false) {
     setSelectedCandidateIndex(candidate.index);
     setCandidateProfileState(loadStoredProfile(candidate));
     setCandidateProfileKey(profileStorageKey(candidate.name, candidate.team));
     setProfileStatus((current) => ({ ...current, candidate: "" }));
+    // Al elegir en la lista, la hoja: estaba 1.500 px más abajo y no se veía que había cambiado.
+    if (irALaHoja) requestAnimationFrame(() => irA(barraDeLaHojaRef.current));
+  }
+
+  /** Desplaza hasta un bloque; sin animación si el sistema pide menos movimiento. */
+  function irA(elemento: HTMLElement | null) {
+    if (!elemento) return;
+    const quieto = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    elemento.scrollIntoView({ behavior: quieto ? "auto" : "smooth", block: "start" });
   }
 
   function chooseTarget(index: number) {
@@ -995,7 +628,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
       setCandidateProfileState(next);
       setCandidateProfileKey(sideStorageKey(side));
     }
-    try { window.localStorage.setItem(sideStorageKey(side), JSON.stringify(next)); } catch { /* La comparación continúa aunque no haya persistencia. */ }
+    guardarConImagenes(sideStorageKey(side), next, tf("el perfil de {jugador}", { jugador: playerName || next.name }));
   }
 
   function clearBackgroundOriginal(side: ProfileSide) {
@@ -1229,7 +862,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
   }
 
 
-  return <div className="page-content similarity-page similarity-report-theme" style={reportThemeStyle(theme)}>
+  return <div className="page-content similarity-page similarity-report-theme" data-oscuro={theme.oscuro ? "" : undefined} style={reportThemeStyle(theme)}>
     {rows.length > 0 && !search && porLiga ? <section className="dataset-onboarding similarity-empty">
       <span className="dataset-step">{t("SIN COHORTE EN SU LIGA")}</span>
       <span className="dataset-icon"><Search size={30} /></span>
@@ -1298,17 +931,21 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
         <p className="similarity-modelo"><Sparkles size={13} /><b>{porLiga ? t("Parecido de rol") : t("Baseline estadístico")}</b><span>{porLiga ? t("Cada uno contra su liga") : t("Percentiles + contexto de edad y rol")}</span></p>
       </section>
 
-      {porLiga && comparativaDeModo && <p className="similarity-efecto-modo">
+      {/* Un solo aviso: lo que cambia al medir contra su liga arriba, y el
+          porqué —largo— plegado debajo, para quien lo quiera leer. */}
+      {porLiga && <div className="similarity-aviso">
+        {comparativaDeModo && <p className="similarity-efecto-modo">
         {comparativaDeModo.medio < 3 && comparativaDeModo.nuevos === 0
           ? t("Medir contra su liga apenas cambia nada aquí, y eso ya dice algo: este jugador ocupa el mismo sitio en su competición que entre todas. Suele pasar con los que están muy arriba, porque no les queda margen para subir.")
           : tf("Contra su liga, el perfil del jugador se mueve {medio} puntos de percentil de media y hasta {maximo} en una métrica; {nuevos} de los diez primeros son distintos.", {
             medio: comparativaDeModo.medio, maximo: comparativaDeModo.maximo, nuevos: comparativaDeModo.nuevos,
           })}
-      </p>}
-
-      {porLiga && <p className="similarity-aviso-rol">
-        {t("Cada jugador se mide contra los de SU liga en su puesto, no contra los de todas. Eso responde a “quién hace el mismo papel donde juega”, pero esconde el nivel: un percentil 90 de la Canadian Premier League y uno de la MLS salen idénticos y no lo son. Por eso esto es parecido de rol, no parecido a secas. Quedan fuera los jugadores cuya liga no llegue a diez en su puesto, porque ahí un percentil no dice nada.")}
-      </p>}
+        </p>}
+        <details className="similarity-aviso-rol">
+          <summary>{t("Por qué es parecido de rol y no de nivel")}</summary>
+          <p>{t("Cada jugador se mide contra los de SU liga en su puesto, no contra los de todas. Eso responde a “quién hace el mismo papel donde juega”, pero esconde el nivel: un percentil 90 de la Canadian Premier League y uno de la MLS salen idénticos y no lo son. Por eso esto es parecido de rol, no parecido a secas. Quedan fuera los jugadores cuya liga no llegue a diez en su puesto, porque ahí un percentil no dice nada.")}</p>
+        </details>
+      </div>}
 
       <Paso numero={2}>Dónde buscas, y quién sale</Paso>
       {/* Una sola columna. Los filtros vivían en una columna lateral de 250 px
@@ -1320,8 +957,30 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
           del motor y el destinatario del informe— que se van a su sitio. */}
       <div className="similarity-workspace">
         <main className="similarity-results">
-          <section className="similarity-ranking-card">
-            <div className="similarity-results-head"><div><span>{t("LISTADO DE JUGADORES")}</span><h2>{t("Ranking de similitud")}</h2></div><small>{tf("{n} coincidencias", { n: candidates.length })}</small></div>
+          <section ref={rankingRef} className="similarity-ranking-card">
+            <div className="similarity-results-head"><div><span>{t("LISTADO DE JUGADORES")}</span><h2>{t("Ranking de similitud")}</h2></div><div className="similarity-results-acciones"><small>{tf("{n} coincidencias", { n: candidates.length })}</small>
+              {/* El CSV lleva todos los que pasan los filtros, con las dos cifras de parecido y la cobertura: un 90% con 55% de cobertura no es un 90% con 100. */}
+              <BotonExportar
+                nombre={[t("parecidos-a"), search?.target.player, ligaCandidato || null, anioCandidato || null]}
+                columnas={[t("#"), t("Jugador"), t("Equipo"), t("Liga"), t("Nivel Opta"), t("Año"), t("Edad"), t("Min"), t("Pasaporte"), t("Parecido"), t("Bruto"), t("Cobertura"),
+                  ...(conEncaje ? [tf("Encaje de estilo con {equipo}", { equipo: EQUIPO_PROPIO })] : []),
+                  ...(encajeEquipo.activo ? [tf("Encaje con {equipo}: puesto", { equipo: equipoEncaje }), tf("Encaje con {equipo}: lugar en la plantilla", { equipo: equipoEncaje }), tf("Encaje con {equipo}: % de partidos con su puesto", { equipo: equipoEncaje })] : [])]}
+                cuantas={candidates.length}
+                filas={() => candidates.map((candidato, posicion) => [
+                  posicion + 1, candidato.name, candidato.team,
+                  ligasDeFila(candidato.index).join(" · "),
+                  ligasDeFila(candidato.index).map(opta).filter(Boolean).join(" · ") || null,
+                  (procedenciaPorFila?.[candidato.index]?.anios ?? []).join(" · "),
+                  candidato.age ?? null, Math.round(candidato.minutes), candidato.passport,
+                  candidato.ajustado, candidato.similarity, candidato.coverage,
+                  ...(conEncaje ? [encaje(candidato.team)?.valor ?? null] : []),
+                  ...(encajeEquipo.activo ? (() => {
+                    const suyo = encajeEquipo.para(candidato.index);
+                    return [suyo?.puesto ?? null, suyo?.lugar ? `${suyo.lugar.lugar}/${suyo.lugar.de}` : null, suyo?.sitio ?? null];
+                  })() : []),
+                ])}
+              />
+            </div></div>
             <div className="filtros-barra similarity-filtros" role="group" aria-label={t("Filtros")}>
               <label className="campo-busqueda"><Search size={14} /><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("Escribe un nombre…")} aria-label={t("Buscar jugador o club")} /></label>
               <div className="filtros-chips">
@@ -1355,6 +1014,12 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
                 <Desplegable etiqueta={t("Lado")} valor={side === "left" ? t("Izquierdo (L)") : side === "right" ? t("Derecho (R)") : t("Cualquiera")} activo={Boolean(side)}>
                   <select aria-label={t("Lado del campo · prefijo L / R")} value={side} onChange={(event) => setSide(event.target.value as "" | "left" | "right")}><option value="">{t("Cualquiera")}</option><option value="left">{t("Izquierdo (L)")}</option><option value="right">{t("Derecho (R)")}</option></select>
                 </Desplegable>
+                {conEncaje && <Desplegable etiqueta={t("Encaje con")} valor={equipoEncaje || t("No mostrar")} activo={Boolean(equipoEncaje)}>
+                  <select aria-label={t("Encaje con un equipo")} value={equipoEncaje} onChange={(event) => setEquipoEncaje(event.target.value)}>
+                    <option value="">{t("No mostrar")}</option>
+                    {equiposEncaje.map((equipo) => <option key={equipo} value={equipo}>{equipo}</option>)}
+                  </select>
+                </Desplegable>}
               </div>
               <div className="filtros-barra-cola"><button type="button" onClick={resetFilters}>{t("Restablecer filtros")}</button></div>
             </div>
@@ -1369,6 +1034,9 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
               {pesosVisibles && <>
                 <div className="similarity-pesos-ayuda">
                   <p>{t("100% mantiene el peso normal. Sube una métrica para que influya más en el ranking o llévala a 0% para excluirla.")}</p>
+                  <p>{activeMetricWeights
+                    ? t("Con pesos personalizados, el parecido se mide solo con estas métricas.")
+                    : t("Con los pesos neutrales, el parecido usa todas las métricas que trae la base —no solo estas—, cada una con el peso de lo que se repite de una temporada a otra. Al tocar un peso se mide solo con las de esta lista.")}</p>
                   <button type="button" onClick={resetMetricWeights} disabled={!activeMetricWeights}><RotateCcw size={14} /> {t("Restablecer pesos")}</button>
                 </div>
                 <div className="similarity-weight-grid">
@@ -1385,23 +1053,28 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
                 </div>
               </>}
             </section>
-            {candidates.length ? <div className="similarity-table-wrap"><table className="similarity-table"><thead><tr><th>#</th><th>{t("Jugador")}</th><th>{t("Posiciones")}</th><th>{t("Edad")}</th><th>{t("Minutos")}</th><th>{t("Pasaporte")}</th><th>{t("Similitud")}</th><th /></tr></thead><tbody>{candidates.slice(0, 150).map((candidate, index) => <tr key={candidate.index} className={selectedCandidate?.index === candidate.index ? "selected" : ""}><td>{String(index + 1).padStart(2, "0")}</td><td><b>{candidate.name}</b><small>{candidate.team}</small></td><td><PositionRoles positions={candidate.positions} /></td><td>{candidate.age ?? "—"}</td><td>{Math.round(candidate.minutes).toLocaleString(numberLocale())}</td><td>{candidate.passport}</td><td><span className="similarity-score-pill">{candidate.similarity}%</span></td><td><button onClick={() => chooseCandidate(candidate)}>{t("Comparar")}</button></td></tr>)}</tbody></table></div> : <div className="similarity-no-results"><Search size={24} /><b>{t("No hay jugadores con estos filtros")}</b><span>{t("Reduce los requisitos de edad, minutos, pasaporte o posición.")}</span></div>}
+            {candidates.length ? <div className="similarity-table-wrap"><table className="similarity-table"><thead><tr><th>#</th><th>{t("Jugador")}</th><th>{t("Posiciones")}</th><th>{t("Edad")}</th><th>{t("Minutos")}</th><th>{t("Pasaporte")}</th>{conEncaje && <th title={tf("Cuánto se parece el estilo de su club al de {equipo}", { equipo: EQUIPO_PROPIO })}>{t("Encaje")}</th>}{encajeEquipo.activo && <th>{equipoEncaje}</th>}<th title={t("Parecido corregido por cobertura; debajo, el bruto y la cobertura")}>{t("Similitud")}</th><th /></tr></thead><tbody>{candidates.slice(0, 150).map((candidate, index) => <tr key={candidate.index} className={selectedCandidate?.index === candidate.index ? "selected" : ""} onClick={() => chooseCandidate(candidate, true)}>
+              <td>{String(index + 1).padStart(2, "0")}</td>
+              <td><b>{candidate.name}</b><small>{[candidate.team, ...ligasDeFila(candidate.index).map((liga) => (opta(liga) ? `${liga} · Opta ${opta(liga)}` : liga))].join(" · ")}</small></td>
+              <td><PositionRoles positions={candidate.positions} /></td><td>{candidate.age ?? "—"}</td><td>{Math.round(candidate.minutes).toLocaleString(numberLocale())}</td><td>{candidate.passport}</td>
+              {conEncaje && <td><CeldaEncaje encaje={encaje(candidate.team)} cargando={estilos.cargando} /></td>}
+              {encajeEquipo.activo && <td><CeldaEncajeEquipo encaje={encajeEquipo.para(candidate.index)} cargandoSitio={encajeEquipo.cargandoSitio} /></td>}
+              <td><span className="similarity-score-pill">{candidate.ajustado}%</span><small className={candidate.coverage < 60 ? "similarity-bruto baja" : "similarity-bruto"}>{tf("bruto {n}% · cobertura {c}%", { n: candidate.similarity, c: candidate.coverage })}</small></td>
+              <td>{/* El clic sube a la fila: con teclado, el botón es el que la elige. */}<button type="button" aria-pressed={selectedCandidate?.index === candidate.index}>{selectedCandidate?.index === candidate.index ? t("Comparando") : t("Comparar")}</button></td></tr>)}</tbody></table></div> : <div className="similarity-no-results"><Search size={24} /><b>{t("No hay jugadores con estos filtros")}</b><span>{t("Reduce los requisitos de edad, minutos, pasaporte o posición.")}</span></div>}
             <p className="similarity-motor-nota"><b>{t("Motor actual: baseline")}</b> {t("Esta comparación es explicable y funciona con Excel agregados. RisingBALLER–Wyscout podrá reemplazar el vector cuando existan datos por partido.")}</p>
           </section>
 
           {selectedCandidate && <>
             <Paso numero={3}>El informe de la comparación</Paso>
-            <section className="similarity-enrichment-grid">
-              <ProfileEnrichment side="target" label={t("Jugador objetivo")} player={search.target.player} color={targetColor} profile={targetProfile} busy={profileBusy === "target"} backgroundBusy={backgroundBusy === "target"} locked={profileBusy !== null || backgroundBusy !== null} canRestore={Boolean(backgroundOriginals[profileStorageKey(search.target.player, search.target.team)])} status={profileStatus.target} onExtract={(url) => extractProfile("target", url)} onImageUrl={(url) => applyPlayerImageUrl("target", url)} onImageFile={(file) => loadPlayerImage("target", file)} onRemoveBackground={() => removePlayerBackground("target")} onRestoreBackground={() => restorePlayerBackground("target")} onDownload={downloadAsset} />
-              <ProfileEnrichment side="candidate" label={t("Jugador comparable")} player={selectedCandidate.name} color={candidateColor} profile={candidateProfile} busy={profileBusy === "candidate"} backgroundBusy={backgroundBusy === "candidate"} locked={profileBusy !== null || backgroundBusy !== null} canRestore={Boolean(backgroundOriginals[profileStorageKey(selectedCandidate.name, selectedCandidate.team)])} status={profileStatus.candidate} onExtract={(url) => extractProfile("candidate", url)} onImageUrl={(url) => applyPlayerImageUrl("candidate", url)} onImageFile={(file) => loadPlayerImage("candidate", file)} onRemoveBackground={() => removePlayerBackground("candidate")} onRestoreBackground={() => restorePlayerBackground("candidate")} onDownload={downloadAsset} />
-            </section>
-
-            <section className="similarity-color-panel">
-              <div className="similarity-color-heading"><span>{t("PALETA DE COMPARACIÓN")}</span><b>{t("Personaliza jugadores y labels")}</b><small>{t("Define el color del jugador, el color del label de percentil y la transparencia de su fondo.")}</small></div>
-              <PalettePicker label={t("Jugador objetivo")} player={search.target.player} color={targetColor} labelColor={targetLabelColor} labelTransparency={targetLabelTransparency} photoScale={targetPhotoScale} photoFit={targetPhotoFit} onPhotoFitChange={setTargetPhotoFit} colors={paletteColors} onChange={setTargetColorChoice} onLabelColorChange={setTargetLabelColorChoice} onLabelTransparencyChange={setTargetLabelTransparency} onPhotoScaleChange={setTargetPhotoScale} />
-              <PalettePicker label={t("Jugador comparable")} player={selectedCandidate.name} color={candidateColor} labelColor={candidateLabelColor} labelTransparency={candidateLabelTransparency} photoScale={candidatePhotoScale} photoFit={candidatePhotoFit} onPhotoFitChange={setCandidatePhotoFit} colors={paletteColors} onChange={setCandidateColorChoice} onLabelColorChange={setCandidateLabelColorChoice} onLabelTransparencyChange={setCandidateLabelTransparency} onPhotoScaleChange={setCandidatePhotoScale} />
-            </section>
-
+            {/* La hoja va justo después del ranking, con su barra encima: a quién
+                compara, volver a la lista y descargar. Lo que la personaliza
+                —fotos, colores, destinatario y comentarios— pasa a pestañas
+                debajo: antes eran tres paneles que la empujaban 900 px abajo. */}
+            <div ref={barraDeLaHojaRef} className="similarity-hoja-barra">
+              <p><span>{t("Comparando")}</span><b>{search.target.player}</b><i aria-hidden="true">↔</i><b>{selectedCandidate.name}</b><em title={t("Parecido corregido por cobertura; debajo, el bruto y la cobertura")}>{`${selectedCandidate.ajustado}%`}</em><small>{tf("bruto {n}% · cobertura {c}%", { n: selectedCandidate.similarity, c: selectedCandidate.coverage })}</small></p>
+              <button type="button" className="similarity-volver" onClick={() => irA(rankingRef.current)}>{t("↑ Volver al ranking")}</button>
+              <div className="comparison-actions"><button className="button secondary" onClick={() => void downloadComparison()} disabled={exportBusy}><ArrowDownToLine size={16} /> {exportBusy ? t("Preparando…") : t("Descargar PNG")}</button><button className="button secondary" onClick={() => void downloadComparisonPdf()} disabled={exportBusy}><Printer size={16} /> {exportBusy ? t("Preparando…") : t("Descargar PDF")}</button></div>
+            </div>
             {/* La hoja de similitud en el mismo marco de impresión que Ficha y
                 radar: Legal, 8 mm de margen y el ajuste a la hoja de las demás.
                 En pantalla, .legal-page-shell es transparente (display: contents). */}
@@ -1409,27 +1082,49 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
               <section ref={reportSheetRef} className="similarity-report-sheet">
                 {similarityReportPayload && <SimilarityReportMain payload={similarityReportPayload} />}
                 {comparisonNote.trim() && <div className="similarity-note-block"><span>{t("Comentarios")}</span><p>{comparisonNote}</p></div>}
-                <footer className="dossier-footer similarity-report-footer"><p>{tf("Percentiles P0–P100 · métricas comunes {n}% · {w}.", { n: selectedCandidate.coverage, w: activeMetricWeights ? tf("{n} ponderaciones personalizadas activas", { n: activeMetricWeights }) : t("pesos métricos uniformes") })}</p><div className="report-signatures"><div className="report-author"><span>{t("ELABORADO POR")}</span><b>FELIPE ORMAZABAL</b><small>SCOUTING REPORT</small></div><div className="report-recipient">{recipientLogoReady ? <ReportImage src={recipientLogoUrl.trim()} alt={reportRecipient} className="dossier-footer-club-logo" /> : <span className="dossier-footer-club-fallback">{reportRecipient.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span>}<div><span>{t("REPORTE GENERADO PARA")}</span><b>{reportRecipient}</b></div></div></div></footer>
+                <footer className="dossier-footer similarity-report-footer"><p>{tf("Percentiles P0–P100 · métricas comunes {n}% · {w}.", { n: selectedCandidate.coverage, w: activeMetricWeights ? tf("{n} ponderaciones personalizadas activas", { n: activeMetricWeights }) : t("pesos métricos uniformes") })}</p><div className="report-signatures"><AutorDelInforme /><div className="report-recipient">{recipientLogoReady ? <ReportImage src={recipientLogoUrl.trim()} alt={reportRecipient} className="dossier-footer-club-logo" /> : <span className="dossier-footer-club-fallback">{reportRecipient.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span>}<div><span>{t("REPORTE GENERADO PARA")}</span><b>{reportRecipient}</b></div></div></div></footer>
               </section>
             </div>
-
-            <div className="similarity-recipient-editor">
-              <span>{t("REPORTE GENERADO PARA")}</span>
-              <input value={recipientName} onChange={(event) => onRecipientNameChange(event.target.value)} placeholder={t("Nombre del club")} aria-label={t("Nombre del club destinatario")} />
-              <input type="url" value={recipientLogoUrl} onChange={(event) => onRecipientLogoChange(event.target.value)} placeholder="https://logo-del-club.png" aria-label={t("Link del logo del club destinatario")} />
-              <small>{recipientLogoReady ? t("✓ Logo aplicado a la comparación.") : t("El logo es independiente de los clubes comparados.")}</small>
-            </div>
-            <div className="similarity-note-editor">
-              <label>
-                <span>{t("Comentarios")}{!aiControlsHidden && <button type="button" className="reading-ai" disabled={comparisonAiLoading} onClick={() => void writeComparisonNote()}><Sparkles size={11} /> {comparisonAiLoading ? t("Escribiendo…") : t("Escribir con IA")}</button>}</span>
-                <textarea value={comparisonNote} rows={3} placeholder={t("Escribe tu lectura de la comparación: contexto, rol y recomendación.")} onChange={(event) => setComparisonNote(event.target.value)} />
-                {comparisonAiError && !aiControlsHidden && <small className="inline-error ai-error"><span>{comparisonAiError}</span><button type="button" onClick={() => setComparisonAiError("")} aria-label={t("Ocultar aviso")}>×</button></small>}
-              </label>
-              <small>{t("Aparece dentro de la hoja, debajo de la comparación, respetando los márgenes de la página.")}</small>
-            </div>
-
-            <div className="comparison-actions"><button className="button secondary" onClick={() => void downloadComparison()} disabled={exportBusy}><ArrowDownToLine size={16} /> {exportBusy ? t("Preparando…") : t("Descargar PNG")}</button><button className="button secondary" onClick={() => void downloadComparisonPdf()} disabled={exportBusy}><Printer size={16} /> {exportBusy ? t("Preparando…") : t("Descargar PDF")}</button></div>
             {exportStatus && <p className="similarity-export-status" aria-live="polite">{exportStatus}</p>}
+
+            <section className="similarity-ajustes" aria-label={t("Personalizar la hoja")}>
+              <div className="similarity-ajustes-pestanas" role="tablist">
+                {([["texto", t("Destinatario y comentarios")], ["fotos", t("Fotos y perfil")], ["colores", t("Colores y etiquetas")]] as const).map(([id, nombre]) => (
+                  <button key={id} type="button" role="tab" id={`ajuste-${id}`} aria-selected={ajusteDeHoja === id} aria-controls="ajuste-panel" onClick={() => setAjusteDeHoja(id)}>{nombre}</button>
+                ))}
+              </div>
+              <div id="ajuste-panel" role="tabpanel" aria-labelledby={`ajuste-${ajusteDeHoja}`} className={`similarity-ajustes-panel ${ajusteDeHoja}`}>
+                {ajusteDeHoja === "texto" && <>
+                <div className="similarity-recipient-editor">
+                  <span>{t("REPORTE GENERADO PARA")}</span>
+                  <input value={recipientName} onChange={(event) => onRecipientNameChange(event.target.value)} placeholder={t("Nombre del club")} aria-label={t("Nombre del club destinatario")} />
+                  <input type="url" value={recipientLogoUrl} onChange={(event) => onRecipientLogoChange(event.target.value)} placeholder="https://logo-del-club.png" aria-label={t("Link del logo del club destinatario")} />
+                  <small>{recipientLogoReady ? t("✓ Logo aplicado a la comparación.") : t("El logo es independiente de los clubes comparados.")}</small>
+                </div>
+                <div className="similarity-note-editor">
+                  <label>
+                    <span>{t("Comentarios")}{!aiControlsHidden && <button type="button" className="reading-ai" disabled={comparisonAiLoading} onClick={() => void writeComparisonNote()}><Sparkles size={11} /> {comparisonAiLoading ? t("Escribiendo…") : t("Escribir con IA")}</button>}</span>
+                    <textarea value={comparisonNote} rows={3} placeholder={t("Escribe tu lectura de la comparación: contexto, rol y recomendación.")} onChange={(event) => setComparisonNote(event.target.value)} />
+                    {comparisonAiError && !aiControlsHidden && <small className="inline-error ai-error"><span>{comparisonAiError}</span><button type="button" onClick={() => setComparisonAiError("")} aria-label={t("Ocultar aviso")}>×</button></small>}
+                  </label>
+                  <small>{t("Aparece dentro de la hoja, debajo de la comparación, respetando los márgenes de la página.")}</small>
+                </div>
+                </>}
+                {ajusteDeHoja === "fotos" && <>
+                <section className="similarity-enrichment-grid">
+                  <ProfileEnrichment side="target" label={t("Jugador objetivo")} player={search.target.player} color={targetColor} profile={targetProfile} busy={profileBusy === "target"} backgroundBusy={backgroundBusy === "target"} locked={profileBusy !== null || backgroundBusy !== null} canRestore={Boolean(backgroundOriginals[profileStorageKey(search.target.player, search.target.team)])} status={profileStatus.target} onExtract={(url) => extractProfile("target", url)} onImageUrl={(url) => applyPlayerImageUrl("target", url)} onImageFile={(file) => loadPlayerImage("target", file)} onRemoveBackground={() => removePlayerBackground("target")} onRestoreBackground={() => restorePlayerBackground("target")} onDownload={downloadAsset} />
+                  <ProfileEnrichment side="candidate" label={t("Jugador comparable")} player={selectedCandidate.name} color={candidateColor} profile={candidateProfile} busy={profileBusy === "candidate"} backgroundBusy={backgroundBusy === "candidate"} locked={profileBusy !== null || backgroundBusy !== null} canRestore={Boolean(backgroundOriginals[profileStorageKey(selectedCandidate.name, selectedCandidate.team)])} status={profileStatus.candidate} onExtract={(url) => extractProfile("candidate", url)} onImageUrl={(url) => applyPlayerImageUrl("candidate", url)} onImageFile={(file) => loadPlayerImage("candidate", file)} onRemoveBackground={() => removePlayerBackground("candidate")} onRestoreBackground={() => restorePlayerBackground("candidate")} onDownload={downloadAsset} />
+                </section>
+                </>}
+                {ajusteDeHoja === "colores" && <>
+                <section className="similarity-color-panel">
+                  <div className="similarity-color-heading"><span>{t("PALETA DE COMPARACIÓN")}</span><b>{t("Personaliza jugadores y labels")}</b><small>{t("Define el color del jugador, el color del label de percentil y la transparencia de su fondo.")}</small></div>
+                  <PalettePicker label={t("Jugador objetivo")} player={search.target.player} color={targetColor} labelColor={targetLabelColor} labelTransparency={targetLabelTransparency} photoScale={targetPhotoScale} photoFit={targetPhotoFit} onPhotoFitChange={setTargetPhotoFit} colors={paletteColors} onChange={setTargetColorChoice} onLabelColorChange={setTargetLabelColorChoice} onLabelTransparencyChange={setTargetLabelTransparency} onPhotoScaleChange={setTargetPhotoScale} />
+                  <PalettePicker label={t("Jugador comparable")} player={selectedCandidate.name} color={candidateColor} labelColor={candidateLabelColor} labelTransparency={candidateLabelTransparency} photoScale={candidatePhotoScale} photoFit={candidatePhotoFit} onPhotoFitChange={setCandidatePhotoFit} colors={paletteColors} onChange={setCandidateColorChoice} onLabelColorChange={setCandidateLabelColorChoice} onLabelTransparencyChange={setCandidateLabelTransparency} onPhotoScaleChange={setCandidatePhotoScale} />
+                </section>
+                </>}
+              </div>
+            </section>
           </>}
         </main>
       </div>

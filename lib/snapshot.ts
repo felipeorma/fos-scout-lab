@@ -63,15 +63,17 @@ const media = (xs: number[]) => xs.reduce((s, x) => s + x, 0) / xs.length;
  * Cada métrica se estandariza contra ese grupo; la familia es la media de las
  * que el jugador tenga (al menos la mitad: con una sola de cuatro, el número
  * sería esa métrica y no la familia). El percentil es contra el mismo grupo.
+ * `admitida` acota el grupo: la Ficha ampliada lo deja en su liga y temporada.
  */
-export function familiasCompuestas(rows: DataRow[], cohorte: string, minutosMin: number, objetivo = -1): GrupoCompuesto {
+export function familiasCompuestas(rows: DataRow[], cohorte: string, minutosMin: number, objetivo = -1, admitida?: (indice: number) => boolean): GrupoCompuesto {
   const cabeceras = headersOf(rows);
   const core = detectCoreColumns(cabeceras);
   const columnaPosicion = positionColumnOf(cabeceras);
   const grupo = peerCohort(cohorte);
   const indices = rows
     .map((_, i) => i)
-    .filter((i) => cohortOf(columnaPosicion ? rows[i][columnaPosicion] : "") === grupo
+    .filter((i) => (!admitida || admitida(i))
+      && cohortOf(columnaPosicion ? rows[i][columnaPosicion] : "") === grupo
       && (minutosMin <= 0 || numeric(rows[i][core.minutes]) >= minutosMin));
 
   const escalas = new Map<string, { m: number; sd: number }>();
@@ -540,15 +542,29 @@ export function carriles(
   return { posiciones: salida, total: ocupados.length };
 }
 
-/** De la columna "Data sources", la competición y temporada de StatsBomb del jugador. */
-export function fuenteStatsbomb(fuentes: unknown): { liga: string; temporada: string } | null {
+/**
+ * De la columna "Data sources", la competición y temporada de StatsBomb del
+ * jugador: la pedida si la tiene, y si no la MÁS RECIENTE.
+ *
+ * Devolvía la primera de la lista, y la lista va de la temporada más vieja a
+ * la más nueva: con dos temporadas, la ficha ampliada enseñaba la anterior.
+ * Y como el club que se pedía era el actual, a quien cambió de equipo no se
+ * le encontraba ningún partido —Sean Young: CPL 2025 con Pacific, USL 2026
+ * con Loudoun; se pedía "CPL 2025 · Loudoun United"— y los mapas salían vacíos.
+ */
+export function fuenteStatsbomb(fuentes: unknown, temporadaPedida?: string): { liga: string; temporada: string } | null {
+  const todas: Array<{ liga: string; temporada: string }> = [];
   for (const parte of String(fuentes ?? "").split(",")) {
     const limpia = parte.trim();
     if (!limpia.startsWith("StatsBomb · ")) continue;
     const resto = limpia.slice("StatsBomb · ".length).trim();
     const corte = resto.lastIndexOf(" ");
     if (corte < 0) continue;
-    return { liga: resto.slice(0, corte), temporada: resto.slice(corte + 1) };
+    todas.push({ liga: resto.slice(0, corte), temporada: resto.slice(corte + 1) });
   }
-  return null;
+  if (!todas.length) return null;
+  const pedida = temporadaPedida ? todas.find((fuente) => fuente.temporada === temporadaPedida) : undefined;
+  if (pedida) return pedida;
+  const inicio = (temporada: string) => Number(temporada.match(/\d{4}/)?.[0] ?? 0);
+  return [...todas].sort((a, b) => inicio(b.temporada) - inicio(a.temporada))[0];
 }

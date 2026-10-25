@@ -27,8 +27,8 @@ test("la fila junta las dos temporadas y guarda lo que jugó en cada una", () =>
   assert.ok(Math.abs(fila["Passes per 90"] - (40 * 2310 + 50 * 476) / 2786) < 1e-9, "por 90, ponderado por minutos");
   assert.equal(fila.Team, "Cavalry FC", "el club es el de la temporada más reciente");
   assert.deepEqual(temporadasDeFila(fila), [
-    { etiqueta: "2026", anio: 2026, ligas: ["Canadian Premier League"], equipo: "Cavalry FC", partidos: 14, minutos: 476, goles: 0, asistencias: 0 },
-    { etiqueta: "2025", anio: 2025, ligas: ["Canadian Premier League"], equipo: "HFX Wanderers", partidos: 28, minutos: 2310, goles: 1, asistencias: 3 },
+    { etiqueta: "2026", anio: 2026, ligas: ["Canadian Premier League"], equipo: "Cavalry FC", equipoPorLiga: { "Canadian Premier League": "Cavalry FC" }, partidos: 14, minutos: 476, goles: 0, asistencias: 0 },
+    { etiqueta: "2025", anio: 2025, ligas: ["Canadian Premier League"], equipo: "HFX Wanderers", equipoPorLiga: { "Canadian Premier League": "HFX Wanderers" }, partidos: 28, minutos: 2310, goles: 1, asistencias: 3 },
   ]);
 });
 
@@ -55,6 +55,19 @@ test("un traspaso de invierno entre ligas del mismo año suma en una sola tempor
   assert.equal(temporadas[0].minutos, 1100);
   assert.deepEqual([...temporadas[0].ligas].sort(), ["Canadian Premier League", "USL Championship"]);
   assert.equal(temporadas[0].equipo, "Cavalry FC", "el club donde más jugó");
+});
+
+test("añadir un Excel de otra liga del mismo año suma sus métricas y conserva el año anterior", () => {
+  const resultado = aggregateDatasets([
+    base("CPL 2025.xlsx", 2025, [jugador({ Team: "Cavalry FC", "Matches played": 20, "Minutes played": 1800 })]),
+    base("CPL 2026.xlsx", 2026, [jugador({ Team: "Cavalry FC", "Matches played": 10, "Minutes played": 800, "Passes per 90": 50 })]),
+    base("USL Championship 2026.xlsx", 2026, [jugador({ Team: "Pittsburgh Riverhounds", "Matches played": 6, "Minutes played": 300, "Passes per 90": 30 })]),
+  ]);
+  const fila = filaDe(resultado);
+  assert.deepEqual(temporadasDeFila(fila).map((temporada) => [temporada.anio, temporada.minutos]), [[2026, 1100], [2025, 1800]]);
+  assert.deepEqual([...temporadasDeFila(fila)[0].ligas].sort(), ["CPL", "USL Championship"]);
+  assert.equal(fila["Minutes played"], 2900);
+  assert.ok(Math.abs(fila["Passes per 90"] - (1800 * 40 + 800 * 50 + 300 * 30) / 2900) < 1e-9);
 });
 
 test("un fichaje que viene de otra liga enseña las dos temporadas, cada una con su club", () => {

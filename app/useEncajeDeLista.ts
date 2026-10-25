@@ -10,7 +10,7 @@ import { EQUIPO_PROPIO, crearBuscadorDeEquipos, mismoEquipo, perfilesDeEstilo } 
 import { ajustarPuesto, compararConPuesto, nivelFrenteAPlantilla, perfilDelPuesto, presenciaDelPuesto, type Perfil } from "@/lib/encaje";
 
 /**
- * El encaje con un equipo en una lista (Ranking, Entre ligas).
+ * El encaje con un equipo en una lista (Ranking, Similitud).
  *
  * Es el de la ficha ampliada con una diferencia: aquí "lo que pide el
  * puesto" se mide solo con las familias, sin los roles en la secuencia. Los
@@ -47,7 +47,7 @@ type DeCohorte = {
 
 export function useEncajeDeLista(rows: DataRow[], minutosMin: number, destino: string) {
   const activo = Boolean(destino);
-  const estilos = useEstilos();
+  const estilos = useEstilos(activo);
   const buscar = useMemo(() => crearBuscadorDeEquipos(estilos.filas ? perfilesDeEstilo(estilos.filas) : []), [estilos.filas]);
   const llegada = activo ? buscar(destino) : null;
   const { datos: alineaciones, error } = usePuestos(llegada?.clave ?? "");

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { METRICS, aggregateDatasets, canonicalTeamNames, clubsMatch, peerCohort } from "../lib/scouting.ts";
+import { METRICS, aggregateDatasets, clubsMatch, peerCohort } from "../lib/scouting.ts";
 
 const HEADERS = ["Player", "Team", "Age", "Birth date", "Minutes played", "Matches played", "Goals", "Assists"];
 
@@ -397,4 +397,92 @@ test("la nota entre paréntesis de SkillCorner no convierte al club en otro", ()
   ]);
   assert.equal(result.rows.length, 1);
   assert.equal(result.rows[0].Team, "Crown Legacy");
+});
+
+/**
+ * La capa física dentro de su competición.
+ *
+ * El caso que las motiva, medido sobre las dieciséis ligas en octubre de 2026:
+ * 209 jugadores de SkillCorner se quedaban sin enlazar con su fila de
+ * StatsBomb porque cada proveedor escribe el club a su manera. Cada uno salía
+ * dos veces en el desplegable, y al elegir la fila de SkillCorner la ficha
+ * decía "no encontramos métricas para esta cohorte" de un jugador con tres mil
+ * minutos.
+ */
+test("la capa física se enlaza en su liga aunque el club se escriba distinto, si la fecha coincide", () => {
+  for (const [enBase, clubBase, enCapa, clubCapa] of [
+    ["Mathis Christophe Picouleau", "Concarneau", "Mathis Picouleau", "US Concarneau"],
+    ["Don-Delaiah Cassidy Sigayro O'Niel", "Ajax II", "Don-Delaiah O'Niel", "Jong Ajax Amsterdam"],
+    ["Gabriel Onni Vilho Europaeus", "Gnistan", "Gabriel Europaeus", "IF Gnistan"],
+  ]) {
+    const result = aggregateDatasets([
+      dataset("StatsBomb · Ligue 3 2026", 2026, "statsbomb", [conNacimiento(enBase, clubBase, "2003-04-05")]),
+      dataset("SkillCorner · Ligue 3 2026", 2026, "skillcorner", [conNacimiento(enCapa, clubCapa, "2003-04-05")]),
+    ]);
+    assert.equal(result.rows.length, 1, `${enCapa} debía enlazarse con ${enBase}`);
+    assert.equal(result.rows[0].Player, enBase, "manda el nombre de la base");
+    assert.match(String(result.rows[0]["Data sources"]), /SkillCorner/);
+  }
+});
+
+test("con la misma fecha y el club afín, una grafía distinta del apellido no los separa", () => {
+  for (const [enBase, enCapa] of [
+    ["Jay Turner-Cook", "Jay Turner-Cooke"],
+    ["Omar Berrezkami", "Omar Bezzekhami"],
+    ["Anton Popovits", "Anton Popovitch"],
+  ]) {
+    const result = aggregateDatasets([
+      dataset("StatsBomb · National League 2026", 2026, "statsbomb", [conNacimiento(enBase, "Halifax Town", "2003-12-31")]),
+      dataset("SkillCorner · National League 2026", 2026, "skillcorner", [conNacimiento(enCapa, "FC Halifax Town", "2003-12-31")]),
+    ]);
+    assert.equal(result.rows.length, 1, `${enCapa} y ${enBase} son la misma persona`);
+  }
+});
+
+test("el día y el mes cruzados cuentan como la misma fecha", () => {
+  const result = aggregateDatasets([
+    dataset("StatsBomb · Eerste Divisie 2026", 2026, "statsbomb", [conNacimiento("Gino Verhulst", "PSV Eindhoven II", "2007-07-05")]),
+    dataset("SkillCorner · Eerste Divisie 2026", 2026, "skillcorner", [conNacimiento("Gino Denis Verhulst", "Jong PSV Eindhoven U21", "2007-05-07")]),
+  ]);
+  assert.equal(result.rows.length, 1);
+});
+
+test("el 1 de enero no veta por sí solo, pero dos años de diferencia sí", () => {
+  const mismaPersona = aggregateDatasets([
+    dataset("StatsBomb · MLS Next Pro 2026", 2026, "statsbomb", [conNacimiento("Jorge Salmeron", "Columbus Crew II", "2011-01-01")]),
+    dataset("SkillCorner · MLS Next Pro 2026", 2026, "skillcorner", [conNacimiento("Jorge Salmerón Muñoz", "Columbus Crew II", "2010-01-01")]),
+  ]);
+  assert.equal(mismaPersona.rows.length, 1);
+});
+
+test("la capa física no se enlaza entre competiciones distintas por esta vía", () => {
+  /* Mismo nombre y misma fecha, pero uno juega en Francia y el otro en la
+     MLS Next Pro con un club que no tiene nada que ver: dos personas. */
+  const result = aggregateDatasets([
+    dataset("StatsBomb · Ligue 3 2026", 2026, "statsbomb", [conNacimiento("Moussa Koné Diarra", "Paris 13 Atletico", "1998-02-03")]),
+    dataset("SkillCorner · MLS Next Pro 2026", 2026, "skillcorner", [conNacimiento("Moussa Diarra", "Crown Legacy FC", "1998-02-03")]),
+  ]);
+  assert.equal(result.rows.length, 2);
+});
+
+test("dos fechas de nacimiento distintas separan aunque el nombre encaje y el club sea el mismo", () => {
+  const result = aggregateDatasets([
+    dataset("StatsBomb · MLS Next Pro 2026", 2026, "statsbomb", [conNacimiento("Evan Watt", "Austin II", "2003-08-08")]),
+    dataset("SkillCorner · MLS Next Pro 2026", 2026, "skillcorner", [conNacimiento("Evan Watts", "Austin II", "2004-09-23")]),
+  ]);
+  assert.equal(result.rows.length, 2);
+});
+
+test("sin fecha en un lado hace falta el nombre contenido y un club afín", () => {
+  const afin = aggregateDatasets([
+    dataset("StatsBomb · National League 2026", 2026, "statsbomb", [conNacimiento("Samuel Barnes", "Altrincham", "2001-03-10")]),
+    dataset("SkillCorner · National League 2026", 2026, "skillcorner", [conNacimiento("Sam Barnes", "Altrincham FC", "")]),
+  ]);
+  assert.equal(afin.rows.length, 1);
+  /* "United" no une a nadie: media National League se apellida así. */
+  const ajeno = aggregateDatasets([
+    dataset("StatsBomb · National League 2026", 2026, "statsbomb", [conNacimiento("Samuel Barnes", "Sutton United", "2001-03-10")]),
+    dataset("SkillCorner · National League 2026", 2026, "skillcorner", [conNacimiento("Sam Barnes", "Boston United", "")]),
+  ]);
+  assert.equal(ajeno.rows.length, 2);
 });

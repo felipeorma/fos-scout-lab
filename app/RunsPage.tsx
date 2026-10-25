@@ -10,6 +10,8 @@ import { useBaseActiva } from "./BaseActiva";
 import { casarPlantilla } from "@/lib/plantilla";
 import { numberLocale, t, tf } from "@/lib/i18n";
 import { RepartoCarreras, RunMap, TIPOS_CARRERA } from "./RunMap";
+import { Antetitulo, BarraDegradada, FranjaDeCifras, tonosDeColor } from "./KitNight";
+import { SIMILARITY_METRIC_GROUPS } from "@/lib/similarityMetricGroups";
 import {
   fetchOffBallRuns,
   fetchSkillcornerCompetitions,
@@ -35,6 +37,8 @@ const MOTIVOS: Record<string, string> = {
   sin_licencia: "fuera de la suscripción",
   red: "sin respuesta",
 };
+
+const TONOS_FISICO = tonosDeColor(SIMILARITY_METRIC_GROUPS.find((grupo) => grupo.id === "physical")!.color);
 
 function resumenJugador(carreras: CarreraSinBalon[], partidos: number) {
   const total = carreras.length;
@@ -159,6 +163,9 @@ export function RunsPage({ destinatario = "", logoDestinatario = "" }: {
       .catch(() => { if (montado) setEstado(t("No se pudieron leer los equipos de esta competición.")); })
       .finally(() => { if (montado) setCargandoEquipos(false); });
     return () => { montado = false; };
+    // Solo al cambiar de competición: el equipo del filtro se lee en ese
+    // momento, y cambiarlo después no debe volver a pedir la lista.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [edicion]);
 
   async function cargar() {
@@ -325,11 +332,11 @@ export function RunsPage({ destinatario = "", logoDestinatario = "" }: {
     verJugador(nombre);
   };
 
-  return <section className="runs-page">
+  return <section className="runs-page" data-hoja-vacia={datos ? undefined : ""}>
     {/* La explicación de la leyenda se lee una vez: pasa a un desplegable. */}
     <header>
       <div>
-        <span>{t("SKILLCORNER · DYNAMIC EVENTS")}</span>
+        <Antetitulo>{t("SkillCorner · carreras sin balón")}</Antetitulo>
         <h2>{t("Mapa de carreras sin balón")}</h2>
         <p>{t("Una flecha por carrera, de donde empieza a donde termina. El ataque va siempre hacia arriba.")}</p>
         <details className="como-se-calcula">
@@ -429,6 +436,15 @@ export function RunsPage({ destinatario = "", logoDestinatario = "" }: {
         </div>
       </div>
 
+      {/* Las seis cifras, en la franja de estadísticas del diseño, encima del mapa. */}
+      {resumen && <FranjaDeCifras className="runs-franja" celdas={[
+        { etiqueta: t("Carreras"), valor: resumen.total, bajada: tf("{n} partidos con datos", { n: datos.partidosConDatos }) },
+        { etiqueta: t("Por partido"), valor: resumen.porPartido.toFixed(1), bajada: t("media") },
+        { etiqueta: t("Peligrosas"), valor: `${Math.round((resumen.peligrosas / resumen.total) * 100)}%`, bajada: tf("{n} carreras", { n: resumen.peligrosas }) },
+        { etiqueta: t("Reciben"), valor: `${Math.round((resumen.recibidas / resumen.total) * 100)}%`, bajada: tf("{n} terminan recibiendo", { n: resumen.recibidas }) },
+        { etiqueta: t("xThreat total"), valor: resumen.xt.toFixed(1), bajada: t("suma de sus carreras") },
+        { etiqueta: t("xT por carrera"), valor: resumen.xtPorCarrera.toFixed(3), bajada: t("media") },
+      ]} />}
       <div className="runs-grid" ref={mapaRef}>
         <RunMap
           carreras={filtradas}
@@ -440,14 +456,6 @@ export function RunsPage({ destinatario = "", logoDestinatario = "" }: {
             : tf("{tipo} · {n} partidos", { tipo: t(TIPOS_CARRERA[tipo] ?? tipo), n: datos.partidosConDatos })}
         />
         <div className="runs-side">
-          {resumen && <div className="runs-kpis">
-            <div><b>{resumen.total}</b><span>{t("Carreras")}</span></div>
-            <div><b>{resumen.porPartido.toFixed(1)}</b><span>{t("Por partido")}</span></div>
-            <div><b>{Math.round((resumen.peligrosas / resumen.total) * 100)}%</b><span>{t("Peligrosas")}</span></div>
-            <div><b>{Math.round((resumen.recibidas / resumen.total) * 100)}%</b><span>{t("Reciben")}</span></div>
-            <div><b>{resumen.xt.toFixed(1)}</b><span>{t("xThreat total")}</span></div>
-            <div><b>{resumen.xtPorCarrera.toFixed(3)}</b><span>{t("xT por carrera")}</span></div>
-          </div>}
           <div className="runs-reparto">
             <h4>{t("Reparto por tipo de carrera")}</h4>
             <RepartoCarreras carreras={filtradas} />
@@ -471,6 +479,8 @@ export function RunsPage({ destinatario = "", logoDestinatario = "" }: {
               <span className={posicion < 3 ? "rank-pos podio" : "rank-pos"}>{posicion + 1}</span>
               <span className="pool-cuerpo">
                 <b>{fila.nombre}</b>
+                {/* Su amenaza frente al primero, con el degradado del verde físico. */}
+                <BarraDegradada valor={(fila.xt / Math.max(plantel[0].xt, 0.001)) * 100} tonos={TONOS_FISICO} />
                 <small>{tf("{c} carreras · {p} por partido · {d}% peligrosas · {r}% reciben · {i}% intensas", {
                   c: fila.total, p: fila.porPartido.toFixed(1),
                   d: Math.round((fila.peligrosas / fila.total) * 100),

@@ -1,6 +1,11 @@
 "use client";
 
 import { t } from "@/lib/i18n";
+import { lineaDeDatos } from "@/lib/fechasDelInforme";
+import { useBaseActiva } from "./BaseActiva";
+import { useContext } from "react";
+import { MomentoDeImpresion } from "./medidaDeImpresion";
+import { AutorDelInforme } from "./FirmaDelInforme";
 
 /**
  * La firma del informe: quién lo hace, sobre quién es y para quién va.
@@ -25,9 +30,11 @@ export function PieDeReporte({ asunto, destinatario, logo, className = "" }: {
 }) {
   const club = destinatario || t("Club destinatario");
   const enlace = logo.trim();
+  const { descripcion, cargadaEl } = useBaseActiva();
+  const generadoEl = useContext(MomentoDeImpresion);
   return <footer className={`visual-page-footer visual-page-signature ${className}`.trim()}>
     <div className="report-signatures">
-      <div className="report-author"><span>{t("ELABORADO POR")}</span><b>FELIPE ORMAZABAL</b><small>SCOUTING REPORT</small></div>
+      <AutorDelInforme />
       <span className="visual-footer-confidential">{asunto.toUpperCase()} · {t("REPORTE CONFIDENCIAL")}</span>
       <div className="report-recipient">
         {/^(https?:\/\/|data:image\/)/i.test(enlace)
@@ -40,5 +47,7 @@ export function PieDeReporte({ asunto, destinatario, logo, className = "" }: {
         </div>
       </div>
     </div>
+    {/* De qué datos sale y cuándo: el PDF se lee semanas después. */}
+    <p className="pie-datos">{lineaDeDatos({ descripcion, cargadaEl, generadoEl })}</p>
   </footer>;
 }

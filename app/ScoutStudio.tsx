@@ -1,56 +1,68 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import * as XLSX from "xlsx";
-import { BarChart3, Check, ChevronDown, ChevronRight, Crosshair, Database, FileSpreadsheet, ImageIcon, LockKeyhole, Menu, Merge, MoreHorizontal, Plus, Printer, RadarChart, RotateCcw, Route, Search, Sparkles, Trash, Trophy, Upload, X, ShieldCheck, LayoutDashboard, Wind } from "./Icons";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { BarChart3, Check, ChevronDown, ChevronRight, Crosshair, Database, FileSpreadsheet, ImageIcon, LockKeyhole, Menu, MoreHorizontal, Plus, Printer, RadarChart, RotateCcw, Route, Search, Sparkles, Trash, Trophy, Upload, X, ShieldCheck, LayoutDashboard, Wind } from "./Icons";
 import { PizzaRadar } from "./PizzaRadar";
 import { ContextPage } from "./ContextPage";
 import { ScoutingBoard } from "./ScoutingBoard";
 import { RunsPage } from "./RunsPage";
 import { RankingPage } from "./RankingPage";
-import { PoolPage } from "./PoolPage";
 import { EstiloPage } from "./EstiloPage";
-import { FlujoPage } from "./FlujoPage";
 import { BlueprintsPage } from "./BlueprintsPage";
 import { SnapshotPage } from "./SnapshotPage";
 import { ReportPageDesigner } from "./ReportPageDesigner";
 import { SimilarityStudio } from "./SimilarityStudio";
 import { CLIENT_THEMES, DEFAULT_REPORT_THEME, reportThemeStyle, type ReportTheme } from "./reportTheme";
-import { LOGOS_PLATAFORMA, LogoPlataforma } from "./LogosPlataforma";
-import { ligasDeBases, origenPorFila } from "@/lib/procedencia";
+import { LogoPlataforma } from "./LogosPlataforma";
+import { ligasDeBases, origenPorFila, basesDelRadar, ligaYAnioDe } from "@/lib/procedencia";
+import { aplicarNombre, conNombresGuardados, guardarNombre, identidadDeBase, nombreActual, type NombreDeBase, temporadaAnteriorDe } from "@/lib/nombresDeBase";
+import { EditorDeNombreDeBase } from "./EditorDeNombreDeBase";
+import { AnadirTemporadaWyscout } from "./AnadirTemporadaWyscout";
+import { LigaDelMismoAnio } from "./LigaDelMismoAnio";
+import { SelectorTemporadas } from "./SelectorTemporadas";
+import { TemporadaDesdeWyscout, TemporadaEscrita } from "./TemporadaAMano";
+import { CLAVE_TEMPORADAS_A_MANO, delMismoAnioAMano, nuevaTemporadaAMano, type DatosDeTemporada, type TemporadaAMano } from "@/lib/temporadasAMano";
+import { temporadasDeFicha, type TemporadaEnFicha } from "@/lib/temporadasDeFicha";
 import { ProveedorDeBase, useEstadoDeBase } from "./BaseActiva";
 import { BarraDeFiltros } from "./BarraDeFiltros";
 import { MenuDeLigas, MenuDesplegable, type OpcionDeMenu } from "./MenuDesplegable";
 import { contextoDeLectura } from "@/lib/lecturaIA";
-import { EQUIPO_PROPIO, mismoEquipo } from "@/lib/estiloEquipo";
 import { Escudo, LogoLiga } from "./Escudo";
 import { DatosPage } from "./DatosPage";
 import { Interruptor } from "./Interruptor";
 import { FilaDeMenu, GrupoDeMenu, MenuFlotante } from "./MenuFlotante";
-import { ESCUDOS, RETRATO } from "./Imagenes";
+import { ESCUDOS, ESCUDOS_INFORME, RETRATO } from "./Imagenes";
 import {
-  aggregateDatasets,
   buildPlayerReport,
-  defaultMetricLabels,
   metricCatalogue,
-  detectCoreColumns,
   extractSeason,
   formatCell,
   temporadasDeFila,
   type DataRow,
   type PlayerReport,
   type SourceDataset,
+  type TemporadaDeJugador,
 } from "@/lib/scouting";
-import { dosTemporadas, temporadaAnterior, temporadasDelAnio } from "@/lib/temporadas";
-import { fuenteStatsbomb } from "@/lib/snapshot";
+import { anioDeInicio, dosTemporadas, temporadaAnterior, temporadasDelAnio } from "@/lib/temporadas";
 import { profileStorageKey, readStoredJson, type TransfermarktProfile } from "@/lib/transfermarkt";
 import { formatPlayerPositions, selectedCohortPosition } from "@/lib/positions";
 import { removePlayerImageBackground } from "@/lib/playerImageBackground";
-import { fetchAiSummary, type AiMetricFact, type AiPlayerFacts, fetchSkillcornerCompetitions, fetchSkillcornerDataset, fetchSourcesStatus, fetchStatsbombCompetitions, fetchStatsbombDataset, fetchTransfermarktProfile, temporadasUtiles, type ApiCompetition, type SourcesStatus } from "@/lib/remoteData";
+import { avisoSkillcorner, textoDeAvisoSkillcorner } from "@/lib/avisoSkillcorner";
+import { fetchAiSummary, type AiMetricFact, type AiPlayerFacts, fetchOptaLeagueMeta, fetchSkillcornerCompetitions, fetchSkillcornerDataset, fetchSourcesStatus, fetchStatsbombCompetitions, fetchStatsbombDataset, fetchTransfermarktProfile, temporadasUtiles, type ApiCompetition, type SourcesStatus } from "@/lib/remoteData";
 import { reportExportBaseName } from "@/lib/reportExportName";
-import { canonicalizeRow } from "@/lib/wyscoutHeaders";
+import { MINUTOS_FIABLES, margenDelIndice } from "@/lib/fiabilidad";
+import { alFallarElGuardado, guardarConImagenes, leerConImagenes, migrarImagenesViejas, precargarImagenes } from "@/lib/almacen";
+import { MomentoDeImpresion, ocultarComoAlImprimir } from "./medidaDeImpresion";
+import { aplanarFondosDeImpresion } from "./fondosDeImpresion";
+import { lineaDeDatos } from "@/lib/fechasDelInforme";
+import { cruzarEnSegundoPlano } from "@/lib/cruceEnSegundoPlano";
+import { AutorDelInforme, ContextoDeFirma, type FirmaDelInforme } from "./FirmaDelInforme";
+import { FieldLabel, FilaSeccion, InlineText, MenuDeCompeticiones, ReportImage } from "./estudio/piezas";
+import { useCruceDeAnios } from "./estudio/useCruceDeAnios";
+import { alphabeticCollator, blobToDataUrl, cohortLabel, firstPlayerSelection, horaActual, inicioDe, numberFormat, playerOptionsFor, profileFromReport, readWorkbook } from "./estudio/datos";
+import { FECHA_NIVEL_RESPALDO, LIGA_DE_REFERENCIA, PUNTOS_POR_RATING, indiceANivel, nivelDeLiga, ratingDeTramos, type EntradaOpta, LIGAS_CON_NIVEL } from "@/lib/nivelDeLiga";
 import { METRIC_SOURCE_COLORS, SIMILARITY_METRIC_GROUPS, similarityMetricGroup } from "@/lib/similarityMetricGroups";
-import { numberLocale, setActiveLang, t, tDefault, tf, type Lang } from "@/lib/i18n";
+import { setActiveLang, t, tDefault, tf, type Lang } from "@/lib/i18n";
 
 // Página 1 = ficha del jugador · Página 2 = comparación de similitud ·
 // Página 3 en adelante = páginas libres de visualizaciones que el usuario agrega.
@@ -66,13 +78,12 @@ const BOARD_PAGE = 91;
 // Carreras sin balón de SkillCorner: vive fuera del rango visual, como las anteriores.
 const RUNS_PAGE = 92;
 // Flujo de posesión: las rutas del balón de cada equipo, como un mapa de viento.
-const FLOW_PAGE = 93;
-// Football Blueprints: la liga entera como mapa conceptual y el reel para LinkedIn.
-const BLUEPRINTS_PAGE = 99;
+// 93 era "Flujo de posesión": ahora es una sección de Estilo de juego, con
+// los mismos dos equipos. El número no se reutiliza.
 // Ranking de la base por posición: quién es el mejor de cada puesto.
 const RANK_PAGE = 94;
-// Buscador entre ligas de la API: fondo multi-competición.
-const POOL_PAGE = 95;
+// 95 era "Entre ligas": su lista vive ahora en Similitud, que usa el mismo
+// motor. El número no se reutiliza.
 // La base activa: qué hay cargado y cómo cambiarlo. Cargar ligas estaba
 // repartido en tres botones distintos —la portada, "Conectar API" y
 // "Reemplazar archivos"— y cada uno hacía una parte; ahora es una etapa.
@@ -81,6 +92,8 @@ const DATA_PAGE = 96;
 const STYLE_PAGE = 97;
 // Ficha ampliada del jugador: la página 2 del dossier con eventos de StatsBomb.
 const SNAPSHOT_PAGE = 98;
+// Football Blueprints: la liga entera como mapa conceptual y el reel para LinkedIn.
+const BLUEPRINTS_PAGE = 99;
 
 /**
  * Cómo se llama cada sección, en un solo sitio.
@@ -96,45 +109,18 @@ const NOMBRE_DE_SECCION: Record<number, string> = {
   [BOARD_PAGE]: "Mesa de detección",
   [RUNS_PAGE]: "Carreras",
   [RANK_PAGE]: "Ranking",
-  [POOL_PAGE]: "Entre ligas",
   [DATA_PAGE]: "Base activa",
   [STYLE_PAGE]: "Estilo de juego",
-  [FLOW_PAGE]: "Flujo de posesión",
   [BLUEPRINTS_PAGE]: "Football Blueprints",
   [SNAPSHOT_PAGE]: "Ficha ampliada",
 };
 
 /**
- * Una fila del panel de secciones, al modo de las listas de Ajustes de iOS.
- *
- * Antes cada destino era un botón de solo texto —título en negrita y una
- * línea pequeña debajo— y todos se parecían: había que leerlos para
- * distinguirlos. La baldosa con el icono deja reconocer la fila por su forma,
- * y el galón de la derecha dice sin palabras que pulsarla lleva a otro sitio.
- */
-function FilaSeccion({ activa, onClick, icono, titulo, detalle, api }: {
-  activa: boolean;
-  onClick: () => void;
-  icono: React.ReactNode;
-  titulo: string;
-  detalle?: string;
-  /** Pide datos al servidor local: se avisa porque sin él no carga. */
-  api?: boolean;
-}) {
-  return <button type="button" className={activa ? "seccion-fila activa" : "seccion-fila"}
-    aria-current={activa ? "page" : undefined} onClick={onClick}>
-    <span className="seccion-icono" aria-hidden="true">{icono}</span>
-    <span className="seccion-texto"><b>{titulo}</b>{detalle && <small>{detalle}</small>}</span>
-    {api && <i className="seccion-api">API</i>}
-    <ChevronRight size={14} className="seccion-chevron" />
-  </button>;
-}
-/**
  * Quién firma el informe. Hay una firma guardada por encargo —Cavalry y
  * Maldonado son clientes distintos y no se firman igual— más una temporal
  * para el trabajo suelto que no es de ninguno de los dos.
  */
-type Firma = { nombre: string; cargo: string };
+type Firma = { nombre: string; cargo: string; /** Escudo del club en alta resolución (data URI), para que salga nítido al imprimir. */ escudo?: string };
 type ClaveFirma = "cavalry" | "maldonado" | "temporal";
 const FIRMAS_POR_DEFECTO: Record<ClaveFirma, Firma> = {
   cavalry: { nombre: "Felipe Ormazabal", cargo: "Scouting · Cavalry FC" },
@@ -155,189 +141,8 @@ const PROFILE_ASSETS: Array<{ field: ProfileAssetField; label: string; linkLabel
   { field: "leagueLogo", label: "Logo de la liga", linkLabel: "Liga" },
 ];
 
-function readWorkbook(file: File): Promise<SourceDataset> {
-  return file.arrayBuffer().then((buffer) => {
-    // Un .xlsx guarda su texto como XML UTF-8 dentro del zip y se lee solo,
-    // pero un .csv es texto plano: leído como bytes se decodifica en Latin-1
-    // y "Atlético Ottawa" llega como "AtlÃ©tico". Se decodifica a mano.
-    const esTexto = /\.(csv|tsv|txt)$/i.test(file.name);
-    const workbook = esTexto
-      ? XLSX.read(new TextDecoder("utf-8").decode(buffer), { type: "string", cellDates: true })
-      : XLSX.read(buffer, { type: "array", cellDates: true });
-    const sheetName = workbook.SheetNames[0];
-    if (!sheetName) throw new Error(tf("El archivo {name} no contiene hojas.", { name: file.name }));
-    // Wyscout exporta la misma plantilla en varios idiomas: las cabeceras se
-    // llevan al nombre inglés canónico para que un archivo en español y otro
-    // en inglés se lean igual y puedan combinarse entre sí.
-    const rawRows = XLSX.utils.sheet_to_json<DataRow>(workbook.Sheets[sheetName], { defval: "", raw: true });
-    const rows = rawRows.map((row) => canonicalizeRow(row) as DataRow);
-    const headers = rows.length ? Object.keys(rows[0]) : [];
-    if (!rows.length || !headers.length) throw new Error(tf("El archivo {name} está vacío.", { name: file.name }));
-    return { fileName: file.name, season: extractSeason(file.name), headers, rows };
-  });
-}
-
-function numberFormat(value: number) {
-  return new Intl.NumberFormat(numberLocale(), { maximumFractionDigits: 0 }).format(value);
-}
-
-/**
- * Las competiciones agrupadas por liga, para el desplegable de la API.
- *
- * La suscripción pasó de tres competiciones a dieciséis (setenta y una
- * entradas contando temporadas), y la lista plana en el orden que devuelve la
- * API dejó de servir: obligaba a recorrer setenta líneas y ponía la temporada
- * más antigua arriba, cuando la que se quiere casi siempre es la última.
- *
- * Se conserva el índice original de cada entrada porque es lo que guarda la
- * selección; aquí solo cambia el orden en que se dibujan.
- */
-function competicionesAgrupadas(lista: ApiCompetition[]) {
-  const grupos = new Map<string, Array<{ competition: ApiCompetition; indice: number }>>();
-  lista.forEach((competition, indice) => {
-    const clave = competition.country ? `${competition.name} · ${competition.country}` : competition.name;
-    grupos.set(clave, [...(grupos.get(clave) ?? []), { competition, indice }]);
-  });
-  return [...grupos.entries()]
-    .map(([nombre, entradas]) => ({
-      nombre,
-      // Temporada más reciente primero: es la que se busca a diario.
-      entradas: [...entradas].sort((a, b) => String(b.competition.season).localeCompare(String(a.competition.season), "en", { numeric: true })),
-    }))
-    .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
-}
-
-/** El menú de competiciones del diálogo: cada liga con su logo y, debajo, sus temporadas. */
-function MenuDeCompeticiones({ lista, elegida, onElegir }: { lista: ApiCompetition[]; elegida: string; onElegir: (indice: string) => void }) {
-  const grupos = competicionesAgrupadas(lista);
-  const ligaDe = new Map(grupos.map((grupo) => [grupo.nombre, grupo.entradas[0]?.competition.name ?? ""]));
-  const actual = elegida ? lista[Number(elegida)] : undefined;
-  return <MenuDesplegable variante="campo" etiqueta={t("Competición")} marcador={`${t("Elegir competición")}…`}
-    valor={actual ? `${actual.name} · ${actual.season}` : ""}
-    icono={actual ? <LogoLiga liga={actual.name} tamano={16} /> : null}
-    opciones={grupos.flatMap((grupo) => grupo.entradas.map(({ competition, indice }) => ({
-      valor: String(indice), texto: String(competition.season), grupo: grupo.nombre,
-    })))}
-    iconoDeGrupo={(grupo) => <LogoLiga liga={ligaDe.get(grupo) ?? ""} tamano={20} hueco />}
-    elegida={elegida} onElegir={onElegir} />;
-}
-
-const COHORT_LABELS: Record<string, string> = {
-  GK: "Porteros",
-  CB: "Centrales",
-  FB: "Laterales",
-  MID: "Pivotes / mediocentros",
-  DMF: "Pivotes / mediocentros",
-  B2B: "Interiores (box-to-box)",
-  WING: "Extremos",
-  DWING: "Extremos directos",
-  AM: "Mediapuntas",
-  CF: "Delanteros",
-  OTHER: "Otros perfiles",
-};
-
-function cohortLabel(cohort: string) {
-  const label = COHORT_LABELS[cohort];
-  return label ? t(label) : cohort;
-}
-
-const alphabeticCollator = new Intl.Collator("es", { sensitivity: "base", numeric: true });
-
-type PlayerOption = {
-  index: number;
-  player: string;
-  team: string;
-};
-
-function playerOptionsFor(rows: DataRow[]): PlayerOption[] {
-  const headers = [...new Set(rows.flatMap((row) => Object.keys(row)))];
-  const core = detectCoreColumns(headers);
-  const teamColumn = headers.find((header) => /team within|equipo durante/i.test(header))
-    ?? headers.find((header) => /^(team|equipo)$/i.test(header))
-    ?? "";
-
-  return rows.map((row, index) => ({
-    index,
-    player: String(row[core.player] ?? tf("Jugador {n}", { n: index + 1 })).trim(),
-    // Sin fallback traducido aquí: el valor "" es estable entre idiomas y la
-    // etiqueta visible se traduce recién en el <option>.
-    team: String(row[teamColumn] ?? "").trim(),
-  })).sort((a, b) => alphabeticCollator.compare(a.team, b.team) || alphabeticCollator.compare(a.player, b.player));
-}
-
-function firstPlayerSelection(rows: DataRow[]) {
-  return playerOptionsFor(rows)[0] ?? { index: 0, team: "" };
-}
-
-function FieldLabel({ children }: { children: React.ReactNode }) {
-  return <span className="field-label">{children}</span>;
-}
-
-// Texto del informe editable con clic directo sobre la vista previa.
-// No controlado a propósito: el estado se confirma al salir del campo (blur)
-// para que el cursor no salte mientras se escribe.
-function InlineText({ value, fallback, onCommit, multiline = false, editKey }: { value: string; fallback: string; onCommit: (next: string) => void; multiline?: boolean; editKey: string }) {
-  return <span
-    key={editKey}
-    className="inline-editable"
-    contentEditable
-    suppressContentEditableWarning
-    role="textbox"
-    aria-multiline={multiline}
-    spellCheck={false}
-    title={t("Haz clic para editar")}
-    onKeyDown={(event) => {
-      if (!multiline && event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); }
-      if (event.key === "Escape") { event.currentTarget.textContent = value || fallback; event.currentTarget.blur(); }
-    }}
-    onBlur={(event) => {
-      const next = (event.currentTarget.innerText ?? "").replace(/\n{3,}/g, "\n\n").trim();
-      onCommit(next === fallback.trim() ? "" : next);
-    }}
-  >{value || fallback}</span>;
-}
-
-function profileFromReport(report: PlayerReport | null): TransfermarktProfile {
-  return {
-    sourceUrl: "",
-    name: report?.player ?? "",
-    number: "",
-    playerImage: "",
-    clubLogo: "",
-    leagueLogo: "",
-    club: report?.team ?? "",
-    league: "",
-    marketValue: report?.marketValue === "—" ? "" : report?.marketValue ?? "",
-    birthDate: "",
-    age: report?.age === "—" ? "" : report?.age ?? "",
-    birthPlace: "",
-    citizenship: report?.passport === "—" ? "" : report?.passport ?? "",
-    height: "",
-    position: report?.position === "—" ? "" : report?.position ?? "",
-    foot: report?.foot === "—" ? "" : report?.foot ?? "",
-    agent: "",
-    nationalTeam: "",
-    capsGoals: "",
-    contract: report?.contract === "—" ? "" : report?.contract ?? "",
-    joined: "",
-    lastUpdate: "",
-  };
-}
-
-function ReportImage({ src, alt, className }: { src: string; alt: string; className: string }) {
-  // Los recursos se cargan desde Transfermarkt o desde archivos locales elegidos por el usuario.
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img src={src} alt={alt} className={className} />;
-}
-
-function blobToDataUrl(blob: Blob) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result ?? ""));
-    reader.onerror = () => reject(new Error(t("No se pudo convertir la imagen procesada.")));
-    reader.readAsDataURL(blob);
-  });
-}
+/** Los rótulos que la ficha pone sola; cualquier otro lo escribió el usuario y se respeta. */
+const ETIQUETAS_DE_BASE = ["BASE ANALIZADA", "BASES ANALIZADAS"];
 
 export default function ScoutStudio() {
   const [lang, setLang] = useState<Lang>("es");
@@ -364,7 +169,8 @@ export default function ScoutStudio() {
   const paginaVisible = (pagina: ReportPage) => (printRun ? printRun.includes(pagina) : reportPage === pagina);
   /** Si debe existir en el DOM: ya se visitó, o entra en la impresión. */
   const paginaMontada = (pagina: ReportPage) => paginasAbiertas.includes(pagina) || Boolean(printRun?.includes(pagina));
-  const claseHoja = (pagina: ReportPage) => `legal-page-shell${paginaVisible(pagina) ? "" : " is-hidden"}`;
+  // `hoja-N` dice de qué página es cada hoja, para saber al imprimir cuáles están vacías.
+  const claseHoja = (pagina: ReportPage) => `legal-page-shell hoja-${pagina}${paginaVisible(pagina) ? "" : " is-hidden"}`;
   // Cavalry y Maldonado son encargos distintos: comparten los datos cargados
   // pero no el flujo. El espacio elegido decide qué pestañas existen.
   const [espacio, setEspacio] = useState<"cavalry" | "maldonado">("cavalry");
@@ -380,11 +186,15 @@ export default function ScoutStudio() {
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const [printPages, setPrintPages] = useState<ReportPage[]>([CARD_PAGE, SIMILARITY_PAGE, FIRST_VISUAL_PAGE]);
   const [printRun, setPrintRun] = useState<ReportPage[] | null>(null);
-  // El encaje de la ficha ampliada: con qué equipo se mide (vacío, Cavalry) y
-  // si su hoja va en el PDF. Fuera por defecto: un informe que sale del club
-  // no siempre debe decir para quién se mira al jugador. Se recuerda.
-  const [equipoEncaje, setEquipoEncaje] = useState("");
-  const [pdfConEncaje, setPdfConEncaje] = useState(false);
+  /*
+   * Las hojas que hoy saldrían en blanco: Entre ligas sin jugador de
+   * referencia, Carreras sin carreras cargadas, Flujo sin liga, Estilo sin
+   * equipo, un Ranking en el que nadie pasa los filtros. Antes se imprimían
+   * igual, como una hoja con la cabecera y nada más. Se miran al abrir el
+   * diálogo: cada página marca su raíz con `data-hoja-vacia`, y las que piden
+   * elegir algo y nunca se abrieron están vacías por fuerza.
+   */
+  const [paginasVacias, setPaginasVacias] = useState<ReportPage[]>([]);
   // Con la temporada anterior por defecto: la ficha mide al jugador con sus dos
   // últimas temporadas cuando existen. Se recuerda; se apaga en Base activa.
   const [conTemporadaAnterior, setConTemporadaAnterior] = useState(true);
@@ -393,6 +203,8 @@ export default function ScoutStudio() {
     try { window.localStorage.setItem("fos-temporada-anterior-v1", encendida ? "si" : "no"); } catch { /* preferencia opcional */ }
   }
   const [sourceDatasets, setSourceDatasets] = useState<SourceDataset[]>([]);
+  /** Cuándo se pulsó Imprimir: el pie de cada hoja dice cuándo se generó el PDF. */
+  const [impresoEl, setImpresoEl] = useState<number | null>(null);
   /**
    * Competiciones apagadas: siguen descargadas pero fuera del cruce.
    *
@@ -474,6 +286,8 @@ export default function ScoutStudio() {
   const [assetSourceStatus, setAssetSourceStatus] = useState("");
   const reportInputRef = useRef<HTMLInputElement>(null);
   const printFileNameRef = useRef("");
+  /** Cada cruce de la base toma un turno; el que llega tarde no pisa al siguiente. */
+  const turnoDelCruce = useRef(0);
 
   // El idioma activo alimenta t()/tf() en todo el árbol; debe fijarse antes
   // de calcular cualquier texto del render.
@@ -510,26 +324,30 @@ export default function ScoutStudio() {
     () => (procedencias.length > 1 ? origenPorFila(reportRows, procedencias) : null),
     [reportRows, procedencias],
   );
-  const ligasDisponibles = useMemo(
-    () => [...new Set(procedencias.map((x) => x.liga))].sort(alphabeticCollator.compare),
-    [procedencias],
-  );
-  const aniosDisponibles = useMemo(
-    () => [...new Set(procedencias.map((x) => x.anio).filter(Boolean))].sort(),
-    [procedencias],
-  );
-  const [ligaElegida, setLigaElegida] = useState("TODAS");
-  const [anioElegido, setAnioElegido] = useState(0);
 
   /*
    * A quién se puede elegir. Sale de los filtros globales, así que acotar por
    * liga en el ranking deja también acotado el selector de club de la ficha:
    * es la misma pregunta y ahora tiene una sola respuesta.
    */
-  const jugadoresVisibles = useMemo(
-    () => players.filter((player) => base.pasaFiltros(player.index)),
-    [players, base],
-  );
+  /*
+   * Con un año elegido, cada jugador aparece con el club de ESE año, no con el
+   * último: quien cambió de equipo salía en la lista de su club nuevo aunque
+   * se estuviera mirando la temporada anterior.
+   */
+  const jugadoresVisibles = useMemo(() => {
+    const { anio, liga } = base.filtros;
+    return players.filter((player) => base.pasaFiltros(player.index)).map((player) => {
+      if (!anio && liga === "TODAS") return player;
+      // La temporada más reciente que encaja con el filtro: con solo la liga,
+      // la última suya en esa liga (quien pasó de la USL a la MLS Next Pro
+      // sale, filtrando por la USL, con su club de la USL).
+      const temporada = temporadasDeFila(reportRows[player.index])
+        .find((t) => (!anio || inicioDe(t) === anio) && (liga === "TODAS" || t.ligas.includes(liga)));
+      const equipo = temporada ? (liga !== "TODAS" ? temporada.equipoPorLiga[liga] : "") || temporada.equipo : "";
+      return equipo ? { ...player, team: equipo } : player;
+    });
+  }, [players, base, reportRows]);
 
   const teams = useMemo(
     () => [...new Set(jugadoresVisibles.map((player) => player.team))].sort(alphabeticCollator.compare),
@@ -541,7 +359,17 @@ export default function ScoutStudio() {
    * solo los suyos, cada uno con su escudo (con todas serían 250 escudos
    * que pedir de golpe, y el plan gratis de API-Football no da para eso).
    */
-  const ligaDeFila = (indice: number) => base.procedencia?.[indice]?.ligas[0] ?? base.competiciones[0]?.liga ?? "";
+  // La liga con la que se agrupa a un jugador en el menú de clubes: la del
+  // filtro si la tiene, la de ese año si hay año elegido, y si no la primera.
+  const ligaDeFila = (indice: number) => {
+    const ligas = base.procedencia?.[indice]?.ligas ?? [];
+    if (base.filtros.liga !== "TODAS" && ligas.includes(base.filtros.liga)) return base.filtros.liga;
+    if (base.filtros.anio) {
+      const temporada = temporadasDeFila(reportRows[indice]).find((t) => inicioDe(t) === base.filtros.anio);
+      if (temporada?.ligas[0]) return temporada.ligas[0];
+    }
+    return ligas[0] ?? base.competiciones[0]?.liga ?? "";
+  };
   const ligaDeEquipo = useMemo(() => {
     const mapa = new Map<string, string>();
     for (const player of jugadoresVisibles) if (!mapa.has(player.team)) mapa.set(player.team, ligaDeFila(player.index));
@@ -565,68 +393,322 @@ export default function ScoutStudio() {
     [jugadoresVisibles, selectedTeam],
   );
   /*
-   * La temporada anterior, desde el panel. Por defecto el jugador se mide con
-   * todas las temporadas cargadas (la fila fusionada). Con «solo la temporada
-   * actual», el informe se rehace sobre las bases de esa temporada y nada más:
-   * el jugador Y su cohorte, para que la comparación siga siendo entre
-   * iguales. Ese cruce aparte solo se calcula cuando se pide.
+   * Qué temporada del jugador se mira, y cuáles anteriores se incluyen.
+   *
+   * Antes la ficha miraba siempre su última temporada y, como anterior, la
+   * siguiente de la lista: con un año más viejo elegido en el filtro seguía
+   * enseñando 2026 y 2025. Ahora la de referencia es la que pida el filtro de
+   * año o el selector de la ficha —entre TODAS las temporadas en que aparece
+   * en las bases cargadas—, y la anterior es la previa a esa.
+   *
+   * El informe se rehace sobre las bases de esas temporadas y nada más —el
+   * jugador Y su cohorte—, para que la comparación siga siendo entre iguales.
+   * Si lo pedido coincide con todo lo cargado, sirve la fila fusionada y no
+   * se recalcula nada.
    */
-  const [soloTemporadaActual, setSoloTemporadaActual] = useState(false);
+  /** La temporada elegida a mano y con qué filtro de año se eligió: si el filtro cambia, manda el filtro. */
+  const [temporadaElegida, setTemporadaElegida] = useState<{ anio: number; conFiltro: string } | null>(null);
   const filaElegida = reportRows[selectedPlayer];
   const temporadasDeLaFila = temporadasDeFila(filaElegida);
-  const anioActualDelJugador = temporadasDeLaFila.length > 1 ? temporadasDeLaFila[0].anio : null;
-  const cruceDeUnaTemporada = useMemo(() => {
-    if (!soloTemporadaActual || anioActualDelJugador === null) return null;
-    const bases = sourceDatasets.filter((dataset) => dataset.season === anioActualDelJugador && !ligasApagadas.includes(dataset.fileName));
-    if (!bases.length) return null;
-    try { return aggregateDatasets(bases).rows; } catch { return null; }
-  }, [soloTemporadaActual, anioActualDelJugador, sourceDatasets, ligasApagadas]);
-  const indiceEnUnaTemporada = useMemo(() => {
-    if (!cruceDeUnaTemporada || !filaElegida) return -1;
+  const indiceDeReferencia = (() => {
+    if (temporadaElegida && temporadaElegida.conFiltro === `${base.filtros.liga}|${base.filtros.anio}`) {
+      const elegida = temporadasDeLaFila.findIndex((temporada) => temporada.anio === temporadaElegida.anio);
+      if (elegida >= 0) return elegida;
+    }
+    const { anio, liga } = base.filtros;
+    if (anio || liga !== "TODAS") {
+      const delFiltro = temporadasDeLaFila.findIndex((temporada) => (!anio || inicioDe(temporada) === anio)
+        && (liga === "TODAS" || temporada.ligas.includes(liga)));
+      if (delFiltro >= 0) return delFiltro;
+    }
+    return 0;
+  })();
+  const temporadaDeReferencia = temporadasDeLaFila[indiceDeReferencia] ?? null;
+  /*
+   * Se pueden elegir varias anteriores. Por defecto entra la más reciente de
+   * la base, y las nuevas se suman sin sustituirla. La selección se recuerda
+   * por jugador y año de referencia en este navegador.
+   */
+  const claveDelJugador = `${String(filaElegida?.Player ?? "")}|${String(filaElegida?.["Birth date"] ?? "")}`;
+  const [seleccionesPrevias, setSeleccionesPrevias] = useState<Record<string, string[]>>({});
+  const contextoDeTemporadas = `${claveDelJugador}|${temporadaDeReferencia ? inicioDe(temporadaDeReferencia) : 0}`;
+  const inicioDeReferencia = temporadaDeReferencia ? inicioDe(temporadaDeReferencia) : 0;
+  /*
+   * Las añadidas a mano o desde una fila de Wyscout traen números de temporada:
+   * la ficha las enseña; los años que alimentan el radar salen de las bases.
+   */
+  const [temporadasAMano, setTemporadasAMano] = useState<Record<string, TemporadaAMano[]>>({});
+  const seleccionDeTemporadas = temporadasDeFicha(temporadaDeReferencia, temporadasDeLaFila,
+    temporadasAMano[claveDelJugador] ?? [], seleccionesPrevias[contextoDeTemporadas]);
+  const soloTemporadaActual = seleccionDeTemporadas.anteriores.length === 0;
+  // Las barras conservan una sola marca: la anterior con métricas más reciente de las elegidas.
+  const temporadaPrevia = seleccionDeTemporadas.anteriores.find((temporada) => !temporada.aMano) ?? null;
+  const aniosDelInforme = seleccionDeTemporadas.anios;
+  function cambiarSeleccionDeTemporadas(cambiar: (claves: string[]) => string[]) {
+    setSeleccionesPrevias((anteriores) => {
+      const siguiente = { ...anteriores, [contextoDeTemporadas]: cambiar(anteriores[contextoDeTemporadas] ?? seleccionDeTemporadas.seleccion) };
+      try { window.localStorage.setItem("fos-scout-temporadas-incluidas-v1", JSON.stringify(siguiente)); } catch { /* sigue en esta sesión */ }
+      return siguiente;
+    });
+  }
+  function incluirTemporada(clave: string) {
+    cambiarSeleccionDeTemporadas((claves) => [...new Set([...claves, clave])]);
+  }
+  const basesActivas = useMemo(() => sourceDatasets.filter((dataset) => !ligasApagadas.includes(dataset.fileName)), [sourceDatasets, ligasApagadas]);
+  const claveDelCruce = aniosDelInforme.length > 0 && basesActivas.some((dataset) => !aniosDelInforme.includes(dataset.season))
+    ? aniosDelInforme.join(",") : "";
+  const cruceDeTemporadas = useCruceDeAnios(basesActivas, claveDelCruce);
+  const indiceEnElCruce = useMemo(() => {
+    if (!cruceDeTemporadas || !filaElegida) return -1;
     const nombre = String(filaElegida.Player ?? "");
     const nacimiento = String(filaElegida["Birth date"] ?? "");
-    return cruceDeUnaTemporada.findIndex((fila) => String(fila.Player ?? "") === nombre
+    return cruceDeTemporadas.findIndex((fila) => String(fila.Player ?? "") === nombre
       && (!nacimiento || !fila["Birth date"] || String(fila["Birth date"]) === nacimiento));
-  }, [cruceDeUnaTemporada, filaElegida]);
-  const filasDelInforme = cruceDeUnaTemporada && indiceEnUnaTemporada >= 0 ? cruceDeUnaTemporada : reportRows;
-  const indiceDelInforme = cruceDeUnaTemporada && indiceEnUnaTemporada >= 0 ? indiceEnUnaTemporada : selectedPlayer;
+  }, [cruceDeTemporadas, filaElegida]);
+  const filasDelInforme = cruceDeTemporadas && indiceEnElCruce >= 0 ? cruceDeTemporadas : reportRows;
+  const indiceDelInforme = cruceDeTemporadas && indiceEnElCruce >= 0 ? indiceEnElCruce : selectedPlayer;
+  /*
+   * La ficha ampliada y las páginas visuales enseñan UNA temporada —la de
+   * referencia, por defecto la última—, no la suma: sus mapas son de los
+   * partidos de esa temporada, y con la fila fusionada los minutos y las
+   * familias mezclaban dos clubes y dos ligas. Solo se calcula si alguna de
+   * esas páginas está abierta.
+   */
+  const aniosAbiertos = paginasAbiertas.join(",");
+  const anioDeReferencia = temporadaDeReferencia?.anio ?? null;
+  const conVariasTemporadas = temporadasDeLaFila.length > 1;
+  const conPiezas = aniosAbiertos.split(",").map(Number).some((pagina) => pagina === SNAPSHOT_PAGE || pagina >= FIRST_VISUAL_PAGE && pagina < CONTEXT_PAGE);
+  const cruceDeLaTemporada = useCruceDeAnios(basesActivas, conPiezas && anioDeReferencia !== null && conVariasTemporadas ? String(anioDeReferencia) : "");
+  const indiceEnLaTemporada = useMemo(() => {
+    if (!cruceDeLaTemporada || !filaElegida) return -1;
+    const nombre = String(filaElegida.Player ?? "");
+    const nacimiento = String(filaElegida["Birth date"] ?? "");
+    return cruceDeLaTemporada.findIndex((fila) => String(fila.Player ?? "") === nombre
+      && (!nacimiento || !fila["Birth date"] || String(fila["Birth date"]) === nacimiento));
+  }, [cruceDeLaTemporada, filaElegida]);
+  /** Si SkillCorner no publica su liga en la temporada que se mira, o solo sus físicos: la ficha lo dice. */
+  const avisoSc = useMemo(() => {
+    if (!temporadaDeReferencia) return "";
+    const aviso = avisoSkillcorner(basesActivas, temporadaDeReferencia.ligas, temporadaDeReferencia.etiqueta, String(filasDelInforme[indiceDelInforme]?.["Data sources"] ?? ""));
+    return aviso ? textoDeAvisoSkillcorner(aviso) : "";
+    // lang: el texto cambia de idioma.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [temporadaDeReferencia, basesActivas, filasDelInforme, indiceDelInforme, lang]);
+  const filasDeLasPiezas = cruceDeLaTemporada && indiceEnLaTemporada >= 0 ? cruceDeLaTemporada : reportRows;
+  const indiceDeLasPiezas = cruceDeLaTemporada && indiceEnLaTemporada >= 0 ? indiceEnLaTemporada : selectedPlayer;
+  /** Un jugador de las filas de las piezas, en la base entera (para abrir su ficha). */
+  const enLaBase = (indice: number) => {
+    if (filasDeLasPiezas === reportRows) return indice;
+    const fila = filasDeLasPiezas[indice];
+    const nombre = String(fila?.Player ?? "");
+    const nacimiento = String(fila?.["Birth date"] ?? "");
+    return reportRows.findIndex((otra) => String(otra.Player ?? "") === nombre && (!nacimiento || !otra["Birth date"] || String(otra["Birth date"]) === nacimiento));
+  };
+  /*
+   * Contra quién se mide la ficha. Por defecto, contra los de su puesto en su
+   * misma liga y temporada: con dieciséis ligas cargadas, un jugador de la CPL
+   * cambiaba 6 puntos de media —y hasta 40 en una métrica— según qué más
+   * hubiera en la base, y el número dejaba de ser suyo. El nivel de la liga
+   * se dice aparte, junto al índice. Con una sola competición cargada las dos
+   * opciones son lo mismo y no se ofrece elegir.
+   */
+  const [medirContra, setMedirContra] = useState<"liga" | "todas">("liga");
+  useEffect(() => {
+    try { if (window.localStorage.getItem("fos-medir-contra-v1") === "todas") setMedirContra("todas"); } catch { /* preferencia opcional */ }
+  }, []);
+  function cambiarMedirContra(valor: "liga" | "todas") {
+    setMedirContra(valor);
+    try { window.localStorage.setItem("fos-medir-contra-v1", valor); } catch { /* preferencia opcional */ }
+  }
+  const clavesDelInforme = useMemo(() => {
+    if (procedencias.length < 2) return null;
+    const claves = origenPorFila(filasDelInforme, procedencias).map((origen) => origen.claves);
+    return new Set(claves.flat()).size > 1 ? claves : null;
+  }, [filasDelInforme, procedencias]);
+  const porLiga = medirContra === "liga" && clavesDelInforme ? { clavesPorFila: clavesDelInforme } : undefined;
+  // Lo mismo para la Ficha ampliada y las piezas de Visuales, que arman su
+  // grupo sobre las filas de la temporada que se mira.
+  // Las ligas de cada fila, se mida como se mida: el Top 10 y los parecidos de
+  // la Ficha ampliada se acotan a su liga por defecto.
+  const ligasDeLasPiezas = useMemo(
+    () => (procedencias.length ? origenPorFila(filasDeLasPiezas, procedencias).map((origen) => origen.claves) : null),
+    [procedencias, filasDeLasPiezas],
+  );
+  const clavesDeLasPiezas = useMemo(() => {
+    if (medirContra !== "liga" || procedencias.length < 2) return null;
+    return origenPorFila(filasDeLasPiezas, procedencias).map((origen) => origen.claves);
+  }, [medirContra, procedencias, filasDeLasPiezas]);
   const report = useMemo(
     () => {
       // El perfil solo se conoce tras construir el informe, y la selección se
       // guarda por perfil: se resuelve primero el perfil y se rehace únicamente
       // si ese perfil tiene métricas elegidas a mano.
-      const base = buildPlayerReport(filasDelInforme, indiceDelInforme, minimumMinutes, cohort);
+      /*
+       * Con `rescate`: en la ficha se mira a una persona, y un jugador con
+       * minutos no debe quedarse en blanco por algo que no es suyo —que la
+       * base no le registre posición, que nadie de su puesto llegue al
+       * mínimo, o que su fila solo traiga físicos—. El informe dice cómo se
+       * consiguió el radar y la ficha lo escribe al pie.
+       */
+      const medir = (lente: string, elegidas?: string[]) => (
+        buildPlayerReport(filasDelInforme, indiceDelInforme, minimumMinutes, lente, elegidas, { rescate: true, porLiga })
+      );
+      let base = medir(cohort);
+      let lente = cohort;
+      // Una cohorte forzada que no tiene nada que decir de este jugador —se
+      // quedó puesta "Porteros" y ahora se mira a un extremo— no debe dejarlo
+      // vacío: se vuelve a la automática y se avisa.
+      if (base && !base.metrics.length && cohort !== "AUTO") {
+        const automatica = medir("AUTO");
+        if (automatica?.metrics.length) { base = { ...automatica, cohorteDescartada: cohort }; lente = "AUTO"; }
+      }
       const picks = base ? metricPicks[base.cohort] : undefined;
       if (!base || !picks) return base;
-      return buildPlayerReport(filasDelInforme, indiceDelInforme, minimumMinutes, cohort, picks) ?? base;
+      // Lo mismo con las métricas elegidas a mano: se guardan por perfil y
+      // sobreviven al cambio de base, así que pueden no existir en la que hay
+      // cargada ahora. Si no casa ninguna, manda el set del perfil.
+      const conElegidas = medir(lente, picks);
+      if (!conElegidas?.metrics.length) return { ...base, seleccionDescartada: true };
+      return base.cohorteDescartada ? { ...conElegidas, cohorteDescartada: base.cohorteDescartada } : conElegidas;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filasDelInforme, indiceDelInforme, minimumMinutes, cohort, lang, metricPicks],
+    [filasDelInforme, indiceDelInforme, minimumMinutes, cohort, lang, metricPicks, medirContra, clavesDelInforme],
   );
   /*
-   * Qué recomendar cuando el jugador no tiene temporada anterior en la base:
-   * la de su liga en StatsBomb, si existe. Si ya está cargada y él no sale,
-   * jugó en otra parte, y se dice.
+   * El nivel de la liga donde jugó, junto al índice, y ese índice llevado a la
+   * CPL con la regla calibrada en lib/nivelDeLiga. Solo en Cavalry: la mesa de
+   * Maldonado tiene su propio descuento. La equivalencia solo se da cuando el
+   * índice se midió dentro de su liga; medido contra la mezcla de todas, ya
+   * lleva dentro una parte del nivel y ajustarlo otra vez lo contaría dos.
    */
-  const temporadaRecomendada = useMemo(() => {
-    if (temporadasDeLaFila.length !== 1 || !catalogoSb.length) return null;
-    const fuente = fuenteStatsbomb(filaElegida?.["Data sources"]);
-    if (!fuente) return null;
-    const actual = catalogoSb.find((competicion) => competicion.name === fuente.liga && String(competicion.season) === fuente.temporada);
-    const previa = actual ? temporadaAnterior(catalogoSb, actual) : undefined;
-    if (!previa) return null;
-    return { competicion: previa, cargada: sourceDatasets.some((dataset) => dataset.fileName === `StatsBomb · ${previa.name} ${previa.season}`) };
-  }, [temporadasDeLaFila.length, catalogoSb, filaElegida, sourceDatasets]);
+  const [feedOpta, setFeedOpta] = useState<EntradaOpta[] | null>(null);
+  useEffect(() => {
+    if (espacio !== "cavalry" || feedOpta) return;
+    let vivo = true;
+    void fetchOptaLeagueMeta().then((feed) => { if (vivo && feed) setFeedOpta(feed); });
+    return () => { vivo = false; };
+  }, [espacio, feedOpta]);
+  const nivelDelRanking = useMemo(() => (espacio === "cavalry" ? { feed: feedOpta, referencia: LIGA_DE_REFERENCIA } : null), [espacio, feedOpta]);
+  const nivelDeLaFicha = useMemo(() => {
+    if (!report || espacio !== "cavalry") return null;
+    const temporadas = temporadasDeFila(filasDelInforme[indiceDelInforme]);
+    const tramos = temporadas.flatMap((temporada) => temporada.ligas.map((liga) => ({ liga, minutos: temporada.minutos / temporada.ligas.length })));
+    const ligas = [...new Set(tramos.map((tramo) => tramo.liga))];
+    const niveles = ligas.map((liga) => nivelDeLiga(feedOpta, liga));
+    if (!ligas.length || niveles.some((nivel) => !nivel)) return null;
+    const referencia = nivelDeLiga(feedOpta, LIGA_DE_REFERENCIA);
+    const rating = ratingDeTramos(tramos, feedOpta);
+    const medidoEnSuLiga = clavesDelInforme ? report.frente?.modo === "liga" : true;
+    const enLaReferencia = ligas.length === 1 && ligas[0] === LIGA_DE_REFERENCIA;
+    const equivalente = referencia && rating !== null && medidoEnSuLiga && !enLaReferencia
+      ? indiceANivel(report.score, rating, referencia.rating) : null;
+    return {
+      niveles: niveles as NonNullable<(typeof niveles)[number]>[],
+      referencia,
+      equivalente,
+      enVivo: niveles.every((nivel) => nivel?.enVivo) && (referencia?.enVivo ?? true),
+    };
+  }, [report, espacio, filasDelInforme, indiceDelInforme, feedOpta, clavesDelInforme]);
+  /*
+   * Temporadas anteriores que se pueden cargar de StatsBomb: las de las ligas
+   * donde aparece el jugador, más viejas que la de referencia y aún sin
+   * cargar. La primera de la liga de la referencia es la recomendada. Para
+   * cualquier otra liga está "Añadir otra manualmente", con todo el catálogo.
+   */
+  const catalogoAnterior = useMemo(() => {
+    if (!temporadaDeReferencia || !inicioDeReferencia) return [];
+    return catalogoSb
+      .filter((competicion) => competicion.hasMatches !== false
+        && anioDeInicio(String(competicion.season)) > 0 && anioDeInicio(String(competicion.season)) < inicioDeReferencia
+        && !sourceDatasets.some((dataset) => dataset.fileName === `StatsBomb · ${competicion.name} ${competicion.season}`))
+      .sort((a, b) => String(b.season).localeCompare(String(a.season), "en", { numeric: true }));
+  }, [catalogoSb, temporadaDeReferencia, inicioDeReferencia, sourceDatasets]);
+  const [previaManual, setPreviaManual] = useState<{ jugador: string; elegida: string } | null>(null);
+  const [pedidaAlCatalogo, setPedidaAlCatalogo] = useState<{ jugador: string; competicion: ApiCompetition } | null>(null);
+  const manualAbierto = previaManual?.jugador === claveDelJugador;
+  // La que se pidió y se cargó, pero en la que el jugador no sale.
+  const pedidaSinJugador = pedidaAlCatalogo?.jugador === claveDelJugador && !reportLoading
+    && sourceDatasets.some((dataset) => dataset.fileName === `StatsBomb · ${pedidaAlCatalogo.competicion.name} ${pedidaAlCatalogo.competicion.season}`)
+    && !temporadasDeLaFila.some((temporada) => temporada.anio === extractSeason(String(pedidaAlCatalogo.competicion.season))
+      && temporada.ligas.includes(pedidaAlCatalogo.competicion.name))
+    ? pedidaAlCatalogo.competicion : null;
 
-  /** Añade una temporada de StatsBomb a la base sin perder al jugador que se está mirando. */
-  async function sumarTemporada(competicion: ApiCompetition) {
+  /** Añade una temporada de StatsBomb sin reemplazar las que ya estaban elegidas. */
+  async function cargarTemporadaAnterior(competicion: ApiCompetition) {
+    incluirTemporada(`base:${extractSeason(String(competicion.season))}`);
+    setPedidaAlCatalogo({ jugador: claveDelJugador, competicion });
+    setPreviaManual(null);
+    await sumarTemporada(competicion);
+  }
+
+  useEffect(() => {
+    try {
+      const leido = JSON.parse(window.localStorage.getItem(CLAVE_TEMPORADAS_A_MANO) ?? "null") as Record<string, TemporadaAMano[]> | null;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (leido && typeof leido === "object") setTemporadasAMano(leido);
+    } catch { /* sin nada guardado */ }
+  }, []);
+  useEffect(() => {
+    try {
+      const leido: unknown = JSON.parse(window.localStorage.getItem("fos-scout-temporadas-incluidas-v1") ?? "null");
+      if (leido && typeof leido === "object" && !Array.isArray(leido)) {
+        const validas = Object.entries(leido).filter((entrada): entrada is [string, string[]] =>
+          Array.isArray(entrada[1]) && entrada[1].every((clave: unknown) => typeof clave === "string"));
+        setSeleccionesPrevias(Object.fromEntries(validas));
+      }
+    } catch { /* sin selección guardada */ }
+  }, []);
+  function guardarTemporadasAMano(siguiente: Record<string, TemporadaAMano[]>) {
+    setTemporadasAMano(siguiente);
+    try { window.localStorage.setItem(CLAVE_TEMPORADAS_A_MANO, JSON.stringify(siguiente)); } catch { /* sigue en memoria esta sesión */ }
+  }
+  /** Guarda otra etapa y la suma a las elegidas, también al añadir otra liga de un año anterior. */
+  function anadirTemporadaAMano(datos: DatosDeTemporada) {
+    const nueva = nuevaTemporadaAMano(datos);
+    const suyas = (temporadasAMano[claveDelJugador] ?? []).filter((temporada) => temporada.id !== nueva.id);
+    guardarTemporadasAMano({ ...temporadasAMano, [claveDelJugador]: [...suyas, nueva] });
+    setPreviaManual(null);
+    if (anioDeInicio(nueva.etiqueta) === inicioDeReferencia) return;
+    incluirTemporada(`mano:${nueva.id}`);
+  }
+  function quitarTemporadaAMano(id: string) {
+    const suyas = (temporadasAMano[claveDelJugador] ?? []).filter((temporada) => temporada.id !== id);
+    const { [claveDelJugador]: _quitado, ...resto } = temporadasAMano;
+    void _quitado;
+    guardarTemporadasAMano(suyas.length ? { ...resto, [claveDelJugador]: suyas } : resto);
+    cambiarSeleccionDeTemporadas((claves) => claves.filter((clave) => clave !== `mano:${id}`));
+  }
+  /*
+   * Sugerencias para la liga de una temporada añadida a mano: cualquier liga
+   * del mundo. Las del ranking de Opta (454 ligas de 188 países, con su país
+   * al lado), más las del catálogo y las del jugador. El campo admite
+   * cualquier otra escrita a mano.
+   */
+  const ligasSugeridas = useMemo(() => {
+    const todas = new Map<string, { nombre: string; pais?: string }>();
+    const sumar = (nombre: string | undefined, pais?: string) => {
+      const limpio = (nombre ?? "").trim();
+      if (limpio && !todas.has(`${limpio}|${pais ?? ""}`)) todas.set(`${limpio}|${pais ?? ""}`, { nombre: limpio, pais });
+    };
+    for (const liga of feedOpta ?? []) sumar(liga.leagueName, liga.countryName);
+    const conPais = new Set([...todas.values()].map((liga) => liga.nombre));
+    for (const nombre of [...catalogoSb.map((competicion) => competicion.name), ...Object.keys(LIGAS_CON_NIVEL), ...temporadasDeLaFila.flatMap((temporada) => temporada.ligas)]) {
+      if (!conPais.has(nombre)) sumar(nombre);
+    }
+    return [...todas.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, "es") || (a.pais ?? "").localeCompare(b.pais ?? "", "es"));
+  }, [feedOpta, catalogoSb, temporadasDeLaFila]);
+
+  /** Añade temporadas de StatsBomb a la base sin perder al jugador que se está mirando. */
+  async function sumarTemporada(...competiciones: ApiCompetition[]) {
     const nombre = String(filaElegida?.Player ?? "");
     const nacimiento = String(filaElegida?.["Birth date"] ?? "");
+    const faltan = competiciones.filter((competicion) => !sourceDatasets.some((dataset) => dataset.fileName === `StatsBomb · ${competicion.name} ${competicion.season}`));
+    if (!faltan.length) return;
     setReportLoading(true);
     setReportError("");
     try {
-      const nueva = await fetchStatsbombDataset(competicion);
-      applyDatasets([...sourceDatasets, nueva], (filas) => {
+      const nuevas = await Promise.all(faltan.map((competicion) => fetchStatsbombDataset(competicion)));
+      await applyDatasets([...sourceDatasets, ...nuevas], (filas) => {
         const indice = filas.findIndex((fila) => String(fila.Player ?? "") === nombre
           && (!nacimiento || !fila["Birth date"] || String(fila["Birth date"]) === nacimiento));
         return indice >= 0 ? indice : selectedPlayer;
@@ -637,9 +719,58 @@ export default function ScoutStudio() {
       setReportLoading(false);
     }
   }
+  /*
+   * Los años que se pueden pedir en el filtro sin tenerlos cargados: los del
+   * catálogo de StatsBomb para la liga elegida (o para todas, si no hay una).
+   * Antes el menú solo enseñaba lo cargado —dos años con "todas las ligas"—
+   * y para mirar una temporada más vieja había que ir a Base activa.
+   */
+  const ligaDelFiltro = base.filtros.liga !== "TODAS" ? base.filtros.liga : null;
+  const aniosDelCatalogo = useMemo(() => [...new Set(catalogoSb
+    .filter((competicion) => competicion.hasMatches !== false && (!ligaDelFiltro || competicion.name === ligaDelFiltro))
+    .map((competicion) => anioDeInicio(String(competicion.season))))]
+    .filter((anio) => anio > 0 && !base.opciones.anios.includes(anio))
+    .sort((a, b) => b - a), [catalogoSb, ligaDelFiltro, base.opciones.anios]);
+
+  /** Elige un año en el filtro; si no está cargado, lo carga antes (con su temporada anterior si hay liga elegida). */
+  async function elegirAnio(anio: number) {
+    if (!anio || base.opciones.anios.includes(anio)) { base.cambiarFiltros({ anio }); return; }
+    if (ligaDelFiltro) {
+      const competicion = catalogoSb.find((c) => c.name === ligaDelFiltro && c.hasMatches !== false && anioDeInicio(String(c.season)) === anio);
+      if (!competicion) return;
+      const previa = temporadaAnterior(catalogoSb, competicion);
+      await sumarTemporada(...[competicion, previa].filter((c): c is ApiCompetition => Boolean(c)));
+    } else {
+      await cargarTodasLasLigas(String(anio), true);
+    }
+    base.cambiarFiltros({ anio });
+  }
+
   // Bloques de métricas del desglose: solo las categorías con datos. El número
   // de columnas se ajusta al total para no dejar una categoría suelta al final
   // (5 bloques → 3 arriba y 2 centradas abajo, 6 → 3 y 3).
+  /*
+   * La marca de la temporada anterior en cada barra del desglose: el
+   * percentil que tuvo en la anterior, sola, medido igual —mismo puesto,
+   * mismas métricas y el mismo criterio de liga—. Solo con una anterior de
+   * la base: las añadidas a mano no traen métricas.
+   */
+  const anioDeLaPrevia = temporadaPrevia?.anio ?? null;
+  const cruceDeLaPrevia = useCruceDeAnios(basesActivas, report && anioDeLaPrevia !== null ? String(anioDeLaPrevia) : "");
+  const marcasDeLaPrevia = useMemo(() => {
+    if (!report || !cruceDeLaPrevia || !filaElegida) return null;
+    const nombre = String(filaElegida.Player ?? "");
+    const nacimiento = String(filaElegida["Birth date"] ?? "");
+    const indice = cruceDeLaPrevia.findIndex((fila) => String(fila.Player ?? "") === nombre
+      && (!nacimiento || !fila["Birth date"] || String(fila["Birth date"]) === nacimiento));
+    if (indice < 0) return null;
+    const claves = medirContra === "liga" && procedencias.length > 1 ? origenPorFila(cruceDeLaPrevia, procedencias).map((origen) => origen.claves) : null;
+    const previo = buildPlayerReport(cruceDeLaPrevia, indice, minimumMinutes, report.cohort, report.metrics.map((metric) => metric.label), {
+      rescate: true, porLiga: claves && new Set(claves.flat()).size > 1 ? { clavesPorFila: claves } : undefined,
+    });
+    return previo?.metrics.length ? new Map(previo.metrics.map((metric) => [metric.key, metric.percentile])) : null;
+  }, [report, cruceDeLaPrevia, filaElegida, medirContra, procedencias, minimumMinutes]);
+
   const metricBreakdown = useMemo(() => {
     if (!report) return [];
     return SIMILARITY_METRIC_GROUPS
@@ -647,24 +778,43 @@ export default function ScoutStudio() {
       .filter((entry) => entry.metrics.length > 0);
   }, [report]);
   const metricBreakdownColumns = metricBreakdown.length <= 4 ? Math.max(1, metricBreakdown.length) : 3;
+  /*
+   * Las bases que la ficha firma como "analizadas": las del jugador que se
+   * está mirando y solo de las plataformas que su radar dibuja, no todo lo
+   * cargado. Con las dieciséis ligas dentro, lo otro rotulaba a un extremo de
+   * la CPL como "16 competiciones", que es el fondo contra el que se le mide
+   * —eso ya lo dice el pie— y no de dónde salen sus números.
+   */
+  const basesDeLaFicha = useMemo(() => {
+    // La fila que de verdad se mide: con "solo la temporada actual" es la del
+    // cruce de una temporada, y la etiqueta debe nombrar esa y no las dos.
+    const fuentes = String(filasDelInforme[indiceDelInforme]?.["Data sources"] ?? "");
+    if (!report || !fuentes) return null;
+    const suyas = basesDelRadar(fuentes, sourceDatasets, report.metrics.map((metric) => metric.source ?? "wyscout"));
+    if (!suyas.archivos.length) return null;
+    const titulo = suyas.ligas.length <= 2
+      ? suyas.ligas.map(({ liga, temporada }) => [liga, temporada].filter(Boolean).join(suyas.ligas.length > 1 ? " " : " · ")).join(" + ")
+      : tf("{n} competiciones", { n: suyas.ligas.length });
+    return { titulo, plataformas: suyas.plataformas.join(" + "), cuantas: suyas.archivos.length };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [report, filasDelInforme, indiceDelInforme, sourceDatasets, lang]);
+  /** Por qué el radar está vacío, dicho con la causa y no con una fórmula. */
+  const motivoSinRadar = !report || report.metrics.length ? "" : (
+    report.minutes <= 0
+      ? t("Sin minutos jugados en esta base")
+      : t("La base cargada no trae métricas de este jugador")
+  );
+  /** Lo que el pie de la ficha añade cuando el radar se consiguió por otra vía. */
+  const notaDeRescate = !report?.rescate ? "" : ({
+    "sin-posicion": t("Sin posición registrada en la base: percentiles frente a todos los jugadores de campo."),
+    "sin-minimo": tf("Nadie de su posición llega al mínimo de {m}′: percentiles frente a todos los de su posición.", { m: minimumMinutes }),
+    "solo-disponibles": t("La base solo trae estas métricas para este jugador."),
+  })[report.rescate];
   const dataReady = reportRows.length > 0;
   const profileReady = Boolean(profile.sourceUrl || profile.playerImage || profile.clubLogo || profile.leagueLogo);
   const recipientName = reportRecipientName.trim() || t("Club destinatario");
   const recipientLogoReady = /^https?:\/\/\S+$/i.test(reportRecipientLogoUrl.trim());
 
-  useEffect(() => {
-    try {
-      const guardado = window.localStorage.getItem(CLAVE_FIRMAS);
-      if (guardado) {
-        const leido = JSON.parse(guardado) as Partial<Record<ClaveFirma, Firma>>;
-        setFirmas((actuales) => ({
-          cavalry: { ...actuales.cavalry, ...(leido.cavalry ?? {}) },
-          maldonado: { ...actuales.maldonado, ...(leido.maldonado ?? {}) },
-          temporal: { ...actuales.temporal, ...(leido.temporal ?? {}) },
-        }));
-      }
-    } catch { /* la firma por defecto sigue sirviendo */ }
-  }, []);
 
   const claveFirma: ClaveFirma = firmaTemporal ? "temporal" : espacio;
   const firma = firmas[claveFirma];
@@ -674,8 +824,19 @@ export default function ScoutStudio() {
   function editarFirma(campo: keyof Firma, valor: string) {
     const siguiente = { ...firmas, [claveFirma]: { ...firmas[claveFirma], [campo]: valor } };
     setFirmas(siguiente);
-    try { window.localStorage.setItem(CLAVE_FIRMAS, JSON.stringify(siguiente)); } catch { /* opcional */ }
+    // Con el escudo dentro puede pesar megas: la imagen va a IndexedDB.
+    guardarConImagenes(CLAVE_FIRMAS, siguiente, t("la firma"));
   }
+  /** Lo que leen el pie y la marca de agua de cada hoja. */
+  const firmaDelInforme = useMemo<FirmaDelInforme>(() => {
+    const deClub = claveFirma === "temporal" ? null : ESCUDOS[claveFirma];
+    return {
+      nombre: firma.nombre || FIRMAS_POR_DEFECTO[claveFirma].nombre,
+      cargo: firma.cargo,
+      club: deClub?.nombre ?? "",
+      escudo: deClub && claveFirma !== "temporal" ? firma.escudo || ESCUDOS_INFORME[claveFirma] : "",
+    };
+  }, [firma, claveFirma]);
 
   useEffect(() => {
     try {
@@ -776,6 +937,8 @@ export default function ScoutStudio() {
     if (!printRun) return;
     let cancelled = false;
     document.body.classList.add("print-layout-check");
+    const mostrarLoOculto = ocultarComoAlImprimir();
+    const salirDeLaMedida = () => { document.body.classList.remove("print-layout-check"); mostrarLoOculto(); };
     // En una pestaña en segundo plano requestAnimationFrame no dispara nunca y
     // la exportación se quedaría esperando para siempre: se corre contra un
     // temporizador para que el flujo siempre avance.
@@ -875,7 +1038,7 @@ export default function ScoutStudio() {
         const irreducible = shells.some((shell) => (escalas.get(shell) ?? 1) <= MIN_FIT && overflowRatio(shell) < 1);
         if (irreducible) {
           for (const shell of shells) { shell.style.removeProperty("--print-fit"); delete shell.dataset.printFit; }
-          document.body.classList.remove("print-layout-check");
+          salirDeLaMedida();
           setPrintLayoutError(t("Una página tiene demasiado contenido para la hoja Legal, incluso reduciéndola. Quita algún bloque o acorta el texto."));
           setPrintRun(null);
           setPrintDialogOpen(true);
@@ -884,7 +1047,29 @@ export default function ScoutStudio() {
         const limpiarEscala = () => {
           for (const shell of shells) { shell.style.removeProperty("--print-fit"); delete shell.dataset.printFit; }
         };
-        window.addEventListener("afterprint", limpiarEscala, { once: true });
+        // Los degradados transparentes de Chromium generan máscaras de
+        // luminosidad que algunos visores (Vista rápida/PDFKit) dibujan como
+        // franjas. Solo se aplanan los fondos; texto y gráficos siguen en vector.
+        let restaurarFondos: () => void;
+        try {
+          restaurarFondos = await aplanarFondosDeImpresion(shells);
+        } catch {
+          limpiarEscala();
+          salirDeLaMedida();
+          if (!cancelled) {
+            setPrintLayoutError(t("No se pudo exportar el reporte. Revisa que las imágenes estén disponibles."));
+            setPrintRun(null);
+            setPrintDialogOpen(true);
+          }
+          return;
+        }
+        if (cancelled) { restaurarFondos(); limpiarEscala(); return; }
+        const limpiarExportacion = () => {
+          restaurarFondos();
+          limpiarEscala();
+          window.removeEventListener("afterprint", limpiarExportacion);
+        };
+        window.addEventListener("afterprint", limpiarExportacion, { once: true });
         const previousTitle = document.title;
         const exportTitle = printFileNameRef.current;
         const restoreTitle = () => {
@@ -897,18 +1082,23 @@ export default function ScoutStudio() {
         }
         try {
           window.print();
+        } catch {
+          limpiarExportacion();
+          restoreTitle();
+          setPrintLayoutError(t("No se pudo exportar el reporte. Revisa que las imágenes estén disponibles."));
+          setPrintDialogOpen(true);
         } finally {
           // `afterprint` restaura el título al cerrar el diálogo. El respaldo
           // conserva el nombre el tiempo suficiente en navegadores no bloqueantes.
           window.setTimeout(restoreTitle, 60_000);
         }
-        document.body.classList.remove("print-layout-check");
+        salirDeLaMedida();
         setPrintRun(null);
       })();
     }, 100);
     return () => {
       cancelled = true;
-      document.body.classList.remove("print-layout-check");
+      salirDeLaMedida();
       window.clearTimeout(timer);
     };
   }, [printRun]);
@@ -922,7 +1112,7 @@ export default function ScoutStudio() {
       const legacy = `fos-scout-reading:${report.player.toLocaleLowerCase("es")}`;
       setReadingOverride(window.localStorage.getItem(key) ?? window.localStorage.getItem(legacy) ?? "");
     } catch { setReadingOverride(""); }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [report?.player, report?.team]);
 
   function updateReadingOverride(value: string) {
@@ -952,17 +1142,17 @@ export default function ScoutStudio() {
     // Purga el diseño guardado de esa página: si se agrega una página nueva
     // con el mismo número, arranca con la plantilla y no con contenido viejo.
     try {
-      const stored = window.localStorage.getItem("fos-scout-page-designer-v1");
-      if (stored) {
-        const saved = JSON.parse(stored) as Record<string, unknown>;
+      const saved = leerConImagenes<Record<string, unknown>>("fos-scout-page-designer-v1");
+      if (saved) {
         delete saved[String(page)];
-        window.localStorage.setItem("fos-scout-page-designer-v1", JSON.stringify(saved));
+        guardarConImagenes("fos-scout-page-designer-v1", saved);
       }
     } catch { /* Sin persistencia no hay nada que purgar. */ }
   }
 
   function startPrint() {
-    if (!printPages.length) return;
+    const imprimibles = printPages.filter((page) => !paginasVacias.includes(page));
+    if (!imprimibles.length) return;
     printFileNameRef.current = reportExportBaseName({
       recipient: recipientName,
       player: report?.player ?? "",
@@ -970,14 +1160,8 @@ export default function ScoutStudio() {
     });
     setPrintLayoutError("");
     setPrintDialogOpen(false);
-    setPrintRun([...printPages].sort((a, b) => a - b));
-  }
-
-  function alternarEncajeEnPdf() {
-    setPdfConEncaje((actual) => {
-      try { window.localStorage.setItem("fos-pdf-encaje-v1", actual ? "no" : "si"); } catch { /* preferencia opcional */ }
-      return !actual;
-    });
+    setImpresoEl(horaActual());
+    setPrintRun([...imprimibles].sort((a, b) => a - b));
   }
 
   function togglePrintPage(page: ReportPage) {
@@ -986,7 +1170,6 @@ export default function ScoutStudio() {
 
   useEffect(() => {
     try { setAiControlsHidden(window.localStorage.getItem("fos-scout-ai-controls-v2") !== "shown"); } catch { /* preferencia opcional */ }
-    try { setPdfConEncaje(window.localStorage.getItem("fos-pdf-encaje-v1") === "si"); } catch { /* preferencia opcional */ }
     try { setConTemporadaAnterior(window.localStorage.getItem("fos-temporada-anterior-v1") !== "no"); } catch { /* preferencia opcional */ }
     try {
       const stored = window.localStorage.getItem("fos-scout-metric-picks-v1");
@@ -998,6 +1181,40 @@ export default function ScoutStudio() {
     if (!reportThemeLoaded) return;
     try { window.localStorage.setItem("fos-scout-report-theme-v1", JSON.stringify(reportTheme)); } catch { /* El diseño continúa activo durante la sesión. */ }
   }, [reportTheme, reportThemeLoaded]);
+
+  /*
+   * Al arrancar se precargan las imágenes guardadas y se mueven a IndexedDB
+   * las que seguían dentro de localStorage. Cuando están en memoria se rehace
+   * el perfil a la vista: si se abrió antes, salió sin foto.
+   */
+  const [almacenListo, setAlmacenListo] = useState(false);
+  const [avisoDeGuardado, setAvisoDeGuardado] = useState("");
+  useEffect(() => {
+    const dejarDeOir = alFallarElGuardado((mensaje) => setAvisoDeGuardado(mensaje));
+    void precargarImagenes().then(() => {
+      migrarImagenesViejas(["fos-transfermarkt:", "fos-scout-page-designer-v1"]);
+      setAlmacenListo(true);
+    });
+    return dejarDeOir;
+  }, []);
+  useEffect(() => {
+    if (!almacenListo) return;
+    const leido = leerConImagenes<Partial<Record<ClaveFirma, Firma>>>(CLAVE_FIRMAS);
+    if (!leido) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setFirmas((actuales) => ({
+      cavalry: { ...actuales.cavalry, ...(leido.cavalry ?? {}) },
+      maldonado: { ...actuales.maldonado, ...(leido.maldonado ?? {}) },
+      temporal: { ...actuales.temporal, ...(leido.temporal ?? {}) },
+    }));
+  }, [almacenListo]);
+  useEffect(() => {
+    if (!almacenListo || !report) return;
+    const restored = restoreProfile(report);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setProfile((actual) => ({ ...restored.profile, ...Object.fromEntries(Object.entries(actual).filter(([, valor]) => Boolean(valor))) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [almacenListo]);
 
   function restoreProfile(nextReport: PlayerReport | null) {
     const base = profileFromReport(nextReport);
@@ -1011,10 +1228,9 @@ export default function ScoutStudio() {
 
   useEffect(() => {
     if (!report?.player || !profileReady) return;
-    try {
-      window.localStorage.setItem(profileStorageKey(report.player, report.team), JSON.stringify(profile));
-    } catch { /* Los recursos grandes pueden superar la cuota local; la sesión sigue funcionando. */ }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Las imágenes van a IndexedDB; si algo no cabe, `alFallarElGuardado` lo dice.
+    guardarConImagenes(profileStorageKey(report.player, report.team), profile, tf("el perfil de {jugador}", { jugador: report.player }));
+     
   }, [profile, profileReady, report?.player, report?.team]);
 
   /**
@@ -1060,12 +1276,104 @@ export default function ScoutStudio() {
     // Apagarlas todas dejaría la plataforma sin nada que mirar.
     if (!activos.length) return;
     setLigasApagadas(siguiente);
-    aplicarActivos(activos);
+    void aplicarActivos(activos).catch((error) => setReportError(error instanceof Error ? error.message : String(error)));
+  }
+
+  /**
+   * Poner liga y temporada a bases cargadas desde archivo.
+   *
+   * Se reescribe su nombre en el inventario y se rehace el cruce con las
+   * encendidas, como al apagar una liga: así la ficha, los filtros y el panel
+   * leen el nombre nuevo, las apagadas siguen apagadas y no vuelve a saltar
+   * la oferta de SkillCorner. Se sigue en el mismo jugador.
+   */
+  async function renombrarBases(archivos: string[], nombre: NombreDeBase) {
+    const actual = reportRows[selectedPlayer];
+    const jugador = String(actual?.Player ?? "");
+    const club = String(actual?.Team ?? "");
+    const cambios = new Map<string, string>();
+    const inventario = sourceDatasets.map((dataset) => {
+      if (!archivos.includes(dataset.fileName)) return dataset;
+      guardarNombre(dataset, nombre);
+      const renombrada = aplicarNombre(dataset, nombre);
+      cambios.set(dataset.fileName, renombrada.fileName);
+      return renombrada;
+    });
+    if (!cambios.size) return;
+    const apagadas = ligasApagadas.map((archivo) => cambios.get(archivo) ?? archivo);
+    setLigasApagadas(apagadas);
+    setSourceDatasets(inventario);
+    if (inventario.length === 1) setReportFileName(inventario[0].fileName.replace(/\.(xlsx|xls|csv)$/i, ""));
+    const activos = inventario.filter((dataset) => !apagadas.includes(dataset.fileName));
+    const turno = ++turnoDelCruce.current;
+    const result = await cruzarEnSegundoPlano(activos);
+    if (turno !== turnoDelCruce.current) return;
+    setReportRows(result.rows);
+    setReportSourceCount(activos.length);
+    const mismo = result.rows.findIndex((fila) => String(fila.Player ?? "") === jugador && String(fila.Team ?? "") === club);
+    const indice = mismo >= 0 ? mismo : result.rows.findIndex((fila) => String(fila.Player ?? "") === jugador);
+    const seleccion = indice >= 0 ? { index: indice, team: String(result.rows[indice].Team ?? "") } : firstPlayerSelection(result.rows);
+    setSelectedTeam(seleccion.team);
+    setSelectedPlayer(seleccion.index);
+  }
+
+  /**
+   * Las bases de archivo (Wyscout) detrás de una temporada del jugador: las
+   * de ese año y esa liga. Las de la API ya traen su nombre y no se tocan:
+   * StatsBomb y su capa de SkillCorner tienen que seguir diciendo lo mismo.
+   * La ficha solo deja nombrar una fila que sale de un único archivo: dos
+   * Excel sin año caen en la misma "temporada" aunque sean dos distintas, y
+   * nombrarlos juntos los dejaría así. Uno a uno se hace en Base activa.
+   */
+  function basesDeArchivoDe(temporada: { anio: number; ligas: string[] } | undefined) {
+    if (!temporada || espacio !== "cavalry") return [];
+    return sourceDatasets.filter((dataset) => dataset.provider !== "statsbomb" && dataset.provider !== "skillcorner"
+      && !ligasApagadas.includes(dataset.fileName)
+      // Sin extensión, como la escribe el cruce en el origen de cada fila.
+      && dataset.season === temporada.anio && temporada.ligas.includes(ligaYAnioDe(dataset.fileName.replace(/\.(xlsx|xls|csv)$/i, "")).liga));
+  }
+
+  /**
+   * La temporada anterior de una base de Wyscout, subida a mano: el archivo
+   * nuevo entra con la liga y la temporada que se escriban, y la base que ya
+   * estaba se renombra si se le cambiaron las suyas. Los dos nombres se
+   * recuerdan para la próxima vez que se suban esos mismos archivos.
+   */
+  async function anadirTemporadaWyscout(archivo: File, anterior: NombreDeBase, nombreDeEsta?: NombreDeBase) {
+    const nombre = String(filaElegida?.Player ?? "");
+    const nacimiento = String(filaElegida?.["Birth date"] ?? "");
+    const deEsta = nombreDeEsta ? basesDeArchivoDe(temporadaDeReferencia ?? undefined).map((dataset) => dataset.fileName) : [];
+    setReportLoading(true);
+    setReportError("");
+    try {
+      const leida = await readWorkbook(archivo);
+      guardarNombre(leida, anterior);
+      const nueva = aplicarNombre(leida, anterior);
+      const inventario = sourceDatasets.map((dataset) => {
+        if (!nombreDeEsta || !deEsta.includes(dataset.fileName)) return dataset;
+        const ahora = nombreActual(dataset);
+        if (ahora.liga === nombreDeEsta.liga.trim() && ahora.temporada === nombreDeEsta.temporada.trim().replace(/\s+/g, "")) return dataset;
+        guardarNombre(dataset, nombreDeEsta);
+        return aplicarNombre(dataset, nombreDeEsta);
+      });
+      await applyDatasets([...inventario, nueva], (filas) => {
+        const indice = filas.findIndex((fila) => String(fila.Player ?? "") === nombre
+          && (!nacimiento || !fila["Birth date"] || String(fila["Birth date"]) === nacimiento));
+        return indice >= 0 ? indice : 0;
+      });
+      if (anioDeInicio(anterior.temporada) < inicioDeReferencia) incluirTemporada(`base:${nueva.season}`);
+    } catch (error) {
+      setReportError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setReportLoading(false);
+    }
   }
 
   /** Rehace el cruce con las bases encendidas, sin tocar el inventario. */
-  function aplicarActivos(activos: SourceDataset[]) {
-    const result = aggregateDatasets(activos);
+  async function aplicarActivos(activos: SourceDataset[]) {
+    const turno = ++turnoDelCruce.current;
+    const result = await cruzarEnSegundoPlano(activos);
+    if (turno !== turnoDelCruce.current) return;
     setReportRows(result.rows);
     setReportSourceCount(activos.length);
     const seleccion = firstPlayerSelection(result.rows);
@@ -1087,7 +1395,7 @@ export default function ScoutStudio() {
     const quedan = sourceDatasets.filter((dataset) => !archivos.includes(dataset.fileName));
     if (!quedan.length) { resetReport(); return; }
     setLigasApagadas((apagadas) => apagadas.filter((archivo) => !archivos.includes(archivo)));
-    applyDatasets(quedan);
+    void applyDatasets(quedan).catch((error) => setReportError(error instanceof Error ? error.message : String(error)));
   }
 
   /**
@@ -1095,8 +1403,19 @@ export default function ScoutStudio() {
    *   sabe. Leerlo del estado no servía: dentro de una carga asíncrona el
    *   estado es el de antes, y el nombre nuevo se pisaba con el viejo.
    */
-  function applyDatasets(datasets: SourceDataset[], seleccionPedida?: number | ((filas: DataRow[]) => number), nombre?: string) {
-    const result = aggregateDatasets(datasets);
+  async function applyDatasets(entrantes: SourceDataset[], seleccionPedida?: number | ((filas: DataRow[]) => number), nombre?: string) {
+    // Una base, una vez. Dos copias del mismo archivo no son dos temporadas:
+    // el cruce las sumaba como si lo fueran y todos los minutos salían dobles.
+    // Si llega repetida, manda la última, que es la más reciente.
+    // Por su archivo original: dos Excel distintos pueden llevar el mismo
+    // nombre de liga y temporada (Wyscout parte las exportaciones grandes).
+    const datasets = [...new Map(entrantes.map((dataset) => [identidadDeBase(dataset), dataset] as const)).values()];
+    // En un Web Worker: con todas las ligas son segundos, y en el hilo de la
+    // pantalla la app se quedaba congelada.
+    const turno = ++turnoDelCruce.current;
+    const result = await cruzarEnSegundoPlano(datasets);
+    // Si mientras tanto se pidió otro cruce, manda ese: este llegó tarde.
+    if (turno !== turnoDelCruce.current) return result;
     // Una búsqueda, para seguir en el mismo jugador cuando el cruce cambia los índices.
     const seleccion = typeof seleccionPedida === "function" ? seleccionPedida(result.rows) : seleccionPedida;
     // Toda base sin datos físicos dispara la oferta de enlace con SkillCorner;
@@ -1125,6 +1444,7 @@ export default function ScoutStudio() {
     setTransfermarktUrl(restored.url);
     setBackgroundRemovalStatus("");
     setAssetSourceStatus("");
+    return result;
   }
 
   /**
@@ -1227,7 +1547,7 @@ export default function ScoutStudio() {
       if (!datasets.length) throw new Error(t("Ninguna competición devolvió jugadores."));
       setCargaTotal(t("Cruzando las bases…"));
       const finales = sumar ? [...sourceDatasets, ...datasets] : datasets;
-      applyDatasets(finales, undefined, tf("Todas las ligas · {anio}", { anio: [...new Set(finales.map((d) => d.season).filter(Boolean))].sort().join(" + ") }));
+      await applyDatasets(finales, undefined, tf("Todas las ligas · {anio}", { anio: [...new Set(finales.map((d) => d.season).filter(Boolean))].sort().join(" + ") }));
       const avisos = [
         fallidas.length ? tf("No se pudieron cargar: {ligas}.", { ligas: fallidas.join(", ") }) : "",
         sinFisicos.length ? tf("Sin datos físicos de SkillCorner (aún no los publica o falló la descarga; vuelve a cargar más tarde): {ligas}.", { ligas: sinFisicos.join(", ") }) : "",
@@ -1289,7 +1609,7 @@ export default function ScoutStudio() {
         : await fetchSkillcornerDataset(competition);
       const previa = await previaPendiente;
       const nuevos = previa ? [dataset, previa] : [dataset];
-      applyDatasets(mode === "append"
+      await applyDatasets(mode === "append"
         ? [...sourceDatasets, ...nuevos.filter((base) => !presentes.has(base.fileName))]
         : nuevos,
       undefined,
@@ -1392,6 +1712,11 @@ export default function ScoutStudio() {
       // debe apuntar a Canadian Premier League); el año exacto pesa más que
       // una temporada que solo lo contiene (2026 vs 2025/2026).
       const baseYears = new Set(datasets.flatMap((dataset) => String(dataset.season ?? "").match(/\d{4}/g) ?? []));
+      // Con la temporada anterior cargada hay dos años en la base, y las dos
+      // temporadas empataban: ganaba la primera de la lista, la vieja, y los
+      // datos físicos iban a la temporada que no se está mirando. La más
+      // reciente pesa un punto más.
+      const latestYear = String(Math.max(0, ...[...baseYears].map(Number)));
       const baseNames = datasets.map((dataset) => dataset.fileName.toLowerCase());
       let best = 0;
       let bestScore = 0;
@@ -1400,6 +1725,7 @@ export default function ScoutStudio() {
         const seasonText = String(competition.season ?? "").trim();
         const years = seasonText.match(/\d{4}/g) ?? [];
         if (years.some((year) => baseYears.has(year))) score += /^\d{4}$/.test(seasonText) ? 3 : 1;
+        if (years.some((year) => year === latestYear)) score += 1;
         const competitionName = (competition.name ?? "").toLowerCase();
         if (competitionName) {
           const words = competitionName.split(/\s+/).filter((word) => word.length >= 4);
@@ -1429,7 +1755,9 @@ export default function ScoutStudio() {
       const scName = dataset.fileName.replace(/\.(xlsx|xls|csv)$/i, "");
       // Un jugador queda "enlazado" cuando sus fuentes incluyen SkillCorner y
       // al menos otra plataforma o archivo.
-      const linked = aggregateDatasets(combined).rows.filter((row) => {
+      // El cruce se hace una vez, en el worker, y de él sale también la cuenta.
+      const cruce = await applyDatasets(combined);
+      const linked = cruce.rows.filter((row) => {
         const sources = String(row["Data sources"] ?? "");
         return sources.includes(scName) && sources.replace(scName, "").replace(/[,\s]/g, "").length > 0;
       }).length;
@@ -1438,7 +1766,6 @@ export default function ScoutStudio() {
       // pero su radar no muestra ni una métrica de SkillCorner.
       const scColumns = dataset.headers.filter((header) => header.includes("(SC)"));
       const filled = scColumns.filter((header) => dataset.rows.some((row) => row[header] !== "" && row[header] !== null && row[header] !== undefined)).length;
-      applyDatasets(combined);
       setScLink({ stage: "done", candidates: scLink.candidates, selection: scLink.selection, linked, total: baseCount, filled, columns: scColumns.length });
     } catch (error) {
       setScLink({ ...scLink, stage: "offer", error: error instanceof Error ? error.message : String(error) });
@@ -1462,7 +1789,7 @@ export default function ScoutStudio() {
     setReportError("");
     try {
       const datasets = await Promise.all(list.map(readWorkbook));
-      applyDatasets(datasets);
+      await applyDatasets(espacio === "cavalry" ? conNombresGuardados(datasets) : datasets);
     } catch (error) {
       setReportError(error instanceof Error ? error.message : t("No se pudieron leer los archivos."));
     } finally {
@@ -1497,7 +1824,10 @@ export default function ScoutStudio() {
   }
 
   function selectPlayer(index: number) {
-    const option = players.find((player) => player.index === index);
+    // El club como sale en la lista filtrada —el de esa liga y año—, y si no
+    // está en ella, el actual. Con el actual, quien jugó la USL con Loudoun
+    // dejaba el selector de club en blanco al filtrar por la USL.
+    const option = jugadoresVisibles.find((player) => player.index === index) ?? players.find((player) => player.index === index);
     if (option) setSelectedTeam(option.team);
     setSelectedPlayer(index);
     const restored = restoreProfile(buildPlayerReport(reportRows, index, minimumMinutes, cohort));
@@ -1527,7 +1857,7 @@ export default function ScoutStudio() {
     // pantalla —la barra es compartida— así que no hay manejador local donde
     // recolocar la selección. La guarda de arriba corta la cadena en cuanto el
     // club elegido vuelve a estar dentro.
-    // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedTeam(jugadoresVisibles[0].team);
     selectPlayer(jugadoresVisibles[0].index);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1623,23 +1953,40 @@ export default function ScoutStudio() {
    * editar la lectura rápida en una vale también en la otra.
    */
   /*
-   * Las temporadas del jugador, de la más reciente a la más antigua. Con dos o
-   * más, la franja enseña cada una por separado y el radar —que sale de la
-   * fila fusionada— las cuenta a todas, ponderadas por minutos. Con «solo la
-   * temporada actual» elegida en el panel, solo queda la actual.
+   * Todas las etapas elegidas, sin límite de filas. Las bases con métricas
+   * alimentan el radar; las manuales se suman al resumen visible de la ficha.
    */
   const temporadasDelJugador = report ? temporadasDeFila(filasDelInforme[indiceDelInforme]) : [];
+  const temporadasAdicionalesDeLaFicha = seleccionDeTemporadas.adicionales;
+  const cantidadDeTemporadasDeLaFicha = 1 + temporadasAdicionalesDeLaFicha.length;
+  const minutosTotalesDeLaFicha = (temporadaDeReferencia?.minutos ?? report?.minutes ?? 0)
+    + temporadasAdicionalesDeLaFicha.reduce((total, temporada) => total + (Number.isFinite(temporada.minutos) ? temporada.minutos : 0), 0);
   const variasTemporadas = temporadasDelJugador.length > 1;
-  const temporadaActual = variasTemporadas ? temporadasDelJugador[0] : null;
+  const temporadaActual = temporadaDeReferencia;
+  // El título de la primera fila de la franja, y las bases de archivo que lo explican.
+  const tituloPrincipal = (temporadaActual ? [temporadaActual.ligas.join(" + "), temporadaActual.etiqueta].filter(Boolean).join(" · ") : "")
+    || basesDeLaFicha?.titulo || base.descripcion || tDefault(reportFileName);
+  const basesPrincipales = basesDeArchivoDe(temporadaDeReferencia ?? undefined);
   const baseConVariasTemporadas = new Set(sourceDatasets.map((dataset) => dataset.season || dataset.fileName)).size > 1;
   const cifra = (valor: number) => (Number.isFinite(valor) ? numberFormat(valor) : "—");
+  const otraLigaPara = (temporada: TemporadaEnFicha) => <LigaDelMismoAnio
+    key={`${claveDelJugador}|${temporada.aMano?.id ?? `base:${temporada.anio}`}`}
+    temporada={{ liga: temporada.ligas[0] ?? "", temporada: temporada.etiqueta }} inicio={inicioDe(temporada)}
+    catalogo={catalogoSb.filter((competicion) => competicion.hasMatches !== false
+      && anioDeInicio(String(competicion.season)) === inicioDe(temporada)
+      && !sourceDatasets.some((dataset) => dataset.fileName === `StatsBomb · ${competicion.name} ${competicion.season}`))}
+    ligasSugeridas={ligasSugeridas} manuales={delMismoAnioAMano(temporadasAMano[claveDelJugador] ?? [], inicioDe(temporada))}
+    cargando={reportLoading} error={reportError}
+    onCargar={(competicion) => inicioDe(temporada) < inicioDeReferencia ? cargarTemporadaAnterior(competicion) : sumarTemporada(competicion)}
+    onArchivo={(archivo, nombre) => anadirTemporadaWyscout(archivo, nombre)}
+    onManual={anadirTemporadaAMano} onQuitar={quitarTemporadaAMano} />;
   const reportArticleNode = report ? (
-    <article className="scout-report jordhy-report" style={reportThemeStyle(reportTheme)}>
+    <article className="scout-report jordhy-report" data-oscuro={reportTheme.oscuro ? "" : undefined} style={reportThemeStyle(reportTheme)}>
       <header className="dossier-header">
         <div className="dossier-portrait">
           <span className="portrait-glow" />
           {profile.clubLogo ? <ReportImage src={profile.clubLogo} alt={profile.club || report.team} className="dossier-club-logo" /> : <span className="dossier-club-fallback">{report.team.slice(0, 2).toUpperCase()}</span>}
-          <b className="shirt-number">#{profile.number || "—"}</b>
+          {profile.number && <b className="shirt-number">{profile.number}</b>}
           {profile.playerImage ? <ReportImage src={profile.playerImage} alt={report.player} className="dossier-player-image" /> : <div className="dossier-player-fallback">{report.player.split(/\s+/).slice(0, 2).map((part) => part[0]).join("")}</div>}
         </div>
         <div className="dossier-info">
@@ -1666,9 +2013,13 @@ export default function ScoutStudio() {
       </header>
 
       <section className="dossier-season-strip">
-        <div className="season-source"><span><InlineText editKey={`label-${report.player}`} value={tDefault(analysisLabel)} fallback={reportSourceCount > 1 ? t("BASES ANALIZADAS") : t("BASE ANALIZADA")} onCommit={setAnalysisLabel} /></span><b><InlineText editKey={`source-${report.player}`} value={tDefault(analysisSourceTitle)} fallback={base.descripcion || tDefault(reportFileName)} onCommit={updateAnalysisSourceName} /></b><small>{temporadasDelJugador.length && (variasTemporadas || baseConVariasTemporadas)
-          ? tf("Temporada {s} · cohorte {c} · mín. {m}′", { s: temporadasDelJugador[0].etiqueta, c: cohortLabel(report.cohort), m: minimumMinutes })
-          : tf("Cohorte {c} · mín. {m}′", { c: cohortLabel(report.cohort), m: minimumMinutes })}</small></div>
+        <div className="season-source"><span><InlineText editKey={`label-${report.player}`} value={ETIQUETAS_DE_BASE.includes(analysisLabel) ? "" : tDefault(analysisLabel)} fallback={!variasTemporadas && (basesDeLaFicha?.cuantas ?? reportSourceCount) > 1 ? t("BASES ANALIZADAS") : t("BASE ANALIZADA")} onCommit={setAnalysisLabel} /></span><b>{basesPrincipales.length === 1 && !analysisSourceTitle.trim()
+          ? <EditorDeNombreDeBase actual={nombreActual(basesPrincipales[0])} onGuardar={(nombre) => void renombrarBases(basesPrincipales.map((dataset) => dataset.fileName), nombre)}>{tituloPrincipal}</EditorDeNombreDeBase>
+          : <InlineText editKey={`source-${report.player}`} value={tDefault(analysisSourceTitle)} fallback={tituloPrincipal} onCommit={updateAnalysisSourceName} />}</b><small>{basesDeLaFicha?.plataformas ? `${basesDeLaFicha.plataformas} · ` : ""}{temporadasDelJugador.length && (variasTemporadas || baseConVariasTemporadas)
+          ? tf("Temporada {s} · cohorte {c} · mín. {m}′", { s: temporadaDeReferencia?.etiqueta ?? "", c: cohortLabel(report.cohort), m: minimumMinutes })
+          : tf("Cohorte {c} · mín. {m}′", { c: cohortLabel(report.cohort), m: minimumMinutes })}</small>
+          {temporadaDeReferencia && otraLigaPara(temporadaDeReferencia)}
+        </div>
         {/* Con varias temporadas, esta fila es la más reciente y las anteriores
             van debajo; el índice es el de todas juntas. */}
         <div className="dossier-stat"><strong>{numberFormat(temporadaActual?.partidos ?? report.matches)}</strong><span>{t("Partidos")}</span></div>
@@ -1677,27 +2028,47 @@ export default function ScoutStudio() {
         <div className="dossier-stat assists"><strong>{cifra(temporadaActual?.asistencias ?? report.assists)}</strong><span>{t("Asist.")}</span></div>
         <div className="score-ring" style={{ "--score": `${report.score * 3.6}deg` } as React.CSSProperties}><b>{report.score}</b><span>{t("Índice")}</span></div>
       </section>
-      {temporadasDelJugador.slice(1, 3).map((temporada, posicion, anteriores) => (
-        <section className="dossier-season-strip dossier-season-previa" key={temporada.etiqueta}>
+      {avisoSc && <p className="dossier-aviso-sc">{avisoSc}</p>}
+      {temporadasAdicionalesDeLaFicha.map((temporada: TemporadaDeJugador & { aMano?: TemporadaAMano }, posicion, anteriores) => (
+        <section className="dossier-season-strip dossier-season-previa" key={temporada.aMano?.id ?? temporada.etiqueta}>
           <div className="season-source">
-            <span>{posicion === 0 ? t("TEMPORADA ANTERIOR") : tf("TEMPORADA {s}", { s: temporada.etiqueta })}</span>
-            <b>{[temporada.etiqueta, temporada.ligas.join(" + ")].filter(Boolean).join(" · ")}</b>
-            <small>{temporada.equipo}</small>
+            <span>{inicioDe(temporada) === inicioDeReferencia || anteriores.slice(0, posicion).some((anterior) => inicioDe(anterior) === inicioDe(temporada))
+              ? t("OTRA LIGA · MISMO AÑO") : tf("TEMPORADA {s}", { s: temporada.etiqueta })}</span>
+            <b>{(() => {
+              const texto = [temporada.etiqueta, temporada.ligas.join(" + ")].filter(Boolean).join(" · ");
+              const suyas = temporada.aMano ? [] : basesDeArchivoDe(temporada);
+              return suyas.length === 1
+                ? <EditorDeNombreDeBase actual={nombreActual(suyas[0])} onGuardar={(nombre) => void renombrarBases(suyas.map((dataset) => dataset.fileName), nombre)}>{texto}</EditorDeNombreDeBase>
+                : texto;
+            })()}</b>
+            <small>{temporada.aMano
+              ? <>{temporada.equipo}<span className="season-provenance">{` · ${temporada.aMano.origen === "wyscout" ? t("de un Excel de Wyscout") : t("añadida a mano")}`}</span></>
+              : temporada.equipo}</small>
+            {otraLigaPara(temporada)}
           </div>
           <div className="dossier-stat"><strong>{numberFormat(temporada.partidos)}</strong><span>{t("Partidos")}</span></div>
           <div className="dossier-stat"><strong>{numberFormat(temporada.minutos)}</strong><span>{t("Minutos")}</span></div>
           <div className="dossier-stat goals"><strong>{cifra(temporada.goles)}</strong><span>{t("Goles")}</span></div>
           <div className="dossier-stat assists"><strong>{cifra(temporada.asistencias)}</strong><span>{t("Asist.")}</span></div>
           {posicion === anteriores.length - 1
-            ? <div className="season-radar-note"><span>{t("Radar")}</span><b>{tf("{n} temporadas", { n: temporadasDelJugador.length })}</b><small>{`${numberFormat(report.minutes)}′`}</small></div>
+            ? <div className="season-radar-note"><span>{t("Radar")}</span><b>{tf("{n} temporadas", { n: cantidadDeTemporadasDeLaFicha })}</b><small>{`${numberFormat(minutosTotalesDeLaFicha)}′`}</small></div>
             : <span />}
         </section>
       ))}
 
       <section className="dossier-radar-row">
-        <div className="dossier-radar">{report.metrics.length ? <PizzaRadar metrics={report.metrics} score={report.score} cohort={report.cohort} lang={lang} colorMode={radarColorMode} /> : <div className="empty-radar"><BarChart3 size={34} /><b>{t("No encontramos métricas para esta cohorte")}</b></div>}</div>
+        <div className="dossier-radar">{report.metrics.length ? <PizzaRadar metrics={report.metrics} score={report.score} cohort={report.cohort} lang={lang} colorMode={radarColorMode} oscuro={Boolean(reportTheme.oscuro)} /> : <div className="empty-radar"><BarChart3 size={34} /><b>{motivoSinRadar}</b>{report.minutes > 0 && <span>{t("Prueba con otra cohorte o revisa qué bases están cargadas.")}</span>}</div>}</div>
         <aside className="dossier-reading">
-          <div className="average-percentile"><strong>{report.score}</strong><small>{t("percentil")}<br />{t("medio")}</small></div>
+          <div className="average-percentile"><strong>{report.score}</strong><small>{t("percentil")}<br />{t("medio")}{margenDelIndice(report.minutes) !== null && <><br />
+            <span className="margen-del-indice" title={tf("Lo que se mueve de una temporada a otra el número de un jugador con {m}′, medido en doce ligas. Dos jugadores a menos de {n} puntos no se distinguen con estos datos.", { m: numberFormat(report.minutes), n: margenDelIndice(report.minutes) ?? "" })}>± {margenDelIndice(report.minutes)}</span></>}</small></div>
+          {report.minutes < MINUTOS_FIABLES && <p className="aviso-pocos-minutos">{margenDelIndice(report.minutes) !== null
+            ? tf("Pocos minutos ({m}′): su número puede moverse ±{n} de una temporada a otra.", { m: numberFormat(report.minutes), n: margenDelIndice(report.minutes) ?? "" })
+            : tf("Con {m}′ no hay minutos para un número fiable: léelo como una pista, no como una medida.", { m: numberFormat(report.minutes) })}</p>}
+          {nivelDeLaFicha && <div className="nivel-de-liga" title={tf("Opta Power Rankings{c}. La equivalencia suma {p} puntos de índice por cada punto de rating de diferencia, calibrado con 112 jugadores que cambiaron de liga entre 2025 y 2026.", { c: nivelDeLaFicha.enVivo ? "" : ` · ${tf("copia del {f}", { f: FECHA_NIVEL_RESPALDO })}`, p: String(PUNTOS_POR_RATING).replace(".", ",") })}>
+            <small>{t("NIVEL DE LIGA")}</small>
+            <b>{nivelDeLaFicha.niveles.map((nivel) => `${nivel.corto} ${nivel.rating.toFixed(1).replace(".", ",")}${nivel.puesto ? ` · #${nivel.puesto}` : ""}`).join(" + ")}</b>
+            {nivelDeLaFicha.equivalente !== null && nivelDeLaFicha.referencia && <span>{tf("≈ {n} a nivel {liga}", { n: nivelDeLaFicha.equivalente, liga: nivelDeLaFicha.referencia.corto })}</span>}
+          </div>}
           <div className="dossier-legend">{radarColorMode === "platform"
             ? [...new Set(report.metrics.map((metric) => metric.source ?? "wyscout"))].map((source) => <span key={source}><i style={{ background: METRIC_SOURCE_COLORS[source]?.color }} />{METRIC_SOURCE_COLORS[source]?.label ?? source}</span>)
             : SIMILARITY_METRIC_GROUPS.filter((group) => report.metrics.some((metric) => similarityMetricGroup(metric, report.cohort).id === group.id)).map((group) => <span key={group.id}><i style={{ background: group.color }} />{t(group.label)}</span>)}</div>
@@ -1706,23 +2077,32 @@ export default function ScoutStudio() {
       </section>
 
       <section className="metric-breakdown" style={{ "--metric-columns": metricBreakdownColumns } as React.CSSProperties}>
+        {marcasDeLaPrevia && temporadaPrevia && <p className="metric-marca-nota"><u aria-hidden="true" />{tf("Marca: la temporada {s} sola, medida igual", { s: temporadaPrevia.etiqueta })}</p>}
         {metricBreakdown.map(({ group, metrics }) => (
-          <div className="metric-group" style={{ "--metric-group-color": group.color } as React.CSSProperties} key={group.id}>
+          <div className="metric-group" style={{ "--metric-group-color": group.color, "--metric-group-bajo": group.bajo, "--metric-group-alto": group.alto } as React.CSSProperties} key={group.id}>
             <h3>{t(group.label)}</h3>
-            {metrics.slice(0, 4).map((metric) => <div className="metric-row" key={metric.key}><div><span>{t(metric.label)}</span><b>{formatCell(metric.value)} <small>· P{metric.percentile}</small></b></div><i><em style={{ width: `${metric.percentile}%` }} /></i></div>)}
+            {metrics.slice(0, 4).map((metric) => <div className="metric-row" key={metric.key}><div><span>{t(metric.label)}</span><b>{formatCell(metric.value)} <small>· P{metric.percentile}</small></b></div><i><em style={{ width: `${metric.percentile}%`, backgroundSize: `${10000 / Math.max(metric.percentile, 2)}% 100%` }} />{marcasDeLaPrevia?.has(metric.key) && <u title={tf("Temporada {s}: P{p}", { s: temporadaPrevia?.etiqueta ?? "", p: marcasDeLaPrevia.get(metric.key)! })} style={{ left: `${marcasDeLaPrevia.get(metric.key)}%` }} />}</i></div>)}
           </div>
         ))}
       </section>
       <footer className="dossier-footer">
-        <p>{tf("Percentiles por posición · mínimo {m}′ · {n} jugadores en la cohorte · datos por 90 minutos.", { m: minimumMinutes, n: report.cohortSize })}
+        <p>{report.frente?.modo === "liga"
+          ? tf("Percentiles frente a los de su puesto en {ligas} · mínimo {m}′ · {n} jugadores en la cohorte · datos por 90 minutos.", { ligas: report.frente.claves.join(" + "), m: minimumMinutes, n: report.cohortSize })
+          : new Set(base.competiciones.map((c) => c.liga)).size > 1
+          ? tf("Percentiles por posición · mínimo {m}′ · {n} jugadores en la cohorte, de {k} competiciones cargadas · datos por 90 minutos.", { m: minimumMinutes, n: report.cohortSize, k: new Set(base.competiciones.map((c) => c.liga)).size })
+          : tf("Percentiles por posición · mínimo {m}′ · {n} jugadores en la cohorte · datos por 90 minutos.", { m: minimumMinutes, n: report.cohortSize })}
+          {report.frente?.modo === "todas" && ` ${tf("En {ligas} solo hay {n} de su puesto con el mínimo de minutos: no dan para un percentil y se le mide contra todas las cargadas.", { ligas: report.frente.claves.join(" + "), n: report.frente.enSuLiga })}`}
           {variasTemporadas && ` ${tf("Radar e índice con {n} temporadas juntas ({s}), ponderadas por minutos: {m}′ en total.", {
             n: temporadasDelJugador.length,
             s: temporadasDelJugador.map((temporada) => temporada.etiqueta).join(" + "),
             m: numberFormat(report.minutes),
           })}`}
+          {notaDeRescate && ` ${notaDeRescate}`}
+          {temporadasAdicionalesDeLaFicha.some((temporada) => temporada.aMano) && <span className="manual-season-explanation">{` ${t("Las temporadas añadidas a mano aparecen en la ficha; el radar y el índice se calculan con las bases que incluyen métricas.")}`}</span>}
+          {` ${lineaDeDatos({ descripcion: base.descripcion, cargadaEl: base.cargadaEl, generadoEl: impresoEl })}.`}
           {report.metrics.some((metric) => metric.source === "skillcorner") && ` ${t("Los volúmenes de SkillCorner (SC) van por 30 minutos con balón del equipo.")}`}</p>
         <div className="report-signatures">
-          <div className="report-author"><span>{t("ELABORADO POR")}</span><b>{firma.nombre || FIRMAS_POR_DEFECTO[claveFirma].nombre}</b><small>{firma.cargo}</small></div>
+          <AutorDelInforme />
           <div className="report-recipient">
             {recipientLogoReady ? <ReportImage src={reportRecipientLogoUrl.trim()} alt={recipientName} className="dossier-footer-club-logo" /> : <span className="dossier-footer-club-fallback">{recipientName.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span>}
             <div><span>{t("REPORTE GENERADO PARA")}</span><b><InlineText editKey="recipient" value={reportRecipientName} fallback={t("Club destinatario")} onCommit={setReportRecipientName} /></b></div>
@@ -1743,20 +2123,26 @@ export default function ScoutStudio() {
       { page: CONTEXT_PAGE, title: t("Contexto"), hint: t("Dónde destaca y por qué") },
       { page: RUNS_PAGE, title: t("Carreras"), hint: t("Mapa sin balón") },
       { page: RANK_PAGE, title: t("Ranking"), hint: t("Los mejores por puesto") },
-      { page: POOL_PAGE, title: t("Entre ligas"), hint: t("Buscar parecidos") },
-      { page: STYLE_PAGE, title: t("Estilo de juego"), hint: t("Cómo juega cada equipo") },
-      { page: FLOW_PAGE, title: t("Flujo de posesión"), hint: t("Rutas del balón por equipo") },
+      { page: STYLE_PAGE, title: t("Estilo de juego"), hint: t("Cómo juega, el partido y el flujo") },
       ...visualPages.map((page, index) => ({ page, title: tf("Visuales {n}", { n: index + 1 }), hint: t("Mapas, imágenes y texto") })),
     ];
   const todasMarcadas = paginasParaImprimir.every(({ page }) => printPages.includes(page));
-  // El nombre del equipo del encaje, como lo elige la propia hoja: el elegido o, si no, el nuestro.
-  const nombreEquipoEncaje = equipoEncaje
-    || [...new Set(reportRows.map((fila) => String(fila.Team ?? "").trim()))].find((equipo) => mismoEquipo(equipo, EQUIPO_PROPIO))
-    || EQUIPO_PROPIO;
+  const paginasQuePidenElegir: ReportPage[] = [RUNS_PAGE, STYLE_PAGE];
+  useEffect(() => {
+    if (!printDialogOpen) return;
+    setPaginasVacias([RUNS_PAGE, STYLE_PAGE, RANK_PAGE].filter((page) => (
+      (paginasQuePidenElegir.includes(page) && !paginasAbiertas.includes(page))
+      || Boolean(document.querySelector(`.hoja-${page} [data-hoja-vacia]`))
+    )));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [printDialogOpen]);
+  const cuantasImprimibles = printPages.filter((page) => !paginasVacias.includes(page)).length;
 
   return (
     <ProveedorDeBase valor={base}>
-    <div className="app-shell no-sidebar" data-paleta={paleta} data-tema={tema}>
+    <MomentoDeImpresion.Provider value={impresoEl}>
+    <ContextoDeFirma.Provider value={firmaDelInforme}>
+    <div className="app-shell no-sidebar" data-paleta={paleta} data-tema={tema} data-informe={reportTheme.oscuro ? "oscuro" : "claro"}>
       <main className="main-area">
         {/* La barra de navegación, al modo de iOS: una guía a la izquierda,
             el título de la sección, y UNA acción principal a la derecha.
@@ -1847,6 +2233,10 @@ export default function ScoutStudio() {
             </MenuFlotante>
           </div>
         </header>
+        {avisoDeGuardado && <div className="aviso-guardado" role="alert">
+          <span>{avisoDeGuardado}</span>
+          <button type="button" onClick={() => setAvisoDeGuardado("")} aria-label={t("Ocultar aviso")}>×</button>
+        </div>}
 
         {/* El asistente de tres pasos vivía en la barra, donde estorbaba lo que
             se usa a diario. Baja al contenido y solo mientras hace falta: en
@@ -2036,14 +2426,10 @@ export default function ScoutStudio() {
                   <div className="seccion-lista">
                     <FilaSeccion activa={reportPage === RANK_PAGE} onClick={() => setReportPage(RANK_PAGE)}
                       icono={<Trophy size={16} />} titulo={t("Ranking")} detalle={t("Los mejores por puesto")} />
-                    <FilaSeccion activa={reportPage === POOL_PAGE} onClick={() => setReportPage(POOL_PAGE)}
-                      icono={<Search size={16} />} titulo={t("Entre ligas")} detalle={t("Buscar parecidos")} api />
                     <FilaSeccion activa={reportPage === STYLE_PAGE} onClick={() => setReportPage(STYLE_PAGE)}
-                      icono={<ShieldCheck size={16} />} titulo={t("Estilo de juego")} detalle={t("Cómo juega cada equipo")} api />
-                    <FilaSeccion activa={reportPage === FLOW_PAGE} onClick={() => setReportPage(FLOW_PAGE)}
-                      icono={<Wind size={16} />} titulo={t("Flujo de posesión")} detalle={t("Rutas del balón por equipo")} api />
+                      icono={<ShieldCheck size={16} />} titulo={t("Estilo de juego")} detalle={t("Cómo juega, el partido y el flujo")} api />
                     <FilaSeccion activa={reportPage === BLUEPRINTS_PAGE} onClick={() => setReportPage(BLUEPRINTS_PAGE)}
-                      icono={<LayoutDashboard size={16} />} titulo={t("Football Blueprints")} detalle={t("La liga como mapa y reel")} api />
+                      icono={<Wind size={16} />} titulo={t("Football Blueprints")} detalle={t("La liga como mapa y reel")} api />
                   </div>
                 </section>
 
@@ -2124,10 +2510,19 @@ export default function ScoutStudio() {
                         <div className="seleccion-liga-anio">
                           {base.opciones.ligas.length > 1 && <MenuDeLigas variante="campo" ligas={base.opciones.ligas} elegida={base.filtros.liga}
                             onElegir={(liga) => base.cambiarFiltros({ liga })} />}
-                          {base.opciones.anios.length > 1 && <MenuDesplegable variante="campo" etiqueta={t("Año")}
+                          {(base.opciones.anios.length > 1 || aniosDelCatalogo.length > 0) && <MenuDesplegable variante="campo" etiqueta={t("Año")}
                             valor={base.filtros.anio ? String(base.filtros.anio) : t("Todos")}
-                            opciones={[{ valor: "", texto: t("Todos") }, ...base.opciones.anios.map((anio) => ({ valor: String(anio), texto: String(anio) }))]}
-                            elegida={base.filtros.anio ? String(base.filtros.anio) : ""} onElegir={(anio) => base.cambiarFiltros({ anio: Number(anio) || 0 })} />}
+                            opciones={[
+                              { valor: "", texto: t("Todos") },
+                              ...[...base.opciones.anios].sort((a, b) => b - a).map((anio) => ({ valor: String(anio), texto: String(anio) })),
+                              ...aniosDelCatalogo.map((anio) => ({
+                                valor: String(anio),
+                                texto: ligaDelFiltro ? tf("{anio} · cargar", { anio }) : tf("{anio} · cargar todas las ligas", { anio }),
+                                grupo: t("Sin cargar"),
+                              })),
+                            ]}
+                            apagado={reportLoading}
+                            elegida={base.filtros.anio ? String(base.filtros.anio) : ""} onElegir={(anio) => void elegirAnio(Number(anio) || 0)} />}
                         </div>
                       </div>
                       <span className="selection-flow-line" aria-hidden="true" />
@@ -2146,31 +2541,72 @@ export default function ScoutStudio() {
                   <div className="panel-seccion">
                     <span className="panel-seccion-titulo">{t("Cómo se mide")}</span>
                     <label className="field-group"><FieldLabel>{t("Cohorte")}</FieldLabel><span className="select-wrap simple"><select value={cohort} onChange={(event) => setCohort(event.target.value)}><option value="AUTO">{t("Automática")}</option><option value="GK">{t("Porteros")}</option><option value="CB">{t("Centrales")}</option><option value="FB">{t("Laterales")}</option><option value="DMF">{t("Pivotes / mediocentros")}</option><option value="B2B">{t("Interiores (box-to-box)")}</option><option value="WING">{t("Extremos")}</option><option value="DWING">{t("Extremos directos")}</option><option value="AM">{t("Mediapuntas")}</option><option value="CF">{t("Delanteros")}</option></select><ChevronDown size={16} /></span></label>
-                  {report && <div className="field-group temporada-previa">
-                    <FieldLabel>{t("Temporada anterior")}</FieldLabel>
-                    {temporadasDeLaFila.length > 1 ? <>
-                      <span className="select-wrap simple"><select value={soloTemporadaActual ? "sin" : "con"} onChange={(event) => setSoloTemporadaActual(event.target.value === "sin")}>
-                        <option value="con">{tf("{s} · {liga} · {equipo} · {m}′ (recomendada)", {
-                          s: temporadasDeLaFila[1].etiqueta, liga: temporadasDeLaFila[1].ligas.join(" + "), equipo: temporadasDeLaFila[1].equipo, m: numberFormat(temporadasDeLaFila[1].minutos),
-                        })}</option>
-                        <option value="sin">{tf("Ninguna: solo la temporada {s}", { s: temporadasDeLaFila[0].etiqueta })}</option>
-                      </select><ChevronDown size={16} /></span>
-                      <small className="temporada-previa-nota">{soloTemporadaActual
-                        ? t("El radar, el índice y la cohorte usan solo la temporada actual.")
-                        : tf("El radar y el índice suman las {n} temporadas: {m}′ en total.", { n: temporadasDeLaFila.length, m: numberFormat(Number(filaElegida?.["Minutes played"] ?? filaElegida?.["Minutos jugados"] ?? 0) || temporadasDeLaFila.reduce((suma, temporada) => suma + temporada.minutos, 0)) })}</small>
-                    </> : temporadaRecomendada && !temporadaRecomendada.cargada ? <>
-                      <small className="temporada-previa-nota">{tf("No hay temporada anterior en la base. Recomendada: {liga} {s}.", { liga: temporadaRecomendada.competicion.name, s: temporadaRecomendada.competicion.season })}</small>
-                      <button type="button" className="button secondary compact" disabled={reportLoading} onClick={() => void sumarTemporada(temporadaRecomendada.competicion)}>
-                        <Plus size={13} />{tf("Añadir {liga} {s}", { liga: temporadaRecomendada.competicion.name, s: temporadaRecomendada.competicion.season })}
-                      </button>
-                    </> : temporadaRecomendada?.cargada ? <small className="temporada-previa-nota">{tf("No aparece en {liga} {s}: si jugó en otra liga, añádela desde Base activa.", { liga: temporadaRecomendada.competicion.name, s: temporadaRecomendada.competicion.season })}</small>
-                    : <small className="temporada-previa-nota">{(filaElegida && String(filaElegida["Data sources"] ?? "").includes("StatsBomb ·"))
-                      ? t("No hay temporada anterior de este jugador en la base. Puedes añadirla desde Base activa.")
-                      : t("No hay temporada anterior en la base. Con Wyscout, sube también el Excel del año anterior, con el año en el nombre.")}</small>}
-                  </div>}
+                  {clavesDelInforme && <label className="field-group"><FieldLabel>{t("Comparar con")}</FieldLabel>
+                    <span className="select-wrap simple"><select value={medirContra} onChange={(event) => cambiarMedirContra(event.target.value === "todas" ? "todas" : "liga")}>
+                      <option value="liga">{t("Su liga y temporada (recomendado)")}</option>
+                      <option value="todas">{t("Todas las ligas cargadas")}</option>
+                    </select><ChevronDown size={16} /></span>
+                    <small className="temporada-previa-nota">{medirContra === "liga"
+                      ? t("Cada jugador se mide contra los de su puesto en su liga; el nivel de la liga va aparte, junto al índice.")
+                      : t("Mezcla ligas de distinto nivel: el percentil cambia según qué más haya cargado.")}</small>
+                  </label>}
+                  {/* Todas las temporadas en que aparece el jugador en las bases
+                      cargadas; la elegida manda sobre la última, y el filtro de
+                      año del panel la elige también. */}
+                  {report && temporadaDeReferencia && temporadasDeLaFila.length > 1 && <label className="field-group temporada-previa">
+                    <FieldLabel>{t("Temporada")}</FieldLabel>
+                    <span className="select-wrap simple"><select value={temporadaDeReferencia.anio} onChange={(event) => setTemporadaElegida({ anio: Number(event.target.value), conFiltro: `${base.filtros.liga}|${base.filtros.anio}` })}>
+                      {temporadasDeLaFila.map((temporada) => <option key={temporada.anio} value={temporada.anio}>{tf("{s} · {liga} · {equipo} · {m}′", {
+                        s: temporada.etiqueta, liga: temporada.ligas.join(" + "), equipo: temporada.equipo, m: numberFormat(temporada.minutos),
+                      })}</option>)}
+                    </select><ChevronDown size={16} /></span>
+                    <small className="temporada-previa-nota">{tf("Aparece en {n} temporadas de las bases cargadas.", { n: temporadasDeLaFila.length })}</small>
+                  </label>}
+                  {report && temporadaDeReferencia && (() => {
+                    const deArchivo = basesDeArchivoDe(temporadaDeReferencia);
+                    const hayOpciones = seleccionDeTemporadas.opciones.length > 0 || catalogoAnterior.length > 0;
+                    const temporadaPropuesta = temporadaAnteriorDe(seleccionDeTemporadas.anteriores.at(-1)?.etiqueta ?? temporadaDeReferencia.etiqueta);
+                    const verManual = manualAbierto || !hayOpciones;
+                    return <div className="field-group temporada-previa">
+                      <SelectorTemporadas opciones={seleccionDeTemporadas.opciones} seleccion={seleccionDeTemporadas.seleccion} deshabilitado={reportLoading}
+                        onAlternar={(clave) => cambiarSeleccionDeTemporadas((claves) => claves.includes(clave) ? claves.filter((actual) => actual !== clave) : [...claves, clave])}
+                        onQuitar={quitarTemporadaAMano} onSoloActual={() => { cambiarSeleccionDeTemporadas(() => []); setPreviaManual(null); }}
+                        onAnadir={() => setPreviaManual({ jugador: claveDelJugador, elegida: "" })} />
+                      {soloTemporadaActual && <small className="temporada-previa-nota">{tf("El radar, el índice y la cohorte usan solo la temporada {s}.", { s: temporadaDeReferencia.etiqueta })}</small>}
+                      {pedidaSinJugador && <small className="temporada-previa-nota aviso">{tf("No aparece en {liga} {s}: si jugó en otra liga, añádela manualmente.", { liga: pedidaSinJugador.name, s: pedidaSinJugador.season })}</small>}
+                      {verManual && <div className="previa-manual">
+                        {!hayOpciones && <small className="temporada-previa-nota">{t("No hay otra temporada de este jugador disponible. Añádela manualmente:")}</small>}
+                        {catalogoAnterior.length > 0 && <div className="previa-via">
+                          <span className="previa-via-titulo">{t("De StatsBomb")}</span>
+                          <MenuDeCompeticiones lista={catalogoAnterior} elegida={manualAbierto ? previaManual.elegida : ""} onElegir={(elegida) => setPreviaManual({ jugador: claveDelJugador, elegida })} />
+                          <button type="button" className="button secondary compact" disabled={reportLoading || !(manualAbierto && previaManual.elegida)}
+                            onClick={() => { const competicion = manualAbierto ? catalogoAnterior[Number(previaManual.elegida)] : undefined; if (competicion) void cargarTemporadaAnterior(competicion); }}>
+                            <Plus size={13} />{t("Cargar esta temporada")}
+                          </button>
+                        </div>}
+                        <div className="previa-via">
+                          <span className="previa-via-titulo">{t("Desde un Excel de Wyscout")}</span>
+                          {deArchivo.length > 0 ? <>
+                            <small className="temporada-previa-nota">{t("El archivo entra entero como base y suma al radar. Escribe su liga y su temporada.")}</small>
+                            <AnadirTemporadaWyscout actual={nombreActual(deArchivo[0])} deshabilitado={reportLoading} onAnadir={anadirTemporadaWyscout} />
+                          </> : <>
+                            <small className="temporada-previa-nota">{t("De cualquier liga: eliges su fila y se toman sus números de temporada (club, partidos, minutos, goles y asistencias).")}</small>
+                            <TemporadaDesdeWyscout key={claveDelJugador} jugador={String(filaElegida?.Player ?? "")} inicioDeReferencia={inicioDeReferencia} temporadaPropuesta={temporadaPropuesta}
+                              ligasSugeridas={ligasSugeridas} deshabilitado={reportLoading} onAnadir={anadirTemporadaAMano} />
+                          </>}
+                        </div>
+                        <div className="previa-via">
+                          <span className="previa-via-titulo">{t("Escribiendo los datos")}</span>
+                          <small className="temporada-previa-nota">{t("Cualquier liga del mundo y cualquier año, también juveniles o reservas: escribe el nombre tal cual o elígelo de la lista.")}</small>
+                          <TemporadaEscrita key={claveDelJugador} inicioDeReferencia={inicioDeReferencia} temporadaPropuesta={temporadaPropuesta}
+                            ligasSugeridas={ligasSugeridas} deshabilitado={reportLoading} onAnadir={anadirTemporadaAMano} />
+                        </div>
+                      </div>}
+                    </div>;
+                  })()}
                   {report && availableMetrics.length > 0 && <details className="profile-details metric-picker">
                     <summary>{t("Añadir o quitar métricas")} <b>{report.metrics.length}</b></summary>
-                    <p className="metric-picker-hint">{t("Marca las que quieres ver. El percentil siempre se calcula contra los jugadores de su posición en la base cargada.")}</p>
+                    <p className="metric-picker-hint">{t("Marca las que quieres ver. El percentil siempre se calcula contra los jugadores de su posición.")}</p>
                     {SIMILARITY_METRIC_GROUPS.map((group) => {
                       const delGrupo = availableMetrics.filter((definition) => similarityMetricGroup(definition, report.cohort).id === group.id);
                       if (!delGrupo.length) return null;
@@ -2186,6 +2622,8 @@ export default function ScoutStudio() {
                     {metricPicks[report.cohort] && <button type="button" className="button secondary compact" onClick={restoreCohortMetrics}>{t("Volver al set del perfil")}</button>}
                   </details>}
                   <div className="data-summary"><div><span>{t("Bases")}</span><b>{reportSourceCount}</b></div><div><span>{t("Jugadores")}</span><b>{numberFormat(reportRows.length)}</b></div><div><span>{t("Cohorte")}</span><b>{report?.cohortSize ?? 0}</b></div></div>
+                  {report?.cohorteDescartada && <div className="inline-error">{tf("La cohorte elegida ({c}) no tiene métricas para este jugador: se muestra con su cohorte automática.", { c: cohortLabel(report.cohorteDescartada) })}</div>}
+                  {report?.seleccionDescartada && <div className="inline-error">{t("Las métricas elegidas a mano para este perfil no existen en la base cargada: se muestra el set del perfil.")}</div>}
                   {report && report.cohortSize < 5 && <div className="inline-error">{report.cohortSize === 0 ? t("No hay jugadores de esta posición con el mínimo de minutos: baja el mínimo o carga más datos.") : (report.cohortSize === 1 ? t("Cohorte de 1 jugador: percentiles poco fiables. Baja el mínimo de minutos o carga más datos.") : tf("Cohorte de {n} jugadores: percentiles poco fiables. Baja el mínimo de minutos o carga más datos.", { n: report.cohortSize }))}</div>}
                   </div>
                   <div className="panel-seccion">
@@ -2200,9 +2638,6 @@ export default function ScoutStudio() {
                     })}</p>
                     <label><small>{t("Nombre")}</small>
                       <input value={firma.nombre} maxLength={60} onChange={(event) => editarFirma("nombre", event.target.value)} />
-                    </label>
-                    <label><small>{t("Cargo o pie de firma")}</small>
-                      <input value={firma.cargo} maxLength={70} onChange={(event) => editarFirma("cargo", event.target.value)} />
                     </label>
                     <label className="firma-temporal">
                       <input type="checkbox" checked={firmaTemporal} onChange={(event) => { setFirmaTemporal(event.target.checked); setReportTheme(event.target.checked ? CLIENT_THEMES.otros : CLIENT_THEMES[espacio]); }} />
@@ -2278,6 +2713,9 @@ export default function ScoutStudio() {
                 <SimilarityStudio
                   aiControlsHidden={aiControlsHidden}
                   procedenciaPorFila={origenes}
+                  feedOpta={feedOpta}
+                  medirEnSuLiga={medirContra === "liga"}
+                  conEncaje={espacio === "cavalry" && (reportPage === SIMILARITY_PAGE || Boolean(printRun?.includes(SIMILARITY_PAGE)))}
                   metricLabels={report ? metricPicks[report.cohort] ?? null : null}
                   minimumMinutes={minimumMinutes}
                   onMinimumMinutes={setMinimumMinutes}
@@ -2302,17 +2740,54 @@ export default function ScoutStudio() {
                 />
               </div>
 
-              {report && paginaMontada(BOARD_PAGE) && (
-                <div className={claseHoja(BOARD_PAGE)}><ScoutingBoard rows={reportRows} minimumMinutes={minimumMinutes} onSelectPlayer={(indice) => { selectPlayer(indice); setBoardPreviewOpen(true); }} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
+              {/* Las hojas van en el mismo orden que la lista del diálogo de
+                  imprimir: el PDF sale en el orden del DOM, no en el de la
+                  lista, y antes Contexto y la Ficha ampliada salían al final
+                  aunque el diálogo los pusiera terceros. Lo vigila
+                  tests/orden-del-pdf.test.mjs. */}
+              {espacio === "cavalry" && report && paginaMontada(SNAPSHOT_PAGE) && (
+                <SnapshotPage rows={filasDeLasPiezas} indice={indiceDeLasPiezas} informe={report} perfilTm={profile} minutosMin={minimumMinutes} claseHoja={claseHoja(SNAPSHOT_PAGE)} temporada={temporadaDeReferencia?.etiqueta}
+                  clavesPorFila={ligasDeLasPiezas} ligasDeFila={ligasDeLasPiezas} feedOpta={feedOpta} avisoSkillcorner={avisoSc}
+                  destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} onAbrirJugador={(indice) => { const enBase = enLaBase(indice); if (enBase >= 0) selectPlayer(enBase); }} />
+              )}
+              {report && paginaMontada(CONTEXT_PAGE) && (
+                <ContextPage claseHoja={claseHoja(CONTEXT_PAGE)} report={report} rows={reportRows} bases={sourceDatasets} minutosFiltro={minimumMinutes} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl}
+                  medirEnSuLiga={medirContra === "liga"} feedOpta={feedOpta} controles={{
+                  equipos: teams, jugadores: teamPlayers, equipo: selectedTeam, jugador: selectedPlayer,
+                  cohorte: cohort,
+                  onEquipo: selectTeam, onJugador: selectPlayer, onCohorte: setCohort,
+                }} />
               )}
               {paginaMontada(RUNS_PAGE) && (
                 <div className={claseHoja(RUNS_PAGE)}><RunsPage destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
+              )}
+              {/* Ranking, Entre ligas, Estilo de juego, Flujo de posesión y Ficha ampliada —con el
+                  encaje de equipo— son de Cavalry: en el espacio Maldonado no
+                  se montan aunque la página quede recordada o llegue por un
+                  enlace. Allí se trabaja con la mesa y nada más. */}
+              {espacio === "cavalry" && report && paginaMontada(RANK_PAGE) && (
+                <div className={claseHoja(RANK_PAGE)}><RankingPage onSelectPlayer={(indice) => { selectPlayer(indice); setReportPage(CARD_PAGE); }} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl}
+                  medirEnSuLiga={medirContra === "liga"} nivel={nivelDelRanking} /></div>
+              )}
+              {espacio === "cavalry" && paginaMontada(STYLE_PAGE) && (
+                <EstiloPage claseHoja={claseHoja(STYLE_PAGE)} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} />
+              )}
+              {espacio === "cavalry" && paginaMontada(BLUEPRINTS_PAGE) && (
+                <div className={claseHoja(BLUEPRINTS_PAGE)}><BlueprintsPage destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
+              )}
+              {report ? visualPages.filter((page) => printRun ? printRun.includes(page) : reportPage === page).map((page) => (
+                <ReportPageDesigner key={page} pageNumber={page} persist={!printRun || reportPage === page} player={report.player} team={profile.club || report.team} position={formatPlayerPositions(profile.position || report.position)} theme={reportTheme} onThemeChange={setReportTheme} recipientName={recipientName} recipientLogoUrl={reportRecipientLogoUrl} aiFacts={aiControlsHidden ? undefined : () => ({ lang, player: aiPlayerFacts(report), metrics: aiMetricFacts(report) })}
+                  ficha={{ rows: filasDeLasPiezas, indice: indiceDeLasPiezas, informe: report, perfilTm: profile, minutosMin: minimumMinutes, temporada: temporadaDeReferencia?.etiqueta, clavesPorFila: clavesDeLasPiezas, ligasDeFila: ligasDeLasPiezas, feedOpta }} />
+              )) : !printRun && reportPage >= FIRST_VISUAL_PAGE ? <div className="empty-preview">{t("Selecciona un jugador para diseñar las páginas.")}</div> : null}
+              {report && paginaMontada(BOARD_PAGE) && (
+                <div className={claseHoja(BOARD_PAGE)}><ScoutingBoard rows={reportRows} minimumMinutes={minimumMinutes} onSelectPlayer={(indice) => { selectPlayer(indice); setBoardPreviewOpen(true); }} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
               )}
               {paginaMontada(DATA_PAGE) && (
                 <div className={claseHoja(DATA_PAGE)}><DatosPage
                   cargando={reportLoading}
                   onQuitarCompeticion={quitarCompeticion}
                   apagadas={ligasApagadas}
+                  onRenombrar={espacio === "cavalry" ? renombrarBases : undefined}
                   onAlternarCompeticion={alternarCompeticion}
                   onCargarTodo={() => void cargarTodasLasLigas()}
                   onCargarAnio={(anio) => void cargarTodasLasLigas(anio, true)}
@@ -2322,25 +2797,6 @@ export default function ScoutStudio() {
                   conTemporadaAnterior={conTemporadaAnterior}
                   onTemporadaAnterior={cambiarTemporadaAnterior}
                 /></div>
-              )}
-              {/* Ranking, Entre ligas, Estilo de juego, Flujo de posesión y Ficha ampliada —con el
-                  encaje de equipo— son de Cavalry: en el espacio Maldonado no
-                  se montan aunque la página quede recordada o llegue por un
-                  enlace. Allí se trabaja con la mesa y nada más. */}
-              {espacio === "cavalry" && report && paginaMontada(RANK_PAGE) && (
-                <div className={claseHoja(RANK_PAGE)}><RankingPage onSelectPlayer={(indice) => { selectPlayer(indice); setReportPage(CARD_PAGE); }} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
-              )}
-              {espacio === "cavalry" && paginaMontada(POOL_PAGE) && (
-                <div className={claseHoja(POOL_PAGE)}><PoolPage onAbrirJugador={(indice) => { selectPlayer(indice); setReportPage(CARD_PAGE); }} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
-              )}
-              {espacio === "cavalry" && paginaMontada(BLUEPRINTS_PAGE) && (
-                <div className={claseHoja(BLUEPRINTS_PAGE)}><BlueprintsPage destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
-              )}
-              {espacio === "cavalry" && paginaMontada(FLOW_PAGE) && (
-                <div className={claseHoja(FLOW_PAGE)}><FlujoPage destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
-              )}
-              {espacio === "cavalry" && paginaMontada(STYLE_PAGE) && (
-                <EstiloPage claseHoja={claseHoja(STYLE_PAGE)} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} />
               )}
               {boardPreviewOpen && (
                 <div className="board-preview-overlay" role="dialog" aria-modal="true" aria-label={t("Vista rápida del reporte")} onClick={() => setBoardPreviewOpen(false)}>
@@ -2358,22 +2814,6 @@ export default function ScoutStudio() {
                   </div>
                 </div>
               )}
-              {espacio === "cavalry" && report && paginaMontada(SNAPSHOT_PAGE) && (
-                <SnapshotPage rows={reportRows} indice={selectedPlayer} informe={report} perfilTm={profile} minutosMin={minimumMinutes} claseHoja={claseHoja(SNAPSHOT_PAGE)}
-                  destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} onAbrirJugador={(indice) => selectPlayer(indice)}
-                  equipoEncaje={equipoEncaje} onEquipoEncaje={setEquipoEncaje} sinHojaDeEncaje={Boolean(printRun) && !pdfConEncaje} />
-              )}
-              {report && paginaMontada(CONTEXT_PAGE) && (
-                <div className={claseHoja(CONTEXT_PAGE)}><ContextPage report={report} rows={reportRows} bases={sourceDatasets} minutosFiltro={minimumMinutes} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} controles={{
-                  equipos: teams, jugadores: teamPlayers, equipo: selectedTeam, jugador: selectedPlayer,
-                  cohorte: cohort,
-                  onEquipo: selectTeam, onJugador: selectPlayer, onCohorte: setCohort,
-                }} /></div>
-              )}
-              {report ? visualPages.filter((page) => printRun ? printRun.includes(page) : reportPage === page).map((page) => (
-                <ReportPageDesigner key={page} pageNumber={page} persist={!printRun || reportPage === page} player={report.player} team={profile.club || report.team} position={formatPlayerPositions(profile.position || report.position)} theme={reportTheme} onThemeChange={setReportTheme} recipientName={recipientName} recipientLogoUrl={reportRecipientLogoUrl} aiFacts={aiControlsHidden ? undefined : () => ({ lang, player: aiPlayerFacts(report), metrics: aiMetricFacts(report) })}
-                  ficha={{ rows: reportRows, indice: selectedPlayer, informe: report, perfilTm: profile, minutosMin: minimumMinutes }} />
-              )) : !printRun && reportPage >= FIRST_VISUAL_PAGE ? <div className="empty-preview">{t("Selecciona un jugador para diseñar las páginas.")}</div> : null}
 
               {printDialogOpen && <div className="print-dialog-overlay" role="dialog" aria-modal="true" aria-label={t("¿Qué páginas quieres incluir en el PDF?")} onClick={() => setPrintDialogOpen(false)}>
                 {/* La hoja de imprimir, como una de iOS.
@@ -2399,27 +2839,26 @@ export default function ScoutStudio() {
                   </div>
                   <div className="impresion-lista">
                     {paginasParaImprimir.map(({ page, title, hint }) => {
-                      const elegida = printPages.includes(page);
-                      const fila = <label key={page} className={elegida ? "impresion-fila elegida" : "impresion-fila"}>
-                        <input type="checkbox" className="impresion-casilla" checked={elegida} onChange={() => togglePrintPage(page)} />
+                      const vacia = paginasVacias.includes(page);
+                      const elegida = printPages.includes(page) && !vacia;
+                      const fila = <label key={page} className={vacia ? "impresion-fila vacia" : elegida ? "impresion-fila elegida" : "impresion-fila"}>
+                        <input type="checkbox" className="impresion-casilla" checked={elegida} disabled={vacia} onChange={() => togglePrintPage(page)} />
                         <span className="impresion-marca" aria-hidden="true">{elegida && <Check size={14} />}</span>
-                        <span className="impresion-fila-texto"><b>{title}</b><small>{page === SNAPSHOT_PAGE ? (pdfConEncaje ? t("3 hojas: familias, mapas y encaje") : t("2 hojas: familias y mapas")) : hint}</small></span>
+                        <span className="impresion-fila-texto"><b>{title}</b><small>{vacia
+                          ? t("Vacía ahora: ábrela y elige qué mostrar para que salga en el PDF.")
+                          : page === SNAPSHOT_PAGE ? t("1 hoja: familias, acciones y mapas")
+                          : page === CONTEXT_PAGE ? t("2 hojas: el jugador y la comparación")
+                          : hint}</small></span>
                       </label>;
-                      // El encaje va colgado de la ficha ampliada: solo se ofrece si ella sale.
-                      if (page !== SNAPSHOT_PAGE || !elegida) return fila;
-                      return [fila, <label key="encaje" className={pdfConEncaje ? "impresion-fila impresion-subfila elegida" : "impresion-fila impresion-subfila"}>
-                        <input type="checkbox" className="impresion-casilla" checked={pdfConEncaje} onChange={alternarEncajeEnPdf} />
-                        <span className="impresion-marca" aria-hidden="true">{pdfConEncaje && <Check size={14} />}</span>
-                        <span className="impresion-fila-texto"><b>{tf("Añadir el encaje con {equipo}", { equipo: nombreEquipoEncaje })}</b><small>{t("Tercera hoja de la ficha ampliada")}</small></span>
-                      </label>];
+                      return fila;
                     })}
                   </div>
                   <div className="impresion-archivo">
                     <span>{t("Nombre sugerido")}</span>
                     <b>{reportExportName}.pdf</b>
                   </div>
-                  <button type="button" className="impresion-accion" onClick={startPrint} disabled={!printPages.length}><Printer size={16} /> {t("Generar PDF / Imprimir")}</button>
-                  {!printPages.length && <small className="print-dialog-note">{t("Selecciona al menos una página.")}</small>}
+                  <button type="button" className="impresion-accion" onClick={startPrint} disabled={!cuantasImprimibles}><Printer size={16} /> {t("Generar PDF / Imprimir")}</button>
+                  {!cuantasImprimibles && <small className="print-dialog-note">{t("Selecciona al menos una página.")}</small>}
                   {printLayoutError && <small className="print-dialog-note">{t(printLayoutError)}</small>}
                 </div>
               </div>}
@@ -2427,6 +2866,8 @@ export default function ScoutStudio() {
           </div>
       </main>
     </div>
+    </ContextoDeFirma.Provider>
+    </MomentoDeImpresion.Provider>
     </ProveedorDeBase>
   );
 }

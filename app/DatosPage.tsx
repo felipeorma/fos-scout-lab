@@ -7,6 +7,8 @@ import { useBaseActiva } from "./BaseActiva";
 import { ChevronRight, FileSpreadsheet, Merge, MoreHorizontal, Plus, Sparkles, Trash, Upload } from "./Icons";
 import { Interruptor } from "./Interruptor";
 import { FilaDeMenu, MenuFlotante } from "./MenuFlotante";
+import { EditorDeNombreDeBase } from "./EditorDeNombreDeBase";
+import { nombreActual, type NombreDeBase } from "@/lib/nombresDeBase";
 
 /**
  * La base activa: qué hay cargado y cómo cambiarlo.
@@ -22,7 +24,7 @@ export function DatosPage({
   cargando, onCargarTodo, onSubirArchivo, onConectarApi,
   onQuitarCompeticion, apagadas = [], onAlternarCompeticion,
   onCargarAnio, aniosDisponibles = [],
-  conTemporadaAnterior = true, onTemporadaAnterior,
+  conTemporadaAnterior = true, onTemporadaAnterior, onRenombrar,
 }: {
   cargando?: boolean;
   onCargarTodo: () => void;
@@ -40,6 +42,8 @@ export function DatosPage({
   /** Si al cargar entra también la temporada anterior de cada liga. */
   conTemporadaAnterior?: boolean;
   onTemporadaAnterior?: (encendida: boolean) => void;
+  /** Poner liga y temporada a las bases subidas desde archivo (Wyscout). */
+  onRenombrar?: (archivos: string[], nombre: NombreDeBase) => void;
 }) {
   const { rows, competiciones, datasets, nombre } = useBaseActiva();
 
@@ -116,7 +120,11 @@ export function DatosPage({
                 {c.archivos.map((archivo) => <LogoPlataforma key={archivo} plataforma={proveedorDe(archivo)} alto={14} />)}
               </span>
               <span className="datos-competicion">
-                <b>{c.liga}</b>
+                {/* Las de archivo se pueden nombrar: un Excel de Wyscout se
+                    llama "Search results (3)", y eso es lo que salía como liga. */}
+                <b>{onRenombrar && c.archivos.every((archivo) => proveedorDe(archivo) === "wyscout") && datasets.some((d) => d.fileName === c.archivos[0])
+                  ? <EditorDeNombreDeBase actual={nombreActual(datasets.find((d) => d.fileName === c.archivos[0])!)} onGuardar={(nombre) => onRenombrar(c.archivos, nombre)}>{c.liga}</EditorDeNombreDeBase>
+                  : c.liga}</b>
                 <small>{[c.anio || null, [...new Set(c.archivos.map((archivo) => METRIC_SOURCE_COLORS[proveedorDe(archivo)].label))].join(" + ")].filter(Boolean).join(" · ")}</small>
               </span>
               {onAlternarCompeticion && <Interruptor

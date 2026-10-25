@@ -4,12 +4,18 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Desplegable } from "./BarraDeFiltros";
 import { ChevronDown } from "./Icons";
 import { PieDeReporte } from "./PieDeReporte";
-import { Escudo, LogoLiga } from "./Escudo";
-import { MenuDesplegable, type OpcionDeMenu } from "./MenuDesplegable";
+import { Escudo } from "./Escudo";
+import { MenuDesplegable } from "./MenuDesplegable";
 import { COLOR_FAMILIA, RosaDeEstilo } from "./RosaDeEstilo";
 import { numberLocale, t, tf } from "@/lib/i18n";
 import { useEstilos } from "./useEstilos";
 import { fetchExtrasDeEquipo, type ExtrasDeEquipo } from "@/lib/remoteData";
+import { ElPartido, partesDeClave, usePartidosDeLiga } from "./ElPartido";
+import { FlujoPage } from "./FlujoPage";
+import { proximoPartido } from "@/lib/partido";
+import { useCatalogo, useEquiposDeTemporada } from "./useTemporadaDeLiga";
+import type { ApiCompetition } from "@/lib/remoteData";
+import type { FilaEquipo } from "@/lib/estiloEquipo";
 import {
   FAMILIAS,
   METRICAS_ESTILO,
@@ -27,11 +33,13 @@ import {
 /**
  * Estilo de juego: la página 7 del dossier, con nuestros datos.
  *
- * Tres preguntas, de arriba abajo: cómo juega este equipo (la rosa y la lista
- * por familias), a quién se parece (los diez más cercanos en estilo) y en qué
- * se diferencia del que elijas para comparar (el cara a cara). La primera
- * respuesta sirve para preparar un partido; las otras dos, para fichar:
- * quien viene de un equipo que juega como el nuestro se adapta antes.
+ * Cuatro preguntas, de arriba abajo: cómo juega este equipo (la rosa y la
+ * lista por familias), qué pasará contra el rival (El partido: formación
+ * probable, choque de dibujos, lo esperado, ventajas), por dónde mueve el
+ * balón cada uno (el flujo de posesión, que antes era otra página) y en qué se
+ * diferencian y a quién se parece (cara a cara y top 10). Las primeras sirven
+ * para preparar un partido; la última, para fichar: quien viene de un equipo
+ * que juega como el nuestro se adapta antes.
  */
 
 function formatear(metrica: MetricaEstilo, valor: number) {
@@ -112,6 +120,83 @@ function ColumnaExtras({ perfil, rival = false }: { perfil: PerfilEquipo; rival?
   </div>;
 }
 
+// ---- Elegir cada lado: liga, temporada y equipo ------------------------------------------
+
+type Eleccion = { competicion: number; temporada: number; equipo: number };
+
+/**
+ * Un lado del partido, de CUALQUIER liga y temporada de StatsBomb: la de una
+ * competición internacional, la temporada anterior de un rival... Si esa liga
+ * y temporada ya están entre las cargadas se usan; si no, se piden. El perfil
+ * se calcula contra el mismo grupo de referencia que el resto (las demás
+ * ligas cargadas), con esta temporada en el lugar de su liga.
+ */
+function useLado(lado: Eleccion | null, filasPool: FilaEquipo[] | null, catalogo: ApiCompetition[] | null) {
+  const deEsaTemporada = (f: FilaEquipo) => Boolean(lado) && f.competition_id === lado!.competicion && f.season_id === lado!.temporada;
+  const enPool = Boolean(lado && filasPool?.some(deEsaTemporada));
+  const competicion = lado && catalogo ? catalogo.find((c) => c.competition_id === lado.competicion && c.season_id === lado.temporada) ?? null : null;
+  const pedidas = useEquiposDeTemporada(enPool ? null : competicion);
+  const filas = useMemo(
+    () => (enPool ? (filasPool ?? []).filter(deEsaTemporada) : pedidas.datos ?? []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [enPool, filasPool, pedidas.datos, lado?.competicion, lado?.temporada],
+  );
+  // Al cambiar de temporada se conserva el equipo si jugó en ella; si no, el primero.
+  const equipo = lado && filas.some((f) => f.team_id === lado.equipo)
+    ? lado.equipo
+    : [...filas].sort((a, b) => String(a.team_name).localeCompare(String(b.team_name)))[0]?.team_id ?? null;
+  const perfil = useMemo(() => {
+    if (!lado || equipo === null || !filas.length) return null;
+    const resto = (filasPool ?? []).filter((f) => f.competition_id !== lado.competicion);
+    return perfilesDeEstilo([...resto, ...filas]).find((p) => p.clave === `${lado.competicion}:${lado.temporada}:${equipo}`) ?? null;
+  }, [lado, equipo, filas, filasPool]);
+  return { perfil, filas, equipo, cargando: pedidas.cargando, error: pedidas.error };
+}
+
+function SelectorDeLado({ etiqueta, lado, equipo, catalogo, filas, onCambio }: {
+  etiqueta: string;
+  lado: Eleccion;
+  equipo: number | null;
+  catalogo: ApiCompetition[];
+  filas: FilaEquipo[];
+  onCambio: (lado: Eleccion) => void;
+}) {
+  const ligas = useMemo(() => {
+    const vistas = new Map<number, string>();
+    for (const c of catalogo) if (c.competition_id !== undefined && !vistas.has(c.competition_id)) vistas.set(c.competition_id, c.country ? `${c.name} · ${c.country}` : c.name);
+    return [...vistas.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [catalogo]);
+  const temporadas = catalogo.filter((c) => c.competition_id === lado.competicion)
+    .sort((a, b) => String(b.season).localeCompare(String(a.season), "en", { numeric: true }));
+  const nombreLiga = ligas.find(([id]) => id === lado.competicion)?.[1] ?? "…";
+  const temporada = temporadas.find((c) => c.season_id === lado.temporada)?.season ?? "…";
+  const equipos = [...filas].sort((a, b) => String(a.team_name).localeCompare(String(b.team_name)));
+  const nombreEquipo = equipos.find((f) => f.team_id === equipo)?.team_name ?? "…";
+  const ligaDeEscudo = temporadas[0]?.name ?? "";
+  return <div className="estilo-lado-selector">
+    <span className="estilo-lado-etiqueta">{etiqueta}</span>
+    <Desplegable etiqueta={t("Liga")} valor={nombreLiga} activo={false} apagado={!ligas.length}>
+      <select aria-label={tf("Liga · {lado}", { lado: etiqueta })} value={lado.competicion} onChange={(evento) => {
+        const competicion = Number(evento.target.value);
+        const masReciente = catalogo.filter((c) => c.competition_id === competicion)
+          .sort((a, b) => String(b.season).localeCompare(String(a.season), "en", { numeric: true }))[0];
+        if (masReciente?.season_id !== undefined) onCambio({ competicion, temporada: masReciente.season_id, equipo: lado.equipo });
+      }}>
+        {ligas.map(([id, nombre]) => <option key={id} value={id}>{nombre}</option>)}
+      </select>
+    </Desplegable>
+    <Desplegable etiqueta={t("Temporada")} valor={temporada} activo={false} apagado={!temporadas.length}>
+      <select aria-label={tf("Temporada · {lado}", { lado: etiqueta })} value={lado.temporada} onChange={(evento) => onCambio({ ...lado, temporada: Number(evento.target.value) })}>
+        {temporadas.map((c) => <option key={c.season_id} value={c.season_id}>{c.season}</option>)}
+      </select>
+    </Desplegable>
+    <MenuDesplegable etiqueta={t("Equipo")} valor={nombreEquipo} apagado={!equipos.length}
+      icono={equipo !== null ? <Escudo equipo={nombreEquipo} liga={ligaDeEscudo} tamano={14} /> : null}
+      opciones={equipos.map((f) => ({ valor: String(f.team_id), texto: String(f.team_name), icono: <Escudo equipo={String(f.team_name)} liga={ligaDeEscudo} tamano={18} respaldo /> }))}
+      elegida={String(equipo ?? "")} onElegir={(valor) => onCambio({ ...lado, equipo: Number(valor) })} />
+  </div>;
+}
+
 export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", logoDestinatario = "", claseHoja = "legal-page-shell" }: {
   /** El equipo con el que se mide el encaje. En el espacio de Cavalry, Cavalry. */
   equipoPropio?: string;
@@ -121,8 +206,10 @@ export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", lo
   claseHoja?: string;
 }) {
   const { filas, cargando, mensaje: estado, recargar } = useEstilos();
-  const [clave, setClave] = useState("");
-  const [claveRival, setClaveRival] = useState("");
+  // Lo elegido a mano en cada lado; sin elegir, el nuestro y su próximo rival.
+  const [eleccionA, setEleccionA] = useState<Eleccion | null>(null);
+  const [eleccionB, setEleccionB] = useState<Eleccion | null>(null);
+  const { datos: catalogo } = useCatalogo();
   const [metricaTop, setMetricaTop] = useState("contragolpe");
   // La familia resaltada en el radar y en su caja. Se elige en cualquiera de
   // los dos; un segundo toque la suelta.
@@ -137,32 +224,41 @@ export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", lo
     () => perfiles.find((perfil) => perfil.equipo.toLowerCase().includes(equipoPropio.toLowerCase())) ?? null,
     [perfiles, equipoPropio],
   );
-  const elegido = perfiles.find((perfil) => perfil.clave === clave) ?? propio ?? comparables[0] ?? null;
+  const defectoA = propio ?? comparables[0] ?? null;
+  const ladoA: Eleccion | null = eleccionA ?? (defectoA ? partesDeClave(defectoA.clave) : null);
+  const resueltoA = useLado(ladoA, filas, catalogo);
+  const elegido = resueltoA.perfil;
   const parecidos = useMemo(() => (elegido ? equiposParecidos(elegido, comparables, 10) : []), [elegido, comparables]);
-  const rival = perfiles.find((perfil) => perfil.clave === claveRival) ?? parecidos[0]?.perfil ?? null;
+  /*
+   * El rival por defecto es el del próximo partido, si el calendario de
+   * StatsBomb lo trae; si no, el más parecido de su misma liga, y solo sin
+   * nadie de su liga, el más parecido de cualquiera. "El partido" necesita
+   * que los dos sean de la misma liga y temporada.
+   */
+  const partesElegido = elegido ? partesDeClave(elegido.clave) : null;
+  const { liga: partidosDeSuLiga } = usePartidosDeLiga(partesElegido?.competicion ?? null, partesElegido?.temporada ?? null);
+  const proximo = elegido && partidosDeSuLiga && partesElegido ? proximoPartido(partidosDeSuLiga, partesElegido.equipo) : null;
+  const rivalProximo = proximo && partesElegido
+    ? perfiles.find((perfil) => perfil.clave === `${partesElegido.competicion}:${partesElegido.temporada}:${proximo.rival}`) ?? null
+    : null;
+  const parecidoDeSuLiga = parecidos.find(({ perfil }) => perfil.competicion === elegido?.competicion && perfil.temporada === elegido?.temporada)?.perfil
+    ?? (elegido ? equiposParecidos(elegido, perfiles.filter((perfil) => perfil.competicion === elegido.competicion && perfil.temporada === elegido.temporada), 1)[0]?.perfil : null)
+    ?? null;
+  const defectoB = rivalProximo ?? parecidoDeSuLiga ?? parecidos[0]?.perfil ?? null;
+  const ladoB: Eleccion | null = eleccionB ?? (defectoB ? partesDeClave(defectoB.clave) : null);
+  const resueltoB = useLado(ladoB, filas, catalogo);
+  const rival = resueltoB.perfil;
+  const mismaLiga = Boolean(elegido && rival && partesDeClave(elegido.clave).competicion === partesDeClave(rival.clave).competicion
+    && partesDeClave(elegido.clave).temporada === partesDeClave(rival.clave).temporada);
   const duelo = useMemo(() => (elegido && rival ? cabezaACabeza(elegido, rival) : []), [elegido, rival]);
   const encaje = elegido && propio && elegido.clave !== propio.clave ? parecidoDeEstilo(elegido, propio) : Number.NaN;
   const encajeSc = elegido && propio && elegido.clave !== propio.clave ? parecidoDeEstilo(elegido, propio, ["statsbomb", "skillcorner"]) : Number.NaN;
-
-  const porCompeticion = useMemo(() => {
-    const mapa = new Map<string, PerfilEquipo[]>();
-    for (const perfil of perfiles) mapa.set(perfil.competicion, [...(mapa.get(perfil.competicion) ?? []), perfil]);
-    return [...mapa.entries()]
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([competicion, lista]) => [competicion, [...lista].sort((x, y) => x.equipo.localeCompare(y.equipo))] as const);
-  }, [perfiles]);
 
   const metricaElegida = METRICAS_ESTILO.find((metrica) => metrica.id === metricaTop) ?? METRICAS_ESTILO[0];
   const top = useMemo(() => comparables
     .filter((perfil) => perfil.valores[metricaElegida.id])
     .sort((a, b) => b.valores[metricaElegida.id].z - a.valores[metricaElegida.id].z)
     .slice(0, 10), [comparables, metricaElegida]);
-
-  // Los equipos agrupados por liga, con el logo de la liga en la cabecera:
-  // con 200 equipos, la liga es lo primero que se busca.
-  const opcionesDeEquipo: OpcionDeMenu[] = porCompeticion.flatMap(([competicion, lista]) =>
-    lista.map((perfil) => ({ valor: perfil.clave, texto: perfil.equipo, grupo: competicion })));
-  const logoDeGrupo = (competicion: string) => <LogoLiga liga={competicion} tamano={20} hueco />;
 
   const pie = elegido
     ? <PieDeReporte asunto={rival ? `${elegido.equipo} · ${rival.equipo}` : elegido.equipo} destinatario={destinatario} logo={logoDestinatario} />
@@ -174,7 +270,7 @@ export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", lo
   // salen al imprimir.
   return <>
   <div className={claseHoja}>
-  <section className="estilo-page estilo-hoja-1">
+  <section className="estilo-page estilo-hoja-1" data-hoja-vacia={elegido ? undefined : ""}>
     <header>
       <div>
         <span>{t("STATSBOMB · ESTADÍSTICAS DE EQUIPO")}</span>
@@ -189,22 +285,17 @@ export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", lo
       </div>
     </header>
 
+    <div className="filtros-barra estilo-controles" role="group" aria-label={t("Qué equipo y con quién compararlo")}>
+        {ladoA && <SelectorDeLado etiqueta={t("Equipo")} lado={ladoA} equipo={resueltoA.equipo} catalogo={catalogo ?? []} filas={resueltoA.filas}
+          onCambio={(nuevo) => { setEleccionA(nuevo); if (!eleccionB && ladoB) setEleccionB(ladoB); }} />}
+        {ladoB && <SelectorDeLado etiqueta={t("Rival")} lado={ladoB} equipo={resueltoB.equipo} catalogo={catalogo ?? []} filas={resueltoB.filas} onCambio={setEleccionB} />}
+      </div>
     {!elegido ? <p className="estilo-estado" role="status">
-      {cargando ? estado : estado || t("Todavía no hay datos de equipo.")}
+      {cargando ? estado : resueltoA.cargando || resueltoB.cargando ? t("Leyendo los equipos de esa liga y temporada…") : estado || t("Todavía no hay datos de equipo.")}
       {!cargando && <button type="button" className="estilo-reintentar" onClick={() => void recargar()}>{t("Reintentar")}</button>}
     </p> : <>
-      <div className="filtros-barra estilo-controles" role="group" aria-label={t("Qué equipo y con quién compararlo")}>
-        <div className="filtros-chips">
-          <MenuDesplegable etiqueta={t("Equipo")} valor={elegido.equipo}
-            icono={<Escudo equipo={elegido.equipo} liga={elegido.competicion} tamano={14} />}
-            opciones={opcionesDeEquipo} iconoDeGrupo={logoDeGrupo}
-            elegida={elegido.clave} onElegir={(clave) => { setClave(clave); setClaveRival(""); }} />
-          <MenuDesplegable etiqueta={t("Comparar con")} valor={rival?.equipo ?? t("Nadie")} activo={Boolean(claveRival)}
-            icono={rival ? <Escudo equipo={rival.equipo} liga={rival.competicion} tamano={14} /> : null}
-            opciones={[{ valor: "", texto: t("Nadie") }, ...opcionesDeEquipo]} iconoDeGrupo={logoDeGrupo}
-            elegida={rival?.clave ?? ""} onElegir={setClaveRival} />
-        </div>
-      </div>
+      {(resueltoA.error || resueltoB.error) && <p className="estilo-estado" role="status">{resueltoA.error || resueltoB.error}</p>}
+      {proximo && rivalProximo && !eleccionB && <p className="estilo-proximo">{tf("Rival: el próximo partido, {fecha} {donde}.", { fecha: proximo.fecha, donde: proximo.enCasa ? t("en casa") : t("fuera") })}</p>}
       {estado && <p className="estilo-estado" role="status">{estado}</p>}
 
       <div className="estilo-grid">
@@ -282,8 +373,8 @@ export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", lo
               {parecidos.map(({ perfil, parecido, conSkillcorner }, posicion) => (
                 <li key={perfil.clave} className={perfil.clave === rival?.clave ? "clicable activa" : "clicable"}
                   role="button" tabIndex={0} aria-pressed={perfil.clave === rival?.clave}
-                  onClick={() => setClaveRival(perfil.clave)}
-                  onKeyDown={(evento) => { if (evento.key === "Enter" || evento.key === " ") { evento.preventDefault(); setClaveRival(perfil.clave); } }}>
+                  onClick={() => setEleccionB(partesDeClave(perfil.clave))}
+                  onKeyDown={(evento) => { if (evento.key === "Enter" || evento.key === " ") { evento.preventDefault(); setEleccionB(partesDeClave(perfil.clave)); } }}>
                   <span className={posicion < 3 ? "rank-pos podio" : "rank-pos"}>{posicion + 1}</span>
                   <span className="pool-cuerpo"><b className="con-escudo"><Escudo equipo={perfil.equipo} liga={perfil.competicion} tamano={15} />{perfil.equipo}</b><small>{perfil.competicion}</small></span>
                   <span className="pool-cifras"><b>{parecido.toFixed(1)}</b><small>{Number.isFinite(conSkillcorner) ? tf("con SkillCorner {n}", { n: conSkillcorner.toFixed(1) }) : t("parecido")}</small></span>
@@ -300,11 +391,20 @@ export function EstiloPage({ equipoPropio = EQUIPO_PROPIO, destinatario = "", lo
   </section>
   </div>
 
+  {elegido && rival && <ElPartido a={elegido} b={rival} claseHoja={claseHoja} pie={pie} />}
+
+  {elegido && partesElegido && <div className={claseHoja}>
+  <section className="estilo-page estilo-hoja-flujo">
+    <FlujoPage fijado={{ competicion: partesElegido.competicion, temporada: partesElegido.temporada, equipoA: partesElegido.equipo, equipoB: rival && mismaLiga ? partesDeClave(rival.clave).equipo : null }} />
+    {pie}
+  </section>
+  </div>}
+
   {elegido && <div className={claseHoja}>
-  <section className="estilo-page estilo-hoja-2">
+  <section className="estilo-page estilo-hoja-2" data-hoja-vacia={elegido ? undefined : ""}>
     <header className="estilo-cabecera-continuacion">
       <div>
-        <span>{t("STATSBOMB · ESTADÍSTICAS DE EQUIPO · 2 DE 2")}</span>
+        <span>{t("STATSBOMB · ESTADÍSTICAS DE EQUIPO")}</span>
         <h2>{rival ? `${elegido.equipo} · ${rival.equipo}` : elegido.equipo}</h2>
       </div>
     </header>

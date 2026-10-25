@@ -1,6 +1,9 @@
 "use client";
 
+import { useId } from "react";
 import { FAMILIAS, valorDeFamilia, type FamiliaEstilo, type PerfilEquipo } from "@/lib/estiloEquipo";
+import { sitioDelValor } from "@/lib/radar";
+import { tonosDe } from "@/lib/similarityMetricGroups";
 import { t, tf } from "@/lib/i18n";
 
 /**
@@ -12,9 +15,11 @@ import { t, tf } from "@/lib/i18n";
  * resalta su caja, y al revés.
  *
  * Los colores son los de Ficha y radar (ver "rosa de estilo" en
- * globals.css). Las familias van en el orden de la jugada, las cuatro con
- * balón arriba y las dos sin balón abajo, y un arco por fuera nombra cada
- * fase.
+ * globals.css), y el dibujo también: cada cuña sobre su pista, de oscuro a
+ * claro según el percentil, su número en una píldora oscura y un anillo de
+ * color por fuera. Las familias van en el orden de la jugada, las cuatro con
+ * balón arriba y las dos sin balón abajo, y un arco gris más afuera nombra
+ * cada fase.
  *
  * El equipo con el que se compara va encima como una línea continua en la
  * tinta —blanca en el tema oscuro—, para leer las dos formas a la vez.
@@ -31,11 +36,26 @@ export const COLOR_FAMILIA: Record<FamiliaEstilo, string> = {
   presion: "var(--familia-presion)",
 };
 
+/** Los mismos tonos en hexadecimal: el degradado necesita el bajo y el alto aprobados de cada uno. */
+const HEX_FAMILIA: Record<FamiliaEstilo, string> = {
+  construccion: "#b5577f",
+  circulacion: "#d7a62c",
+  ataque: "#e95b3f",
+  movimiento: "#12c48b",
+  defensa: "#3f72d9",
+  presion: "#8b5cf6",
+};
+
 const CENTRO = 280;
 const R_DENTRO = 30;
 const R_FUERA = 196;
-const R_FASE = R_FUERA + 12;
-const R_NOMBRE = R_FUERA + 34;
+/** El anillo de color de cada familia, como el de los conjuntos en el radar de jugadores. */
+const R_ANILLO = R_FUERA + 13;
+const R_FASE = R_ANILLO + 16;
+const R_NOMBRE = R_FASE + 24;
+/** La píldora del percentil: la del radar de jugadores. */
+const CIFRA = 13;
+const ALTO_PILDORA = CIFRA * 1.55;
 
 const radio = (percentil: number) => R_DENTRO + (R_FUERA - R_DENTRO) * Math.max(0, Math.min(100, percentil)) / 100;
 const punto = (angulo: number, r: number) => [CENTRO + r * Math.sin(angulo), CENTRO - r * Math.cos(angulo)] as const;
@@ -58,6 +78,7 @@ export function RosaDeEstilo({ perfil, rival, activa = null, onActiva }: {
   activa?: FamiliaEstilo | null;
   onActiva?: (familia: FamiliaEstilo | null) => void;
 }) {
+  const id = useId().replace(/:/g, "");
   // Solo las familias con dato: sin SkillCorner, cuatro cuñas.
   const familias = FAMILIAS
     .map((familia) => ({ ...familia, valor: valorDeFamilia(perfil, familia.id) }))
@@ -71,6 +92,7 @@ export function RosaDeEstilo({ perfil, rival, activa = null, onActiva }: {
   const desde = (i: number) => inicio + i * paso;
   const medio = (i: number) => desde(i) + paso / 2;
   const hueco = paso * 0.035;
+  const huecoAnillo = Math.min(0.045, paso * 0.12);
   const elegir = (id: FamiliaEstilo) => onActiva?.(activa === id ? null : id);
 
   const cuna = (i: number, percentil: number) => {
@@ -99,23 +121,58 @@ export function RosaDeEstilo({ perfil, rival, activa = null, onActiva }: {
     { id: "sin", nombre: t("Sin balón"), a0: desde(conBalon), a1: desde(n), abajo: true },
   ].filter((fase) => fase.a1 - fase.a0 > 0.01);
 
-  return <svg className={activa ? "rosa-estilo con-activa" : "rosa-estilo"} viewBox="-86 -6 732 572" role="img"
+  const clase = (base: string, familia: FamiliaEstilo) => (activa && activa !== familia ? `${base} atenuada` : base);
+
+  return <svg className={activa ? "rosa-estilo con-activa" : "rosa-estilo"} viewBox="-90 -8 740 576" role="img"
     aria-label={rival ? tf("Estilo de {a} frente a {b}", { a: perfil.equipo, b: rival.equipo }) : tf("Estilo de {a}", { a: perfil.equipo })}>
+    <defs>
+      {/* De oscuro a claro a lo largo de TODA la pista, no de la cuña: el tono
+          dice el percentil, y una cuña corta se queda apagada. */}
+      {familias.map((familia) => {
+        const { bajo, alto } = tonosDe(HEX_FAMILIA[familia.id]);
+        return <radialGradient key={familia.id} id={`${id}-${familia.id}`} gradientUnits="userSpaceOnUse" cx={CENTRO} cy={CENTRO} r={R_FUERA} fx={CENTRO} fy={CENTRO}>
+          <stop offset={R_DENTRO / R_FUERA} stopColor={bajo} />
+          <stop offset={(R_DENTRO + 0.55 * (R_FUERA - R_DENTRO)) / R_FUERA} stopColor={HEX_FAMILIA[familia.id]} />
+          <stop offset={1} stopColor={alto} />
+        </radialGradient>;
+      })}
+    </defs>
+
     {[25, 50, 75, 100].map((p) => <circle key={p} cx={CENTRO} cy={CENTRO} r={radio(p)} className={p === 50 ? "rosa-anillo mediana" : "rosa-anillo"} />)}
-    {familias.map((_, i) => {
-      const [x, y] = punto(desde(i), R_FUERA);
-      return <line key={i} x1={CENTRO} y1={CENTRO} x2={x} y2={y} className="rosa-radio" />;
-    })}
+
+    {/* El anillo de color de cada familia, sobre una base tenue. */}
+    <circle cx={CENTRO} cy={CENTRO} r={R_ANILLO} className="rosa-anillo-base" />
+    {familias.map((familia, i) => (
+      <path key={familia.id} d={arco(desde(i) + huecoAnillo, desde(i + 1) - huecoAnillo, R_ANILLO)} style={{ stroke: COLOR_FAMILIA[familia.id] }}
+        className={clase("rosa-anillo-familia", familia.id)} />
+    ))}
 
     {familias.map((familia, i) => (
-      <path key={familia.id} d={cuna(i, familia.valor.percentil)} style={{ fill: COLOR_FAMILIA[familia.id] }}
-        className={activa && activa !== familia.id ? "rosa-cuna atenuada" : "rosa-cuna"} onClick={() => elegir(familia.id)}>
+      <g key={familia.id} className={clase("rosa-cuna", familia.id)} onClick={() => elegir(familia.id)}>
         <title>{`${t(familia.nombre)} · P${familia.valor.percentil} · ${tf("{n} métricas", { n: familia.valor.metricas })}`}</title>
-      </path>
+        {/* La pista entera, tenue: deja ver cuánto le falta al percentil. */}
+        <path d={cuna(i, 100)} className="rosa-pista" />
+        <path d={cuna(i, familia.valor.percentil)} fill={`url(#${id}-${familia.id})`} />
+      </g>
     ))}
 
     {completo && <polygon points={delRival.map((v, i) => punto(medio(i), radio(v as number)).join(",")).join(" ")} className="rosa-rival" />}
     {tramos.map((tramo, i) => <polyline key={i} points={tramo} className="rosa-rival abierto" />)}
+
+    {/* El percentil en su píldora, encima de la línea del rival para que se lea. */}
+    {familias.map((familia, i) => {
+      const valor = String(familia.valor.percentil);
+      const ancho = Math.max(ALTO_PILDORA, valor.length * CIFRA * 0.6 + CIFRA * 0.62);
+      const { radio: r } = sitioDelValor({
+        radioInterior: R_DENTRO, radioExterior: R_FUERA, radioDePorcion: radio(familia.valor.percentil),
+        anguloPorPorcion: paso, anchoPildora: ancho, altoPildora: ALTO_PILDORA,
+      });
+      const [x, y] = punto(medio(i), r);
+      return <g key={familia.id} className={clase("rosa-pildora", familia.id)} aria-hidden="true">
+        <rect x={x - ancho / 2} y={y - ALTO_PILDORA / 2} width={ancho} height={ALTO_PILDORA} rx={ALTO_PILDORA / 2} />
+        <text x={x} y={y + CIFRA * 0.02} textAnchor="middle" dominantBaseline="central">{valor}</text>
+      </g>;
+    })}
 
     <circle cx={CENTRO} cy={CENTRO} r={R_DENTRO - 4} className="rosa-centro" />
 
@@ -136,7 +193,7 @@ export function RosaDeEstilo({ perfil, rival, activa = null, onActiva }: {
       const seno = Math.sin(a), coseno = Math.cos(a);
       const ancla = seno > 0.15 ? "start" : seno < -0.15 ? "end" : "middle";
       const texto = lineas(t(familia.nombre));
-      const alto = (texto.length + 1) * 15;
+      const alto = texto.length * 15;
       const y0 = coseno > 0.6 ? y - alto + 12 : coseno < -0.6 ? y + 12 : y - alto / 2 + 12;
       return <g key={familia.id} className={activa && activa !== familia.id ? "rosa-familia atenuada" : activa === familia.id ? "rosa-familia activa" : "rosa-familia"}
         role="button" tabIndex={0} aria-pressed={activa === familia.id} aria-label={`${t(familia.nombre)} · P${familia.valor.percentil}`}
@@ -144,7 +201,6 @@ export function RosaDeEstilo({ perfil, rival, activa = null, onActiva }: {
         onKeyDown={(evento) => { if (evento.key === "Enter" || evento.key === " ") { evento.preventDefault(); elegir(familia.id); } }}>
         <text x={x} y={y0} textAnchor={ancla} className="rosa-nombre">
           {texto.map((linea, k) => <tspan key={k} x={x} dy={k === 0 ? 0 : 15}>{linea}</tspan>)}
-          <tspan x={x} dy={16} className="rosa-valor">{`P${familia.valor.percentil}`}</tspan>
         </text>
       </g>;
     })}

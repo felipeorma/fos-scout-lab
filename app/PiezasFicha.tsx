@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { BarraDegradada, Cesped, ChipDeCambio, Cometa, FilaDeMetrica, tonosDeColor, type Tonos } from "./KitNight";
+import { SIMILARITY_METRIC_GROUPS, type SimilarityMetricGroup } from "@/lib/similarityMetricGroups";
 import { Desplegable } from "./BarraDeFiltros";
 import { numberLocale, t, tf } from "@/lib/i18n";
 import { fetchEventosJugador } from "@/lib/remoteData";
@@ -10,7 +12,9 @@ import { Escudo } from "./Escudo";
 import { buildSimilaritySearch, type SimilarityFilters, type SimilarityPlayer } from "@/lib/similarity";
 import { PERFILES } from "@/lib/perfiles";
 import { primaryPositionRole } from "@/lib/positions";
-import type { DataRow, PlayerReport } from "@/lib/scouting";
+import { marcoDeSuLiga, temporadasDeFila, type DataRow, type PlayerReport, MINIMO_FAMILIAS_EN_SU_LIGA } from "@/lib/scouting";
+import type { ValorCompuesto } from "@/lib/snapshot";
+import { marcoConNivel, type EntradaOpta } from "@/lib/nivelDeLiga";
 import type { TransfermarktProfile } from "@/lib/transfermarkt";
 import {
   AGRUPACIONES_RECEPCION,
@@ -28,7 +32,6 @@ import {
   familiasCompuestas,
   fuenteStatsbomb,
   grupoDeRecepcion,
-  MIN_INTERVENCIONES,
   rejilla,
   resumenRecepciones,
   ROLES_SECUENCIA,
@@ -58,6 +61,22 @@ export type ContextoFicha = {
   perfilTm?: Partial<TransfermarktProfile>;
   minutosMin: number;
   onAbrirJugador?: (indice: number) => void;
+  /** La temporada que se mira en la ficha ("2026", "2025/2026"); sin ella, la más reciente del jugador. */
+  temporada?: string;
+  /** Las claves "liga año" de cada fila cuando se mide contra su liga; sin ellas, contra todas. */
+  clavesPorFila?: string[][] | null;
+  /** Los Opta Power Rankings, para decir el nivel de su liga junto al grupo. */
+  feedOpta?: EntradaOpta[] | null;
+  /** Las claves "liga año" de cada fila, se mida como se mida: acotan el Top 10 y los parecidos. */
+  ligasDeFila?: string[][] | null;
+  /** Ligas añadidas a mano al Top 10 y a los parecidos; por defecto, solo la suya. */
+  ligasExtra?: string[];
+  /**
+   * Medir siempre contra su liga y su cohorte, aunque su liga tenga menos de
+   * diez de su puesto (con cinco basta para las familias). La Ficha ampliada
+   * lo pide; las piezas sueltas de Visuales siguen el ajuste de la ficha.
+   */
+  siempreSuLiga?: boolean;
 };
 
 export type IdPieza =
@@ -90,7 +109,7 @@ export const PIEZAS_FICHA: Array<{ id: IdPieza; titulo: string; ancho: number; a
   { id: "recepciones_tipo", titulo: "Cómo recibe", ancho: 4, alto: 500, eventos: true },
   { id: "recepciones_origen", titulo: "De dónde le llega", ancho: 4, alto: 500, eventos: true },
   { id: "recepciones_pasadores", titulo: "Quién se la da", ancho: 4, alto: 420, eventos: true },
-  { id: "roles", titulo: "Rol en la secuencia", ancho: 12, alto: 420, eventos: false, roles: true },
+  { id: "roles", titulo: "Cómo participa en la jugada", ancho: 12, alto: 420, eventos: false, roles: true },
   { id: "encaje", titulo: "Encaje con un equipo", ancho: 12, alto: 720, eventos: false, roles: true },
   { id: "enjambres", titulo: "Frente a su grupo", ancho: 12, alto: 380, eventos: false },
   { id: "dispersion", titulo: "Construcción frente a asociación", ancho: 6, alto: 400, eventos: false },
@@ -110,7 +129,41 @@ export function opcionesDePieza(id: IdPieza): { etiqueta: string; inicial: strin
   return null;
 }
 
-const tramo = (percentil: number) => (percentil >= 80 ? "p5" : percentil >= 60 ? "p4" : percentil >= 40 ? "p3" : percentil >= 20 ? "p2" : "p1");
+/*
+ * Look Night. Cada familia toma el color de su conjunto —el mismo que en el
+ * radar— y su barra va de oscuro a claro según el percentil. Las listas y los
+ * roles van con el rojo del acento (rampa_de_valor del diseño).
+ */
+const CONJUNTO_DE_FAMILIA: Record<string, SimilarityMetricGroup["id"]> = {
+  construccion: "passing", asociacion: "passing", progresion: "passing",
+  creacion_juego: "creating", creacion_parado: "creating", centros: "creating",
+  amenaza: "finishing", finalizacion: "finishing",
+  aereo: "defending", defensa_rival: "defending", defensa_propia: "defending", defensa_area: "defending", defensa_juego: "defending",
+  fisico: "physical", movimiento_sc: "physical", bajo_presion: "physical",
+};
+const conjuntoDeFamilia = (id: string) => SIMILARITY_METRIC_GROUPS.find((grupo) => grupo.id === (CONJUNTO_DE_FAMILIA[id] ?? "passing"))!;
+const TONOS_ACENTO: Tonos = { color: "#ff3b30", bajo: "#a94a44", alto: "#ff8d6b" };
+/** La rampa de la red de pases (#CBD8D0 → #F6A994 → #FF3B30), de 0 a 1. */
+function rampaDeRed(valor: number) {
+  const paradas = ["#cbd8d0", "#f6a994", "#ff3b30"];
+  const v = Math.max(0, Math.min(1, valor));
+  const [a, b, f] = v < 0.5 ? [paradas[0], paradas[1], v / 0.5] : [paradas[1], paradas[2], (v - 0.5) / 0.5];
+  const canal = (hex: string, i: number) => parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16);
+  return `rgb(${[0, 1, 2].map((i) => Math.round(canal(a, i) * (1 - f) + canal(b, i) * f)).join(",")})`;
+}
+/** Colores de acción del xG chain del diseño, aclarados para fondo oscuro. */
+const COLOR_OCASION: Record<string, string> = { juego: "#2f96e0", centro: "#f2b01e", parado: "#e08cbb", asistencia: "#2fb65a" };
+/** Una estrella de cinco puntas: el gol, como en el mapa de remates del diseño. */
+function estrella(x: number, y: number, radio: number) {
+  let d = "";
+  for (let i = 0; i < 10; i += 1) {
+    const angulo = -Math.PI / 2 + (i * Math.PI) / 5;
+    const r = i % 2 ? radio * 0.45 : radio;
+    d += `${i ? "L" : "M"}${(x + Math.cos(angulo) * r).toFixed(2)} ${(y + Math.sin(angulo) * r).toFixed(2)}`;
+  }
+  return `${d}Z`;
+}
+
 const conSigno = (z: number) => `${z >= 0 ? "+" : "−"}${Math.abs(z).toFixed(2)}`;
 export const apellido = (nombre: string) => nombre.trim().split(/\s+/).slice(-1)[0] ?? nombre;
 const pct = (parte: number, total: number) => `${total ? Math.round((parte / total) * 100) : 0}%`;
@@ -212,27 +265,69 @@ function separar(lista: EventoSB[]) {
  * de descarga que no va a usar.
  */
 export function useDatosFicha(contexto: ContextoFicha, conEventos: boolean, conRoles = false) {
-  const { rows, indice, informe, minutosMin } = contexto;
+  const { rows, indice, informe, minutosMin, clavesPorFila, feedOpta, ligasDeFila = null, ligasExtra = [], siempreSuLiga = false } = contexto;
   const fila = rows[indice];
   const jugador = String(fila?.Player ?? informe.player);
-  const equipo = String(fila?.Team ?? informe.team);
-  const fuente = fuenteStatsbomb(fila?.["Data sources"]);
+  const fuente = fuenteStatsbomb(fila?.["Data sources"], contexto.temporada);
+  // El club de ESA temporada y liga, no el actual: es con el que jugó esos partidos.
+  const temporadaDeLaFuente = fuente ? temporadasDeFila(fila).find((temporada) => temporada.etiqueta === fuente.temporada) : undefined;
+  const equipo = (fuente && temporadaDeLaFuente?.equipoPorLiga[fuente.liga]) || String(fila?.Team ?? informe.team);
   const clave = fuente ? `${fuente.liga}|${fuente.temporada}|${equipo}|${jugador}` : "";
   const { eventos, estado } = useEventos(clave, conEventos, equipo);
   const { roles: rolesLiga, estado: estadoRoles } = useRoles(fuente?.liga ?? "", fuente?.temporada ?? "", conRoles);
 
-  const grupo = useMemo(
-    () => deCache(grupos, rows, `${informe.cohort}|${minutosMin}|${indice}`, () => familiasCompuestas(rows, informe.cohort, minutosMin, indice)),
-    [rows, informe.cohort, minutosMin, indice],
+  // Su grupo, como en la ficha: los de su puesto en su liga y temporada, si
+  // hay al menos diez; si no, todos los cargados, y la cabecera lo dice.
+  const suLiga = useMemo(
+    () => marcoDeSuLiga(rows, clavesPorFila, indice, informe.cohort, minutosMin, siempreSuLiga ? MINIMO_FAMILIAS_EN_SU_LIGA : undefined),
+    [rows, clavesPorFila, indice, informe.cohort, minutosMin, siempreSuLiga],
   );
-  const parecidos = useMemo(() => deCache(similares, rows, `${indice}|${minutosMin}`, () => {
-    const filtros: SimilarityFilters = { query: "", position: "", secondaryRole: "", side: "", passport: "", minimumMinutes: minutosMin, ageMin: null, ageMax: null };
+  const grupo = useMemo(() => {
+    const enSuLiga = suLiga?.modo === "liga" ? suLiga : null;
+    const clave = `${informe.cohort}|${minutosMin}|${indice}|${enSuLiga ? enSuLiga.claves.join("¦") : "todas"}`;
+    return deCache(grupos, rows, clave, () => familiasCompuestas(rows, informe.cohort, minutosMin, indice, enSuLiga ? (i) => enSuLiga.filas.has(i) : undefined));
+  }, [rows, informe.cohort, minutosMin, indice, suLiga]);
+  /*
+   * El Top 10 y los parecidos, de su liga y temporada por defecto; con más
+   * ligas si se añaden. En el Top 10 cada uno va medido dentro de su propia
+   * liga (su grupo de posición de esa liga), así que un 1,5 de la MLS y uno de
+   * la CPL dicen lo mismo: cuánto destaca donde juega.
+   */
+  const susLigas = useMemo(() => ligasDeFila?.[indice] ?? [], [ligasDeFila, indice]);
+  const ligasDeLaLista = useMemo(() => [...new Set([...susLigas, ...ligasExtra])], [susLigas, ligasExtra]);
+  const claveDeLigas = ligasDeLaLista.join("¦");
+  const gruposDelTop = useMemo(() => {
+    if (!ligasDeFila || !susLigas.length) return [grupo];
+    return ligasDeLaLista.map((liga) => deCache(grupos, rows, `${informe.cohort}|${minutosMin}|liga:${liga}`,
+      () => familiasCompuestas(rows, informe.cohort, minutosMin, -1, (i) => (ligasDeFila[i] ?? []).includes(liga))));
+    // claveDeLigas resume ligasDeLaLista.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ligasDeFila, susLigas, claveDeLigas, rows, informe.cohort, minutosMin, grupo]);
+  const candidatosDelTop = useMemo(() => {
+    const vistos = new Set<number>();
+    const lista: Array<{ i: number; valores: Record<string, ValorCompuesto> | undefined }> = [];
+    for (const g of gruposDelTop) for (const i of g.indices) {
+      if (vistos.has(i)) continue;
+      vistos.add(i);
+      lista.push({ i, valores: g.valores.get(i) });
+    }
+    return lista;
+  }, [gruposDelTop]);
+  const parecidos = useMemo(() => deCache(similares, rows, `${indice}|${minutosMin}|${claveDeLigas}`, () => {
+    const puesto = primaryPositionRole(fila?.Position ?? informe.position) ?? "";
+    const filtros: SimilarityFilters = { query: "", position: puesto, secondaryRole: "", side: "", passport: "", minimumMinutes: minutosMin, ageMin: null, ageMax: null };
+    // Cada uno medido contra su liga cuando hay varias; si la suya no da, contra todas.
+    const porLiga = ligasDeFila && new Set(ligasDeFila.flat()).size > 1 ? { ligasPorFila: ligasDeFila } : null;
+    const enLaLista = (i: number) => !ligasDeFila || !susLigas.length || (ligasDeFila[i] ?? []).some((liga) => ligasDeLaLista.includes(liga));
     try {
-      return buildSimilaritySearch(rows, indice, filtros)?.candidates.slice(0, 15) ?? [];
+      const busqueda = (porLiga ? buildSimilaritySearch(rows, indice, filtros, {}, "AUTO", null, porLiga) : null) ?? buildSimilaritySearch(rows, indice, filtros);
+      return (busqueda?.candidates ?? []).filter((c) => enLaLista(c.index)).slice(0, 15);
     } catch {
       return [];
     }
-  }), [rows, indice, minutosMin]);
+    // claveDeLigas resume las ligas de la lista.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [rows, indice, minutosMin, claveDeLigas, ligasDeFila, informe.position, fila]);
   // Para los aros de los gráficos de grupo hacen falta parecidos de su mismo
   // puesto: la lista general admite otros (a Engel, central, le salían
   // laterales y un extremo), y esos no tienen punto en el gráfico de centrales.
@@ -267,6 +362,13 @@ export function useDatosFicha(contexto: ContextoFicha, conEventos: boolean, conR
     grupo,
     propias: grupo.valores.get(indice) ?? {},
     nombreGrupo: t(PERFILES.find((perfil) => perfil.id === informe.cohort)?.nombre ?? informe.cohort),
+    /** Contra quién se midió el grupo, con el nivel de su liga; null con una sola competición. */
+    marco: suLiga ? { modo: suLiga.modo, texto: marcoConNivel(suLiga.claves, feedOpta), enSuLiga: suLiga.enSuLiga } : null,
+    candidatosDelTop,
+    /** Las ligas del Top 10 y de los parecidos, con su nivel: "CPL 2026 · Opta 65,3 + MLS 2026 · Opta 79,7". */
+    ligasDeLaLista: ligasDeLaLista.length ? marcoConNivel(ligasDeLaLista, feedOpta) : "",
+    /** De cuál de las ligas de la lista es una fila (la primera que casa), para escribirla al lado. */
+    ligaEnLaLista: (i: number) => (ligasDeFila?.[i] ?? []).find((liga) => ligasDeLaLista.includes(liga)) ?? "",
     parecidos,
     // Los aros de los gráficos de grupo: los cinco más parecidos de su puesto
     // que están en el grupo (con el mínimo de minutos).
@@ -288,6 +390,7 @@ export type DatosFicha = ReturnType<typeof useDatosFicha>;
 function Cancha({ mitad = false, fondo, children, etiqueta }: { mitad?: boolean; fondo?: ReactNode; children?: ReactNode; etiqueta: string }) {
   const alto = mitad ? 64 : 120;
   return <svg className={mitad ? "snap-cancha mitad" : "snap-cancha"} viewBox={`-2 -3 84 ${alto + 5}`} role="img" aria-label={etiqueta}>
+    <Cesped ancho={80} largo={alto} franja={10} radio={1.5} />
     {fondo}
     <g className="snap-lineas">
       <rect x={0} y={0} width={80} height={120} />
@@ -490,46 +593,90 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
   const { contexto, jugador, equipo, fuente, eventos, grupo, propias, nombreGrupo, parecidos, destacados, nombres, sinEventos } = datos;
   const { rows, indice, informe, perfilTm, onAbrirJugador } = contexto;
   const aviso = suelta && sinEventos ? datos.estado || undefined : undefined;
-  const conGrupo = tf("frente a {n} {grupo}", { n: grupo.indices.length, grupo: nombreGrupo.toLowerCase() });
+  const conGrupo = datos.marco?.modo === "liga"
+    ? tf("frente a {n} {grupo} de su liga ({marco})", { n: grupo.indices.length, grupo: nombreGrupo.toLowerCase(), marco: datos.marco.texto })
+    : tf("frente a {n} {grupo}", { n: grupo.indices.length, grupo: nombreGrupo.toLowerCase() });
 
   switch (pieza) {
-    case "ficha":
+    case "ficha": {
+      /*
+       * La misma tarjeta que Ficha y radar, en pequeño: retrato grafito con
+       * el brillo del club, escudo arriba a la izquierda y dorsal arriba a la
+       * derecha (los dos con el borde blanco de la foto), la foto recortada,
+       * y al lado la liga, el nombre, la posición y los datos; debajo, la
+       * franja de la temporada con el índice.
+       */
+      const dorsal = eventos?.dorsal || perfilTm?.number || "";
+      const iniciales = jugador.split(/\s+/).map((p) => p[0]).slice(0, 2).join("");
+      // Todo de la temporada que se mira: el informe puede sumar dos temporadas
+      // (el radar se mide con las dos) y salía "54 partidos · 2.451 minutos".
+      const deLaTemporada = (columna: string, respaldo: number) => {
+        const valor = Number(rows[indice]?.[columna]);
+        return Number.isFinite(valor) && rows[indice]?.[columna] !== "" ? valor : respaldo;
+      };
+      const minutosTemporada = deLaTemporada("Minutes played", informe.minutes);
+      const dato = (valor: unknown) => (valor === undefined || valor === null || valor === "" || valor === "—" ? "—" : String(valor));
       return <div className="snap-ficha">
-        {perfilTm?.playerImage
-          // eslint-disable-next-line @next/next/no-img-element
-          ? <img className="snap-foto" src={perfilTm.playerImage} alt="" />
-          : <span className="snap-foto vacia">{jugador.split(/\s+/).map((p) => p[0]).slice(0, 2).join("")}</span>}
-        <div className="snap-ficha-texto">
-          <b>{jugador}</b>
-          <small>
-            {perfilTm?.clubLogo
-              // eslint-disable-next-line @next/next/no-img-element
-              ? <img src={perfilTm.clubLogo} alt="" />
-              : <Escudo equipo={equipo} liga={fuente?.liga ?? ""} tamano={16} />}
-            {perfilTm?.club || equipo}
-          </small>
+        <div className="snap-retrato">
+          <span className="snap-retrato-brillo" aria-hidden="true" />
+          {perfilTm?.clubLogo
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img className="snap-retrato-escudo" src={perfilTm.clubLogo} alt="" />
+            : <Escudo equipo={equipo} liga={fuente?.liga ?? ""} tamano={34} respaldo className="snap-retrato-escudo" />}
+          {dorsal && <b className="snap-retrato-dorsal">{dorsal}</b>}
+          {perfilTm?.playerImage
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img className="snap-retrato-foto" src={perfilTm.playerImage} alt="" />
+            : <span className="snap-retrato-iniciales">{iniciales}</span>}
         </div>
-        <dl>
-          <div><dt>{t("Posición")}</dt><dd>{informe.position || "—"}</dd></div>
-          <div><dt>{t("Edad")}</dt><dd>{informe.age || "—"}</dd></div>
-          <div><dt>{t("Minutos")}</dt><dd>{num(informe.minutes)}</dd></div>
-          <div><dt>{t("País")}</dt><dd>{informe.passport || "—"}</dd></div>
-          <div><dt>{t("Dorsal")}</dt><dd>{eventos?.dorsal || perfilTm?.number || "—"}</dd></div>
-          <div><dt>{t("Liga")}</dt><dd>{fuente?.liga ?? "—"}</dd></div>
-        </dl>
+        <div className="snap-retrato-info">
+          <div className="snap-retrato-competicion">
+            {perfilTm?.leagueLogo
+              // eslint-disable-next-line @next/next/no-img-element
+              && <img src={perfilTm.leagueLogo} alt="" />}
+            <span><b>{fuente?.liga || perfilTm?.league || t("Competición")}</b><small>{perfilTm?.club || equipo}</small></span>
+          </div>
+          <h3>{jugador}</h3>
+          <div className="snap-retrato-identidad"><b>{informe.position || "—"}</b><span>{perfilTm?.citizenship || informe.passport || ""}</span></div>
+          <dl>
+            <div><dt>{t("Edad")}</dt><dd>{dato(perfilTm?.age || informe.age)}</dd></div>
+            <div><dt>{t("Altura")}</dt><dd>{dato(perfilTm?.height)}</dd></div>
+            <div><dt>{t("Pie")}</dt><dd>{dato(perfilTm?.foot || informe.foot)}</dd></div>
+            <div><dt>{t("Contrato")}</dt><dd>{dato(perfilTm?.contract || informe.contract)}</dd></div>
+            <div><dt>{t("Valor")}</dt><dd>{dato(perfilTm?.marketValue)}</dd></div>
+            <div><dt>{t("Temporada")}</dt><dd>{dato(fuente?.temporada)}</dd></div>
+          </dl>
+        </div>
+        <div className="snap-retrato-franja">
+          <div><b>{num(deLaTemporada("Matches played", informe.matches))}</b><span>{t("Partidos")}</span></div>
+          <div><b>{num(minutosTemporada)}</b><span>{t("Minutos")}</span></div>
+          <div className="goles"><b>{num(deLaTemporada("Goals", informe.goals))}</b><span>{t("Goles")}</span></div>
+          <div className="asistencias"><b>{num(deLaTemporada("Assists", informe.assists))}</b><span>{t("Asist.")}</span></div>
+          <div className="snap-retrato-anillo" style={{ "--score": `${informe.score * 3.6}deg` } as CSSProperties}><b>{informe.score}</b><span>{t("Índice")}</span></div>
+        </div>
       </div>;
+    }
 
-    case "tabla":
-      return <ol className="snap-tabla" aria-label={tf("Familias frente a {n} {grupo}", { n: grupo.indices.length, grupo: nombreGrupo.toLowerCase() })}>
-        <li className="snap-tabla-titulo">{conGrupo}</li>
-        {COMPUESTAS.filter((c) => propias[c.id]).sort((a, b) => propias[b.id].z - propias[a.id].z).map((c) => (
-          <li key={c.id}>
-            <span>{t(c.etiqueta)}{c.fuente === "skillcorner" && <em className="snap-fuente-sc" title="SkillCorner">SC</em>}</span>
-            <em className={propias[c.id].z >= 0 ? "sube" : "baja"}>{conSigno(propias[c.id].z)}</em>
-            <i className={`estilo-pct ${tramo(propias[c.id].percentil)}`}>{propias[c.id].percentil}</i>
-          </li>
-        ))}
-      </ol>;
+    case "tabla": {
+      // Filas de métrica por conjunto: la barra es el percentil con el
+      // degradado de su color, la marca el central típico (P50) y el chip
+      // cuántas desviaciones típicas se aparta de él.
+      const conDato = COMPUESTAS.filter((c) => propias[c.id]);
+      const porConjunto = SIMILARITY_METRIC_GROUPS
+        .map((g) => ({ g, familias: conDato.filter((c) => conjuntoDeFamilia(c.id).id === g.id).sort((a, b) => propias[b.id].percentil - propias[a.id].percentil) }))
+        .filter((bloque) => bloque.familias.length);
+      return <div className="snap-tabla n-familias" role="list" aria-label={tf("Familias frente a {n} {grupo}", { n: grupo.indices.length, grupo: nombreGrupo.toLowerCase() })}>
+        <p className="snap-tabla-titulo">{conGrupo}</p>
+        {porConjunto.map(({ g, familias }) => <section key={g.id} role="listitem" style={{ "--n-grupo": g.color } as CSSProperties}>
+          <h4 className="n-grupo-titulo">{t(g.label)}</h4>
+          {familias.map((c) => <FilaDeMetrica key={c.id}
+            etiqueta={<>{t(c.etiqueta)}{c.fuente === "skillcorner" && <em className="snap-fuente-sc" title="SkillCorner">SC</em>}</>}
+            cifra={`P${propias[c.id].percentil}`}
+            chip={<ChipDeCambio cambio={propias[c.id].z} umbral={0.25} texto={Math.abs(propias[c.id].z).toFixed(2)} />}
+            valor={propias[c.id].percentil} tonos={tonosDeColor(g.color)} marca={50} />)}
+        </section>)}
+      </div>;
+    }
 
     case "radar":
       return <Tarjeta titulo={t("Familias")} subtitulo={suelta ? `${t("Largo: percentil · cifra: desviaciones típicas")} · ${conGrupo}` : t("Largo: percentil · cifra: desviaciones típicas")} clase="snap-radar-tarjeta">
@@ -538,12 +685,12 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
 
     case "top10": {
       const familia = COMPUESTAS.find((c) => c.id === opcion) ?? COMPUESTAS.find((c) => c.id === "progresion") ?? COMPUESTAS[0];
-      const top = grupo.indices
-        .map((i) => ({ i, z: grupo.valores.get(i)?.[familia.id]?.z ?? Number.NaN }))
+      const top = datos.candidatosDelTop
+        .map(({ i, valores }) => ({ i, z: valores?.[familia.id]?.z ?? Number.NaN }))
         .filter((p) => Number.isFinite(p.z))
         .sort((a, b) => b.z - a.z)
         .slice(0, 10);
-      return <Tarjeta titulo={t("Top 10")} subtitulo={suelta ? `${t(familia.etiqueta)} · ${conGrupo}` : undefined} clase="snap-top">
+      return <Tarjeta titulo={t("Top 10")} subtitulo={datos.ligasDeLaLista ? tf("{f} · cada uno en su liga · {ligas}", { f: t(familia.etiqueta), ligas: datos.ligasDeLaLista }) : suelta ? `${t(familia.etiqueta)} · ${conGrupo}` : undefined} clase="snap-top">
         <Desplegable etiqueta={t("Familia")} valor={t(familia.etiqueta)} activo={false}>
           <select aria-label={t("Familia")} value={familia.id} onChange={(evento) => onOpcion?.(evento.target.value)} onClick={(evento) => evento.stopPropagation()}>
             {COMPUESTAS.map((c) => <option key={c.id} value={c.id}>{c.fuente === "skillcorner" ? `${t(c.etiqueta)} · SkillCorner` : t(c.etiqueta)}</option>)}
@@ -553,7 +700,7 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
           {top.map(({ i, z }, posicion) => (
             <li key={i} className={i === indice ? "activo" : undefined} onClick={() => onAbrirJugador?.(i)}>
               <span>{posicion + 1}</span>
-              <b>{nombres(i)}<small>{String(rows[i]?.Team ?? "")}</small></b>
+              <b>{nombres(i)}<small>{[String(rows[i]?.Team ?? ""), ...(contexto.ligasExtra?.length ? [datos.ligaEnLaLista(i)] : [])].filter(Boolean).join(" · ")}</small><BarraDegradada valor={(z / Math.max(top[0]?.z ?? 1, 0.01)) * 100} tonos={tonosDeColor(conjuntoDeFamilia(familia.id).color)} /></b>
               <em>{conSigno(z)}</em>
             </li>
           ))}
@@ -570,7 +717,8 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
             if (!lugar) return null;
             const parte = totalPos ? minutos / totalPos : 0;
             return <g key={codigo}>
-              <circle cx={lugar[0]} cy={lugar[1]} r={3.2 + parte * 9} className="snap-puesto" />
+              <circle cx={lugar[0]} cy={lugar[1]} r={3.7 + parte * 9} className="snap-puesto-halo" />
+              <circle cx={lugar[0]} cy={lugar[1]} r={3.2 + parte * 9} className="snap-puesto" style={{ fill: rampaDeRed(Math.sqrt(parte)), opacity: parte ? 1 : 0.5 }} />
               <text x={lugar[0]} y={lugar[1] + 1.2} className="snap-puesto-pct">{`${Math.round(parte * 100)}%`}</text>
               <text x={lugar[0]} y={lugar[1] + 4.6 + parte * 9} className="snap-puesto-codigo">{codigo}</text>
             </g>;
@@ -586,14 +734,18 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
       // Suelto, en un bloque de media hoja, van diez: quince pedían un bloque
       // más alto que el resto de la fila.
       const lista = suelta ? parecidos.slice(0, 10) : parecidos;
-      return <Tarjeta titulo={tf("Los que más se parecen a {nombre}", { nombre: apellido(jugador) })} subtitulo={tf("{n} más cercanos de la base, de cualquier puesto", { n: lista.length })} clase="snap-parecidos">
+      return <Tarjeta titulo={tf("Los que más se parecen a {nombre}", { nombre: apellido(jugador) })}
+        subtitulo={datos.ligasDeLaLista
+          ? tf("{n} más cercanos de su puesto · {ligas}", { n: lista.length, ligas: datos.ligasDeLaLista })
+          : tf("{n} más cercanos de su puesto en la base", { n: lista.length })} clase="snap-parecidos">
         <ol>
           {lista.map((p, posicion) => (
             <li key={p.index} onClick={() => onAbrirJugador?.(p.index)}>
               <span>{posicion + 1}</span>
               <b>{p.name}</b>
-              <small>{p.team}</small>
+              <small>{[p.team, ...(contexto.ligasExtra?.length ? [datos.ligaEnLaLista(p.index)] : [])].filter(Boolean).join(" · ")}</small>
               <em>{`${num(p.similarity, 1)}%`}</em>
+              <BarraDegradada valor={p.similarity} tonos={TONOS_ACENTO} />
             </li>
           ))}
         </ol>
@@ -604,7 +756,14 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
       return <Tarjeta titulo={t("Tiros")} subtitulo={sinEventos ? undefined : tf("{n} tiros · {g} goles · {x} xG", { n: datos.tiros.length, g: datos.goles, x: num(datos.xgTotal, 2) })} aviso={aviso}
         leyenda={<><i className="snap-l gol" />{t("Gol")}<i className="snap-l tiro" />{t("Sin gol")}<span>{t("tamaño = xG")}</span></>}>
         <Cancha mitad etiqueta={t("Tiros")}>
-          {datos.tiros.map((e, i) => { const [X, Y] = aVertical(e.l!); return <circle key={i} cx={X} cy={Y} r={0.9 + Math.sqrt(Math.max(e.xg ?? 0.01, 0.01)) * 5} className={e.o === "Goal" ? "snap-tiro gol" : "snap-tiro"} />; })}
+          {/* Gol = estrella verde con borde blanco; el resto, círculo rojo. Tamaño = xG. */}
+          {datos.tiros.map((e, i) => {
+            const [X, Y] = aVertical(e.l!);
+            const radio = 0.9 + Math.sqrt(Math.max(e.xg ?? 0.01, 0.01)) * 5;
+            return e.o === "Goal"
+              ? <path key={i} d={estrella(X, Y, radio * 1.35)} className="snap-tiro gol" />
+              : <circle key={i} cx={X} cy={Y} r={radio} className="snap-tiro" />;
+          })}
         </Cancha>
       </Tarjeta>;
 
@@ -615,7 +774,8 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
         <Cancha mitad etiqueta={t("Ocasiones creadas")}>
           {datos.ocasiones.map((e, i) => {
             const [x0, y0] = aVertical(e.l!), [x1, y1] = aVertical(e.e!);
-            return <g key={i} className={`snap-ocasion ${claseOcasion(e)}`}><line x1={x0} y1={y0} x2={x1} y2={y1} /><circle cx={x1} cy={y1} r={0.9} /></g>;
+            // Cometa que engorda hacia el destino, en el color de su tipo de acción.
+            return <g key={i} className={`snap-ocasion ${claseOcasion(e)}`}><Cometa x1={x0} y1={y0} x2={x1} y2={y1} ancho={1.5} color={COLOR_OCASION[claseOcasion(e)]} opacidad={0.92} /><circle cx={x1} cy={y1} r={0.85} /></g>;
           })}
         </Cancha>
       </Tarjeta>;
@@ -665,6 +825,16 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
       const r = resumenRecepciones(eventos?.eventos ?? [], agrupacion.id);
       const color = new Map(agrupacion.grupos.map((g) => [g.id, g.color]));
       const porNoventa = datos.totalPos ? (r.total / datos.totalPos) * 90 : 0;
+      // Con cientos de recepciones los puntos se tapan: debajo va la densidad
+      // por zonas (más clara donde más recibe, como el radar) y encima el
+      // porcentaje de las zonas que pesan.
+      const zonas = (() => {
+        const { conteos, total, columnas, filas } = rejilla(r.lista.map((e) => [e.l![0], e.l![1]] as Punto));
+        return {
+          total, max: Math.max(1, ...conteos.flat()), w: 80 / columnas, h: 120 / filas,
+          celdas: conteos.flatMap((fila, f) => fila.map((n, c) => ({ f, c, n }))).filter(({ n }) => n > 0),
+        };
+      })();
       // Primero lo más frecuente: los grupos raros van encima y no quedan
       // enterrados bajo cien recepciones al pie.
       const frecuencia = new Map(r.grupos.map((g) => [g.id, g.n]));
@@ -681,14 +851,24 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
             {AGRUPACIONES_RECEPCION.map((a) => <option key={a.id} value={a.id}>{t(a.etiqueta)}</option>)}
           </select>
         </Desplegable>
-        <Cancha etiqueta={t("Dónde recibe")}>
+        {/* Con cientos de recepciones los puntos se tapan entre sí: debajo va la
+            densidad por zonas (más clara donde más recibe, como el radar) y el
+            porcentaje en las que pesan; encima, los puntos con el color de su
+            grupo, más pequeños. */}
+        <Cancha etiqueta={t("Dónde recibe")} fondo={zonas.celdas.map(({ f, c, n }) => (
+          <rect key={`${f}-${c}`} x={c * zonas.w + 0.4} y={f * zonas.h + 0.4} width={zonas.w - 0.8} height={zonas.h - 0.8} rx={1.2} className="snap-zona" style={{ fill: rampaDeRed(n / zonas.max), fillOpacity: 0.14 + (n / zonas.max) * 0.5 }} />
+        ))}>
           {orden.map(({ e, grupo }, i) => {
             const [X, Y] = aVertical(e.l!);
             const tinta = (grupo && color.get(grupo)) || "#9aa0a6";
             return e.o === "Incomplete"
-              ? <circle key={i} cx={X} cy={Y} r={0.85} className="snap-recepcion fallida" style={{ stroke: tinta }} />
-              : <circle key={i} cx={X} cy={Y} r={0.95} className="snap-recepcion" style={{ fill: tinta }} />;
+              ? <circle key={i} cx={X} cy={Y} r={0.7} className="snap-recepcion fallida" style={{ stroke: tinta }} />
+              : <circle key={i} cx={X} cy={Y} r={0.62} className="snap-recepcion" style={{ fill: tinta }} />;
           })}
+          {/* El porcentaje de las zonas que pesan, por encima de los puntos. */}
+          {zonas.celdas.filter(({ n }) => zonas.total && n / zonas.total >= 0.08).map(({ f, c, n }) => (
+            <text key={`p-${f}-${c}`} x={c * zonas.w + zonas.w / 2} y={f * zonas.h + zonas.h / 2 + 1.2} className="snap-zona-pct">{`${Math.round((n / zonas.total) * 100)}%`}</text>
+          ))}
         </Cancha>
       </Tarjeta>;
     }
@@ -748,20 +928,56 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion, suelta = false }: {
       const aviso = !fuente
         ? t("Este jugador no viene de StatsBomb: los roles salen de sus eventos partido a partido.")
         : !r ? (datos.estadoRoles || t("Sin intervenciones de este jugador en las secuencias de su liga.")) : undefined;
-      return <Tarjeta titulo={tf("Rol en la secuencia frente a su grupo{perfil}", { perfil: r?.perfil ? ` · ${r.perfil}` : "" })}
-        subtitulo={r ? tf("Percentil frente a {n} {grupo} de {liga} · secuencias en juego abierto, mínimo {min} intervenciones · {i} suyas", {
-          n: r.grupo, grupo: nombreGrupo.toLowerCase(), liga: fuente?.liga ?? "", min: MIN_INTERVENCIONES, i: num(r.intervenciones),
+      /*
+       * La jugada de izquierda a derecha: arranca, circula, hace avanzar,
+       * finaliza. Cada papel es una burbuja en su fase: el tamaño, qué parte
+       * de su juego es; el color y la cifra, cuánto más que los de su puesto
+       * (percentil). Antes eran ocho barras iguales y no se veía la jugada.
+       */
+      const FASES_DE_LA_JUGADA: Array<{ nombre: string; x: number; roles: Array<{ id: string; x: number; y: number }> }> = [
+        { nombre: "Arranca", x: 24, roles: [{ id: "iniciador", x: 24, y: 64 }] },
+        { nombre: "Circula", x: 74, roles: [{ id: "control", x: 74, y: 38 }, { id: "apoyo", x: 74, y: 90 }] },
+        { nombre: "Hace avanzar", x: 140, roles: [{ id: "enlace", x: 118, y: 38 }, { id: "progresor", x: 162, y: 38 }, { id: "conductor", x: 118, y: 90 }, { id: "vertical", x: 162, y: 90 }] },
+        { nombre: "Finaliza", x: 204, roles: [{ id: "remate", x: 204, y: 64 }] },
+      ];
+      const fila = (id: string) => r?.filas.find((f) => f.id === id);
+      const destacan = r ? [...r.filas].filter((f) => f.parte >= 0.05).sort((x, y) => y.percentil - x.percentil).slice(0, 2) : [];
+      return <Tarjeta titulo={t("Cómo participa en la jugada")}
+        subtitulo={r ? tf("Frente a {n} {grupo} de {liga} · {i} intervenciones suyas en juego abierto", {
+          n: r.grupo, grupo: nombreGrupo.toLowerCase(), liga: fuente?.liga ?? "", i: num(r.intervenciones),
         }) : undefined} aviso={aviso} clase="snap-roles">
-        {r && <ol className="snap-roles-lista">
-          {r.filas.map((f) => (
-            <li key={f.id} title={t(ROLES_SECUENCIA.find((rol) => rol.id === f.id)?.descripcion ?? "")}>
-              <span>{t(f.etiqueta)}</span>
-              <i><b style={{ width: `${Math.max(2, f.percentil)}%`, opacity: 0.35 + (f.percentil / 100) * 0.65 }} /><em>{f.percentil}</em></i>
-              <small>{`${Math.round(f.parte * 100)}%`}</small>
-            </li>
-          ))}
-        </ol>}
-        {r && <p className="snap-roles-nota">{t("Barra: percentil frente a su grupo en la parte de sus intervenciones que es cada rol. Derecha: esa parte. Cada intervención cuenta en un solo rol, el primero que cumple: remate, iniciador, vertical, progresor, conductor, apoyo, enlace, control.")}</p>}
+        {r && <>
+          {destacan.length > 0 && <p className="snap-roles-perfil">{tf("Perfil: {perfil}. Lo que más le distingue de los {grupo}: {lista}.", {
+            perfil: r.perfil || t(ROLES_SECUENCIA.find((x) => x.id === destacan[0].id)?.perfil ?? ""), grupo: nombreGrupo.toLowerCase(),
+            lista: destacan.map((f) => `${t(f.etiqueta).toLowerCase()} (P${f.percentil})`).join(t(" y ")),
+          })}</p>}
+          <svg viewBox="0 0 228 122" className="snap-roles-jugada" role="img" aria-label={t("Cómo participa en la jugada")}>
+            {/* Las cuatro fases, con flechas: la jugada va hacia la portería rival. */}
+            {FASES_DE_LA_JUGADA.map((fase, k) => <g key={fase.nombre}>
+              <text x={fase.x} y={9} className="snap-roles-fase">{t(fase.nombre)}</text>
+              {k < FASES_DE_LA_JUGADA.length - 1 && <path d={`M${fase.x + (k === 2 ? 38 : 17)} 64 L${FASES_DE_LA_JUGADA[k + 1].x - (k + 1 === 2 ? 38 : 17)} 64`} className="snap-roles-flecha" markerEnd="url(#snap-roles-punta)" />}
+            </g>)}
+            <defs><marker id="snap-roles-punta" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 6 3 0 6z" className="snap-roles-punta" /></marker></defs>
+            {FASES_DE_LA_JUGADA.flatMap((fase) => fase.roles).map(({ id, x, y }) => {
+              const f = fila(id);
+              if (!f) return null;
+              const radio = 6.5 + Math.sqrt(f.parte) * 12;
+              const rol = ROLES_SECUENCIA.find((x) => x.id === id);
+              return <g key={id} className="snap-roles-burbuja">
+                <title>{`${t(rol?.etiqueta ?? id)}: ${t(rol?.descripcion ?? "")} P${f.percentil} · ${Math.round(f.parte * 100)} %`}</title>
+                <circle cx={x} cy={y} r={radio} style={{ fill: rampaDeRed(f.percentil / 100) }} />
+                <text x={x} y={y + 2} className={f.percentil >= 50 ? "snap-roles-p fuerte" : "snap-roles-p"}>{`P${f.percentil}`}</text>
+                <text x={x} y={y + radio + 6.5} className="snap-roles-nombre">{t(f.etiqueta)}</text>
+                <text x={x} y={y + radio + 12} className="snap-roles-parte">{`${Math.round(f.parte * 100)} %`}</text>
+              </g>;
+            })}
+          </svg>
+          <ul className="snap-roles-leyenda">
+            {ROLES_SECUENCIA.map((rol) => <li key={rol.id}><b>{t(rol.etiqueta)}</b> {t(rol.descripcion)}</li>)}
+          </ul>
+          <p className="snap-roles-clave">{t("Tamaño: qué parte de su juego es ese papel · color y cifra: su percentil frente a los de su puesto.")}</p>
+          <p className="snap-roles-nota">{t("Cada vez que toca el balón en una jugada de su equipo cuenta un solo papel, el primero que cumple: remate, inicio, pase largo, progresión, conducción, apoyo, enlace, control. Tamaño: qué parte de su juego es ese papel. Color y cifra: su percentil en ese papel frente a los de su puesto.")}</p>
+        </>}
       </Tarjeta>;
     }
 

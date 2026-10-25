@@ -1,3 +1,4 @@
+import type { LigaDeParado } from "./balonParado";
 import {
   isTransfermarktUrl,
   parseTransfermarktProfile,
@@ -162,6 +163,8 @@ async function fetchHtmlThroughCorsProxy(url: string) {
 import { extractSeason, type DataRow, type SourceDataset } from "./scouting";
 import { OPTA_URL, type FotoMensual, type OptaLiga } from "./maldonado";
 import type { FilaEquipo } from "./estiloEquipo";
+import type { LigaPartidos } from "./partido";
+import type { LigaForma } from "./fases";
 import type { EventosJugador } from "./snapshot";
 
 const LOCAL_BRIDGE = "http://127.0.0.1:7001";
@@ -246,6 +249,7 @@ function toDataset(fileName: string, season: string, rows: DataRow[], provider: 
     headers: Object.keys(rows[0]),
     rows,
     provider,
+    cargadoEl: Date.now(),
   };
 }
 
@@ -349,6 +353,34 @@ export async function fetchFlujoDePosesion(competicion: ApiCompetition, alAvanza
     alAvanzar?.({ hechos: Number(avance?.hechos) || 0, total: typeof avance?.total === "number" ? avance.total : null });
     await new Promise((resolver) => setTimeout(resolver, 2_000));
   }
+}
+
+/**
+ * Todos los partidos jugados de una liga y temporada, de los dos lados: la
+ * formación y los puestos del once de cada equipo y sus estadísticas del
+ * partido (lib/partido.ts). La primera vez baja las formaciones de los
+ * eventos: minutos en una liga entera; después sale del disco del puente.
+ */
+export function fetchPartidosDeLiga(competicion: number, temporada: number) {
+  return bridgeJson<LigaPartidos>(`/api/statsbomb/team-matches?competition_id=${competicion}&season_id=${temporada}`, 1_800_000);
+}
+
+/**
+ * La forma de cada equipo en cada partido de una liga y temporada: dónde
+ * defiende y presiona, cuánto mide su bloque, dónde recupera, por dónde
+ * ataca (lib/fases.ts). La primera vez baja los eventos de toda la liga.
+ */
+export function fetchFormaDeLiga(competicion: number, temporada: number) {
+  return bridgeJson<LigaForma>(`/api/statsbomb/team-shape?competition_id=${competicion}&season_id=${temporada}`, 1_800_000);
+}
+
+/**
+ * Cada córner y falta al área de una liga y temporada (lib/balonParado.ts).
+ * Sale de los mismos resúmenes por partido que los duelos: la primera vez
+ * baja los eventos de toda la liga.
+ */
+export function fetchBalonParado(competicion: number, temporada: number) {
+  return bridgeJson<LigaDeParado>(`/api/statsbomb/set-pieces?competition_id=${competicion}&season_id=${temporada}`, 1_800_000);
 }
 
 export type ExtrasDeEquipo = {

@@ -26,7 +26,7 @@ type Etiqueta = { x: number; y: number; lineas: string[] } | null;
  * casi un segundo en aparecer y se pierde; esto responde al instante y se
  * puede leer mientras el ratón recorre la nube de puntos.
  */
-function EtiquetaFlotante({ etiqueta, ancho, alto }: { etiqueta: Etiqueta; ancho: number; alto: number }) {
+function EtiquetaFlotante({ etiqueta, ancho }: { etiqueta: Etiqueta; ancho: number; alto: number }) {
   if (!etiqueta) return null;
   const anchoCaja = Math.max(...etiqueta.lineas.map((linea) => linea.length)) * 4.3 + 12;
   const altoCaja = etiqueta.lineas.length * 10 + 8;
@@ -51,6 +51,10 @@ function mediana(values: number[]) {
 export type PuntoSwarm = { valor: number; nombre?: string; equipo?: string; esObjetivo?: boolean; esCompanero?: boolean };
 
 export function SwarmMetric({ etiqueta, puntos, unidad = "", percentil, fuente = "wyscout" }: { etiqueta: string; puntos: PuntoSwarm[]; unidad?: string; percentil?: number; fuente?: string }) {
+  // El hook va antes de cualquier return: si los puntos pasan de 3 a 4 al
+  // cambiar de liga, React vería un hook más que en el render anterior y
+  // la página entera se caería.
+  const [tip, setTip] = useState<Etiqueta>(null);
   const acento = METRIC_SOURCE_COLORS[fuente]?.color ?? VERDE;
   const valores = puntos.map((punto) => punto.valor).filter(Number.isFinite);
   if (valores.length < 4) return null;
@@ -66,7 +70,6 @@ export function SwarmMetric({ etiqueta, puntos, unidad = "", percentil, fuente =
   const desplazamiento = (index: number) => ((index * 37) % 11) - 5;
   const objetivo = puntos.find((punto) => punto.esObjetivo);
   const med = mediana(valores);
-  const [tip, setTip] = useState<Etiqueta>(null);
 
   return <figure className="ctx-swarm">
     <figcaption>
@@ -102,6 +105,7 @@ export function SwarmMetric({ etiqueta, puntos, unidad = "", percentil, fuente =
 export type PuntoCuadrante = { x: number; y: number; nombre: string; equipo?: string; esObjetivo?: boolean; esCompanero?: boolean };
 
 export function CuadranteMetricas({ titulo, ejeX, ejeY, puntos }: { titulo: string; ejeX: string; ejeY: string; puntos: PuntoCuadrante[] }) {
+  const [tip, setTip] = useState<Etiqueta>(null);
   const validos = puntos.filter((punto) => Number.isFinite(punto.x) && Number.isFinite(punto.y));
   if (validos.length < 6) return null;
   const xs = validos.map((punto) => punto.x);
@@ -114,7 +118,6 @@ export function CuadranteMetricas({ titulo, ejeX, ejeY, puntos }: { titulo: stri
   const py = (valor: number) => H - M - ((valor - minY) / rangoY) * (H - M * 2);
   const medX = mediana(xs); const medY = mediana(ys);
   const objetivo = validos.find((punto) => punto.esObjetivo);
-  const [tip, setTip] = useState<Etiqueta>(null);
 
   return <figure className="ctx-quadrant">
     <figcaption>{titulo}</figcaption>

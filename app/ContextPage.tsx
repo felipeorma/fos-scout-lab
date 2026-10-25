@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { buildPlayerReport, type DataRow, type PlayerReport, type SourceDataset } from "@/lib/scouting";
+import { buildPlayerReport, marcoDeSuLiga, type DataRow, type PlayerReport, type SourceDataset, numeric, type CellValue } from "@/lib/scouting";
+import { ligasDeBases, origenPorFila } from "@/lib/procedencia";
+import { mediana, rankingDeEquipos, type ContextoEquipo } from "@/lib/equipos";
+import { marcoConNivel, type EntradaOpta } from "@/lib/nivelDeLiga";
 import { METRIC_SOURCE_COLORS } from "@/lib/similarityMetricGroups";
 import { t, tf } from "@/lib/i18n";
 import { PieDeReporte } from "./PieDeReporte";
@@ -30,38 +33,8 @@ const cohortLabelCorto = (cohorte: string) => ETIQUETAS_PERFIL[cohorte] ?? "su p
 const DESTACA = 75;
 const FLOJEA = 25;
 
-function numero(value: unknown) {
-  const parsed = typeof value === "number" ? value : Number(String(value ?? "").replace(",", "."));
-  return Number.isFinite(parsed) ? parsed : Number.NaN;
-}
-
-function mediana(values: number[]) {
-  if (!values.length) return Number.NaN;
-  const orden = [...values].sort((a, b) => a - b);
-  const medio = Math.floor(orden.length / 2);
-  return orden.length % 2 ? orden[medio] : (orden[medio - 1] + orden[medio]) / 2;
-}
-
-export type ContextoEquipo = { rank: number; total: number; valor: number };
-
-/** Ranking del equipo del jugador en cada métrica, frente al resto de equipos. */
-export function rankingDeEquipos(rows: DataRow[], metricKey: string, equipo: string): ContextoEquipo | null {
-  const porEquipo = new Map<string, number[]>();
-  for (const row of rows) {
-    const club = String(row.Team ?? "").trim();
-    const valor = numero(row[metricKey]);
-    if (!club || !Number.isFinite(valor)) continue;
-    porEquipo.set(club, [...(porEquipo.get(club) ?? []), valor]);
-  }
-  if (porEquipo.size < 2 || !porEquipo.has(equipo)) return null;
-  const medias = [...porEquipo.entries()]
-    .map(([club, valores]) => ({ club, valor: mediana(valores) }))
-    .filter((item) => Number.isFinite(item.valor))
-    .sort((a, b) => b.valor - a.valor);
-  const posicion = medias.findIndex((item) => item.club === equipo);
-  if (posicion < 0) return null;
-  return { rank: posicion + 1, total: medias.length, valor: medias[posicion].valor };
-}
+/** Una celda como número; vacía o sin número, NaN (no 0: un hueco no es un cero). */
+const numero = (value: unknown) => numeric(value as CellValue);
 
 function Barra({ percentil, color }: { percentil: number; color: string }) {
   return <i className="ctx-bar" aria-hidden="true"><em style={{ width: `${Math.max(2, percentil)}%`, background: color }} /></i>;
@@ -146,7 +119,16 @@ export function ContextPage({
   minutosFiltro = 0,
   destinatario = "",
   logoDestinatario = "",
+  claseHoja = "legal-page-shell",
+  medirEnSuLiga = false,
+  feedOpta = null,
 }: {
+  /** La clase de cada hoja Legal: la página sale en dos, como la ficha ampliada. */
+  claseHoja?: string;
+  /** Si la ficha mide contra su liga: entonces Contexto empieza en "Su liga". */
+  medirEnSuLiga?: boolean;
+  /** Los Opta Power Rankings, para decir el nivel de su liga junto al marco. */
+  feedOpta?: EntradaOpta[] | null;
   report: PlayerReport;
   rows: DataRow[];
   /** Las bases que se cruzaron para armar `rows`, para poder filtrar por liga. */
@@ -184,6 +166,30 @@ export function ContextPage({
 
   const [ligasFuera, setLigasFuera] = useState<string[]>([]);
 
+  /*
+   * Contra quién se mide. Por defecto, como la ficha: los de su puesto en su
+   * liga y temporada, con el nivel de la liga dicho al lado. Antes el informe
+   * llegaba medido en su liga, pero los enjambres, el ranking y el puesto de
+   * su equipo se dibujaban contra todas las cargadas, y el punto del jugador
+   * no caía donde decía su percentil. "Elegir ligas" vuelve al marco a mano.
+   * Si su liga no tiene diez de su puesto, se compara con todas y se avisa.
+   */
+  const [marcoElegido, setMarcoElegido] = useState<"liga" | "elegidas" | null>(null);
+  const clavesPorFila = useMemo(
+    () => (bases.length ? origenPorFila(filasTodas, ligasDeBases(bases)).map((origen) => origen.claves) : null),
+    [filasTodas, bases],
+  );
+  const indiceDelJugador = useMemo(
+    () => filasTodas.findIndex((fila) => String(fila.Player ?? "") === informeCompleto.player),
+    [filasTodas, informeCompleto.player],
+  );
+  const suLiga = useMemo(
+    () => marcoDeSuLiga(filasTodas, clavesPorFila, indiceDelJugador, informeCompleto.cohort, minutosFiltro),
+    [filasTodas, clavesPorFila, indiceDelJugador, informeCompleto.cohort, minutosFiltro],
+  );
+  const marco = suLiga ? marcoElegido ?? (medirEnSuLiga ? "liga" : "elegidas") : "elegidas";
+  const enSuLiga = marco === "liga" && suLiga?.modo === "liga";
+
   /** La liga del jugador: nunca se puede quitar, porque se quitaría a él. */
   const ligaPropia = useMemo(() => {
     const suya = filasTodas.find((fila) => String(fila.Player ?? "") === informeCompleto.player);
@@ -211,7 +217,8 @@ export function ContextPage({
   );
 
   const rows = useMemo(() => {
-    if (!archivosFuera.length) return filasTodas;
+    if (enSuLiga && suLiga) return filasTodas.filter((_, indice) => suLiga.filas.has(indice));
+    if (marco === "liga" || !archivosFuera.length) return filasTodas;
     return filasTodas.filter((fila) => {
       const fuentes = String(fila["Data sources"] ?? "");
       // Quien juega en dos de las ligas cargadas se queda mientras una siga
@@ -219,13 +226,15 @@ export function ContextPage({
       return !archivosFuera.some((archivo) => fuentes.includes(archivo))
         || ligasDisponibles.some((liga) => !apagadas.includes(liga.etiqueta) && liga.archivos.some((archivo) => fuentes.includes(archivo)));
     });
-  }, [filasTodas, archivosFuera, ligasDisponibles, apagadas]);
+  }, [filasTodas, archivosFuera, ligasDisponibles, apagadas, enSuLiga, suLiga, marco]);
 
+  // Medido en su liga por la ficha y mirado aquí contra todas, el informe se
+  // rehace: si no, las barras dirían un percentil y los enjambres otro.
   const report = useMemo(() => {
-    if (rows === filasTodas) return informeCompleto;
+    if (rows === filasTodas && informeCompleto.frente?.modo !== "liga") return informeCompleto;
     const indice = rows.findIndex((fila) => String(fila.Player ?? "") === informeCompleto.player);
     if (indice < 0) return informeCompleto;
-    return buildPlayerReport(rows, indice, minutosFiltro, informeCompleto.cohort, informeCompleto.metrics.map((m) => m.label))
+    return buildPlayerReport(rows, indice, minutosFiltro, informeCompleto.cohort, informeCompleto.metrics.map((m) => m.label), { rescate: true })
       ?? informeCompleto;
   }, [rows, filasTodas, informeCompleto, minutosFiltro]);
 
@@ -238,7 +247,7 @@ export function ContextPage({
   const porDefecto = useMemo(() => [
     ...BLOQUES.map((bloque) => bloque.id as BloqueId),
     ...CATALOGO.filter((ficha) => !ficha.perfiles.length || ficha.perfiles.includes(report.cohort)).map((ficha) => ficha.id),
-  ], [report.cohort, claveMemoria]);
+  ], [report.cohort]);
   const [visibles, setVisibles] = useState<BloqueId[]>(porDefecto);
   useEffect(() => {
     try {
@@ -445,7 +454,37 @@ export function ContextPage({
   const idsDelMenu = [...BLOQUES.map((bloque) => bloque.id as BloqueId), ...fichasDelMenu.map(({ ficha }) => ficha.id as BloqueId)];
   const bloquesEncendidos = idsDelMenu.filter((id) => muestra(id)).length;
 
-  return <article className="context-page">
+  // Solo las métricas que el scout tiene delante: un glosario completo
+  // sería ruido, y uno ausente obliga a saberse la nomenclatura.
+  const glosario = (() => {
+    const enPantalla = new Set<string>();
+    for (const metrica of [...destacadas, ...flojas]) enPantalla.add(metrica.key);
+    if (muestra("distribucion")) for (const { metrica } of swarms) enPantalla.add(metrica.key);
+    for (const { ficha } of fichas) {
+      if (!muestra(ficha.id as BloqueId)) continue;
+      for (const columna of [ficha.ejeX, ficha.ejeY, ficha.campo, ...(ficha.campos ?? []).map((campo) => campo.columna)]) {
+        if (columna) enPantalla.add(columna);
+      }
+    }
+    return [...enPantalla].filter((columna) => DEFINICIONES[columna]).sort();
+  })();
+  const conFichas = fichas.some(({ ficha }) => muestra(ficha.id as BloqueId) && fichaEncaja(ficha));
+  /*
+   * Dos hojas. En una sola, con los bloques que trae por defecto, el PDF la
+   * encogía al 55 % y los gráficos quedaban ilegibles. La primera es la del
+   * jugador —dónde destaca y su lugar en la distribución—; la segunda, la de
+   * la comparación —ranking, arquetipos, fichas, presión, embudo y glosario—,
+   * y solo sale si alguno de esos bloques tiene algo que enseñar.
+   */
+  const hayHojaDos = (muestra("ranking") && ranking.length >= 4) || muestra("arquetipos") || conFichas
+    || (muestra("presion") && Boolean(presion)) || (muestra("embudo") && Boolean(embudo && embudo.length >= 3)) || glosario.length > 0;
+  const notaDelPie = <footer>{enSuLiga && suLiga
+    ? tf("Percentiles contra los {n} de su misma posición en su liga y temporada ({marco}). El puesto del equipo compara la mediana de cada club de su liga.", { n: suLiga.enSuLiga, marco: marcoConNivel(suLiga.claves, feedOpta) })
+    : t("Percentiles contra jugadores de la misma posición en la base cargada. El puesto del equipo compara la mediana de cada club de la base.")}</footer>;
+
+  return <>
+  <div className={claseHoja}>
+  <article className="context-page">
     {/* El orden, de lo que es la página a cómo se lee.
 
         Primero el jugador: es el tema de la pantalla, y sus tres selectores
@@ -521,9 +560,16 @@ export function ContextPage({
       </MenuFlotante>
     </div>
 
-    {ligasDisponibles.length > 1 && <div className="ctx-ligas">
+    {(suLiga || ligasDisponibles.length > 1) && <div className="ctx-ligas">
       <span>{t("Comparar contra")}</span>
-      {ligasDisponibles.map((liga) => {
+      {suLiga && <>
+        <button type="button" className={marco === "liga" ? "on" : ""} onClick={() => setMarcoElegido("liga")}>{t("Su liga")}</button>
+        <button type="button" className={marco === "elegidas" ? "on" : ""} onClick={() => setMarcoElegido("elegidas")}>{t("Elegir ligas")}</button>
+      </>}
+      {marco === "liga" && suLiga && <em className={suLiga.modo === "liga" ? "ctx-marco" : "ctx-marco aviso"}>{suLiga.modo === "liga"
+        ? tf("{marco} · {n} de su puesto · percentiles dentro de su liga", { marco: marcoConNivel(suLiga.claves, feedOpta), n: suLiga.enSuLiga })
+        : tf("Su liga ({marco}) solo tiene {n} de su puesto con minutos: pocos para un percentil. Se compara con todas las cargadas.", { marco: marcoConNivel(suLiga.claves, feedOpta), n: suLiga.enSuLiga })}</em>}
+      {marco === "elegidas" && ligasDisponibles.length > 1 && ligasDisponibles.map((liga) => {
         const dentro = !apagadas.includes(liga.etiqueta);
         const propia = liga.etiqueta === ligaPropia;
         return <button key={liga.etiqueta} type="button" className={dentro ? "on" : ""} disabled={propia}
@@ -534,7 +580,7 @@ export function ContextPage({
           {liga.etiqueta}{propia && <i aria-hidden="true">●</i>}
         </button>;
       })}
-      {apagadas.length > 0 && <em>
+      {marco === "elegidas" && apagadas.length > 0 && <em>
         {tf("{n} jugadores en el marco · los percentiles están recalculados", { n: rows.length })}
         {" "}
         <button type="button" className="ctx-ligas-todas" onClick={() => setLigasFuera([])}>{t("Volver a todas")}</button>
@@ -574,6 +620,21 @@ export function ContextPage({
       </div>
     </section>}
 
+    {!hayHojaDos && notaDelPie}
+    <PieDeReporte asunto={informeCompleto.player} destinatario={destinatario} logo={logoDestinatario} />
+  </article>
+  </div>
+
+  {hayHojaDos && <div className={claseHoja}>
+  <article className="context-page context-page-segunda">
+    <header>
+      <div>
+        <span>{t("CONTEXTO · COMPARACIÓN")}</span>
+        <b>{report.player}</b>
+        <small>{report.team} · {report.position} · {tf("frente a {n} jugadores de su posición", { n: report.cohortSize })}</small>
+      </div>
+    </header>
+
     {muestra("ranking") && ranking.length >= 4 && <section className="ctx-ranking-block">
       <h3>{tf("Los mejores de {perfil} en la base", { perfil: t(cohortLabelCorto(report.cohort)) })}</h3>
       <p>{t("Ordenados por índice global: la media de sus percentiles contra los jugadores de su misma posición. Es el número del centro del radar.")}</p>
@@ -588,7 +649,7 @@ export function ContextPage({
       onSelectPlayer={controles?.onJugador}
     />}
 
-    {fichas.some(({ ficha }) => muestra(ficha.id as BloqueId) && fichaEncaja(ficha)) && <section className="ctx-catalog-block">
+    {conFichas && <section className="ctx-catalog-block">
       <h3>{t("Análisis de los artículos de SkillCorner")}</h3>
       <div className="ctx-catalog">
         {fichas.filter(({ ficha }) => muestra(ficha.id as BloqueId) && fichaEncaja(ficha)).map(({ ficha, datos }) => (
@@ -615,35 +676,21 @@ export function ContextPage({
       <Embudo pasos={embudo} />
     </section>}
 
-    {(() => {
-      // Solo las métricas que el scout tiene delante: un glosario completo
-      // sería ruido, y uno ausente obliga a saberse la nomenclatura.
-      const enPantalla = new Set<string>();
-      for (const metrica of [...destacadas, ...flojas]) enPantalla.add(metrica.key);
-      if (muestra("distribucion")) for (const { metrica } of swarms) enPantalla.add(metrica.key);
-      for (const { ficha } of fichas) {
-        if (!muestra(ficha.id as BloqueId)) continue;
-        for (const columna of [ficha.ejeX, ficha.ejeY, ficha.campo, ...(ficha.campos ?? []).map((campo) => campo.columna)]) {
-          if (columna) enPantalla.add(columna);
-        }
-      }
-      const glosario = [...enPantalla].filter((columna) => DEFINICIONES[columna]).sort();
-      if (!glosario.length) return null;
-      return <section className="ctx-glossary">
-        <h3>{t("Qué mide cada métrica")}</h3>
-        <dl>
-          {glosario.map((columna) => <div key={columna}>
-            <dt>{t(columna)}</dt>
-            <dd>{t(DEFINICIONES[columna])}</dd>
-          </div>)}
-        </dl>
-      </section>;
-    })()}
+    {glosario.length > 0 && <section className="ctx-glossary">
+      <h3>{t("Qué mide cada métrica")}</h3>
+      <dl>
+        {glosario.map((columna) => <div key={columna}>
+          <dt>{t(columna)}</dt>
+          <dd>{t(DEFINICIONES[columna])}</dd>
+        </div>)}
+      </dl>
+    </section>}
 
-    <footer>{t("Percentiles contra jugadores de la misma posición en la base cargada. El puesto del equipo compara la mediana de cada club de la base.")}</footer>
+    {notaDelPie}
     {/* La misma firma que las hojas de diseño: en el PDF conviven páginas de
         las dos clases y no debería notarse cuál viene de dónde. */}
     <PieDeReporte asunto={informeCompleto.player} destinatario={destinatario} logo={logoDestinatario} />
-
-  </article>;
+  </article>
+  </div>}
+  </>;
 }

@@ -14,6 +14,14 @@ export type SourceDataset = {
   rows: DataRow[];
   /** Plataforma de origen; los minutos no se suman entre proveedores distintos. */
   provider?: MetricSource;
+  /** Cuándo se leyó el archivo o se pidió a la plataforma (milisegundos). Lo firma el pie del PDF. */
+  cargadoEl?: number;
+  /**
+   * El nombre del archivo tal como se subió, si después se le puso liga y
+   * temporada a mano (ver lib/nombresDeBase.ts). Es la identidad de la base:
+   * dos Excel distintos pueden acabar con el mismo nombre de liga.
+   */
+  nombreOriginal?: string;
 };
 
 export type AggregationResult = {
@@ -28,6 +36,8 @@ export type AggregationResult = {
 export type MetricColorGroup = "finishing" | "creating" | "passing" | "defending" | "goalkeeper" | "physical";
 
 export type MetricSource = "wyscout" | "statsbomb" | "skillcorner";
+/** El orden de los bloques del mapping de roles: primero Wyscout, después StatsBomb y al final SkillCorner. */
+export const METRIC_SOURCE_ORDER: MetricSource[] = ["wyscout", "statsbomb", "skillcorner"];
 
 export type RadarMetric = {
   key: string;
@@ -70,7 +80,37 @@ export type PlayerReport = {
   metricasDelIndice: number;
   metrics: RadarMetric[];
   reading: string;
+  /**
+   * Cómo se consiguió el radar cuando el perfil normal lo dejaba vacío. Solo
+   * aparece si se pidió `rescate` y el jugador tiene minutos:
+   *  - "sin-minimo": nadie de su posición llega al mínimo de minutos; se mide
+   *    contra todos los de su posición.
+   *  - "sin-posicion": la base no le registra posición; se mide contra todos
+   *    los jugadores de campo.
+   *  - "solo-disponibles": no tiene ninguna métrica de su perfil (suele ser una
+   *    fila con solo físicos); se enseñan las que sí tiene.
+   */
+  rescate?: "sin-minimo" | "sin-posicion" | "solo-disponibles";
+  /** La cohorte forzada no tenía métricas para él y se volvió a la automática. */
+  cohorteDescartada?: string;
+  /** Las métricas elegidas a mano no existen en esta base y se usó el set del perfil. */
+  seleccionDescartada?: boolean;
+  /**
+   * Contra quién se midió, cuando se pidió medir contra su liga (`porLiga`):
+   *  - modo "liga": los de su puesto en sus mismas liga y temporada (`claves`).
+   *  - modo "todas": se pidió su liga pero no llegaba al mínimo de jugadores
+   *    (`enSuLiga` dice cuántos había) y se midió contra todas las cargadas.
+   * Sin `porLiga`, o con una sola competición cargada, no aparece.
+   */
+  frente?: { modo: "liga" | "todas"; claves: string[]; enSuLiga: number };
 };
+
+/**
+ * Por debajo de este número de jugadores de su puesto, su liga no da para un
+ * percentil: con nueve pares, un solo jugador mueve once puntos. Es el mismo
+ * mínimo que usa la búsqueda de similares en su modo por liga.
+ */
+export const MINIMO_COHORTE_EN_SU_LIGA = 10;
 
 const PLAYER_ALIASES = ["player", "jugador", "player name", "nombre jugador"];
 const MINUTES_ALIASES = ["minutes played", "minutes", "mins", "minutos jugados", "minutos"];
@@ -115,15 +155,24 @@ export function numeric(value: CellValue): number {
   if (typeof value === "number") return Number.isFinite(value) ? value : Number.NaN;
   if (value === null || value === undefined || value === "") return Number.NaN;
   const raw = String(value).trim().replace(/%$/, "").replace(/\s/g, "");
+  // Con los dos separadores, el último es el decimal: "1.234,5" y "1,234.5"
+  // son el mismo número. Antes se daba por hecho el formato europeo y
+  // "1,234.5" salía 1,2345.
+  const punto = raw.lastIndexOf(".");
+  const coma = raw.lastIndexOf(",");
+  if (punto >= 0 && coma >= 0) {
+    const decimal = punto > coma ? "." : ",";
+    const parsed = Number(raw.replaceAll(decimal === "." ? "," : ".", "").replace(decimal, "."));
+    return Number.isFinite(parsed) ? parsed : Number.NaN;
+  }
   // "2,340" / "2.340" / "1,234,567" son números con separador de miles, no
-  // decimales: grupos de exactamente 3 dígitos tras el primer separador.
-  if (/^[+-]?\d{1,3}([.,]\d{3})+$/.test(raw)) {
+  // decimales: grupos de exactamente 3 dígitos tras el primer separador. La
+  // parte entera nunca es 0: "0.123" es un decimal de tres cifras —xG,
+  // OBV, cualquier ratio de StatsBomb—, no 123.
+  if (/^[+-]?[1-9]\d{0,2}([.,]\d{3})+$/.test(raw)) {
     return Number(raw.replace(/[.,]/g, ""));
   }
-  const normalized = raw.includes(",") && raw.includes(".")
-    ? raw.replace(/\./g, "").replace(",", ".")
-    : raw.replace(",", ".");
-  const parsed = Number(normalized);
+  const parsed = Number(raw.replace(",", "."));
   return Number.isFinite(parsed) ? parsed : Number.NaN;
 }
 
@@ -404,6 +453,19 @@ const clubTokens = (value: string) => value.split(" ").filter((token) => token &
 const MARCAS_DE_FILIAL = new Set(["ii", "2", "b", "jong", "u19", "u21", "u23", "reserves"]);
 const esFilial = (tokens: string[]) => tokens.some((token) => MARCAS_DE_FILIAL.has(token));
 
+/*
+ * Palabras de un nombre de club que no lo distinguen de otro de su liga: las
+ * marcas de filial, los prefijos de asociación ("US Concarneau", "IF Gnistan")
+ * y los apellidos de club ingleses, que comparten media división ("Sutton
+ * United" y "Boston United" no tienen nada en común). Solo las usa el enlace
+ * de la capa física dentro de una misma competición.
+ */
+const PALABRAS_GENERICAS_DE_CLUB = new Set([
+  ...MARCAS_DE_FILIAL,
+  "us", "as", "ss", "cs", "is", "if", "ik", "bk", "ff", "sv", "ks", "nk", "sp", "ca", "rc", "ud",
+  "united", "city", "town", "athletic", "rovers", "wanderers", "county", "albion", "real", "sporting", "olympique",
+]);
+
 /**
  * Cuánto se parecen dos nombres que ya casan, de 0 a 1: 1 si dicen lo mismo
  * (mismas palabras o una sigla que deletrea las otras: "LA Galaxy II" y "Los
@@ -548,6 +610,8 @@ export type TemporadaDeJugador = {
   anio: number;
   ligas: string[];
   equipo: string;
+  /** El club en cada una de sus ligas de esa temporada. */
+  equipoPorLiga: Record<string, string>;
   partidos: number;
   minutos: number;
   /** NaN si la base no trae la columna. */
@@ -565,6 +629,17 @@ const temporadasPorFila = new WeakMap<DataRow, TemporadaDeJugador[]>();
 /** Las temporadas de un jugador, de la más reciente a la más antigua. */
 export function temporadasDeFila(fila: DataRow | undefined): TemporadaDeJugador[] {
   return (fila && temporadasPorFila.get(fila)) || [];
+}
+
+/**
+ * Vuelve a colgar las temporadas de cada fila. El cruce corre en un Web
+ * Worker y sus filas llegan copiadas, como objetos nuevos: sin esto la ficha
+ * no sabría en qué temporadas aparece cada jugador.
+ */
+export function registrarTemporadas(filas: DataRow[], temporadas: TemporadaDeJugador[][]) {
+  filas.forEach((fila, indice) => {
+    if (temporadas[indice]?.length) temporadasPorFila.set(fila, temporadas[indice]);
+  });
 }
 
 export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult {
@@ -950,6 +1025,99 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
     }
   }
 
+  /*
+   * Enlace de la capa física con su base, dentro de la misma competición.
+   *
+   * SkillCorner nunca es base: es una capa sobre la liga de StatsBomb o de
+   * Wyscout que se cargó con ella. Aun así quedaban filas sueltas solo de
+   * SkillCorner —209 con las dieciséis ligas, en octubre de 2026— porque los
+   * dos proveedores escriben el club distinto ("US Concarneau" y "Concarneau",
+   * "Jong Ajax Amsterdam" y "Ajax II", "IF Gnistan" y "Gnistan") y las etapas
+   * de arriba exigen que el club case. Cada una era un jugador fantasma: salía
+   * en el desplegable con sus tres mil minutos y sin una sola métrica de
+   * juego —"no encontramos métricas para esta cohorte"—, mientras su fila de
+   * verdad se quedaba sin físicos.
+   *
+   * Dentro de una misma competición se le puede pedir menos al club, porque el
+   * universo es una sola liga y la persona se identifica de otra forma:
+   *   - con la misma fecha de nacimiento en los dos lados, basta el apellido y
+   *     la inicial, un nombre contenido en el otro, o una palabra larga en
+   *     común si además el club es afín: así entran las grafías que cada
+   *     proveedor escribe a su manera ("Turner-Cooke" y "Turner-Cook",
+   *     "Bezzekhami" y "Berrezkami") sin abrir la puerta a nadie más;
+   *   - sin fecha en alguno, un nombre contenido en el otro —o el mismo
+   *     apellido con un nombre de pila equivalente— y un club afín.
+   * Dos fechas distintas vetan siempre. Solo con candidato único, nunca contra
+   * una fila del mismo archivo y nunca entre competiciones: eso sigue siendo
+   * cosa de las etapas de arriba, que sí miran el club entero.
+   *
+   * Dos cuidados con la fecha. El 1 de enero no cuenta como día: es lo que los
+   * proveedores escriben cuando solo saben el año, así que no confirma ni veta
+   * por sí solo; pero el año sí dice algo, y más de uno de diferencia separa
+   * ("Tre Wright", 2004, no es "Trevor Wright", 2002). Y el día y el mes
+   * cruzados valen como la misma fecha ("2007-05-07" y "2007-07-05"), que es
+   * el error de formato de siempre y no dos personas.
+   */
+  const soloCapaFisica = (grupo: typeof combined) => grupo.every((entrada) => entrada.provider === "skillcorner");
+  const distintivasDeClub = (club: string) => clubTokens(club).filter((token) => !PALABRAS_GENERICAS_DE_CLUB.has(token));
+  const clubesAfines = (unos: string[], otros: string[]) => unos.some((uno) => otros.some((otro) => {
+    const a = distintivasDeClub(uno);
+    const b = distintivasDeClub(otro);
+    return a.some((token) => b.includes(token));
+  }));
+  const fechasUtiles = (grupo: typeof combined) => new Set(
+    grupo.map((entrada) => entrada.birthIdentity).filter((fecha) => fecha && !fecha.endsWith("-01-01")),
+  );
+  const diaYMesCruzados = (fecha: string) => {
+    const [anio, mes, dia] = fecha.split("-");
+    return `${anio}-${dia}-${mes}`;
+  };
+  const aniosDeNacimiento = (grupo: typeof combined) => [...new Set(
+    grupo.map((entrada) => Number(entrada.birthIdentity.slice(0, 4))).filter((anio) => anio > 1900),
+  )];
+  for (let index = mergedGroups.length - 1; index >= 0; index -= 1) {
+    const grupo = mergedGroups[index];
+    if (!soloCapaFisica(grupo)) continue;
+    const tokens = nameTokens(grupo[0].player);
+    // Un nombre de una sola palabra no identifica a nadie por sí solo.
+    if (tokens.length < 2) continue;
+    const apellido = tokens[tokens.length - 1];
+    const fuentes = new Set(grupo.map((entrada) => entrada.sourceIndex));
+    const competencias = new Set(grupo.map((entrada) => entrada.competencia));
+    const nacimientos = fechasUtiles(grupo);
+    const anios = aniosDeNacimiento(grupo);
+    const clubes = [...new Set(grupo.map((entrada) => entrada.clubIdentity).filter(Boolean))];
+    const candidatos = mergedGroups.filter((otro) => {
+      if (otro === grupo || soloCapaFisica(otro)) return false;
+      if (otro.some((entrada) => fuentes.has(entrada.sourceIndex))) return false;
+      if (!otro.some((entrada) => competencias.has(entrada.competencia))) return false;
+      const otros = nameTokens(otro[0].player);
+      if (otros.length < 2) return false;
+      const nacimientosDelOtro = fechasUtiles(otro);
+      const mismaFecha = [...nacimientos].some((fecha) => nacimientosDelOtro.has(fecha) || nacimientosDelOtro.has(diaYMesCruzados(fecha)));
+      if (nacimientos.size && nacimientosDelOtro.size && !mismaFecha) return false;
+      const aniosDelOtro = aniosDeNacimiento(otro);
+      if (!mismaFecha && anios.length && aniosDelOtro.length
+        && !anios.some((a) => aniosDelOtro.some((b) => Math.abs(a - b) <= 1))) return false;
+      const contenido = tokens.every((token) => otros.includes(token)) || otros.every((token) => tokens.includes(token));
+      const apellidoDelOtro = otros[otros.length - 1];
+      const mismoApellido = apellido === apellidoDelOtro
+        || (Math.min(apellido.length, apellidoDelOtro.length) >= 6 && difiereEnUnaLetra(apellido, apellidoDelOtro));
+      const clubesDelOtro = [...new Set(otro.map((entrada) => entrada.clubIdentity).filter(Boolean))];
+      const clubAfin = clubesAfines(clubes, clubesDelOtro);
+      if (mismaFecha) {
+        const palabraLargaEnComun = tokens.some((token) => token.length >= 4 && otros.includes(token));
+        return contenido || (mismoApellido && tokens[0][0] === otros[0][0]) || (palabraLargaEnComun && clubAfin);
+      }
+      const pilaEquivalente = tokens.slice(0, -1).some((uno) => otros.slice(0, -1).some((otro2) => nombresDePilaEquivalentes(uno, otro2)));
+      return (contenido || (mismoApellido && pilaEquivalente)) && clubAfin;
+    });
+    if (candidatos.length === 1) {
+      candidatos[0].push(...grupo);
+      mergedGroups.splice(index, 1);
+    }
+  }
+
   const positionColumn = findColumn(allHeaders, ["position", "posicion", "posicion especifica"]);
   const passportColumn = findColumn(allHeaders, ["passport country", "pais de pasaporte", "nacionalidad"]);
   const currentTeamColumn = findColumn(allHeaders, ["current team", "equipo actual"]);
@@ -975,7 +1143,17 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
     const values = combined.map(({ row }) => numeric(row[header])).filter(Number.isFinite);
     return values.length > 0;
   });
-  const per90Headers = numericHeaders.filter(isPer90);
+  /*
+   * Las columnas de StatsBomb y SkillCorner son tasas —por 90, por 30 minutos
+   * de posesión, medias de distancia o de velocidad— aunque su nombre no lo
+   * diga ("Deep progressions (SB)", "Runs in behind P30 (SC)"). Sin esto caían
+   * en los totales y, al juntar dos temporadas, se promediaban sin ponderar:
+   * 300′ de una pesaban lo mismo que 2.700′ de la otra, en la vista de dos
+   * temporadas que la ficha usa por defecto y cuyo pie dice "ponderadas por
+   * minutos". Las de porcentaje siguen su propio camino, más abajo.
+   */
+  const esTasaDePlataforma = (header: string) => /\((sb|sc)\)\s*$/i.test(header) && !header.includes("%");
+  const per90Headers = numericHeaders.filter((header) => isPer90(header) || esTasaDePlataforma(header));
   const percentHeaders = numericHeaders.filter((header) => !per90Headers.includes(header) && isPercentage(header));
   const totalHeaders = numericHeaders.filter((header) => !per90Headers.includes(header) && !percentHeaders.includes(header));
   // Conteos acumulativos (goles, asistencias, tarjetas…) se SUMAN entre
@@ -988,7 +1166,16 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
     "second assists", "third assists",
   ]);
   const cumulativeHeaders = totalHeaders.filter((header) => CUMULATIVE_HEADERS.has(normalizeHeader(header)));
-  const averagedHeaders = totalHeaders.filter((header) => !cumulativeHeaders.includes(header));
+  /*
+   * Lo que describe al jugador en un momento —valor de mercado, altura,
+   * peso, si está cedido— no se promedia entre temporadas: se toma de la más
+   * reciente. Promediado, un jugador que pasó de €200K a €600K salía en €400K,
+   * un valor que no tuvo nunca.
+   */
+  const PUNTUALES = ["market value", "valor de mercado", "height", "altura", "weight", "peso", "on loan", "en prestamo"];
+  const pointInTimeHeaders = totalHeaders.filter((header) => !cumulativeHeaders.includes(header)
+    && PUNTUALES.some((alias) => normalizeHeader(header).startsWith(alias)));
+  const averagedHeaders = totalHeaders.filter((header) => !cumulativeHeaders.includes(header) && !pointInTimeHeaders.includes(header));
 
   const rows = mergedGroups.map((entries) => {
     // Un archivo sin año en el nombre (season 0) es un export actual, no el
@@ -1075,6 +1262,11 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
       output[header] = values.length ? sumaPorTemporadas(sorted, (row) => numeric(row[header]) || 0) : Number.NaN;
     }
     for (const header of averagedHeaders) output[header] = average(sorted.map(({ row }) => numeric(row[header])));
+    for (const header of pointInTimeHeaders) {
+      // El orden de la identidad: temporada más reciente y, dentro, donde más jugó.
+      const reciente = [...identidadOrdenada, ...[...sorted].reverse()].find(({ row }) => Number.isFinite(numeric(row[header])));
+      output[header] = reciente ? numeric(reciente.row[header]) : Number.NaN;
+    }
     for (const header of per90Headers) {
       output[header] = weightedAverage(sorted.map(({ row }) => ({
         value: numeric(row[header]),
@@ -1115,6 +1307,14 @@ export function aggregateDatasets(datasets: SourceDataset[]): AggregationResult 
         anio: identidad.season,
         ligas,
         equipo: rowTeam(identidad.row),
+        // El club en cada liga de esa temporada (donde más jugó en ella): quien
+        // pasó de la CPL a Sligo a mitad de año es de Sligo en la temporada,
+        // pero de su club de la CPL cuando se filtra por la CPL.
+        equipoPorLiga: Object.fromEntries(ligas.map((liga) => {
+          const enLaLiga = (base.length ? base : entradas).filter((entry) => ligaYAnioDe(entry.source).liga === liga);
+          const principal = [...enLaLiga].sort((a, b) => minutosDe(b.row) - minutosDe(a.row))[0];
+          return [liga, principal ? rowTeam(principal.row) : rowTeam(identidad.row)];
+        })),
         partidos: maxPerProvider(entradas, (row) => numeric(row[core.matches]) || 0),
         minutos: maxPerProvider(entradas, (row) => numeric(row[core.minutes]) || 0),
         goles: total(goalsColumn),
@@ -1152,7 +1352,10 @@ export function positionColumnOf(headers: string[]) {
 type MetricDefinition = {
   label: string; aliases: string[]; group: number; colorGroup: MetricColorGroup;
   inverse?: boolean; source?: MetricSource;
-  /** Se dibuja en el radar pero no entra en el índice: no separa a nadie. */
+  /**
+   * Se dibuja en el radar pero no entra en el índice: no separa a nadie, o
+   * no se repite de una temporada a otra (ver REPETIBILIDAD más abajo).
+   */
   sinIndice?: boolean;
   /** Métricas que miden lo mismo; en el índice entra una sola de cada familia. */
   familia?: string;
@@ -1312,15 +1515,34 @@ function scMetric(label: string, aliases: string[], inverse = false, extra: Part
   return { label, aliases, group: 2, colorGroup: "physical", inverse, source: "skillcorner", ...extra };
 }
 
+/*
+ * REPETIBILIDAD. Una métrica que no se repite de una temporada a otra no dice
+ * cómo es el jugador sino cómo le fue, y en un promedio solo añade ruido.
+ * Medido el 14 de octubre de 2026 con StatsBomb, en doce ligas: jugadores de
+ * campo y porteros con 900′ o más en dos temporadas seguidas de la misma
+ * liga, con su percentil dentro de su liga, temporada y puesto (que es como
+ * entra en el índice). Correlación entre una temporada y la siguiente, con
+ * su IC del 95 %:
+ *   Atajadas % 0,05 (−0,13 a 0,23) · OBV defensivo 0,10 (0,05 a 0,16) ·
+ *   OBV portero 0,16 (0,00 a 0,31) · PSxG en contra 0,21 (0,00 a 0,38) ·
+ *   Entradas ganadas % 0,25 (0,13 a 0,30) · Conversión de gol % 0,25
+ *   (0,06 a 0,49).
+ * Las seis quedan fuera del índice (`sinIndice`) y se siguen dibujando. Para
+ * comparar: progresiones profundas 0,60, conducciones 0,66, pases JA 0,74.
+ * Goles /90, PSxG sin penales y remates también rondan 0,25–0,55, pero ya
+ * entran una sola vez por familia, con el xG. Las de Wyscout no se pudieron
+ * medir (no hay dos temporadas del mismo export); las de juego de SkillCorner
+ * tampoco (la temporada 2025 solo trae el paquete físico).
+ */
 const SB = {
   carries: sbMetric("Conducciones (SB)", ["carries sb"], 1, "creating", false, { familia: "progresion" }),
   deepProg: sbMetric("Progresiones profundas (SB)", ["deep progressions sb"], 2, "passing", false, { familia: "progresion", familiaPrincipal: true }),
   obvDribbleCarry: sbMetric("OBV regate y conducción (SB)", ["dribble carry obv sb"], 1, "creating"),
-  obvDefensive: sbMetric("OBV defensivo (SB)", ["defensive action obv sb"], 0, "defending"),
+  obvDefensive: sbMetric("OBV defensivo (SB)", ["defensive action obv sb"], 0, "defending", false, { sinIndice: true }),
   obvPass: sbMetric("OBV pase (SB)", ["pass obv sb"], 2, "passing"),
   ballRecoveries: sbMetric("Recuperaciones (SB)", ["ball recoveries sb"], 0, "defending"),
   counterpressures: sbMetric("Contrapresiones (SB)", ["counterpressures sb"], 0, "defending"),
-  challenge: sbMetric("Entradas ganadas % (SB)", ["tackle dribbled past % sb"], 0, "defending"),
+  challenge: sbMetric("Entradas ganadas % (SB)", ["tackle dribbled past % sb"], 0, "defending", false, { sinIndice: true }),
   deepCompletions: sbMetric("Pases profundos completados (SB)", ["deep completions sb"], 2, "passing"),
   tacklesInterceptions: sbMetric("Entradas + intercepciones (SB)", ["tackles interceptions sb"], 0, "defending"),
   opKeyPasses: sbMetric("Pases clave JA (SB)", ["op key passes sb"], 1, "creating", false, { familia: "creacion" }),
@@ -1343,7 +1565,7 @@ const SB = {
   throughBalls: sbMetric("Pases filtrados (SB)", ["through balls sb"], 1, "creating"),
   dribbles: sbMetric("Regates exitosos (SB)", ["successful dribbles sb"], 1, "creating"),
   touchesBox: sbMetric("Toques en el área (SB)", ["touches in box sb"], 0, "finishing"),
-  goalConversion: sbMetric("Conversión de gol % (SB)", ["goal conversion % sb"], 0, "finishing"),
+  goalConversion: sbMetric("Conversión de gol % (SB)", ["goal conversion % sb"], 0, "finishing", false, { sinIndice: true }),
   goals: sbMetric("Goles /90 (SB)", ["goals per 90 sb"], 0, "finishing", false, { familia: "remate" }),
   npPsxg: sbMetric("PSxG sin penales (SB)", ["np psxg sb"], 0, "finishing", false, { familia: "remate" }),
   foulsWon: sbMetric("Faltas recibidas (SB)", ["fouls won sb"], 1, "creating"),
@@ -1383,10 +1605,10 @@ const SC = {
 };
 
 METRICS.GK.push(
-  sbMetric("OBV portero (SB)", ["gk obv sb"], 0, "goalkeeper"),
+  sbMetric("OBV portero (SB)", ["gk obv sb"], 0, "goalkeeper", false, { sinIndice: true }),
   sbMetric("Precisión balón largo % (SB)", ["long ball % sb"], 0, "goalkeeper"),
-  sbMetric("Atajadas % (SB)", ["shot stopping % sb"], 0, "goalkeeper"),
-  sbMetric("PSxG en contra (SB)", ["opp np psxg faced sb"], 0, "goalkeeper", true),
+  sbMetric("Atajadas % (SB)", ["shot stopping % sb"], 0, "goalkeeper", false, { sinIndice: true }),
+  sbMetric("PSxG en contra (SB)", ["opp np psxg faced sb"], 0, "goalkeeper", true, { sinIndice: true }),
   sbMetric("OBV pase (SB)", ["pass obv sb"], 0, "goalkeeper"),
   sbMetric("Distancia de intervención (SB)", ["gk aggressive distance sb"], 0, "goalkeeper"),
   sbMetric("Longitud de pase (SB)", ["pass length sb"], 0, "goalkeeper"),
@@ -1537,13 +1759,22 @@ function roleReading(cohort: string, metrics: RadarMetric[]) {
   if (!metrics.length) return "";
   // Informe corto en lenguaje llano: en qué se apoya su juego, qué muestra el
   // dato, en qué rol encajaría, dónde destaca y qué vigilar. Sin jerga.
-  const facets = SIMILARITY_METRIC_GROUPS.map((group) => ({
-    group,
-    score: average(metrics.filter((metric) => similarityMetricGroup(metric, cohort).id === group.id).map((metric) => metric.percentile)),
-  })).filter((facet) => Number.isFinite(facet.score)).sort((a, b) => b.score - a.score);
-  const dominant = facets[0];
-  const top = [...metrics].sort((a, b) => b.percentile - a.percentile).slice(0, 3);
-  const weak = [...metrics].sort((a, b) => a.percentile - b.percentile)[0];
+  //
+  // La lectura se apoya en lo que se repite: las métricas fuera del índice
+  // por ruido no deciden ni su fuerte ni su punto débil (un delantero no es
+  // "flojo en conversión" por un año de mala suerte). Y una faceta de una
+  // sola métrica no puede ser "en lo que se apoya su juego": con un pivote
+  // con un único dato de presión al 98 %, la ficha decía que su juego era
+  // defensivo. Solo si ninguna faceta tiene dos, vale la de una.
+  const fiables = metrics.some((metric) => !metric.sinIndice) ? metrics.filter((metric) => !metric.sinIndice) : metrics;
+  const facets = SIMILARITY_METRIC_GROUPS.map((group) => {
+    const suyas = fiables.filter((metric) => similarityMetricGroup(metric, cohort).id === group.id);
+    return { group, score: average(suyas.map((metric) => metric.percentile)), cuantas: suyas.length };
+  }).filter((facet) => Number.isFinite(facet.score)).sort((a, b) => b.score - a.score);
+  const conVarias = facets.filter((facet) => facet.cuantas >= 2);
+  const dominant = (conVarias.length ? conVarias : facets)[0];
+  const top = [...fiables].sort((a, b) => b.percentile - a.percentile).slice(0, 3);
+  const weak = [...fiables].sort((a, b) => a.percentile - b.percentile)[0];
   const readable = (label: string) => t(label).replace(/\s*\/90/g, "").replace(/,\s*%$/, "").toLowerCase();
   const strengths = top.filter((metric) => metric.percentile >= 60).map((metric) => readable(metric.label));
   let text = dominant
@@ -1768,6 +1999,93 @@ function paresDeCohorte(rows: DataRow[], peerGroup: string, positionColumn: stri
  */
 const _poblacionesPorPares = new WeakMap<DataRow[], Map<string, number[]>>();
 
+/**
+ * Todos los jugadores de campo de la base, recordados igual que los pares.
+ * Es el grupo de referencia de quien no tiene posición registrada.
+ */
+function jugadoresDeCampo(rows: DataRow[], positionColumn: string, columnaMinutos: string, minimumMinutes: number) {
+  let entrada = _paresPorBase.get(rows);
+  if (!entrada || entrada.largo !== rows.length) {
+    entrada = { largo: rows.length, grupos: new Map() };
+    _paresPorBase.set(rows, entrada);
+  }
+  const clave = `__DE_CAMPO__|${minimumMinutes}`;
+  const recordado = entrada.grupos.get(clave);
+  if (recordado) return recordado;
+  const pares = rows.filter((candidate) => (
+    cohortOf(positionColumn ? candidate[positionColumn] : "") !== "GK"
+    && numeric(candidate[columnaMinutos]) > 0
+    && (minimumMinutes <= 0 || numeric(candidate[columnaMinutos]) >= minimumMinutes)
+  ));
+  entrada.grupos.set(clave, pares);
+  return pares;
+}
+
+/**
+ * Los pares de un jugador dentro de sus ligas y temporadas, recordados.
+ *
+ * Todos los de una misma liga comparten grupo, así que en un ranking se
+ * calcula una vez por liga y no una por jugador; y al ser el mismo arreglo,
+ * las poblaciones de cada métrica también se reutilizan.
+ */
+const _paresEnSusLigas = new WeakMap<string[][], { filas: DataRow[]; grupos: Map<string, DataRow[]> }>();
+
+function paresEnSusLigas(rows: DataRow[], clavesPorFila: string[][], susClaves: string[], peers: DataRow[], clavePares: string) {
+  let entrada = _paresEnSusLigas.get(clavesPorFila);
+  if (!entrada || entrada.filas !== rows) {
+    entrada = { filas: rows, grupos: new Map() };
+    _paresEnSusLigas.set(clavesPorFila, entrada);
+  }
+  const clave = `${clavePares}|${[...susClaves].sort().join("¦")}`;
+  const recordado = entrada.grupos.get(clave);
+  if (recordado) return recordado;
+  const deSusLigas = new Set(rows.filter((_, indice) => (clavesPorFila[indice] ?? []).some((c) => susClaves.includes(c))));
+  const enSuLiga = peers.filter((candidato) => deSusLigas.has(candidato));
+  entrada.grupos.set(clave, enSuLiga);
+  return enSuLiga;
+}
+
+/**
+ * El marco "su liga" de las páginas que arman su propio grupo de comparación
+ * —Contexto y la Ficha ampliada—, con la misma regla que la ficha: las filas
+ * que comparten alguna clave "liga año" con la suya. Si los de su puesto en
+ * su liga no llegan al mínimo, el modo es "todas" y la página lo dice.
+ * null cuando no hay nada que elegir: una sola competición, o una fila sin
+ * procedencia conocida.
+ */
+export type MarcoDeSuLiga = {
+  modo: "liga" | "todas";
+  /** Sus claves "liga año": "Canadian Premier League 2026". */
+  claves: string[];
+  /** Los de su puesto con el mínimo de minutos en su liga. */
+  enSuLiga: number;
+  /** Los índices de `rows` de su liga y temporada, de cualquier puesto. */
+  filas: Set<number>;
+};
+
+/**
+ * Lo mínimo para medir a un jugador en su liga cuando se pide siempre (la
+ * Ficha ampliada): cada métrica necesita cinco valores para tener media y
+ * dispersión. Por debajo de diez los percentiles van de diez en diez, y la
+ * página lo avisa.
+ */
+export const MINIMO_FAMILIAS_EN_SU_LIGA = 5;
+
+export function marcoDeSuLiga(rows: DataRow[], clavesPorFila: string[][] | null | undefined, indice: number, cohorte: string, minimumMinutes: number, minimo = MINIMO_COHORTE_EN_SU_LIGA): MarcoDeSuLiga | null {
+  const susClaves = clavesPorFila?.[indice] ?? [];
+  if (!clavesPorFila || !susClaves.length || !rows[indice]) return null;
+  if (new Set(clavesPorFila.flat()).size < 2) return null;
+  const filas = new Set<number>();
+  rows.forEach((_, i) => { if ((clavesPorFila[i] ?? []).some((clave) => susClaves.includes(clave))) filas.add(i); });
+  const headers = headersOf(rows);
+  const core = detectCoreColumns(headers);
+  const positionColumn = findColumn(headers, POSITION_ALIASES);
+  const suCohorte = cohorte === "AUTO" ? cohortOf(positionColumn ? rows[indice][positionColumn] : "") : cohorte;
+  const pares = paresDeCohorte(rows, peerCohort(suCohorte), positionColumn, core.minutes, minimumMinutes);
+  const enSuLiga = paresEnSusLigas(rows, clavesPorFila, susClaves, pares, `${peerCohort(suCohorte)}|${minimumMinutes}`).length;
+  return { modo: enSuLiga >= minimo ? "liga" : "todas", claves: susClaves, enSuLiga, filas };
+}
+
 function poblacionDeMetrica(peers: DataRow[], key: string) {
   let cache = _poblacionesPorPares.get(peers);
   if (!cache) {
@@ -1788,7 +2106,20 @@ export function buildPlayerReport(
    * del perfil. Lo usa la mesa de Maldonado, que compara fotos mes a mes y no
    * puede cambiar de fórmula a mitad de la serie.
    */
-  opciones: { indiceSinRecorte?: boolean } = {},
+  /**
+   * `rescate`: que un jugador con minutos no se quede sin radar. Lo pide la
+   * ficha, donde se mira a UNA persona y un hueco en blanco no dice nada. El
+   * ranking, la similitud y la mesa no lo piden: allí un jugador sin métricas
+   * de su perfil no debe entrar en la lista con un índice hecho de otra cosa.
+   */
+  /**
+   * `porLiga`: medir contra los de su puesto en su misma liga y temporada en
+   * vez de contra todas las cargadas. `clavesPorFila[i]` son las claves
+   * "liga año" de la fila i de `rows` (ver origenPorFila). Lo pide la ficha:
+   * con dieciséis ligas cargadas, un jugador de la CPL cambiaba 6 puntos de
+   * media —y hasta 40 en una métrica— según qué más hubiera cargado.
+   */
+  opciones: { indiceSinRecorte?: boolean; rescate?: boolean; porLiga?: { clavesPorFila: string[][]; minimoCohorte?: number } } = {},
 ): PlayerReport | null {
   const row = rows[selectedIndex];
   if (!row) return null;
@@ -1809,29 +2140,88 @@ export function buildPlayerReport(
   // la vez la lente de métricas y los pares: mirar a un portero "como delantero"
   // solo significa algo si se le compara contra delanteros.
   const peerGroup = peerCohort(cohort);
-  const peers = paresDeCohorte(rows, peerGroup, positionColumn, core.minutes, minimumMinutes);
-  const metrics = !peers.length ? [] : definitions.flatMap((definition) => {
+  let peers = paresDeCohorte(rows, peerGroup, positionColumn, core.minutes, minimumMinutes);
+  let frente: PlayerReport["frente"];
+  const susClaves = opciones.porLiga?.clavesPorFila[selectedIndex] ?? [];
+  if (opciones.porLiga && susClaves.length) {
+    const enSuLiga = paresEnSusLigas(rows, opciones.porLiga.clavesPorFila, susClaves, peers, `${peerGroup}|${minimumMinutes}`);
+    if (enSuLiga.length >= (opciones.porLiga.minimoCohorte ?? MINIMO_COHORTE_EN_SU_LIGA)) {
+      peers = enSuLiga;
+      frente = { modo: "liga", claves: susClaves, enSuLiga: enSuLiga.length };
+    } else {
+      frente = { modo: "todas", claves: susClaves, enSuLiga: enSuLiga.length };
+    }
+  }
+  const paresDeLaLiga = peers;
+  const medir = (definiciones: MetricDefinition[], pares: DataRow[]): RadarMetric[] => (!pares.length ? [] : definiciones.flatMap((definition) => {
     const key = findColumn(headers, definition.aliases);
     if (!key) return [];
     const value = numeric(row[key]);
     if (!Number.isFinite(value)) return [];
     // Sin muestra real en la cohorte, el percentil no significa nada: la
     // métrica se omite en lugar de dibujarse contra un grupo vacío.
-    const peerValues = poblacionDeMetrica(peers, key);
+    const peerValues = poblacionDeMetrica(pares, key);
     if (!peerValues.length) return [];
     return [{ key, label: definition.label, value, percentile: percentile(value, peerValues, definition.inverse), group: definition.group, colorGroup: definition.colorGroup, inverse: definition.inverse, source: definition.source ?? "wyscout", sample: peerValues.length, sinIndice: definition.sinIndice, familia: definition.familia, familiaPrincipal: definition.familiaPrincipal }];
-  });
+  }));
+  let metrics = medir(definitions, peers);
+
+  /*
+   * Rescate: un jugador con minutos no debería quedarse en blanco.
+   *
+   * Medido sobre las dieciséis ligas en octubre de 2026, el radar salía vacío
+   * por tres motivos que no tienen que ver con el jugador: StatsBomb no le da
+   * posición a quien ha jugado un rato (170 casos, todos por debajo de 100
+   * minutos), nadie de su puesto llega al mínimo en una base pequeña, o la
+   * fila solo trae físicos. En los tres se puede enseñar algo honesto si se
+   * dice contra quién se mide, y eso es lo que devuelve `rescate`. Cada paso
+   * solo corre si el anterior no dio nada, y ninguno toca un informe que ya
+   * tenía métricas.
+   */
+  let rescate: PlayerReport["rescate"];
+  const minutosDelJugador = numeric(row[core.minutes]);
+  if (opciones.rescate && !metrics.length && minutosDelJugador > 0) {
+    const sinPosicion = forcedCohort === "AUTO" && sourceCohort === "OTHER";
+    // Sin posición no hay "los de su puesto": su cohorte son los otros a los
+    // que también les falta, que suelen ser él y nadie más. Se le mide contra
+    // todos los de campo, primero con el mínimo de minutos y, si no, sin él.
+    if (sinPosicion) {
+      for (const minimo of [...new Set([minimumMinutes, 0])]) {
+        const deCampo = jugadoresDeCampo(rows, positionColumn, core.minutes, minimo);
+        const medidas = medir(definitions, deCampo);
+        if (medidas.length) { peers = deCampo; metrics = medidas; rescate = "sin-posicion"; break; }
+      }
+    }
+    if (!metrics.length && !peers.length && minimumMinutes > 0) {
+      const sinMinimo = paresDeCohorte(rows, peerGroup, positionColumn, core.minutes, 0);
+      const medidas = medir(definitions, sinMinimo);
+      if (medidas.length) { peers = sinMinimo; metrics = medidas; rescate = "sin-minimo"; }
+    }
+    // Lo último es solo para la cohorte automática: forzar "porteros" sobre un
+    // delantero y que salga vacío es una respuesta, no un hueco que rellenar.
+    if (!metrics.length && forcedCohort === "AUTO") {
+      const registradas = [...new Map(Object.values(METRICS).flat().map((definition) => [definition.label, definition] as const)).values()];
+      const referencia = peers.length ? peers : paresDeCohorte(rows, peerGroup, positionColumn, core.minutes, 0);
+      const medidas = medir(registradas, referencia);
+      if (medidas.length) { peers = referencia; metrics = medidas; rescate = "solo-disponibles"; }
+    }
+  }
   // Una destreza, una métrica: con dos plataformas enlazadas entraban las dos
   // versiones y esa destreza pesaba el doble en el índice. La elección manual
   // del scout manda: si pidió las dos, salen las dos.
   const metricsUnicas = selectedMetricLabels?.length ? metrics : sinDuplicadosDeDestreza(metrics);
 
-  // El radar se lee por bloques: las métricas salen agrupadas por categoría
-  // (finalización → creación → pase → defensa → portero → físico) para que
-  // cada color forme un solo arco continuo en vez de repartirse por todo el
-  // círculo. Dentro de cada categoría se respeta el orden de la definición.
+  // El radar se lee como el mapping de roles: un bloque por proveedor
+  // (Wyscout → StatsBomb → SkillCorner) y, dentro de cada uno, agrupadas por
+  // categoría (finalización → creación → pase → defensa → portero → físico)
+  // para que cada color forme un arco continuo. Ordenar solo por categoría
+  // mezclaba los proveedores dentro de cada color. Dentro de cada categoría
+  // se respeta el orden de la definición (el sort es estable).
   const groupRank = new Map(SIMILARITY_METRIC_GROUPS.map((group, index) => [group.id, index] as const));
+  const sourceRank = (metric: RadarMetric) => Math.max(0, METRIC_SOURCE_ORDER.indexOf(metric.source ?? "wyscout"));
   metricsUnicas.sort((a, b) => {
+    const porFuente = sourceRank(a) - sourceRank(b);
+    if (porFuente) return porFuente;
     const rankA = groupRank.get(similarityMetricGroup(a, cohort).id) ?? SIMILARITY_METRIC_GROUPS.length;
     const rankB = groupRank.get(similarityMetricGroup(b, cohort).id) ?? SIMILARITY_METRIC_GROUPS.length;
     return rankA - rankB;
@@ -1878,6 +2268,9 @@ export function buildPlayerReport(
     metricasDelIndice: paraIndice.length,
     metrics: metricsUnicas,
     reading: roleReading(cohort, metricsUnicas),
+    ...(rescate ? { rescate } : {}),
+    // Si el rescate cambió los pares, ya no se midió contra su liga.
+    ...(frente ? { frente: frente.modo === "liga" && peers !== paresDeLaLiga ? { ...frente, modo: "todas" as const } : frente } : {}),
   };
 }
 
