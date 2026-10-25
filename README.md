@@ -122,6 +122,33 @@ Los datos extraídos y las personalizaciones del perfil se guardan localmente po
 jugador en el navegador. Transfermarkt solo se consulta cuando el usuario pega
 una URL y presiona el botón de extracción.
 
+## El puente local en el Mac y en Windows
+
+Las secciones con datos de StatsBomb y SkillCorner, los textos con IA y el
+recorte de fotos pasan por un servidor que corre en tu propio ordenador
+(`scripts/bg-server.py`, puerto 7001). La Pizarra (Estudio táctico y Pintado de
+acciones) no lo necesita. Los mismos comandos sirven en los dos sistemas:
+
+```bash
+npm run bg:instalar   # una vez: crea ~/.rembg-venv con Python 3.11 e instala rembg, FastAPI y uvicorn
+npm run bg:server     # lo arranca (o avisa si ya está en marcha)
+npm run bg:reiniciar  # tras cambiar su código
+npm run bg:inicio     # Windows: que arranque solo al iniciar sesión
+```
+
+- **Mac:** lo mantiene vivo el servicio `com.felipeormazabal.fos-puente`; las
+  credenciales van en el Llavero, como se explica más abajo.
+- **Windows:** hace falta Python 3.11 de python.org (con «Add python.exe to
+  PATH»). No hay Llavero: `bg:instalar` deja preparado
+  `C:\Users\<tú>\.fos-scouting\credentials.json` para rellenar con las
+  credenciales de StatsBomb y SkillCorner y las claves `anthropic` y
+  `api-football`. Ese archivo vive fuera del repositorio y no se sube nunca.
+  `bg:inicio` deja un acceso en la carpeta Inicio que lo arranca oculto al
+  entrar; para quitarlo, se borra `fos-puente.vbs` de esa carpeta.
+- Desde la web publicada en GitHub Pages, Chrome puede preguntar si se permite
+  el acceso a la red local: hay que aceptarlo para que la página hable con el
+  puente.
+
 ## Plataformas por API (StatsBomb / SkillCorner)
 
 Además de los Excel de Wyscout, la app puede cargar temporadas completas desde

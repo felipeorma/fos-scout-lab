@@ -12,8 +12,10 @@
     "test": "npm run build && node --test tests/*.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
-    "bg:server": "bash scripts/rembg-server.sh",
-    "bg:reiniciar": "launchctl kickstart -k gui/$(id -u)/com.felipeormazabal.fos-puente",
+    "bg:server": "node scripts/puente.mjs",
+    "bg:instalar": "node scripts/puente.mjs instalar",
+    "bg:inicio": "node scripts/puente.mjs inicio",
+    "bg:reiniciar": "node scripts/puente.mjs reiniciar",
     "build:pages": "rm -rf .api-backup && mv app/api .api-backup && (GITHUB_PAGES=true NEXT_PUBLIC_GITHUB_PAGES=true next build; s=$?; mv .api-backup app/api; exit $s)"
   },
   "dependencies": {
