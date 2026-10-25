@@ -100,3 +100,7 @@ export const Pause = icono(<><rect x="6" y="4.5" width="4" height="15" rx="1.2" 
 export const FlechaRecta = icono(<><path d="M4 12h15" /><path d="m14 7 5 5-5 5" /></>);
 export const ZonaSuelo = icono(<><ellipse cx="12" cy="14" rx="8.5" ry="4.8" fill="currentColor" fillOpacity=".22" /><path d="M12 9.2v9.6" opacity=".55" /></>);
 export const ChevronLeft = icono(<path d="m14.5 6-6 6 6 6" />);
+export const PantallaCompleta = icono(<><path d="M4 9V5.5A1.5 1.5 0 0 1 5.5 4H9" /><path d="M15 4h3.5A1.5 1.5 0 0 1 20 5.5V9" /><path d="M20 15v3.5a1.5 1.5 0 0 1-1.5 1.5H15" /><path d="M9 20H5.5A1.5 1.5 0 0 1 4 18.5V15" /></>);
+export const Conduccion = icono(<><path d="M3.5 15c1.6-3 3.2-3 4.8 0s3.2 3 4.8 0 3.2-3 4.8 0" /><path d="m17.5 11.5 3 3.5-3.6 2.4" /></>);
+export const Linea = icono(<path d="M4.5 18.5 19.5 5.5" />);
+export const Presion = icono(<><path d="M5 19 18 7" /><path d="M5 19 20 13" opacity=".55" /><path d="M5 19 12 4.5" opacity=".55" /></>);

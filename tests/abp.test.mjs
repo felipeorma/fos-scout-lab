@@ -256,3 +256,22 @@ test("la cámara del 2D: encaja el encuadre, ida y vuelta de coordenadas y viaje
   assert.equal(abreviar("DFC"), "DFC");
   assert.equal(abreviar("Lanzador"), "LAN");
 });
+
+test("mover una fase: cambia de puesto con la de al lado y en los extremos no hace nada", async () => {
+  const { moverFase } = await import("../lib/abp.ts");
+  const jugada = plantilla("corner_der");
+  const ids = jugada.fases.map((f) => f.id);
+  assert.ok(ids.length >= 3);
+  assert.deepEqual(moverFase(jugada, 1, 1).fases.map((f) => f.id), [ids[0], ids[2], ids[1], ...ids.slice(3)]);
+  assert.deepEqual(moverFase(jugada, 1, -1).fases.map((f) => f.id), [ids[1], ids[0], ...ids.slice(2)]);
+  assert.equal(moverFase(jugada, 0, -1), jugada);
+  assert.equal(moverFase(jugada, ids.length - 1, 1), jugada);
+});
+
+test("el foco: una zona que apaga lo de fuera se guarda y se vuelve a abrir como foco", () => {
+  const cuaderno = cuadernoInicial();
+  const jugada = cuaderno.jugadas[0];
+  jugada.fases[0].anotaciones.push({ id: "foco", tipo: "rect", a: { x: 0, z: -10 }, b: { x: 30, z: 10 }, color: "#f3b64c", estilo: "foco" });
+  const vuelta = normalizarCuaderno(JSON.parse(JSON.stringify(cuaderno)));
+  assert.equal(vuelta.jugadas[0].fases[0].anotaciones.find((a) => a.id === "foco").estilo, "foco");
+});

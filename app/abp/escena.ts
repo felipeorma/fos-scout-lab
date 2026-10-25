@@ -697,7 +697,8 @@ export class EscenaABP implements Motor {
         borde.push(new THREE.Vector3((x0 + x1) / 2 + Math.cos(ang) * ancho / 2, y + 0.01, (z0 + z1) / 2 + Math.sin(ang) * alto / 2));
       }
     }
-    if (a.estilo !== "borde") {
+    // El foco apaga lo de fuera en el 2D; en el estadio basta su contorno.
+    if (a.estilo !== "borde" && a.estilo !== "foco") {
       const geo = a.tipo === "rect" ? new THREE.PlaneGeometry(ancho, alto) : new THREE.CircleGeometry(0.5, 72).scale(ancho, alto, 1);
       geo.rotateX(-Math.PI / 2);
       let material: THREE.MeshBasicMaterial;

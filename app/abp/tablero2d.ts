@@ -3,9 +3,11 @@
  *
  * Dibuja lo mismo que el campo 3D —fichas, carreras, envíos, zonas, textos—
  * pero visto desde arriba y con el trazo de una pizarra de análisis: fichas
- * planas con el dorsal o el puesto, flechas limpias y un envío elevado que se
- * levanta del césped con su sombra. Se vuelve a pintar entero en cada cuadro:
- * son pocas piezas y así la animación va siempre a 60 por segundo.
+ * con relieve (una cúpula con su sombra en el césped, la luz arriba a la
+ * izquierda y un brillo), flechas con un halo oscuro debajo para leerse en
+ * cualquier césped y un envío elevado que se levanta con su sombra. Se vuelve
+ * a pintar entero en cada cuadro: son pocas piezas y así la animación va
+ * siempre a 60 por segundo.
  *
  * No carga three.js: abrir el estudio en 2D es inmediato.
  */
@@ -19,12 +21,20 @@ import type { Borrador, Motor, Opciones, Seleccion, Vista } from "./motor";
 
 const MEDIO_L = CAMPO.largo / 2, MEDIO_A = CAMPO.ancho / 2;
 /** El radio de una ficha, en metros: algo más grande que un jugador, para leerse en un móvil. */
-const RADIO = 1.35;
+const RADIO = 1.6;
 /**
- * En pantalla la ficha no baja de 11 px ni pasa de 17: al acercarse, los
- * jugadores se separan en vez de crecer, que es para lo que se hace zoom.
+ * En pantalla la ficha no pasa de 21 px ni baja de 11 (en las fotos pequeñas
+ * de la tira y la biblioteca, de menos): al acercarse crece un poco, pero sobre
+ * todo los jugadores se separan, que es para lo que se hace zoom.
  */
-const radioEnPantalla = (escala: number) => Math.max(11, Math.min(17, RADIO * escala));
+const radioEnPantalla = (escala: number, minimo = 11) => Math.max(minimo, Math.min(21, RADIO * escala));
+
+/** Un color más oscuro, para el borde de la cúpula de una ficha. */
+function oscurecer(hex: string, factor: number) {
+  const n = parseInt(hex.replace("#", ""), 16);
+  const c = (v: number) => Math.round(v * factor).toString(16).padStart(2, "0");
+  return `#${c((n >> 16) & 255)}${c((n >> 8) & 255)}${c(n & 255)}`;
+}
 const VIAJE_MS = 750;
 
 export class Tablero2D implements Motor {
@@ -46,6 +56,10 @@ export class Tablero2D implements Motor {
   private habilitado = true;
   private paneo: { x: number; y: number; camara: Camara } | null = null;
   seguirBalon = false;
+  /** El radio mínimo de una ficha: 11 px en el campo; en una foto pequeña, en proporción. */
+  private get radioMinimo() {
+    return Math.max(5, Math.min(11, this.ancho / 70));
+  }
 
   constructor(private contenedor: HTMLElement) {
     this.canvas = document.createElement("canvas");
@@ -172,6 +186,18 @@ export class Tablero2D implements Motor {
     this.paneo = null;
   };
 
+  /** Acerca (factor > 1) o aleja alrededor del centro de la vista; devuelve el zoom en %, 100 = el encuadre. */
+  acercar(factor: number) {
+    const maximo = this.camaraDeEncuadre().w * 1.3;
+    this.viajar({ ...this.camara, w: Math.max(8, Math.min(maximo, this.camara.w / factor)) });
+    return this.zoom();
+  }
+
+  /** Cuánto se ha acercado respecto al encuadre, en %. */
+  zoom() {
+    return Math.round((this.camaraDeEncuadre().w / (this.viaje?.hasta.w ?? this.camara.w)) * 100);
+  }
+
   puntoDelCampo(clienteX: number, clienteY: number): Punto | null {
     const r = this.canvas.getBoundingClientRect();
     return this.tr().aCampo(clienteX - r.left, clienteY - r.top);
@@ -230,7 +256,9 @@ export class Tablero2D implements Motor {
     const fase = this.fase, jugada = this.jugada;
     if (fase && jugada) {
       const lineal = o.ambiente.suavizado === "lineal";
-      for (const a of fase.anotaciones) if (a.tipo === "rect" || a.tipo === "zona") this.pintarAnotacion(tr, a, o, this.esElegida(a.id));
+      for (const a of fase.anotaciones) if ((a.tipo === "rect" || a.tipo === "zona") && a.estilo !== "foco") this.pintarAnotacion(tr, a, o, this.esElegida(a.id));
+      // El foco va encima de las zonas y debajo de flechas y fichas: apaga el césped de fuera, no a los jugadores.
+      for (const a of fase.anotaciones) if ((a.tipo === "rect" || a.tipo === "zona") && a.estilo === "foco") this.pintarAnotacion(tr, a, o, this.esElegida(a.id));
       for (const a of fase.anotaciones) if (a.tipo === "flecha") this.pintarAnotacion(tr, a, o, this.esElegida(a.id));
       for (const c of fase.carreras) {
         const ficha = jugada.fichas.find((f) => f.id === c.fichaId);
@@ -258,6 +286,28 @@ export class Tablero2D implements Motor {
   private colorDe(equipo: "local" | "rival", rol: string, o: Opciones) {
     if (/^(portero|por|gk|goalkeeper)$/i.test(rol.trim())) return equipo === "local" ? "#f3b64c" : "#45c6ba";
     return equipo === "local" ? o.colorLocal : o.colorRival;
+  }
+
+  /** Lo que va debajo de cada trazo para que se lea: verde casi negro en el césped, blanco en papel. */
+  private halo(o: Opciones) {
+    return o.ambiente.superficie === "papel" ? "rgba(255,255,255,.9)" : "rgba(6,14,10,.82)";
+  }
+
+  /** Un trazo dos veces: primero el halo, ancho y oscuro, y encima el color. */
+  private conHalo(o: Opciones, grosor: number, color: string, trazar: () => void) {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = this.halo(o);
+    ctx.lineWidth = grosor * 2.3 + 1;
+    trazar();
+    ctx.stroke();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = grosor;
+    trazar();
+    ctx.stroke();
+    ctx.restore();
   }
 
   /** En Papel, un color muy claro no se ve: se dibuja su trazo en gris. */
@@ -349,8 +399,8 @@ export class Tablero2D implements Motor {
     }
   }
 
-  /** Una punta de flecha rellena en `b`, apuntando desde `a` (en píxeles). */
-  private punta(a: { x: number; y: number }, b: { x: number; y: number }, largo: number, color: string) {
+  /** Una punta de flecha rellena en `b`, apuntando desde `a` (en píxeles), con su halo si se da. */
+  private punta(a: { x: number; y: number }, b: { x: number; y: number }, largo: number, color: string, halo?: string) {
     const ctx = this.ctx, ang = Math.atan2(b.y - a.y, b.x - a.x);
     ctx.beginPath();
     ctx.moveTo(b.x, b.y);
@@ -358,6 +408,15 @@ export class Tablero2D implements Motor {
     ctx.lineTo(b.x - largo * 0.7 * Math.cos(ang), b.y - largo * 0.7 * Math.sin(ang));
     ctx.lineTo(b.x - largo * Math.cos(ang + 0.42), b.y - largo * Math.sin(ang + 0.42));
     ctx.closePath();
+    if (halo) {
+      ctx.save();
+      ctx.setLineDash([]);
+      ctx.strokeStyle = halo;
+      ctx.lineJoin = "round";
+      ctx.lineWidth = Math.max(3, largo * 0.32);
+      ctx.stroke();
+      ctx.restore();
+    }
     ctx.fillStyle = color;
     ctx.fill();
   }
@@ -366,22 +425,20 @@ export class Tablero2D implements Motor {
     const ctx = this.ctx, e = tr.escala;
     const largo = Math.hypot(hasta.x - desde.x, hasta.z - desde.z);
     if (largo < 0.3) return;
-    const tIni = Math.min(0.45, (radioEnPantalla(e) * 1.1) / e / largo), tFin = Math.max(tIni, 1 - Math.min(0.4, 1 / largo));
+    const tIni = Math.min(0.45, (radioEnPantalla(e, this.radioMinimo) * 1.1) / e / largo), tFin = Math.max(tIni, 1 - Math.min(0.4, 1 / largo));
     const trazo = this.trazoDe(color, o);
     ctx.save();
     ctx.globalAlpha = alfa;
-    ctx.strokeStyle = trazo;
-    ctx.lineWidth = Math.max(1.6, 0.26 * e);
-    ctx.lineCap = "round";
-    ctx.setLineDash([Math.max(4, 0.9 * e), Math.max(3, 0.65 * e)]);
-    ctx.beginPath();
-    for (let i = 0; i <= 32; i += 1) {
-      const p = tr.aPantalla(enCurva(desde, hasta, curva, tIni + ((tFin - tIni) * i) / 32));
-      if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y);
-    }
-    ctx.stroke();
+    ctx.setLineDash([Math.max(4, 0.9 * e), Math.max(4, 0.75 * e)]);
+    this.conHalo(o, Math.max(1.8, 0.28 * e), trazo, () => {
+      ctx.beginPath();
+      for (let i = 0; i <= 32; i += 1) {
+        const p = tr.aPantalla(enCurva(desde, hasta, curva, tIni + ((tFin - tIni) * i) / 32));
+        if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y);
+      }
+    });
     ctx.setLineDash([]);
-    this.punta(tr.aPantalla(enCurva(desde, hasta, curva, 0.95)), tr.aPantalla(hasta), Math.max(8, 1.3 * e), trazo);
+    this.punta(tr.aPantalla(enCurva(desde, hasta, curva, 0.95)), tr.aPantalla(hasta), Math.max(9, 1.4 * e), trazo, this.halo(o));
     ctx.restore();
   }
 
@@ -406,14 +463,12 @@ export class Tablero2D implements Motor {
       ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
       ctx.setLineDash([]);
     }
-    ctx.strokeStyle = tinta;
-    ctx.lineWidth = Math.max(1.8, 0.3 * e);
-    ctx.lineCap = "round";
-    ctx.beginPath();
     const fin = puntos.length - 3;
-    puntos.slice(0, fin).forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
-    ctx.stroke();
-    this.punta(puntos[fin - 2], puntos[puntos.length - 1], Math.max(9, 1.4 * e), tinta);
+    this.conHalo(o, Math.max(2, 0.32 * e), tinta, () => {
+      ctx.beginPath();
+      puntos.slice(0, fin).forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+    });
+    this.punta(puntos[fin - 2], puntos[puntos.length - 1], Math.max(10, 1.5 * e), tinta, this.halo(o));
     ctx.restore();
   }
 
@@ -428,7 +483,7 @@ export class Tablero2D implements Motor {
         const a = tr.aPantalla(punto(ua)), b = tr.aPantalla(punto(ub));
         const ya = levanta ? levanta(ua) : 0, yb = levanta ? levanta(ub) : 0;
         ctx.strokeStyle = rgba(color, 0.05 + 0.5 * ((i + 1) / pasos));
-        ctx.lineWidth = Math.max(2, radioEnPantalla(e) * 0.9 * ((i + 1) / pasos));
+        ctx.lineWidth = Math.max(2, radioEnPantalla(e, this.radioMinimo) * 0.9 * ((i + 1) / pasos));
         ctx.beginPath(); ctx.moveTo(a.x, a.y - ya); ctx.lineTo(b.x, b.y - yb); ctx.stroke();
       }
     };
@@ -446,48 +501,91 @@ export class Tablero2D implements Motor {
     }
   }
 
+  /**
+   * Una ficha con relieve: la sombra de contacto en el césped, la cúpula con la
+   * luz arriba a la izquierda, un aro oscuro por dentro y otro claro por fuera,
+   * y un brillo. Así se separa del césped sin sombras borrosas.
+   */
   private pintarFicha(tr: Transformacion, p: Punto, dorsal: string, rol: string, color: string, o: Opciones, elegida: boolean) {
     const ctx = this.ctx, e = tr.escala, tema = SUPERFICIE[o.ambiente.superficie];
-    const c = tr.aPantalla(p), r = radioEnPantalla(e);
+    const c = tr.aPantalla(p), r = radioEnPantalla(e, this.radioMinimo);
     const nombre = o.rotulo(rol);
     const dentro = o.ambiente.fichas === "puesto" && nombre.trim() ? abreviar(nombre) : dorsal;
+    const papel = o.ambiente.superficie === "papel";
     ctx.save();
     if (elegida) {
       ctx.beginPath();
-      ctx.arc(c.x, c.y, r + Math.max(3, r * 0.35), 0, Math.PI * 2);
+      ctx.arc(c.x, c.y, r * 1.42, 0, Math.PI * 2);
       ctx.strokeStyle = o.acento;
-      ctx.lineWidth = Math.max(2, r * 0.18);
+      ctx.lineWidth = Math.max(2, r * 0.14);
+      ctx.setLineDash([r * 0.36, r * 0.28]);
+      ctx.lineCap = "round";
       ctx.stroke();
+      ctx.setLineDash([]);
     }
-    ctx.shadowColor = "rgba(0,0,0,.4)";
-    ctx.shadowBlur = r * 0.5;
-    ctx.shadowOffsetY = r * 0.12;
+    // La sombra de contacto: una elipse que se apaga hacia fuera, algo por debajo.
+    ctx.save();
+    ctx.translate(c.x, c.y + r * 0.36);
+    ctx.scale(1.18, 0.86);
+    const sombra = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
+    sombra.addColorStop(0, papel ? "rgba(20,26,22,.26)" : "rgba(0,0,0,.5)");
+    sombra.addColorStop(0.6, papel ? "rgba(20,26,22,.12)" : "rgba(0,0,0,.24)");
+    sombra.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = sombra;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    // La cúpula: la luz entra por arriba a la izquierda y el borde se oscurece.
+    const cupula = ctx.createRadialGradient(c.x - r * 0.28, c.y - r * 0.44, 0, c.x - r * 0.28, c.y - r * 0.44, r * 1.64);
+    cupula.addColorStop(0, color);
+    cupula.addColorStop(0.76, oscurecer(color, 0.8));
+    cupula.addColorStop(1, oscurecer(color, 0.8));
+    ctx.fillStyle = cupula;
     ctx.beginPath();
     ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
-    ctx.fillStyle = color;
     ctx.fill();
-    ctx.shadowColor = "transparent";
-    ctx.lineWidth = Math.max(1.5, r * 0.14);
-    ctx.strokeStyle = o.ambiente.superficie === "papel" && luz(color) > 0.78 ? "#6b6f76" : rgba(tema.aro, 0.92);
+    ctx.globalAlpha = 0.7;
+    ctx.strokeStyle = "rgba(0,0,0,.26)";
+    ctx.lineWidth = r * 0.13;
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, r * 0.98, 0, Math.PI * 2);
     ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = papel && luz(color) > 0.78 ? "#6b6f76" : rgba(tema.aro, 0.88);
+    ctx.lineWidth = Math.max(1.2, r * 0.1);
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
+    ctx.stroke();
+    // El brillo, una elipse blanca que se apaga.
+    ctx.save();
+    ctx.translate(c.x - r * 0.22, c.y - r * 0.34);
+    ctx.scale(0.46, 0.3);
+    const brillo = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
+    brillo.addColorStop(0, "rgba(255,255,255,.6)");
+    brillo.addColorStop(0.7, "rgba(255,255,255,0)");
+    ctx.fillStyle = brillo;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
     ctx.fillStyle = tintaSobre(color);
-    ctx.font = `800 ${r * (dentro.length > 2 ? 0.78 : 0.98)}px ${o.fuente}`;
+    ctx.font = `900 ${r * (dentro.length > 2 ? 0.7 : 0.86)}px ${o.fuente}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(dentro, c.x, c.y + r * 0.05);
     // El rol debajo, en una píldora que se lee en cualquier césped.
     const debajo = o.nombres && nombre.trim() && (o.ambiente.fichas === "dorsal" || nombre.trim().length > 3) ? nombre.toUpperCase() : "";
     if (debajo) {
-      const alto = Math.max(11, r * 0.78);
-      ctx.font = `700 ${alto * 0.7}px ${o.fuente}`;
-      const ancho = ctx.measureText(debajo).width + alto * 0.7;
-      const y = c.y + r + alto * 0.25;
-      const claro = o.ambiente.superficie === "papel";
-      ctx.fillStyle = claro ? "rgba(255,255,255,.88)" : "rgba(8,8,10,.62)";
+      const alto = Math.max(11, r * 0.74);
+      ctx.font = `800 ${alto * 0.66}px ${o.fuente}`;
+      const ancho = ctx.measureText(debajo).width + alto * 0.8;
+      const y = c.y + r + alto * 0.3;
+      ctx.fillStyle = papel ? "rgba(255,255,255,.92)" : "rgba(8,10,9,.74)";
       ctx.beginPath();
-      ctx.roundRect(c.x - ancho / 2, y, ancho, alto, alto / 2);
+      ctx.roundRect(c.x - ancho / 2, y, ancho, alto, alto * 0.3);
       ctx.fill();
-      ctx.fillStyle = claro ? "#1d1d1f" : "#f5f5f7";
+      ctx.fillStyle = papel ? "#1d1d1f" : "#f5f5f7";
       ctx.fillText(debajo, c.x, y + alto / 2 + alto * 0.04);
     }
     ctx.restore();
@@ -527,33 +625,38 @@ export class Tablero2D implements Motor {
   private pintarAnotacion(tr: Transformacion, a: Anotacion, o: Opciones, elegida: boolean, alfa = 1) {
     const ctx = this.ctx, e = tr.escala;
     const color = this.trazoDe(a.color || o.colorAnotacion, o);
+    const halo = this.halo(o);
     ctx.save();
     ctx.globalAlpha = alfa;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     if (!("b" in a)) {
       const p = tr.aPantalla(a.a);
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
       if (a.tipo === "texto") {
-        const alto = Math.max(12, 2.2 * e);
-        ctx.font = `800 ${alto}px ${o.fuente}`;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.shadowColor = o.ambiente.superficie === "papel" ? "transparent" : "rgba(0,0,0,.7)";
-        ctx.shadowBlur = alto * 0.25;
+        // Como un rótulo de retransmisión: letra gruesa con un contorno del color del césped.
+        const alto = Math.max(14, 2.6 * e);
+        ctx.font = `900 ${alto}px ${o.fuente}`;
+        ctx.strokeStyle = halo;
+        ctx.lineWidth = alto * 0.3;
+        ctx.strokeText(a.texto || "·", p.x, p.y);
         ctx.fillStyle = color;
         ctx.fillText(a.texto || "·", p.x, p.y);
       } else {
         const alto = Math.max(16, 1.9 * e);
-        ctx.font = `700 ${alto * 0.6}px ${o.fuente}`;
-        const ancho = ctx.measureText(a.texto || "·").width + alto;
+        ctx.font = `800 ${alto * 0.58}px ${o.fuente}`;
+        const ancho = ctx.measureText(a.texto || "·").width + alto * 0.9;
+        ctx.fillStyle = halo;
+        ctx.beginPath();
+        ctx.roundRect(p.x - ancho / 2 - 1.5, p.y - alto / 2 - 1.5, ancho + 3, alto + 3, alto * 0.32);
+        ctx.fill();
         ctx.fillStyle = color;
         ctx.beginPath();
-        ctx.roundRect(p.x - ancho / 2, p.y - alto / 2, ancho, alto, alto / 2);
+        ctx.roundRect(p.x - ancho / 2, p.y - alto / 2, ancho, alto, alto * 0.28);
         ctx.fill();
         ctx.fillStyle = tintaSobre(color);
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(a.texto || "·", p.x, p.y + alto * 0.03);
+        ctx.fillText((a.texto || "·").toUpperCase(), p.x, p.y + alto * 0.03);
       }
       if (elegida) {
         ctx.strokeStyle = o.acento;
@@ -569,14 +672,12 @@ export class Tablero2D implements Motor {
       const grosor = Math.max(2, (elegida ? 0.42 : 0.32) * e);
       const largo = Math.hypot(B.x - A.x, B.y - A.y) || 1;
       const ux = (B.x - A.x) / largo, uy = (B.y - A.y) / largo;
-      const cabeza = Math.max(10, 1.6 * e);
-      ctx.strokeStyle = color;
-      ctx.fillStyle = color;
-      ctx.lineWidth = grosor;
+      const cabeza = Math.max(11, 1.6 * e);
       if (a.estilo === "presion") {
         // La cuña de la presión: estrecha en quien aprieta, abierta hacia el balón.
         const abre = Math.max(10, Math.min(largo * 0.35, 4 * e));
         ctx.globalAlpha = alfa * 0.28;
+        ctx.fillStyle = color;
         ctx.beginPath();
         ctx.moveTo(A.x, A.y);
         ctx.lineTo(B.x - uy * abre, B.y + ux * abre);
@@ -584,58 +685,95 @@ export class Tablero2D implements Motor {
         ctx.closePath();
         ctx.fill();
         ctx.globalAlpha = alfa;
-        ctx.beginPath();
-        ctx.moveTo(A.x, A.y); ctx.lineTo(B.x - uy * abre, B.y + ux * abre);
-        ctx.moveTo(A.x, A.y); ctx.lineTo(B.x + uy * abre, B.y - ux * abre);
-        ctx.stroke();
+        this.conHalo(o, grosor, color, () => {
+          ctx.beginPath();
+          ctx.moveTo(A.x, A.y); ctx.lineTo(B.x - uy * abre, B.y + ux * abre);
+          ctx.moveTo(A.x, A.y); ctx.lineTo(B.x + uy * abre, B.y - ux * abre);
+        });
       } else {
         const fin = a.estilo === "linea" ? B : { x: B.x - ux * cabeza * 0.6, y: B.y - uy * cabeza * 0.6 };
-        if (a.estilo === "discontinua") ctx.setLineDash([Math.max(5, 0.9 * e), Math.max(4, 0.65 * e)]);
-        ctx.beginPath();
-        if (a.estilo === "ondulada") {
-          // La conducción: el balón pegado al pie, en zigzag suave.
-          const tramo = Math.hypot(fin.x - A.x, fin.y - A.y), ondas = Math.max(2, Math.round(tramo / Math.max(14, 2.4 * e))), pasos = ondas * 12;
-          for (let i = 0; i <= pasos; i += 1) {
-            const k = i / pasos, amp = Math.max(3, 0.45 * e) * Math.sin(k * ondas * Math.PI * 2) * Math.min(1, k * 6, (1 - k) * 6);
-            const x = A.x + (fin.x - A.x) * k - uy * amp, y = A.y + (fin.y - A.y) * k + ux * amp;
-            if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+        if (a.estilo === "discontinua") ctx.setLineDash([Math.max(5, 0.9 * e), Math.max(5, 0.75 * e)]);
+        this.conHalo(o, grosor, color, () => {
+          ctx.beginPath();
+          if (a.estilo === "ondulada") {
+            // La conducción: el balón pegado al pie, en zigzag suave.
+            const tramo = Math.hypot(fin.x - A.x, fin.y - A.y), ondas = Math.max(2, Math.round(tramo / Math.max(14, 2.4 * e))), pasos = ondas * 12;
+            for (let i = 0; i <= pasos; i += 1) {
+              const k = i / pasos, amp = Math.max(3, 0.45 * e) * Math.sin(k * ondas * Math.PI * 2) * Math.min(1, k * 6, (1 - k) * 6);
+              const x = A.x + (fin.x - A.x) * k - uy * amp, y = A.y + (fin.y - A.y) * k + ux * amp;
+              if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+            }
+          } else {
+            ctx.moveTo(A.x, A.y);
+            ctx.lineTo(fin.x, fin.y);
           }
-        } else {
-          ctx.moveTo(A.x, A.y);
-          ctx.lineTo(fin.x, fin.y);
-        }
-        ctx.stroke();
+        });
         ctx.setLineDash([]);
-        if (a.estilo !== "linea") this.punta(A, B, cabeza, color);
+        if (a.estilo !== "linea") this.punta(A, B, cabeza, color, halo);
       }
       ctx.restore();
       return;
     }
-    // Rectángulo o zona.
-    ctx.beginPath();
-    if (a.tipo === "rect") {
-      const esquinas = [tr.aPantalla({ x: a.a.x, z: a.a.z }), tr.aPantalla({ x: a.b.x, z: a.a.z }), tr.aPantalla({ x: a.b.x, z: a.b.z }), tr.aPantalla({ x: a.a.x, z: a.b.z })];
-      esquinas.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
-      ctx.closePath();
-    } else {
-      const c = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 };
-      ctx.ellipse(c.x, c.y, Math.max(2, Math.abs(B.x - A.x) / 2), Math.max(2, Math.abs(B.y - A.y) / 2), 0, 0, Math.PI * 2);
+    // Rectángulo o zona: el contorno de cada una, para rellenar, recortar o apagar lo de fuera.
+    const x0 = Math.min(A.x, B.x), x1 = Math.max(A.x, B.x), y0 = Math.min(A.y, B.y), y1 = Math.max(A.y, B.y);
+    const esquinas = a.tipo === "rect"
+      ? [tr.aPantalla({ x: a.a.x, z: a.a.z }), tr.aPantalla({ x: a.b.x, z: a.a.z }), tr.aPantalla({ x: a.b.x, z: a.b.z }), tr.aPantalla({ x: a.a.x, z: a.b.z })]
+      : [];
+    const contorno = () => {
+      if (a.tipo === "rect") {
+        const lx = Math.min(...esquinas.map((q) => q.x)), ly = Math.min(...esquinas.map((q) => q.y));
+        const ancho = Math.max(...esquinas.map((q) => q.x)) - lx, alto = Math.max(...esquinas.map((q) => q.y)) - ly;
+        ctx.roundRect(lx, ly, ancho, alto, Math.min(0.6 * e, ancho / 4, alto / 4));
+      } else {
+        ctx.ellipse((A.x + B.x) / 2, (A.y + B.y) / 2, Math.max(2, (x1 - x0) / 2), Math.max(2, (y1 - y0) / 2), 0, 0, Math.PI * 2);
+      }
+    };
+    if (a.estilo === "foco") {
+      // Todo lo de fuera, velado; dentro el césped de siempre, con un marco discontinuo y sus esquinas.
+      ctx.beginPath();
+      ctx.rect(0, 0, this.ancho, this.alto);
+      contorno();
+      ctx.fillStyle = o.ambiente.superficie === "papel" ? "rgba(20,24,22,.1)" : "rgba(236,245,238,.13)";
+      ctx.fill("evenodd");
+      ctx.beginPath();
+      contorno();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = Math.max(1.6, (elegida ? 0.36 : 0.26) * e);
+      ctx.setLineDash([Math.max(6, 1.6 * e), Math.max(4, 1 * e)]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      if (a.tipo === "rect") {
+        const lado = Math.max(6, 0.9 * e);
+        ctx.fillStyle = color;
+        for (const q of [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]) {
+          ctx.beginPath();
+          ctx.roundRect(q[0] - lado / 2, q[1] - lado / 2, lado, lado, lado * 0.18);
+          ctx.fill();
+        }
+      }
+      ctx.restore();
+      return;
     }
+    ctx.beginPath();
+    contorno();
     if (a.estilo === "translucida") {
-      ctx.fillStyle = rgba(color, 0.24);
+      const velo = ctx.createLinearGradient(0, y0, 0, y1);
+      velo.addColorStop(0, rgba(color, 0.26));
+      velo.addColorStop(1, rgba(color, 0.12));
+      ctx.fillStyle = velo;
       ctx.fill();
     } else if (a.estilo === "rayas") {
       ctx.save();
       ctx.clip();
       ctx.strokeStyle = rgba(color, 0.55);
       ctx.lineWidth = Math.max(2, 0.3 * e);
-      const x0 = Math.min(A.x, B.x), x1 = Math.max(A.x, B.x), y0 = Math.min(A.y, B.y), y1 = Math.max(A.y, B.y);
       const paso = Math.max(7, 1.1 * e);
       for (let k = x0 - (y1 - y0); k < x1; k += paso) { ctx.beginPath(); ctx.moveTo(k, y1); ctx.lineTo(k + (y1 - y0), y0); ctx.stroke(); }
       ctx.restore();
     }
-    ctx.strokeStyle = color;
+    ctx.strokeStyle = a.estilo === "borde" ? color : rgba(color, 0.75);
     ctx.lineWidth = Math.max(1.5, (elegida ? 0.36 : 0.24) * e);
+    if (a.estilo !== "borde") ctx.setLineDash([Math.max(6, 1.4 * e), Math.max(4, 0.9 * e)]);
     ctx.stroke();
     ctx.restore();
   }

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as EventoDePunt
 import {
   agregarAnotacion, agregarFase, agregarFicha, anotacionCerca, cambiarAnotacion, cambiarDuracion, cambiarFicha, carreraDe, cuadernoInicial,
   curvarCarrera, desplazarAnotacion, distancia, duplicarFase, duracionTotal, fichaCerca, fijarCarrera, fijarPase, inicioDeFase, instanteEn,
-  posar, posarBalon, cambiarPausa, AMBIENTE_POR_DEFECTO, normalizarCuaderno, nuevoId, quitarAnotacion, quitarCarrera, quitarFase, quitarFicha, quitarPase,
+  moverFase, posar, posarBalon, cambiarPausa, AMBIENTE_POR_DEFECTO, normalizarCuaderno, nuevoId, quitarAnotacion, quitarCarrera, quitarFase, quitarFicha, quitarPase,
   renombrarFase, tipoDePase, deSerie, CATEGORIAS, ENCUADRES, SUPERFICIES, ZONAS,
   type Ambiente, type Categoria, type Cuaderno, type EstiloFlecha, type EstiloZona, type Fase, type Jugada, type Pase, type Punto,
 } from "@/lib/abp";
@@ -13,10 +13,11 @@ import type { Borrador, Motor, Opciones, Seleccion, Vista } from "./abp/motor";
 import { Tablero2D } from "./abp/tablero2d";
 import { useFirma } from "./FirmaDelInforme";
 import { Interruptor } from "./Interruptor";
+import { Biblioteca } from "./BibliotecaDeSistemas";
 import { Portal, archivoDeCuaderno, archivoDeSistema } from "./PortalDeSistemas";
 import {
-  ArrowDownToLine, Balon, Carrera, ChevronLeft, Cubo, Duplicar, Elipse, Etiqueta, Flecha, Mover, Pase as PaseIcono, Pause, Play, Plus, Rectangulo,
-  RotateCcw, TextIcon, Trash, Video,
+  ArrowDownToLine, Balon, Carrera, ChevronLeft, ChevronRight, Conduccion, Cubo, Duplicar, Elipse, Etiqueta, Flecha, Linea, Mover, PantallaCompleta,
+  Pase as PaseIcono, Pause, Play, Plus, Presion, Rectangulo, RotateCcw, TextIcon, Trash, Video,
 } from "./Icons";
 
 // La clave no cambia al pasar de cuaderno a estudio: así se abre lo ya guardado.
@@ -77,7 +78,7 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
   const [origen, setOrigen] = useState<string | null>(null);
   const [vista, setVista] = useState<Vista>("tactica");
   const [nombres, setNombres] = useState(true);
-  const [modo, setModo] = useState<"portal" | "estudio">("portal");
+  const [modo, setModo] = useState<"portal" | "biblioteca" | "estudio">("portal");
   const [miniaturas, setMiniaturas] = useState<Record<string, string>>({});
   const [estiloFlecha, setEstiloFlecha] = useState<EstiloFlecha>("continua");
   const [seguir, setSeguir] = useState(false);
@@ -101,6 +102,9 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
   const barraRef = useRef<HTMLInputElement>(null);
   const arrastreRef = useRef<Arrastre | null>(null);
   const textoRef = useRef<HTMLInputElement>(null);
+  const fotografoRef = useRef<HTMLDivElement>(null);
+  const [fotosDeFases, setFotosDeFases] = useState<string[]>([]);
+  const [zoom, setZoom] = useState(100);
 
   const jugada = cuaderno ? activaDe(cuaderno) : null;
   const indice = jugada ? Math.min(faseIdx, jugada.fases.length - 1) : 0;
@@ -226,6 +230,31 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
     return () => window.clearTimeout(id);
   }, [modo, lista, jugada, reproduciendo, grabando, indice]);
 
+  // La tira de fases: una foto de cada pose, hecha con un tablero 2D aparte que
+  // no se ve. Se rehace un rato después del último cambio, nunca reproduciendo.
+  useEffect(() => {
+    if (modo !== "estudio" || !jugada || reproduciendo || grabando) return;
+    const id = window.setTimeout(() => {
+      const caja = fotografoRef.current;
+      if (!caja || !caja.clientWidth) return;
+      const fotografo = new Tablero2D(caja);
+      try {
+        const fotos = jugada.fases.map((_, i) => {
+          fotografo.montar(jugada, i, { ...opciones, nombres: false }, null, null);
+          fotografo.vista("tactica", encuadre, null, true);
+          return fotografo.capturar("image/jpeg", 0.7);
+        });
+        setFotosDeFases(fotos);
+      } finally {
+        fotografo.destruir();
+      }
+    }, 350);
+    return () => window.clearTimeout(id);
+  }, [modo, jugada, opciones, reproduciendo, grabando, encuadre, orientacion]);
+
+  // El zoom vuelve a 100 % con cada encuadre nuevo.
+  useEffect(() => { setZoom(100); }, [encuadre, orientacion, jugadaId, dimension]); // eslint-disable-line react-hooks/set-state-in-effect
+
   // ---- Reproducir ----
   useEffect(() => {
     if (!reproduciendo || !jugada) return;
@@ -263,10 +292,6 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
     if (tiempoRef.current >= total - 1e-3) { tiempoRef.current = 0; setFaseIdx(0); }
     setSeleccion(null);
     setReproduciendo(true);
-  }
-
-  function reiniciar() {
-    irAFase(0);
   }
 
   // ---- Cambiar la jugada ----
@@ -709,20 +734,38 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
   }
 
   // ---- Lo que se ve ----
-  const herramientas: Array<{ id: Herramienta; nombre: string; icono: ReactNode; ayuda: string }> = [
-    { id: "mover", nombre: t("Mover"), icono: <Mover size={16} />, ayuda: t("Arrastra una ficha, el balón o una anotación. En el césped vacío, arrastra para girar la cámara.") },
+  // La barra de arriba, como en las pizarras de análisis: cada botón es una
+  // herramienta y, si hace falta, el trazo o el envío con que dibuja.
+  const botones: Array<{ id: string; herramienta: Herramienta; estilo?: EstiloFlecha; envio?: Pase["tipo"]; nombre: string; icono: ReactNode; ayuda: string }> = [
+    { id: "mover", herramienta: "mover", nombre: t("Mover"), icono: <Mover size={16} />, ayuda: t("Arrastra una ficha, el balón o una anotación. En el césped vacío, arrastra para girar la cámara.") },
+    { id: "pase", herramienta: "pase", envio: "raso", nombre: t("Pase"), icono: <PaseIcono size={16} />, ayuda: t("Pulsa o arrastra hasta donde va el balón: sale desde donde está, por el suelo.") },
+    { id: "elevado", herramienta: "pase", envio: "aereo", nombre: t("Elevado"), icono: <Balon size={16} />, ayuda: t("Pulsa o arrastra hasta donde cae el balón: sube con su sombra en el césped.") },
+    { id: "carrera", herramienta: "carrera", nombre: t("Carrera"), icono: <Carrera size={16} />, ayuda: t("Arrastra desde una ficha hasta su destino, o pulsa la ficha y después el destino. Sale discontinua.") },
+    { id: "conduccion", herramienta: "flecha", estilo: "ondulada", nombre: t("Conducción"), icono: <Conduccion size={16} />, ayuda: t("Arrastra por donde avanza con el balón pegado al pie.") },
+    { id: "presion", herramienta: "flecha", estilo: "presion", nombre: t("Presión"), icono: <Presion size={16} />, ayuda: t("Arrastra desde quien presiona hacia el balón: la cuña marca el ángulo por donde llega.") },
+    { id: "flecha", herramienta: "flecha", estilo: "continua", nombre: t("Flecha"), icono: <Flecha size={16} />, ayuda: t("Arrastra sobre el césped para dibujar una flecha.") },
+    { id: "linea", herramienta: "flecha", estilo: "linea", nombre: t("Línea"), icono: <Linea size={16} />, ayuda: t("Sin punta: una altura, un límite o la línea de fuera de juego.") },
+    { id: "texto", herramienta: "texto", nombre: t("Texto"), icono: <TextIcon size={16} />, ayuda: t("Pulsa el césped para escribir un texto grande, como «2 contra 2».") },
+    { id: "etiqueta", herramienta: "etiqueta", nombre: t("Etiqueta"), icono: <Etiqueta size={16} />, ayuda: t("Pulsa el césped para poner una etiqueta, como «PRESIÓN» junto a un jugador.") },
+    { id: "rect", herramienta: "rect", nombre: t("Zona"), icono: <Rectangulo size={16} />, ayuda: t("Arrastra sobre el césped para marcar una zona. Con «Foco», lo de fuera se apaga.") },
+    { id: "zona", herramienta: "zona", nombre: t("Elipse"), icono: <Elipse size={16} />, ayuda: t("Arrastra sobre el césped para marcar una zona redonda.") },
+  ];
+  const piezas: Array<{ id: Herramienta; nombre: string; icono: ReactNode; ayuda: string }> = [
     { id: "local", nombre: t("Local"), icono: <i className="abp-ficha-icono" style={{ background: colorLocal }} />, ayuda: t("Pulsa el césped para añadir una ficha propia.") },
     { id: "rival", nombre: t("Rival"), icono: <i className="abp-ficha-icono" style={{ background: colorRival }} />, ayuda: t("Pulsa el césped para añadir una ficha rival.") },
     { id: "balon", nombre: t("Balón"), icono: <Balon size={16} />, ayuda: t("Pulsa el césped para colocar el balón al empezar la fase.") },
-    { id: "carrera", nombre: t("Carrera"), icono: <Carrera size={16} />, ayuda: t("Arrastra desde una ficha hasta su destino, o pulsa la ficha y después el destino. Sale discontinua.") },
-    { id: "pase", nombre: t("Envío"), icono: <PaseIcono size={16} />, ayuda: t("Pulsa o arrastra hasta donde va el balón: sale desde donde está. Sale continua.") },
-    { id: "flecha", nombre: t("Flecha"), icono: <Flecha size={16} />, ayuda: t("Arrastra sobre el césped para dibujar una flecha.") },
-    { id: "texto", nombre: t("Texto"), icono: <TextIcon size={16} />, ayuda: t("Pulsa el césped para escribir un texto.") },
-    { id: "etiqueta", nombre: t("Etiqueta"), icono: <Etiqueta size={16} />, ayuda: t("Pulsa el césped para poner una etiqueta.") },
-    { id: "rect", nombre: t("Rectángulo"), icono: <Rectangulo size={16} />, ayuda: t("Arrastra sobre el césped para marcar un rectángulo.") },
-    { id: "zona", nombre: t("Zona"), icono: <Elipse size={16} />, ayuda: t("Arrastra sobre el césped para marcar una zona.") },
   ];
-  const herramientaActiva = herramientas.find((h) => h.id === herramienta)!;
+  const botonActivo = (b: typeof botones[number]) => herramienta === b.herramienta
+    && (!b.estilo || estiloFlecha === b.estilo || (b.id === "flecha" && estiloFlecha === "discontinua"))
+    && (!b.envio || tipoPase === b.envio);
+  function elegir(b: { herramienta: Herramienta; estilo?: EstiloFlecha; envio?: Pase["tipo"] }) {
+    setHerramienta(b.herramienta);
+    if (b.estilo) setEstiloFlecha(b.estilo);
+    if (b.envio) setTipoPase(b.envio);
+    setOrigen(null);
+    setAviso("");
+  }
+  const ayuda = botones.find(botonActivo)?.ayuda ?? piezas.find((p) => p.id === herramienta)?.ayuda ?? "";
   const fichaElegida = jugada && seleccion?.tipo === "ficha" ? jugada.fichas.find((f) => f.id === seleccion.id) ?? null : null;
   const carreraElegida = fichaElegida && fase ? carreraDe(fase, fichaElegida.id) : undefined;
   const anotacionElegida = fase && seleccion?.tipo === "anotacion" ? fase.anotaciones.find((a) => a.id === seleccion.id) ?? null : null;
@@ -731,29 +774,125 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
     { id: "3d", nombre: t("3D") },
     { id: "cenital", nombre: t("Cenital") },
   ];
+  const nombreDeFase = (f: Fase, i: number) => (/^(fase|phase) \d+$/i.test(f.nombre.trim()) ? "" : deSerieEn(f.nombre)) || tf("Fase {n}", { n: i + 1 });
+
+  function acercar(factor: number) {
+    const nuevo = escenaRef.current?.acercar?.(factor);
+    if (nuevo) setZoom(nuevo);
+  }
+  function pantallaCompleta() {
+    const caja = contenedorRef.current;
+    if (!caja) return;
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void caja.requestFullscreen?.().catch(() => setAviso(t("Este navegador no deja poner el campo a pantalla completa.")));
+  }
 
   return <div className={claseHoja}>
     <section className="estilo-page abp-page" ref={raizRef}>
-      <header className="abp-cabecera">
+      <header className={`abp-cabecera${modo === "estudio" ? " compacta" : ""}`}>
         <div>
           <span>{t("PIZARRA · 2D Y 3D")}</span>
-          <h2>{modo === "estudio" && jugada ? jugada.nombre : t("Tus sistemas")}</h2>
-          <p>{modo === "estudio"
-            ? t("Coloca y dibuja cada fase; al reproducir, el movimiento de una fase a la siguiente se anima solo.")
-            : t("Cada sistema que construyas —salida, presión, ataque, balón parado o un ejercicio—, listo para abrir, duplicar o descargar. Se guarda en este navegador.")}</p>
+          <h2>{modo === "estudio" && jugada ? jugada.nombre : modo === "biblioteca" ? t("Biblioteca") : t("Tus sistemas")}</h2>
+          {modo === "portal" && <p>{t("Cada sistema que construyas —salida, presión, ataque, balón parado o un ejercicio—, listo para abrir, duplicar o descargar. Se guarda en este navegador.")}</p>}
+          {modo === "biblioteca" && <p>{t("Sistemas ya dibujados, por temas: cada uno contesta una pregunta. Ábrelo para verlo moverse y úsalo de base.")}</p>}
         </div>
         <div className="abp-cabecera-acciones">
+          {modo !== "estudio" && <div className="inspector-segmentos abp-modos" role="tablist" aria-label={t("Pizarra")}>
+            <button type="button" role="tab" aria-selected={modo === "portal"} className={modo === "portal" ? "activa" : ""} onClick={() => setModo("portal")}>{t("Tus sistemas")}</button>
+            <button type="button" role="tab" aria-selected={modo === "biblioteca"} className={modo === "biblioteca" ? "activa" : ""} onClick={() => setModo("biblioteca")}>{t("Biblioteca")}</button>
+          </div>}
           {modo === "estudio" && <button type="button" className="button secondary compact" onClick={volverAlPortal}><ChevronLeft size={14} />{t("Tus sistemas")}</button>}
           {onVolver && <button type="button" className="button secondary compact" onClick={onVolver}>{t("Volver al inicio")}</button>}
         </div>
       </header>
 
+      {modo === "biblioteca" && cuaderno && <Biblioteca idioma={idioma} opciones={opciones} onAbrir={crear} />}
+
       {modo === "portal" && cuaderno && <Portal jugadas={cuaderno.jugadas} miniaturas={miniaturas} idioma={idioma}
         onAbrir={abrir} onCrear={crear} onDuplicar={duplicar} onQuitar={quitar} onImportar={importar} onDescargar={descargarSistema} onCopiaDeTodo={copiaDeTodo} />}
 
-      <div className="abp-grid" hidden={modo !== "estudio"}>
-        <aside className="designer-controls inspector abp-inspector">
+      <div className="abp-grid abp-estudio" hidden={modo !== "estudio"}>
+        <div className="abp-barra">
+          <div className="abp-herramientas" role="toolbar" aria-label={t("Herramientas")}>
+            {botones.map((b) => <button key={b.id} type="button" className={botonActivo(b) ? "activa" : ""} aria-pressed={botonActivo(b)} title={b.ayuda} onClick={() => elegir(b)}>
+              {b.icono}<span>{b.nombre}</span>
+            </button>)}
+            <i className="abp-separador" aria-hidden="true" />
+            {piezas.map((p) => <button key={p.id} type="button" className={herramienta === p.id ? "activa" : ""} aria-pressed={herramienta === p.id} title={p.ayuda} onClick={() => elegir({ herramienta: p.id })}>
+              {p.icono}<span>{p.nombre}</span>
+            </button>)}
+          </div>
+          <div className="abp-barra-acciones">
+            <button type="button" className="button secondary compact" onClick={deshacer} title={t("Deshacer (Ctrl+Z)")}><RotateCcw size={13} />{t("Deshacer")}</button>
+            <button type="button" className="button primary compact abp-play" onClick={alternarReproduccion} disabled={grabando}>
+              {reproduciendo ? <><Pause size={13} />{t("Detener")}</> : <><Play size={13} />{t("Reproducir")}</>}
+            </button>
+            <details className="abp-exportar">
+              <summary className="button secondary compact"><ArrowDownToLine size={13} />{t("Exportar")}</summary>
+              <div className="abp-menu" role="menu">
+                <button type="button" role="menuitem" onClick={(e) => { e.currentTarget.closest("details")?.removeAttribute("open"); descargarImagen(); }} disabled={!lista || grabando}>{t("Imagen PNG de esta fase")}</button>
+                <button type="button" role="menuitem" onClick={(e) => { e.currentTarget.closest("details")?.removeAttribute("open"); void descargarPdf(); }} disabled={!lista || grabando}>{t("PDF con una fase por página")}</button>
+                <button type="button" role="menuitem" onClick={(e) => { e.currentTarget.closest("details")?.removeAttribute("open"); void grabarVideo(); }} disabled={!lista || grabando}><Video size={13} />{grabando ? t("Grabando…") : t("Vídeo de la jugada")}</button>
+                <button type="button" role="menuitem" onClick={(e) => { e.currentTarget.closest("details")?.removeAttribute("open"); if (jugada) descargarSistema(jugada.id); }}>{t("Archivo del sistema (.json)")}</button>
+              </div>
+            </details>
+          </div>
+        </div>
+
+        <aside className="designer-controls inspector abp-inspector abp-izquierda">
           {jugada && cuaderno && <>
+            <section className="inspector-grupo">
+              <h3 className="inspector-titulo">{t("El tablero")}</h3>
+              <div className="inspector-tarjeta">
+                <label className="inspector-fila"><span>{t("Vista del campo")}</span>
+                  <select className="inspector-selector" value={jugada.ambiente.encuadre} onChange={(e) => cambiarAmbiente({ encuadre: e.target.value as Ambiente["encuadre"] })}>
+                    {ENCUADRES.map((x) => <option key={x.id} value={x.id}>{deSerieEn(x.nombre)}</option>)}
+                  </select>
+                </label>
+                <div className="inspector-fila"><span>{t("Campo")}</span>
+                  <div className="inspector-segmentos">
+                    <button type="button" className={orientacion === "horizontal" ? "activa" : ""} onClick={() => cambiarAmbiente({ orientacion: "horizontal" })}>{t("Horizontal")}</button>
+                    <button type="button" className={orientacion === "vertical" ? "activa" : ""} onClick={() => cambiarAmbiente({ orientacion: "vertical" })}>{t("Vertical")}</button>
+                  </div>
+                </div>
+                <label className="inspector-fila"><span>{t("Césped")}</span>
+                  <select className="inspector-selector" value={jugada.ambiente.superficie} onChange={(e) => cambiarAmbiente({ superficie: e.target.value as Ambiente["superficie"] })}>
+                    {SUPERFICIES.map((x) => <option key={x.id} value={x.id}>{deSerieEn(x.nombre)}</option>)}
+                  </select>
+                </label>
+                <label className="inspector-fila"><span>{t("Marcas")}</span>
+                  <select className="inspector-selector" value={jugada.ambiente.zonas} onChange={(e) => cambiarAmbiente({ zonas: e.target.value as Ambiente["zonas"] })}>
+                    {ZONAS.map((x) => <option key={x.id} value={x.id}>{deSerieEn(x.nombre)}</option>)}
+                  </select>
+                </label>
+                <div className="inspector-fila"><span>{t("Cámara tras el balón")}</span><Interruptor activo={seguir} onCambio={setSeguir} titulo={t("Cámara tras el balón")} /></div>
+                {jugada.ambiente.dimension === "3d" && <div className="inspector-fila"><span>{t("Estadio")}</span><Interruptor activo={jugada.ambiente.estadio} onCambio={(estadio) => cambiarAmbiente({ estadio })} titulo={t("Estadio")} /></div>}
+              </div>
+            </section>
+
+            <section className="inspector-grupo">
+              <h3 className="inspector-titulo">{t("Equipos")}</h3>
+              <div className="inspector-tarjeta">
+                <label className="inspector-fila"><span>{t("Nuestro color")}</span>
+                  {jugada.colores.local && <button type="button" className="abp-enlace" onClick={() => guardar({ ...jugada, colores: { ...jugada.colores, local: null } })}>{t("Del espacio")}</button>}
+                  <input type="color" value={colorLocal} onFocus={marcarHistorial} onChange={(e) => sinHistorial({ ...jugada, colores: { ...jugada.colores, local: e.target.value } })} />
+                </label>
+                <label className="inspector-fila"><span>{t("Su color")}</span>
+                  <input type="color" value={colorRival} onFocus={marcarHistorial} onChange={(e) => sinHistorial({ ...jugada, colores: { ...jugada.colores, rival: e.target.value } })} />
+                </label>
+                <label className="inspector-fila"><span>{t("Anotaciones")}</span>
+                  <input type="color" value={colorAnotacion} onFocus={marcarHistorial} onChange={(e) => sinHistorial({ ...jugada, colores: { ...jugada.colores, anotacion: e.target.value } })} />
+                </label>
+                <div className="inspector-fila"><span>{t("Dentro de la ficha")}</span>
+                  <div className="inspector-segmentos">
+                    <button type="button" className={jugada.ambiente.fichas === "dorsal" ? "activa" : ""} onClick={() => cambiarAmbiente({ fichas: "dorsal" })}>{t("Dorsal")}</button>
+                    <button type="button" className={jugada.ambiente.fichas === "puesto" ? "activa" : ""} onClick={() => cambiarAmbiente({ fichas: "puesto" })}>{t("Puesto")}</button>
+                  </div>
+                </div>
+                <div className="inspector-fila"><span>{t("Nombres de los roles")}</span><Interruptor activo={nombres} onCambio={setNombres} titulo={t("Nombres de los roles")} /></div>
+              </div>
+            </section>
+
             <section className="inspector-grupo">
               <h3 className="inspector-titulo">{t("Sistema")}<small>{tf(jugada.fases.length === 1 ? "{n} fase" : "{n} fases", { n: jugada.fases.length })}</small></h3>
               <div className="inspector-tarjeta">
@@ -765,39 +904,67 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
                     {CATEGORIAS.map((c) => <option key={c.id} value={c.id}>{deSerieEn(c.nombre)}</option>)}
                   </select>
                 </label>
-                <div className="inspector-fila abp-acciones">
-                  <button type="button" onClick={() => descargarSistema(jugada.id)}><ArrowDownToLine size={14} />{t("Descargar archivo")}</button>
-                </div>
-              </div>
-            </section>
-
-            <section className="inspector-grupo">
-              <h3 className="inspector-titulo">{t("Herramientas")}</h3>
-              <div className="abp-herramientas" role="toolbar" aria-label={t("Herramientas")}>
-                {herramientas.map((h) => <button key={h.id} type="button" className={herramienta === h.id ? "activa" : ""} aria-pressed={herramienta === h.id}
-                  title={h.ayuda} onClick={() => { setHerramienta(h.id); setOrigen(null); setAviso(""); }}>
-                  {h.icono}<span>{h.nombre}</span>
-                </button>)}
-              </div>
-              {herramienta === "flecha" && <div className="inspector-tarjeta abp-tarjeta-extra">
-                <div className="inspector-fila"><span>{t("Trazo")}</span><SegmentosFlecha valor={estiloFlecha} onCambio={setEstiloFlecha} /></div>
-              </div>}
-              {(herramienta === "rect" || herramienta === "zona") && <div className="inspector-tarjeta abp-tarjeta-extra">
-                <div className="inspector-fila"><span>{t("Relleno")}</span>
-                  <SegmentosEstilo valor={estiloZona} onCambio={setEstiloZona} />
-                </div>
-              </div>}
-              {herramienta === "pase" && <div className="inspector-tarjeta abp-tarjeta-extra">
-                <div className="inspector-fila"><span>{t("Envío")}</span>
+                <div className="inspector-fila"><span>{t("Movimiento")}</span>
                   <div className="inspector-segmentos">
-                    <button type="button" className={tipoPase === "aereo" ? "activa" : ""} onClick={() => setTipoPase("aereo")}>{t("Aéreo")}</button>
-                    <button type="button" className={tipoPase === "raso" ? "activa" : ""} onClick={() => setTipoPase("raso")}>{t("Raso")}</button>
+                    <button type="button" className={jugada.ambiente.suavizado === "suave" ? "activa" : ""} onClick={() => cambiarAmbiente({ suavizado: "suave" })}>{t("Suave")}</button>
+                    <button type="button" className={jugada.ambiente.suavizado === "lineal" ? "activa" : ""} onClick={() => cambiarAmbiente({ suavizado: "lineal" })}>{t("Lineal")}</button>
                   </div>
                 </div>
-              </div>}
-              <p className="inspector-pie">{herramientaActiva.ayuda}</p>
+                <div className="inspector-fila"><span>{t("Estelas")}</span><Interruptor activo={jugada.ambiente.estelas} onCambio={(estelas) => cambiarAmbiente({ estelas })} titulo={t("Estelas")} /></div>
+              </div>
+              <p className="inspector-pie">{t("Atajos: espacio reproduce, N añade una fase, [ y ] cambian de fase, Supr borra, Ctrl+Z deshace.")}</p>
             </section>
+          </>}
+          <datalist id="abp-roles">{ROLES.map((rol) => <option key={rol} value={deSerieEn(rol)} />)}</datalist>
+        </aside>
 
+        <div className="abp-principal">
+          <div className={`abp-escenario herramienta-${herramienta}`} ref={contenedorRef} data-orientacion={dimension === "2d" ? orientacion : "horizontal"}
+            onPointerDownCapture={alPulsar} onPointerMove={alMover} onPointerUp={alSoltar} onPointerCancel={alSoltar}>
+            {!lista && !error && <p className="abp-cargando">{dimension === "3d" ? t("Preparando el estadio 3D…") : t("Preparando el tablero…")}</p>}
+            {error && <p className="abp-cargando">{error}</p>}
+            <div className="abp-flotante abp-vistas" role="group" aria-label={t("Vistas de cámara")}>
+              {/* El tablero plano o el estadio: la misma jugada, dos maneras de verla. */}
+              {jugada && <div className="inspector-segmentos abp-dimension">
+                <button type="button" className={dimension === "2d" ? "activa" : ""} onClick={() => cambiarAmbiente({ dimension: "2d" })}>{t("2D")}</button>
+                <button type="button" className={dimension === "3d" ? "activa" : ""} onClick={() => cambiarAmbiente({ dimension: "3d" })}>{t("3D")}</button>
+              </div>}
+              {dimension === "3d" && <div className="inspector-segmentos">
+                {vistas.map((v) => <button key={v.id} type="button" className={vista === v.id ? "activa" : ""} onClick={() => { setVista(v.id); escenaRef.current?.vista(v.id, encuadre, fase ? centroDe(fase) : null); }}>{v.nombre}</button>)}
+              </div>}
+            </div>
+            <div className="abp-flotante abp-zoom" role="group" aria-label={t("Zoom")}>
+              <button type="button" className="abp-boton-flotante" onClick={() => fase && escenaRef.current?.centrar(puntosDe(fase))} title={t("Encuadrar la jugada de esta fase")}><Cubo size={14} />{t("Centrar")}</button>
+              {dimension === "2d" && <>
+                <i className="abp-separador" aria-hidden="true" />
+                <button type="button" className="abp-boton-flotante" onClick={() => acercar(1 / 1.25)} aria-label={t("Alejar")}>−</button>
+                <button type="button" className="abp-boton-flotante abp-zoom-valor" onClick={() => { escenaRef.current?.vista(vista, encuadre, null); setZoom(100); }} title={t("Volver al encuadre")}>{zoom}%</button>
+                <button type="button" className="abp-boton-flotante" onClick={() => acercar(1.25)} aria-label={t("Acercar")}>+</button>
+              </>}
+              <i className="abp-separador" aria-hidden="true" />
+              <button type="button" className="abp-boton-flotante" onClick={pantallaCompleta} aria-label={t("Pantalla completa")} title={t("Pantalla completa")}><PantallaCompleta size={14} /></button>
+            </div>
+            {(aviso || origen) && <p className="abp-flotante abp-aviso" role="status">{aviso}</p>}
+          </div>
+
+          {jugada && fase && <div className="abp-pie">
+            <p className="abp-pie-fase" aria-live="polite">
+              <b>{tf("Fase {n} de {total}", { n: indice + 1, total: jugada.fases.length })}{nombreDeFase(fase, indice) && <>: {nombreDeFase(fase, indice)}.</>}</b>
+              {fase.nota.trim() && <span> {deSerieEn(fase.nota)}</span>}
+            </p>
+            <input ref={barraRef} className="abp-progreso" type="range" min={0} max={total} step={0.01} defaultValue={0} aria-label={t("Progreso de la jugada")}
+              onChange={(e) => {
+                setReproduciendo(false);
+                tiempoRef.current = Number(e.target.value);
+                const ahora = instanteEn(jugada, tiempoRef.current);
+                if (ahora.fase !== indice) setFaseIdx(ahora.fase);
+                else escenaRef.current?.instante(ahora.t);
+              }} />
+          </div>}
+        </div>
+
+        <aside className="designer-controls inspector abp-inspector abp-derecha">
+          {jugada && fase && <>
             {fichaElegida && <section className="inspector-grupo">
               <h3 className="inspector-titulo">{t("Ficha")}<small>{fichaElegida.equipo === "local" ? t("Local") : t("Rival")}</small></h3>
               <div className="inspector-tarjeta">
@@ -847,20 +1014,26 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
               </div>
             </section>}
 
-            {fase && <section className="inspector-grupo">
+            <section className="inspector-grupo">
               <h3 className="inspector-titulo">{t("Fase")}<small>{tf("{n} de {total}", { n: indice + 1, total: jugada.fases.length })}</small></h3>
               <div className="inspector-tarjeta">
-                <label className="inspector-fila"><span>{t("Nombre")}</span>
+                <label className="inspector-fila"><span>{t("Título")}</span>
                   <input className="abp-campo" value={deSerieEn(fase.nombre)} maxLength={40} onFocus={marcarHistorial} onChange={(e) => sinHistorial(renombrarFase(jugada, indice, e.target.value))} />
                 </label>
                 <label className="inspector-fila abp-fila-nota"><span>{t("Nota")}</span>
-                  <textarea className="abp-nota" value={deSerieEn(fase.nota)} maxLength={160} rows={2} placeholder={t("Qué hay que ver en esta fase")} onFocus={marcarHistorial}
+                  <textarea className="abp-nota" value={deSerieEn(fase.nota)} maxLength={160} rows={2} placeholder={t("Una línea que se lea de un vistazo")} onFocus={marcarHistorial}
                     onChange={(e) => sinHistorial({ ...jugada, fases: jugada.fases.map((f, i) => (i === indice ? { ...f, nota: e.target.value } : f)) })} />
                 </label>
+              </div>
+            </section>
+
+            <section className="inspector-grupo">
+              <h3 className="inspector-titulo">{t("Tiempos de esta fase")}</h3>
+              <div className="inspector-tarjeta">
                 <label className="inspector-fila inspector-deslizador"><span>{t("Pausa en la pose")}</span><b>{fase.pausa.toFixed(1)} s</b>
                   <input type="range" min={0} max={6} step={0.1} value={fase.pausa} onPointerDown={marcarHistorial} onChange={(e) => sinHistorial(cambiarPausa(jugada, indice, Number(e.target.value)))} />
                 </label>
-                <label className="inspector-fila inspector-deslizador"><span>{t("Movimiento")}</span><b>{fase.duracion.toFixed(1)} s</b>
+                <label className="inspector-fila inspector-deslizador"><span>{t("Movimiento a la siguiente")}</span><b>{fase.duracion.toFixed(1)} s</b>
                   <input type="range" min={0.2} max={6} step={0.1} value={fase.duracion} onPointerDown={marcarHistorial} onChange={(e) => sinHistorial(cambiarDuracion(jugada, indice, Number(e.target.value)))} />
                 </label>
                 {fase.pase && <div className="inspector-fila"><span>{t("Envío")}</span>
@@ -871,138 +1044,47 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
                 </div>}
                 {fase.pase && <div className="inspector-fila abp-acciones"><button type="button" onClick={() => guardar(quitarPase(jugada, indice))}>{t("Quitar envío")}</button></div>}
               </div>
-            </section>}
-
-            <section className="inspector-grupo">
-              <h3 className="inspector-titulo">{t("Escenario")}</h3>
-              <div className="inspector-tarjeta">
-                <label className="inspector-fila"><span>{t("Césped")}</span>
-                  <select className="inspector-selector" value={jugada.ambiente.superficie} onChange={(e) => cambiarAmbiente({ superficie: e.target.value as Ambiente["superficie"] })}>
-                    {SUPERFICIES.map((x) => <option key={x.id} value={x.id}>{deSerieEn(x.nombre)}</option>)}
-                  </select>
-                </label>
-                {jugada.ambiente.dimension === "3d" && <div className="inspector-fila"><span>{t("Estadio")}</span><Interruptor activo={jugada.ambiente.estadio} onCambio={(estadio) => cambiarAmbiente({ estadio })} titulo={t("Estadio")} /></div>}
-                <div className="inspector-fila"><span>{t("Dentro de la ficha")}</span>
-                  <div className="inspector-segmentos">
-                    <button type="button" className={jugada.ambiente.fichas === "dorsal" ? "activa" : ""} onClick={() => cambiarAmbiente({ fichas: "dorsal" })}>{t("Dorsal")}</button>
-                    <button type="button" className={jugada.ambiente.fichas === "puesto" ? "activa" : ""} onClick={() => cambiarAmbiente({ fichas: "puesto" })}>{t("Puesto")}</button>
-                  </div>
-                </div>
-                <label className="inspector-fila"><span>{t("Zonas")}</span>
-                  <select className="inspector-selector" value={jugada.ambiente.zonas} onChange={(e) => cambiarAmbiente({ zonas: e.target.value as Ambiente["zonas"] })}>
-                    {ZONAS.map((x) => <option key={x.id} value={x.id}>{deSerieEn(x.nombre)}</option>)}
-                  </select>
-                </label>
-                <label className="inspector-fila"><span>{t("Encuadre")}</span>
-                  <select className="inspector-selector" value={jugada.ambiente.encuadre} onChange={(e) => cambiarAmbiente({ encuadre: e.target.value as Ambiente["encuadre"] })}>
-                    {ENCUADRES.map((x) => <option key={x.id} value={x.id}>{deSerieEn(x.nombre)}</option>)}
-                  </select>
-                </label>
-                <div className="inspector-fila"><span>{t("Nombres de los roles")}</span><Interruptor activo={nombres} onCambio={setNombres} titulo={t("Nombres de los roles")} /></div>
-              </div>
-            </section>
-
-            <section className="inspector-grupo">
-              <h3 className="inspector-titulo">{t("Animación")}</h3>
-              <div className="inspector-tarjeta">
-                <div className="inspector-fila"><span>{t("Movimiento")}</span>
-                  <div className="inspector-segmentos">
-                    <button type="button" className={jugada.ambiente.suavizado === "suave" ? "activa" : ""} onClick={() => cambiarAmbiente({ suavizado: "suave" })}>{t("Suave")}</button>
-                    <button type="button" className={jugada.ambiente.suavizado === "lineal" ? "activa" : ""} onClick={() => cambiarAmbiente({ suavizado: "lineal" })}>{t("Lineal")}</button>
-                  </div>
-                </div>
-                <div className="inspector-fila"><span>{t("Estelas")}</span><Interruptor activo={jugada.ambiente.estelas} onCambio={(estelas) => cambiarAmbiente({ estelas })} titulo={t("Estelas")} /></div>
-                <div className="inspector-fila"><span>{t("Cámara tras el balón")}</span><Interruptor activo={seguir} onCambio={setSeguir} titulo={t("Cámara tras el balón")} /></div>
-              </div>
               <p className="inspector-pie">{t("De la segunda fase en adelante, mueve las fichas a su nueva posición: el estudio anima la diferencia desde la fase anterior.")}</p>
             </section>
 
             <section className="inspector-grupo">
-              <h3 className="inspector-titulo">{t("Colores")}</h3>
-              <div className="inspector-tarjeta">
-                <label className="inspector-fila"><span>{t("Local")}</span>
-                  {jugada.colores.local && <button type="button" className="abp-enlace" onClick={() => guardar({ ...jugada, colores: { ...jugada.colores, local: null } })}>{t("Del espacio")}</button>}
-                  <input type="color" value={colorLocal} onFocus={marcarHistorial} onChange={(e) => sinHistorial({ ...jugada, colores: { ...jugada.colores, local: e.target.value } })} />
-                </label>
-                <label className="inspector-fila"><span>{t("Rival")}</span>
-                  <input type="color" value={colorRival} onFocus={marcarHistorial} onChange={(e) => sinHistorial({ ...jugada, colores: { ...jugada.colores, rival: e.target.value } })} />
-                </label>
-                <label className="inspector-fila"><span>{t("Anotaciones")}</span>
-                  <input type="color" value={colorAnotacion} onFocus={marcarHistorial} onChange={(e) => sinHistorial({ ...jugada, colores: { ...jugada.colores, anotacion: e.target.value } })} />
-                </label>
-              </div>
-            </section>
-
-            <section className="inspector-grupo">
-              <div className="inspector-tarjeta">
-                <button type="button" className="inspector-fila inspector-restablecer" onClick={deshacer}><RotateCcw size={14} />{t("Deshacer")}</button>
-              </div>
-              <p className="inspector-pie">{t("Atajos: espacio reproduce, N añade una fase, [ y ] cambian de fase, Supr borra, Ctrl+Z deshace.")}</p>
+              <h3 className="inspector-titulo">{t("Herramienta")}</h3>
+              {herramienta === "flecha" && <div className="inspector-tarjeta abp-tarjeta-extra">
+                <div className="inspector-fila"><span>{t("Trazo")}</span><SegmentosFlecha valor={estiloFlecha} onCambio={setEstiloFlecha} /></div>
+              </div>}
+              {(herramienta === "rect" || herramienta === "zona") && <div className="inspector-tarjeta abp-tarjeta-extra">
+                <div className="inspector-fila"><span>{t("Relleno")}</span>
+                  <SegmentosEstilo valor={estiloZona} onCambio={setEstiloZona} />
+                </div>
+              </div>}
+              <p className="inspector-pie">{ayuda}</p>
             </section>
           </>}
-          <datalist id="abp-roles">{ROLES.map((rol) => <option key={rol} value={deSerieEn(rol)} />)}</datalist>
         </aside>
 
-        <div className="abp-principal">
-          <div className={`abp-escenario herramienta-${herramienta}`} ref={contenedorRef}
-            onPointerDownCapture={alPulsar} onPointerMove={alMover} onPointerUp={alSoltar} onPointerCancel={alSoltar}>
-            {!lista && !error && <p className="abp-cargando">{dimension === "3d" ? t("Preparando el estadio 3D…") : t("Preparando el tablero…")}</p>}
-            {error && <p className="abp-cargando">{error}</p>}
-            {fase && jugada && <div className="abp-flotante abp-fase-titulo" aria-live="polite">
-              {/* "Fase 1 · Fase 1" no dice nada: el número solo va si la fase tiene nombre propio. */}
-              <b>{/^(fase|phase) \d+$/i.test(fase.nombre.trim()) ? deSerieEn(fase.nombre) : tf("Fase {n} · {nombre}", { n: indice + 1, nombre: deSerieEn(fase.nombre) })}</b>
-              {fase.nota.trim() && <span>{deSerieEn(fase.nota)}</span>}
-            </div>}
-            <div className="abp-flotante abp-vistas" role="group" aria-label={t("Vistas de cámara")}>
-              {/* El tablero plano o el estadio: la misma jugada, dos maneras de verla. */}
-              {jugada && <div className="inspector-segmentos abp-dimension">
-                <button type="button" className={dimension === "2d" ? "activa" : ""} onClick={() => cambiarAmbiente({ dimension: "2d" })}>{t("2D")}</button>
-                <button type="button" className={dimension === "3d" ? "activa" : ""} onClick={() => cambiarAmbiente({ dimension: "3d" })}>{t("3D")}</button>
-              </div>}
-              {dimension === "3d" ? <div className="inspector-segmentos">
-                {vistas.map((v) => <button key={v.id} type="button" className={vista === v.id ? "activa" : ""} onClick={() => { setVista(v.id); escenaRef.current?.vista(v.id, encuadre, fase ? centroDe(fase) : null); }}>{v.nombre}</button>)}
-              </div> : jugada && <div className="inspector-segmentos">
-                <button type="button" className={orientacion === "horizontal" ? "activa" : ""} onClick={() => cambiarAmbiente({ orientacion: "horizontal" })}>{t("Horizontal")}</button>
-                <button type="button" className={orientacion === "vertical" ? "activa" : ""} onClick={() => cambiarAmbiente({ orientacion: "vertical" })}>{t("Vertical")}</button>
-              </div>}
-              <button type="button" className="abp-boton-flotante" onClick={() => fase && escenaRef.current?.centrar(puntosDe(fase))}><Cubo size={14} />{t("Centrar jugada")}</button>
-            </div>
-            {(aviso || origen) && <p className="abp-flotante abp-aviso" role="status">{aviso}</p>}
+        {jugada && fase && <div className="abp-tira">
+          <div className="abp-miniaturas" role="tablist" aria-label={t("Fases de la jugada")}>
+            {jugada.fases.map((f, i) => <button key={f.id} type="button" role="tab" aria-selected={i === indice} className={i === indice ? "activa" : ""} onClick={() => irAFase(i)}
+              title={nombreDeFase(f, i)} data-orientacion={orientacion}>
+              {/* Una foto del lienzo en data:, nada que optimizar con next/image. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {fotosDeFases[i] ? <img src={fotosDeFases[i]} alt="" /> : <span className="abp-miniatura-vacia" />}
+              <b>{i + 1}</b>
+            </button>)}
+            <button type="button" className="abp-miniatura-nueva" data-orientacion={orientacion} onClick={() => { guardar(agregarFase(jugada, indice, tf("Fase {n}", { n: jugada.fases.length + 1 }))); irAFase(indice + 1); }}
+              title={t("Añadir una fase después de esta (N)")}><Plus size={16} /><span>{t("Fase")}</span></button>
           </div>
-
-          {jugada && fase && <div className="abp-linea-de-tiempo">
-            <div className="abp-fases" role="tablist" aria-label={t("Fases de la jugada")}>
-              {jugada.fases.map((f, i) => <button key={f.id} type="button" role="tab" aria-selected={i === indice} className={i === indice ? "activa" : ""} onClick={() => irAFase(i)}>
-                <b>{i + 1}</b>{deSerieEn(f.nombre)}
-              </button>)}
-              <span className="abp-fases-acciones">
-                <button type="button" onClick={() => { guardar(agregarFase(jugada, indice, tf("Fase {n}", { n: jugada.fases.length + 1 }))); irAFase(indice + 1); }}><Plus size={13} />{t("Fase")}</button>
-                <button type="button" onClick={() => { guardar(duplicarFase(jugada, indice, tf("{nombre} · copia", { nombre: deSerieEn(fase.nombre) }))); irAFase(indice + 1); }}><Duplicar size={13} />{t("Duplicar")}</button>
-                <button type="button" disabled={jugada.fases.length < 2} onClick={() => { guardar(quitarFase(jugada, indice)); irAFase(Math.max(0, indice - 1)); }}><Trash size={13} />{t("Quitar")}</button>
-              </span>
-            </div>
-            <div className="abp-reproductor">
-              <button type="button" className="button primary compact abp-play" onClick={alternarReproduccion} disabled={grabando}>
-                {reproduciendo ? <><Pause size={13} />{t("Pausa")}</> : <><Play size={13} />{t("Reproducir")}</>}
-              </button>
-              <button type="button" className="button secondary compact" onClick={reiniciar} disabled={grabando}><RotateCcw size={13} />{t("Reiniciar")}</button>
-              <input ref={barraRef} className="abp-progreso" type="range" min={0} max={total} step={0.01} defaultValue={0} aria-label={t("Progreso de la jugada")}
-                onChange={(e) => {
-                  setReproduciendo(false);
-                  tiempoRef.current = Number(e.target.value);
-                  const ahora = instanteEn(jugada, tiempoRef.current);
-                  if (ahora.fase !== indice) setFaseIdx(ahora.fase);
-                  else escenaRef.current?.instante(ahora.t);
-                }} />
-              <span className="abp-descargas">
-                <button type="button" className="button secondary compact" onClick={descargarImagen} disabled={!lista || grabando}><ArrowDownToLine size={13} />{t("PNG")}</button>
-                <button type="button" className="button secondary compact" onClick={() => void descargarPdf()} disabled={!lista || grabando}><ArrowDownToLine size={13} />{t("PDF")}</button>
-                <button type="button" className="button secondary compact" onClick={() => void grabarVideo()} disabled={!lista || grabando}><Video size={13} />{grabando ? t("Grabando…") : t("Vídeo")}</button>
-              </span>
-            </div>
-          </div>}
-        </div>
+          <div className="abp-tira-acciones">
+            <span className="abp-tira-fase">{tf("Fase {n}", { n: indice + 1 })}</span>
+            <button type="button" disabled={indice === 0} onClick={() => { guardar(moverFase(jugada, indice, -1)); irAFase(indice - 1); }}><ChevronLeft size={13} />{t("Antes")}</button>
+            <button type="button" disabled={indice === jugada.fases.length - 1} onClick={() => { guardar(moverFase(jugada, indice, 1)); irAFase(indice + 1); }}>{t("Después")}<ChevronRight size={13} /></button>
+            <button type="button" onClick={() => { guardar(duplicarFase(jugada, indice, tf("{nombre} · copia", { nombre: deSerieEn(fase.nombre) }))); irAFase(indice + 1); }}><Duplicar size={13} />{t("Duplicar")}</button>
+            <button type="button" className="peligro" disabled={jugada.fases.length < 2} onClick={() => { guardar(quitarFase(jugada, indice)); irAFase(Math.max(0, indice - 1)); }}><Trash size={13} />{t("Quitar fase")}</button>
+          </div>
+        </div>}
       </div>
+      {/* Donde se hacen las fotos de cada fase para la tira, fuera de la vista. */}
+      <div className="abp-fotografo" ref={fotografoRef} data-orientacion={orientacion} aria-hidden="true" />
     </section>
   </div>;
 }

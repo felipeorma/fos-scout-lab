@@ -6,15 +6,15 @@
 import type { Superficie } from "@/lib/abp";
 
 /**
- * Las cuatro superficies. Noche es la de la plataforma: casi negro, el
- * césped apenas verde, para que manden las fichas y el color del espacio.
+ * Las cuatro superficies. Noche es la de la plataforma: un verde muy oscuro
+ * con el segado marcado, para que manden las fichas y el color del espacio.
  */
 export const SUPERFICIE: Record<Superficie, {
   fondo: string; base: string; franjas: [string, string]; fuera: string; lineas: string; zonas: string; aro: string; tinta: string;
   cielo: number; suelo: number; luz: number; sol: number; asiento: string; muro: string; techo: string;
 }> = {
   noche: {
-    fondo: "#08080a", base: "#0c1511", franjas: ["#0d1712", "#0f1b15"], fuera: "#0a0f0c", lineas: "rgba(255,255,255,.82)", zonas: "rgba(255,255,255,.2)",
+    fondo: "#08080a", base: "#0e1c15", franjas: ["#0f1e16", "#12241b"], fuera: "#0a0f0c", lineas: "rgba(255,255,255,.82)", zonas: "rgba(255,255,255,.2)",
     aro: "#ffffff", tinta: "#ffffff", cielo: 0xffffff, suelo: 0x1a221d, luz: 1.25, sol: 1.5, asiento: "#101014", muro: "#131317", techo: "#0b0b0e",
   },
   retransmision: {
