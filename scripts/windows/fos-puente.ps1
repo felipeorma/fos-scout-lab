@@ -9,7 +9,7 @@
 #   comprobar     revisa instalación, credenciales, puente y StatsBomb
 #   reiniciar     lo para y lo vuelve a arrancar
 #   ventana       lo arranca a la vista, con el registro en pantalla
-#   credenciales  te pide usuario y contraseña de StatsBomb de nuevo
+#   credenciales  te pide de nuevo las de StatsBomb y SkillCorner
 #   actualizar    baja la última versión del puente de GitHub (main)
 #   desinstalar   quita el arranque automático y lo para
 #
@@ -34,7 +34,7 @@ $UrlPuente = "https://raw.githubusercontent.com/felipeorma/fos-scout-lab/main/sc
 $Dependencias = @("rembg[cpu,cli]", "fastapi", "uvicorn", "python-multipart", "requests")
 # Lo que dejan dicho las funciones. En un diccionario y no en $script:, porque
 # dentro del .cmd este script corre como bloque y $script: sería otro ámbito.
-$Ultimo = @{ FalloLibrerias = ""; StatsBomb401 = $false }
+$Ultimo = @{ FalloLibrerias = ""; Rechazadas = @() }
 
 function Paso([string]$Texto) {
   Write-Host ""
@@ -230,10 +230,10 @@ function Par-En-Texto([string]$Texto, [string]$Plataforma) {
   return $null
 }
 
-# Las credenciales de StatsBomb estén donde estén: primero credentials.json y
-# después el texto más reciente que hable de StatsBomb en el Escritorio,
-# Documentos, Descargas o la carpeta de este archivo.
-function Buscar-Credenciales {
+# Las credenciales de una plataforma estén donde estén: primero
+# credentials.json y después el texto más reciente que la nombre en el
+# Escritorio, Documentos, Descargas o la carpeta de este archivo.
+function Buscar-Par([string]$Plataforma) {
   $archivos = New-Object System.Collections.ArrayList
   if (Test-Path $Credenciales) { [void]$archivos.Add((Get-Item $Credenciales)) }
   $carpetas = @([Environment]::GetFolderPath("Desktop"), [Environment]::GetFolderPath("MyDocuments"), (Join-Path $Casa "Downloads"), $Datos)
@@ -245,33 +245,35 @@ function Buscar-Credenciales {
   foreach ($otro in ($otros | Sort-Object LastWriteTime -Descending)) { [void]$archivos.Add($otro) }
   foreach ($candidato in $archivos) {
     $texto = Leer-Texto $candidato.FullName
-    if ($texto -notmatch "(?i)statsbomb") { continue }
-    $sb = Par-En-Texto $texto "statsbomb"
-    if ($sb) { return [pscustomobject]@{ Origen = $candidato.FullName; Texto = $texto; StatsBomb = $sb } }
+    if ($texto -notmatch "(?i)$Plataforma") { continue }
+    $par = Par-En-Texto $texto $Plataforma
+    if ($par) { return [pscustomobject]@{ Origen = $candidato.FullName; Texto = $texto; Par = $par } }
   }
   return $null
 }
 
 # Las pide en esta misma ventana: la contraseña no se ve al escribirla.
-function Pedir-Credenciales {
-  Aviso "Escribe tus credenciales de StatsBomb una vez y quedan guardadas (la contraseña no se ve al escribirla)."
-  $usuario = [string](Read-Host "    Usuario de StatsBomb (el mismo que en el Mac)")
-  $segura = Read-Host "    Contraseña de StatsBomb" -AsSecureString
+function Pedir-Par([string]$Nombre, [switch]$Opcional) {
+  $extra = ""
+  if ($Opcional) { $extra = "; Intro para saltar" }
+  $usuario = [string](Read-Host "    Usuario de $Nombre (el mismo que en el Mac$extra)")
+  if (-not $usuario.Trim()) { return $null }
+  $segura = Read-Host "    Contraseña de $Nombre" -AsSecureString
   $clave = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($segura))
-  if (-not $usuario.Trim() -or -not $clave) { return $null }
-  return [pscustomobject]@{ Origen = "lo que has escrito aquí"; Texto = ""; StatsBomb = (Par $usuario $clave) }
+  if (-not $clave) { return $null }
+  return [pscustomobject]@{ Origen = "lo que has escrito aquí"; Texto = ""; Par = (Par $usuario $clave) }
 }
 
 # credentials.json en la forma exacta que lee el puente ("statsbomb" en
-# minúsculas, username y password, UTF-8 sin BOM), sin perder lo demás que haya.
-function Guardar-Credenciales($Encontradas) {
+# minúsculas, username y password, UTF-8 sin BOM), sin perder lo demás que
+# haya. Una plataforma en $null se queda como estaba.
+function Guardar-Credenciales($Sb, $Sc) {
   New-Item -ItemType Directory -Force -Path $Datos | Out-Null
   $antes = ""
   if (Test-Path $Credenciales) { $antes = Leer-Texto $Credenciales }
-  $fuentes = @($Encontradas.Texto, $antes) | Where-Object { $_ }
-  $sc = $null; $anthropic = ""; $apiFootball = ""
+  $fuentes = @($Sb.Texto, $Sc.Texto, $antes) | Where-Object { $_ }
+  $anthropic = ""; $apiFootball = ""
   foreach ($fuente in $fuentes) {
-    if (-not $sc) { $sc = Par-En-Texto $fuente "skillcorner" }
     if (-not $anthropic) { $m = [regex]::Match($fuente, "sk-ant-[A-Za-z0-9_\-]+"); if ($m.Success) { $anthropic = $m.Value } }
     if (-not $apiFootball) {
       $json = $null
@@ -279,14 +281,16 @@ function Guardar-Credenciales($Encontradas) {
       if ($json -and $json."api-football" -is [string]) { $apiFootball = $json."api-football".Trim() }
     }
   }
-  $scUsuario = ""; $scClave = ""
-  if ($sc) { $scUsuario = $sc.Usuario; $scClave = $sc.Clave }
-  $nuevo = [ordered]@{
-    statsbomb = [ordered]@{ username = $Encontradas.StatsBomb.Usuario; password = $Encontradas.StatsBomb.Clave }
-    skillcorner = [ordered]@{ username = $scUsuario; password = $scClave }
-    anthropic = $anthropic
-    "api-football" = $apiFootball
+  $pares = @{}
+  foreach ($plataforma in @("statsbomb", "skillcorner")) {
+    $dada = $Sb
+    if ($plataforma -eq "skillcorner") { $dada = $Sc }
+    $par = $null
+    if ($dada) { $par = $dada.Par } elseif ($antes) { $par = Par-En-Texto $antes $plataforma }
+    if (-not $par) { $par = Par "" "" }
+    $pares[$plataforma] = [ordered]@{ username = $par.Usuario; password = $par.Clave }
   }
+  $nuevo = [ordered]@{ statsbomb = $pares["statsbomb"]; skillcorner = $pares["skillcorner"]; anthropic = $anthropic; "api-football" = $apiFootball }
   $json = ($nuevo | ConvertTo-Json -Depth 4) -replace "`r`n", "`n"
   if ($json.Trim() -ne $antes.Trim()) {
     if ($antes) { Copy-Item -Force $Credenciales "$Credenciales.bak" }
@@ -318,23 +322,50 @@ function Tiene-Plataforma($Leidas, [string]$Plataforma) {
 
 # Las credenciales que ya guardaste, donde estén y como estén escritas: las
 # encuentra, las deja en credentials.json tal como las lee el puente y solo
-# si no hay ningunas te las pide aquí mismo.
-function Asegurar-Credenciales([switch]$Pedir) {
-  $encontradas = $null
-  if (-not $Pedir) { $encontradas = Buscar-Credenciales }
-  if (-not $encontradas) {
-    if (-not $Pedir) { Aviso "No encuentro credenciales de StatsBomb en $Credenciales ni en el Escritorio, Documentos o Descargas." }
-    $encontradas = Pedir-Credenciales
+# pide aquí las que no aparecen. Las plataformas de $Repetir (rechazadas por
+# un 401, o la acción "credenciales") se piden de nuevo sin buscar.
+function Asegurar-Credenciales([string[]]$Repetir = @()) {
+  $omitir = Join-Path $Datos "omitir-skillcorner"
+
+  $sb = $null
+  if ($Repetir -notcontains "statsbomb") { $sb = Buscar-Par "statsbomb" }
+  if (-not $sb -and (($Repetir -contains "statsbomb") -or -not (Test-Path $Credenciales) -or -not (Tiene-Plataforma (Leer-Credenciales).Datos "statsbomb"))) {
+    if ($Repetir -notcontains "statsbomb") { Aviso "No encuentro credenciales de StatsBomb en $Credenciales ni en el Escritorio, Documentos o Descargas." }
+    Aviso "Escríbelas aquí una vez y quedan guardadas (la contraseña no se ve al escribirla)."
+    $sb = Pedir-Par "StatsBomb"
   }
-  if (-not $encontradas) {
-    Aviso "Sin usuario o contraseña de StatsBomb: la app abrirá, pero sin sus datos."
-    return
+
+  # SkillCorner es opcional: si lo saltas, no se vuelve a preguntar.
+  $sc = $null
+  if ($Repetir -notcontains "skillcorner") { $sc = Buscar-Par "skillcorner" }
+  if (-not $sc -and (($Repetir -contains "skillcorner") -or -not (Test-Path $omitir))) {
+    if ($Repetir -contains "skillcorner") { Aviso "Escribe las de SkillCorner; Intro las quita y no te las vuelvo a pedir." }
+    else { Aviso "No encuentro credenciales de SkillCorner. Escríbelas si las tienes; si no, pulsa Intro y no te las vuelvo a pedir." }
+    $sc = Pedir-Par "SkillCorner" -Opcional
+    if ($sc) {
+      Remove-Item -Force $omitir -ErrorAction SilentlyContinue
+    } else {
+      New-Item -ItemType Directory -Force -Path $Datos | Out-Null
+      Set-Content -Path $omitir -Value "SkillCorner saltado. Para añadirlo: abre una consola y ejecuta  `"FOS Scout Lab.cmd`" credenciales"
+      # Si las guardadas eran las rechazadas, se quitan para que no vuelvan a fallar.
+      if ($Repetir -contains "skillcorner") { $sc = [pscustomobject]@{ Origen = ""; Texto = ""; Par = (Par "" "") } }
+    }
   }
-  Guardar-Credenciales $encontradas
-  $sb = $encontradas.StatsBomb
-  Bien "StatsBomb: usuario $($sb.Usuario), contraseña de $($sb.Clave.Length) caracteres ($($encontradas.Origen))."
+
+  Guardar-Credenciales $sb $sc
   $leidas = Leer-Credenciales
-  if (Tiene-Plataforma $leidas.Datos "skillcorner") { Bien "SkillCorner: usuario $($leidas.Datos.skillcorner.username)" } else { Write-Host "    SkillCorner: sin credenciales" }
+  foreach ($plataforma in @(@("statsbomb", "StatsBomb", $sb), @("skillcorner", "SkillCorner", $sc))) {
+    $clave = $plataforma[0]; $nombre = $plataforma[1]; $origen = $plataforma[2]
+    if (Tiene-Plataforma $leidas.Datos $clave) {
+      $de = ""
+      if ($origen -and $origen.Origen -and $origen.Origen -ne $Credenciales) { $de = " (de $($origen.Origen))" }
+      Bien "${nombre}: usuario $($leidas.Datos.$clave.username), contraseña de $($leidas.Datos.$clave.password.Length) caracteres$de"
+    } elseif ($clave -eq "statsbomb") {
+      Aviso "StatsBomb: sin credenciales; la app abrirá, pero sin sus datos."
+    } else {
+      Write-Host "    SkillCorner: sin credenciales (opcional; para añadirlas: `"FOS Scout Lab.cmd`" credenciales)"
+    }
+  }
   if ($leidas.Datos.anthropic) { Bien "Anthropic: clave guardada" } else { Write-Host "    Anthropic: sin clave (solo hace falta para los textos con IA)" }
   Bien "Guardadas para el puente en $Credenciales"
 }
@@ -431,11 +462,36 @@ function Parar {
   }
 }
 
+# Pide al puente el catálogo de una plataforma: "bien", "401" (usuario o
+# contraseña rechazados, según el registro) o "fallo".
+function Probar-Catalogo([string]$Nombre, [string]$Ruta, [string]$Dominio) {
+  Write-Host "    Pidiendo el catálogo a $Nombre (puede tardar unos segundos)..."
+  try {
+    $r = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Puerto$Ruta" -TimeoutSec 90
+    $texto = $r.Content
+    if ($texto -is [byte[]]) { $texto = [System.Text.Encoding]::UTF8.GetString($texto) }
+    Bien "$Nombre responde: $((ConvertFrom-Json -InputObject $texto).Count) competiciones."
+    return "bien"
+  } catch {
+    $fallo = $_.Exception.Message
+    Start-Sleep -Milliseconds 500
+    $cola = @()
+    if (Test-Path $Registro) { $cola = @(Get-Content -Tail 60 $Registro) }
+    if ($cola -match "401.*$Dominio") {
+      Aviso "$Nombre dice que el usuario o la contraseña no son correctos (401)."
+      return "401"
+    }
+    Aviso "$Nombre falla: $fallo"
+    Mostrar-Registro
+    return "fallo"
+  }
+}
+
 # De abajo arriba, todo lo que hace falta para que la app lea StatsBomb, con un
 # veredicto al final. No muestra contraseñas ni claves.
 function Comprobar {
   $problemas = New-Object System.Collections.ArrayList
-  $Ultimo.StatsBomb401 = $false
+  $Ultimo.Rechazadas = @()
 
   $piezas = [ordered]@{ "Python del entorno" = $Python; "Puente" = (Join-Path $CarpetaPuente "bg-server.py"); "Arranque al iniciar sesión" = $Lanzador }
   foreach ($pieza in $piezas.GetEnumerator()) {
@@ -456,29 +512,26 @@ function Comprobar {
   if (Esta-En-Marcha) {
     $estado = Invoke-RestMethod -Uri "http://127.0.0.1:$Puerto/api/sources/status" -TimeoutSec 5
     if ($estado.statsbomb) {
-      Write-Host "    Pidiendo el catálogo a StatsBomb (puede tardar unos segundos)..."
-      try {
-        $r = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Puerto/api/statsbomb/competitions" -TimeoutSec 90
-        $texto = $r.Content
-        if ($texto -is [byte[]]) { $texto = [System.Text.Encoding]::UTF8.GetString($texto) }
-        Bien "StatsBomb responde: $((ConvertFrom-Json -InputObject $texto).Count) competiciones."
-      } catch {
-        $fallo = $_.Exception.Message
-        Start-Sleep -Milliseconds 500
-        $cola = @()
-        if (Test-Path $Registro) { $cola = @(Get-Content -Tail 40 $Registro) }
-        if ($cola -match "401") {
-          Aviso "StatsBomb dice que el usuario o la contraseña no son correctos (401)."
-          $Ultimo.StatsBomb401 = $true
-          [void]$problemas.Add("Usuario o contraseña de StatsBomb incorrectos: usa los mismos que en el Mac (Llavero, fos-scouting > statsbomb).")
-        } else {
-          Aviso "StatsBomb falla: $fallo"
-          Mostrar-Registro
-          [void]$problemas.Add("StatsBomb no devuelve el catálogo: el motivo está en el registro de arriba.")
-        }
+      $resultado = Probar-Catalogo "StatsBomb" "/api/statsbomb/competitions" "statsbomb"
+      if ($resultado -eq "401") {
+        $Ultimo.Rechazadas += "statsbomb"
+        [void]$problemas.Add("Usuario o contraseña de StatsBomb incorrectos: usa los mismos que en el Mac (Llavero, fos-scouting > statsbomb).")
+      } elseif ($resultado -eq "fallo") {
+        [void]$problemas.Add("StatsBomb no devuelve el catálogo: el motivo está en el registro de arriba.")
       }
     } elseif ($problemas.Count -eq 0) {
       [void]$problemas.Add("El puente no ve las credenciales de StatsBomb: revisa $Credenciales y vuelve a abrir FOS Scout Lab.")
+    }
+    if ($estado.skillcorner) {
+      $resultado = Probar-Catalogo "SkillCorner" "/api/skillcorner/competitions" "skillcorner"
+      if ($resultado -eq "401") {
+        $Ultimo.Rechazadas += "skillcorner"
+        [void]$problemas.Add("Usuario o contraseña de SkillCorner incorrectos: usa los mismos que en el Mac (Llavero, fos-scouting > skillcorner).")
+      } elseif ($resultado -eq "fallo") {
+        [void]$problemas.Add("SkillCorner no devuelve el catálogo: el motivo está en el registro de arriba.")
+      }
+    } else {
+      Write-Host "    SkillCorner: sin credenciales (opcional)."
     }
   } else {
     Aviso "El puente no responde."
@@ -502,7 +555,7 @@ function Comprobar {
 
   Write-Host ""
   if ($problemas.Count -eq 0) {
-    Write-Host "TODO BIEN: el puente está en marcha y lee StatsBomb." -ForegroundColor Green
+    Write-Host "TODO BIEN: el puente está en marcha y lee tus plataformas." -ForegroundColor Green
   } else {
     Write-Host "QUÉ FALTA:" -ForegroundColor Yellow
     foreach ($problema in $problemas) { Write-Host "  - $problema" -ForegroundColor Yellow }
@@ -540,11 +593,11 @@ function Todo {
 
   Paso "5/5 Comprobación"
   Comprobar
-  # Si StatsBomb las rechaza, se piden aquí mismo y se vuelve a probar: el
+  # Las que la plataforma rechace se piden aquí mismo y se vuelve a probar: el
   # puente lee el archivo en cada petición, no hace falta reiniciarlo.
-  for ($intento = 0; $Ultimo.StatsBomb401 -and $intento -lt 2; $intento++) {
-    Paso "Credenciales de StatsBomb, otra vez"
-    Asegurar-Credenciales -Pedir
+  for ($intento = 0; $Ultimo.Rechazadas.Count -gt 0 -and $intento -lt 2; $intento++) {
+    Paso "Credenciales rechazadas, otra vez"
+    Asegurar-Credenciales -Repetir $Ultimo.Rechazadas
     Comprobar
   }
   Start-Process "http://127.0.0.1:$Puerto/"
@@ -574,7 +627,7 @@ try {
     "reiniciar" { Parar; Arrancar }
     "ventana" { Arrancar-Con-Ventana }
     "parar" { Parar }
-    "credenciales" { Asegurar-Credenciales -Pedir; if (Esta-En-Marcha) { Comprobar } }
+    "credenciales" { Asegurar-Credenciales -Repetir @("statsbomb", "skillcorner"); if (Esta-En-Marcha) { Comprobar } }
     "actualizar" { Actualizar }
     "desinstalar" { Desinstalar }
     default { throw "Acción desconocida: $Accion" }
