@@ -35,6 +35,9 @@ export interface Motor {
   puntoDelCampo(clienteX: number, clienteY: number): Punto | null;
   renderizarAhora(): void;
   capturar(tipo?: "image/png" | "image/jpeg", calidad?: number): string;
+  /** Solo el tablero 2D: acerca (factor > 1) o aleja y devuelve el zoom en %, 100 = el encuadre. */
+  acercar?(factor: number): number;
+  zoom?(): number;
   destruir(): void;
 }
 

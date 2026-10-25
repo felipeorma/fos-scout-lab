@@ -27,7 +27,8 @@ export type Ficha = { id: string; equipo: Equipo; dorsal: string; rol: string };
 /** Una carrera dentro de una fase: de donde empieza la ficha a `hasta`. `curva`, en metros, la abre a un lado. */
 export type Carrera = { fichaId: string; hasta: Punto; curva: number };
 export type Pase = { hasta: Punto; tipo: "aereo" | "raso" };
-export type EstiloZona = "translucida" | "rayas" | "borde";
+/** "foco": la zona se queda con su color y todo lo de fuera se apaga, para mirar solo ahí. */
+export type EstiloZona = "translucida" | "rayas" | "borde" | "foco";
 /**
  * Continua: un pase o un movimiento. Discontinua: sin balón. Ondulada:
  * conducción. Línea: una altura o un límite, sin punta. Presión: una cuña
@@ -423,6 +424,19 @@ export function duplicarFase(jugada: Jugada, indice: number, nombre: string): Ju
   return { ...jugada, fases };
 }
 
+/**
+ * Lleva una fase un puesto antes (-1) o después (+1). Las posiciones no se
+ * tocan: cada fase guarda su propia pose, y la animación sale de comparar
+ * cada una con la anterior, así que basta con cambiar el orden.
+ */
+export function moverFase(jugada: Jugada, indice: number, paso: -1 | 1): Jugada {
+  const destino = indice + paso;
+  if (destino < 0 || destino >= jugada.fases.length) return jugada;
+  const fases = [...jugada.fases];
+  [fases[indice], fases[destino]] = [fases[destino], fases[indice]];
+  return { ...jugada, fases };
+}
+
 /** Quita una fase; la última no se quita, que una jugada sin fases no se puede dibujar. */
 export function quitarFase(jugada: Jugada, indice: number): Jugada {
   if (jugada.fases.length <= 1) return jugada;
@@ -789,7 +803,7 @@ function anotacionValida(v: unknown): Anotacion | null {
     return { id: a.id, tipo: "flecha", a: a.a, b: a.b, color: c, estilo };
   }
   if (a.tipo === "rect" || a.tipo === "zona") {
-    const estilo = a.estilo === "rayas" || a.estilo === "borde" ? a.estilo : "translucida";
+    const estilo = a.estilo === "rayas" || a.estilo === "borde" || a.estilo === "foco" ? a.estilo : "translucida";
     return { id: a.id, tipo: a.tipo, a: a.a, b: a.b, color: c, estilo };
   }
   return null;
