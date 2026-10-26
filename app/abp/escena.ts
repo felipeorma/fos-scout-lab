@@ -653,7 +653,7 @@ export class EscenaABP implements Motor {
     return lienzo;
   }
 
-  private ficha(dorsal: string, rol: string, color: string, opciones: Opciones, seleccionada: boolean, equipacion: Equipacion | null = null) {
+  private ficha(dorsal: string, rol: string, color: string, opciones: Opciones, seleccionada: boolean, equipacion: Equipacion | null = null, propio = "") {
     const g = new THREE.Group();
     const nombreDeRol = opciones.rotulo(rol);
     // Dentro, el dorsal o el puesto, como en el tablero 2D.
@@ -674,8 +674,8 @@ export class EscenaABP implements Motor {
       sel.position.y = 0.03;
       g.add(sel);
     }
-    if (opciones.nombres && rol.trim() && (opciones.ambiente.fichas === "dorsal" || nombreDeRol.trim().length > 3)) {
-      const nombre = this.rotuloSprite(opciones.rotulo(rol).toUpperCase(), { color: tema.tinta, alto: 0.62, peso: 700, fuente: opciones.fuente, sinSombra: tema.tinta !== "#ffffff" });
+    if (opciones.nombres && (propio.trim() || rol.trim()) && (opciones.ambiente.fichas === "dorsal" || propio.trim() || nombreDeRol.trim().length > 3)) {
+      const nombre = this.rotuloSprite((propio.trim() || opciones.rotulo(rol)).toUpperCase(), { color: tema.tinta, alto: 0.62, peso: 700, fuente: opciones.fuente, sinSombra: tema.tinta !== "#ffffff" });
       nombre.position.y = 1.4;
       g.add(nombre);
     }
@@ -1006,7 +1006,7 @@ export class EscenaABP implements Motor {
       // El portero, en un tono propio: se distingue de un vistazo como en la tele.
       const portero = /^(portero|por|gk|goalkeeper)$/i.test(f.rol.trim());
       const color = portero ? (f.equipo === "local" ? "#f3b64c" : "#45c6ba") : colorDe(f.equipo);
-      const g = this.ficha(f.dorsal, f.rol, color, opciones, seleccion?.tipo === "ficha" && seleccion.id === f.id, portero ? null : opciones.equipaciones[f.equipo]);
+      const g = this.ficha(f.dorsal, f.rol, color, opciones, seleccion?.tipo === "ficha" && seleccion.id === f.id, portero ? null : opciones.equipaciones[f.equipo], f.nombre);
       g.position.set(sitio.x, 0, sitio.z);
       this.fichas.set(f.id, g);
       this.dinamico.add(g);

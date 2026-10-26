@@ -339,7 +339,7 @@ export class Tablero2D implements Motor {
       for (const f of jugada.fichas) {
         const p = posicionEn(fase, f.id, this.t, lineal);
         const portero = esPortero(f.rol);
-        if (p) this.pintarFicha(tr, p, f.dorsal, f.rol, this.colorDe(f.equipo, f.rol, o), o, this.seleccion?.tipo === "ficha" && this.seleccion.id === f.id, portero ? null : o.equipaciones[f.equipo]);
+        if (p) this.pintarFicha(tr, p, f.dorsal, f.rol, this.colorDe(f.equipo, f.rol, o), o, this.seleccion?.tipo === "ficha" && this.seleccion.id === f.id, portero ? null : o.equipaciones[f.equipo], f.nombre);
       }
       this.pintarBalon(tr, balonEn(fase, this.t), o);
       // Encima de todo, lo que se lee: las medidas, los jugadores elegidos para un bloque y los textos.
@@ -578,11 +578,13 @@ export class Tablero2D implements Motor {
    * luz arriba a la izquierda, un aro oscuro por dentro y otro claro por fuera,
    * y un brillo. Así se separa del césped sin sombras borrosas.
    */
-  private pintarFicha(tr: Transformacion, p: Punto, dorsal: string, rol: string, color: string, o: Opciones, elegida: boolean, equipacion: Equipacion | null = null) {
+  private pintarFicha(tr: Transformacion, p: Punto, dorsal: string, rol: string, color: string, o: Opciones, elegida: boolean, equipacion: Equipacion | null = null, propio = "") {
     const ctx = this.ctx, e = tr.escala, tema = SUPERFICIE[o.ambiente.superficie];
     const c = tr.aPantalla(p), r = radioEnPantalla(e, this.radioMinimo);
-    const nombre = o.rotulo(rol);
-    const dentro = o.ambiente.fichas === "puesto" && nombre.trim() ? abreviar(nombre) : dorsal;
+    const delRol = o.rotulo(rol);
+    // Dentro, el dorsal o el puesto; debajo, el nombre del jugador si lo tiene, o el rol.
+    const dentro = o.ambiente.fichas === "puesto" && delRol.trim() ? abreviar(delRol) : dorsal;
+    const nombre = propio.trim() || delRol;
     const papel = o.ambiente.superficie === "papel";
     ctx.save();
     if (elegida) {
@@ -664,7 +666,7 @@ export class Tablero2D implements Motor {
     ctx.fillStyle = tinta;
     ctx.fillText(dentro, c.x, c.y + r * 0.05);
     // El rol debajo, en una píldora que se lee en cualquier césped.
-    const debajo = o.nombres && nombre.trim() && (o.ambiente.fichas === "dorsal" || nombre.trim().length > 3) ? nombre.toUpperCase() : "";
+    const debajo = o.nombres && nombre.trim() && (o.ambiente.fichas === "dorsal" || propio.trim() || nombre.trim().length > 3) ? nombre.toUpperCase() : "";
     if (debajo) {
       const alto = Math.max(11, r * 0.74);
       ctx.font = `800 ${alto * 0.66}px ${o.fuente}`;

@@ -2627,6 +2627,10 @@ const EN: Record<string, string> = {
   "Banda izquierda": "Left flank",
   "Pasillo central": "Central channel",
   "Banda derecha": "Right flank",
+  // ---- Pizarra: preparar el partido ----
+  "Abrir en el estudio táctico": "Open in the tactics studio",
+  "Los dos onces con sus nombres y el bloque de su temporada (altura, largo y ancho de StatsBomb) en el estudio táctico, para animarlo y compartirlo.": "Both elevens with their names and the opponent's season block (height, length and width from StatsBomb) in the tactics studio, to animate and share.",
+  "Sin nombre": "No name",
   // ---- Pizarra: el enlace que se reproduce ----
   "Copiar el enlace que se reproduce": "Copy the playable link",
   "Editar mi copia": "Edit my copy",

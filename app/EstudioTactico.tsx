@@ -1332,6 +1332,10 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
                 <label className="inspector-fila"><span>{t("Dorsal")}</span>
                   <input className="abp-campo corto" value={fichaElegida.dorsal} maxLength={3} onFocus={marcarHistorial} onChange={(e) => sinHistorial(cambiarFicha(jugada, fichaElegida.id, { dorsal: e.target.value }))} />
                 </label>
+                <label className="inspector-fila"><span>{t("Jugador")}</span>
+                  <input className="abp-campo" value={fichaElegida.nombre ?? ""} maxLength={24} placeholder={t("Sin nombre")} onFocus={marcarHistorial}
+                    onChange={(e) => sinHistorial(cambiarFicha(jugada, fichaElegida.id, { nombre: e.target.value }))} />
+                </label>
                 <label className="inspector-fila"><span>{t("Rol")}</span>
                   <input className="abp-campo" list="abp-roles" value={deSerieEn(fichaElegida.rol)} maxLength={24} placeholder={t("Sin rol")} onFocus={marcarHistorial}
                     onChange={(e) => sinHistorial(cambiarFicha(jugada, fichaElegida.id, { rol: e.target.value }))} />
