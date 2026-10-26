@@ -6,7 +6,8 @@
 
 import type { Ambiente, Encuadre, Equipacion, Equipo, EstiloFlecha, Extremo, Grosor, Jugada, Pase, Punto, RellenoBloque, TipoMaterial } from "@/lib/abp";
 
-export type Vista = "tactica" | "3d" | "cenital";
+/** «jugador»: la cámara, en los ojos de la ficha de `Opciones.ojos`, mirando al balón. */
+export type Vista = "tactica" | "3d" | "cenital" | "jugador";
 export type Elemento = { tipo: "ficha" | "anotacion" | "material"; id: string };
 /** Lo elegido: una cosa, o un grupo (Mayús+clic o un recuadro con Mayús) que se mueve y se borra junto. */
 export type Seleccion = Elemento | { tipo: "grupo"; elementos: Elemento[] } | null;
@@ -46,6 +47,8 @@ export type Opciones = {
   rotulo: (rol: string) => string;
   /** Una distancia como se lee en el idioma de la pantalla: «12,4 m» o «12.4 m». */
   metros?: (m: number) => string;
+  /** La ficha cuya visión se enseña: una cuña dorada hacia el balón y, en la vista «jugador», sus ojos. */
+  ojos?: string | null;
 };
 
 export interface Motor {
