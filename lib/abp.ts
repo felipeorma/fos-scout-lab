@@ -24,7 +24,8 @@ import { aPolilinea, aSegmento, contornoHolgado, ordenarEnLinea } from "./geomet
 
 export type Punto = { x: number; z: number };
 export type Equipo = "local" | "rival";
-export type Ficha = { id: string; equipo: Equipo; dorsal: string; rol: string };
+/** `nombre`: el jugador de verdad (su apellido), que se lee bajo la ficha en vez del rol. */
+export type Ficha = { id: string; equipo: Equipo; dorsal: string; rol: string; nombre?: string };
 /** Una carrera dentro de una fase: de donde empieza la ficha a `hasta`. `curva`, en metros, la abre a un lado. */
 export type Carrera = { fichaId: string; hasta: Punto; curva: number };
 export type Pase = { hasta: Punto; tipo: "aereo" | "raso" };
@@ -436,7 +437,7 @@ export function agregarFicha(jugada: Jugada, equipo: Equipo, p: Punto): [Jugada,
   }, id];
 }
 
-export const cambiarFicha = (jugada: Jugada, id: string, cambios: Partial<Pick<Ficha, "dorsal" | "rol" | "equipo">>) =>
+export const cambiarFicha = (jugada: Jugada, id: string, cambios: Partial<Pick<Ficha, "dorsal" | "rol" | "equipo" | "nombre">>) =>
   ({ ...jugada, fichas: jugada.fichas.map((f) => (f.id === id ? { ...f, ...cambios } : f)) });
 
 export function quitarFicha(jugada: Jugada, id: string): Jugada {
@@ -1140,7 +1141,10 @@ export function jugadaValida(v: unknown): Jugada | null {
   if (!j || typeof j.id !== "string" || !Array.isArray(j.fichas) || !Array.isArray(j.fases) || j.fases.length === 0) return null;
   const fichas: Ficha[] = (j.fichas as Array<Record<string, unknown>>)
     .filter((f) => f && typeof f.id === "string" && (f.equipo === "local" || f.equipo === "rival"))
-    .map((f) => ({ id: f.id as string, equipo: f.equipo as Equipo, dorsal: texto(f.dorsal).slice(0, 3), rol: texto(f.rol).slice(0, 24) }));
+    .map((f) => ({
+      id: f.id as string, equipo: f.equipo as Equipo, dorsal: texto(f.dorsal).slice(0, 3), rol: texto(f.rol).slice(0, 24),
+      ...(typeof f.nombre === "string" && f.nombre.trim() ? { nombre: f.nombre.trim().slice(0, 24) } : {}),
+    }));
   const ids = new Set(fichas.map((f) => f.id));
   const fases: Fase[] = [];
   for (const bruta of j.fases as Array<Record<string, unknown>>) {

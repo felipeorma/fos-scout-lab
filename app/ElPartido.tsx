@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState, type CSSProperties, type DragEvent, type ReactNode } from "react";
 import { Antetitulo, CAL, Cesped, FranjaDeCifras } from "./KitNight";
 import { Escudo } from "./Escudo";
-import { numberLocale, t, tf } from "@/lib/i18n";
+import { activeLang, numberLocale, t, tf } from "@/lib/i18n";
+import { pizarraDelPartido } from "@/lib/preparacion";
+import { useAbrirEnPizarra } from "./abp/AbrirEnPizarra";
 import { fetchPartidosDeLiga } from "@/lib/remoteData";
 import { METRICAS_ESTILO, mismoEquipo, type PerfilEquipo } from "@/lib/estiloEquipo";
 import { nivelDeLiga } from "@/lib/nivelDeLiga";
@@ -384,6 +386,7 @@ export function ElPartido({ a, b, claseHoja = "legal-page-shell", pie = null }: 
 }) {
   const ladoA = useLadoDelPartido(a);
   const ladoB = useLadoDelPartido(b);
+  const abrirEnPizarra = useAbrirEnPizarra();
   const mismaLiga = ladoA.partes.competicion === ladoB.partes.competicion && ladoA.partes.temporada === ladoB.partes.temporada;
   const nivelA = nivelDeLiga(null, a.competicion);
   const nivelB = nivelDeLiga(null, b.competicion);
@@ -617,6 +620,24 @@ export function ElPartido({ a, b, claseHoja = "legal-page-shell", pie = null }: 
     b: { perfil: b, lado: ladoB, puestos: puestosB, once: onceB, form: formB, setForm: setElegidaB, opciones: opcionesDeDibujo(ladoB) },
   };
 
+  /**
+   * La pizarra de este partido en el estudio táctico: los dos onces de aquí,
+   * con sus dibujos y sus nombres, y el bloque del rival con la altura, el
+   * largo y el ancho medios de su temporada.
+   */
+  function abrirEnElEstudio() {
+    if (!abrirEnPizarra) return;
+    const valor = (id: string) => {
+      const lectura = ladoB.datos ? lecturaDe(ladoB.datos.lecturas, id) : null;
+      return lectura && Number.isFinite(lectura.valor) ? lectura.valor : null;
+    };
+    abrirEnPizarra(pizarraDelPartido(
+      { equipo: a.equipo, formacion: formA, nombres: onceA },
+      { equipo: b.equipo, formacion: formB, nombres: onceB, bloque: { altura: valor("altura_defensa"), largo: valor("largo_bloque"), ancho: valor("ancho_bloque") } },
+      activeLang(),
+    ));
+  }
+
   return <>{hoja(1, <section className="partido">
     {cabecera}
 
@@ -683,6 +704,10 @@ export function ElPartido({ a, b, claseHoja = "legal-page-shell", pie = null }: 
           </label>;
         })}
         <button type="button" className="pizarra-reiniciar" onClick={() => { setElegidaA(null); setElegidaB(null); setManualA(null); setManualB(null); setSeleccion(null); }}>{t("Volver a lo probable")}</button>
+        {abrirEnPizarra && <button type="button" className="pizarra-reiniciar pizarra-al-estudio" onClick={abrirEnElEstudio}
+          title={t("Los dos onces con sus nombres y el bloque de su temporada (altura, largo y ancho de StatsBomb) en el estudio táctico, para animarlo y compartirlo.")}>
+          {t("Abrir en el estudio táctico")} →
+        </button>}
       </div>
       <div className="pizarra-campo">
         <svg viewBox="-2 -2 124 84" aria-hidden="true">
