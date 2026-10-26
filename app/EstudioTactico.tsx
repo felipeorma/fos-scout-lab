@@ -23,6 +23,7 @@ import { EditorDeEquipacion, EspaciosDeJuego, SelectorDeMaterial, SelectorDePeto
 import { ESPACIOS, estirarZona, ponerEspacio, tamanoDeZona, type Espacio } from "@/lib/entrenamiento";
 import { PlanDeSesionPanel } from "./abp/PlanDeSesion";
 import { Explicacion } from "./abp/Explicacion";
+import { PanelDeSecuencias } from "./abp/PanelDeSecuencias";
 import {
   ArrowDownToLine, Balon, Bloque, Carrera, ChevronLeft, ChevronRight, Conduccion, Cono, Cubo, Duplicar, Elipse, Etiqueta, Flecha, Linea, Mover, PantallaCompleta,
   Microfono, Ojo, Pase as PaseIcono, Pause, Pencil, Play, Plus, Presion, Rectangulo, Regla, RotateCcw, RotateCw, Teclado, TextIcon, Trash, Video,
@@ -1559,6 +1560,10 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
               </div>
               <p className="inspector-pie">{t("Atajos: espacio reproduce, N añade una fase, [ y ] cambian de fase, Supr borra, Ctrl+Z deshace.")}</p>
             </section>
+
+            <PanelDeSecuencias jugada={jugada} indice={indice} nombreDeFase={nombreDeFase} onAviso={setAviso}
+              elegidas={elementosDe(seleccion).filter((e) => e.tipo === "ficha").map((e) => e.id)}
+              onSoltar={(siguiente) => { guardar(siguiente); irAFase(indice + 1); }} />
           </>}
           <datalist id="abp-roles">{ROLES.map((rol) => <option key={rol} value={deSerieEn(rol)} />)}</datalist>
         </aside>
