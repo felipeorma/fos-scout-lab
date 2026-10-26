@@ -24,8 +24,11 @@ import { aPolilinea, aSegmento, contornoHolgado, ordenarEnLinea } from "./geomet
 
 export type Punto = { x: number; z: number };
 export type Equipo = "local" | "rival";
-/** `nombre`: el jugador de verdad (su apellido), que se lee bajo la ficha en vez del rol. */
-export type Ficha = { id: string; equipo: Equipo; dorsal: string; rol: string; nombre?: string };
+/**
+ * `nombre`: el jugador de verdad (su apellido), que se lee bajo la ficha en vez
+ * del rol. `jugador`: su nombre completo en la base cargada, para su tarjeta.
+ */
+export type Ficha = { id: string; equipo: Equipo; dorsal: string; rol: string; nombre?: string; jugador?: string };
 /**
  * Una carrera dentro de una fase: de donde está la ficha a `hasta`. `curva`,
  * en metros, la abre a un lado. `paso` (0–3) la pone en orden dentro de la
@@ -140,6 +143,8 @@ export type Jugada = {
   colores: Colores;
   /** Sin equipaciones, las fichas van lisas: así se abre lo guardado antes. */
   equipaciones?: Record<Equipo, Equipacion>;
+  /** El equipo de la base cargada del que salen los jugadores de cada lado. */
+  plantillas?: Partial<Record<Equipo, string>>;
   ambiente: Ambiente;
   fichas: Ficha[];
   fases: Fase[];
@@ -529,7 +534,7 @@ export function agregarFicha(jugada: Jugada, equipo: Equipo, p: Punto): [Jugada,
   }, id];
 }
 
-export const cambiarFicha = (jugada: Jugada, id: string, cambios: Partial<Pick<Ficha, "dorsal" | "rol" | "equipo" | "nombre">>) =>
+export const cambiarFicha = (jugada: Jugada, id: string, cambios: Partial<Pick<Ficha, "dorsal" | "rol" | "equipo" | "nombre" | "jugador">>) =>
   ({ ...jugada, fichas: jugada.fichas.map((f) => (f.id === id ? { ...f, ...cambios } : f)) });
 
 export function quitarFicha(jugada: Jugada, id: string): Jugada {
@@ -1303,6 +1308,7 @@ export function jugadaValida(v: unknown): Jugada | null {
     .map((f) => ({
       id: f.id as string, equipo: f.equipo as Equipo, dorsal: texto(f.dorsal).slice(0, 3), rol: texto(f.rol).slice(0, 24),
       ...(typeof f.nombre === "string" && f.nombre.trim() ? { nombre: f.nombre.trim().slice(0, 24) } : {}),
+      ...(typeof f.jugador === "string" && f.jugador.trim() ? { jugador: f.jugador.trim().slice(0, 80) } : {}),
     }));
   const ids = new Set(fichas.map((f) => f.id));
   const fases: Fase[] = [];
@@ -1369,6 +1375,12 @@ export function jugadaValida(v: unknown): Jugada | null {
       rival: color(colores.rival, COLORES_POR_DEFECTO.rival),
       anotacion: color(colores.anotacion, COLORES_POR_DEFECTO.anotacion),
     },
+    ...(j.plantillas && typeof j.plantillas === "object" ? {
+      plantillas: Object.fromEntries((["local", "rival"] as const)
+        .map((e) => [e, (j.plantillas as Record<string, unknown>)[e]])
+        .filter((par): par is [Equipo, string] => typeof par[1] === "string" && par[1].trim() !== "")
+        .map(([e, v]) => [e, v.trim().slice(0, 80)])),
+    } : {}),
     ...(j.equipaciones && typeof j.equipaciones === "object"
       ? { equipaciones: { local: equipacionValida((j.equipaciones as Record<string, unknown>).local), rival: equipacionValida((j.equipaciones as Record<string, unknown>).rival) } }
       : {}),

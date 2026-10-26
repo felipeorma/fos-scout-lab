@@ -28,6 +28,8 @@ import { PanelDeMedidas } from "./abp/PanelDeMedidas";
 import { PaletaDeOrdenes, type Orden } from "./abp/PaletaDeOrdenes";
 import type { Entrante } from "./abp/AbrirEnPizarra";
 import { enlaceDeJugada } from "@/lib/enlace";
+import { apellido, equiposDeBase, jugadorDeFicha, jugadoresDeBase, plantillaDe, ponerPorPuestos, tarjetaDe } from "@/lib/jugadoresDeBase";
+import { useBaseActiva } from "./BaseActiva";
 
 // La clave no cambia al pasar de cuaderno a estudio: así se abre lo ya guardado.
 const CLAVE = "fos-scout-abp-v1";
@@ -106,6 +108,10 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
   onEntrante?: () => void;
 }) {
   const firma = useFirma();
+  // Los jugadores de la base cargada (si la hay), para ponerlos en las fichas.
+  const base = useBaseActiva();
+  const jugadoresBase = useMemo(() => jugadoresDeBase(base.rows), [base.rows]);
+  const equiposBase = useMemo(() => equiposDeBase(jugadoresBase), [jugadoresBase]);
   const deSerieEn = (texto: string) => deSerie(texto, idioma);
   const [cuaderno, setCuaderno] = useState<Cuaderno | null>(null);
   const historial = useRef<Cuaderno[]>([]);
@@ -546,6 +552,20 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
     const id = nuevoId("a");
     guardar(agregarAnotacion(jugada, indice, { id, tipo: "bloque", fichas, color: jugada.colores.anotacion, relleno: rellenoBloque }));
     setSeleccion({ tipo: "anotacion", id });
+  }
+
+  /** Pone en las fichas de un lado a los jugadores de su equipo de la base, cada uno en su puesto. */
+  function ponerJugadores(equipo: Equipo) {
+    if (!jugada) return;
+    const nombreEquipo = jugada.plantillas?.[equipo];
+    const plantilla = nombreEquipo ? plantillaDe(jugadoresBase, nombreEquipo) : [];
+    if (!plantilla.length) { setAviso(t("Elige un equipo de la base cargada.")); return; }
+    const reparto = ponerPorPuestos(jugada.fichas.filter((f) => f.equipo === equipo), plantilla);
+    guardar({ ...jugada, fichas: jugada.fichas.map((f) => {
+      const j = reparto.get(f.id);
+      return j ? { ...f, nombre: apellido(j.nombre).slice(0, 24), jugador: j.nombre } : f;
+    }) });
+    setAviso(tf("{n} jugadores de {equipo}, cada uno en su puesto. Cambia a cualquiera desde su ficha.", { n: reparto.size, equipo: nombreEquipo ?? "" }));
   }
 
   /** Lo elegido deja de estar enlazado con las fases siguientes: sus cambios ya solo valen aquí. */
@@ -1214,6 +1234,12 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
   const carreraElegida = fichaElegida && fase ? carreraDe(fase, fichaElegida.id) : undefined;
   const anotacionElegida = fase && seleccion?.tipo === "anotacion" ? fase.anotaciones.find((a) => a.id === seleccion.id) ?? null : null;
   const ocultas = jugada?.ambiente.ocultas ?? [];
+  const plantillaElegida = (equipo: Equipo) => {
+    const nombre = jugada?.plantillas?.[equipo];
+    return nombre && equiposBase.includes(nombre) ? plantillaDe(jugadoresBase, nombre) : [];
+  };
+  const jugadorElegido = fichaElegida ? jugadorDeFicha(fichaElegida, jugadoresBase, jugada?.plantillas?.[fichaElegida.equipo]) : null;
+  const tarjeta = jugadorElegido ? tarjetaDe(base.rows, jugadoresBase, jugadorElegido) : null;
   const capas: Array<{ capas: Capa[]; nombre: string }> = [
     { capas: ["recorridos"], nombre: t("Carreras y envíos") },
     { capas: ["flechas"], nombre: t("Flechas y trazos") },
@@ -1405,6 +1431,28 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
             </section>
 
             <section className="inspector-grupo">
+              <h3 className="inspector-titulo">{t("Jugadores de tu base")}</h3>
+              {jugadoresBase.length ? <>
+                <div className="inspector-tarjeta">
+                  {(["local", "rival"] as const).map((equipo) => <div key={equipo} className="abp-plantilla">
+                    <label className="inspector-fila"><span>{equipo === "local" ? t("Nosotros") : t("Ellos")}</span>
+                      <input className="abp-campo" list="abp-equipos-base" value={jugada.plantillas?.[equipo] ?? ""} placeholder={t("Elige un equipo")} onFocus={marcarHistorial}
+                        onChange={(e) => sinHistorial({ ...jugada, plantillas: { ...jugada.plantillas, [equipo]: e.target.value } })} />
+                    </label>
+                    <div className="inspector-fila abp-acciones">
+                      <button type="button" disabled={!plantillaElegida(equipo).length} onClick={() => ponerJugadores(equipo)}>{t("Poner por puestos")}</button>
+                    </div>
+                  </div>)}
+                </div>
+                <datalist id="abp-equipos-base">{equiposBase.map((e) => <option key={e} value={e} />)}</datalist>
+                {(["local", "rival"] as const).map((equipo) => <datalist key={equipo} id={`abp-jugadores-${equipo}`}>
+                  {plantillaElegida(equipo).map((j) => <option key={j.nombre} value={j.nombre}>{j.puestos.join(", ")}</option>)}
+                </datalist>)}
+                <p className="inspector-pie">{t("Cada jugador va a la ficha de su puesto; el portero, solo a la portería. Su tarjeta sale al elegir la ficha.")}</p>
+              </> : <p className="inspector-pie">{t("Con una base cargada (Wyscout), aquí eliges un equipo y sus jugadores van a las fichas, cada uno en su puesto y con su tarjeta.")}</p>}
+            </section>
+
+            <section className="inspector-grupo">
               <h3 className="inspector-titulo">{t("Equipaciones")}</h3>
               <EditorDeEquipacion titulo={t("Nuestra camiseta")} base={colorLocal} equipacion={equipacionDe(jugada, "local")} nombre={deSerieEn}
                 onCambio={vestir("local")} onEmpezar={marcarHistorial} />
@@ -1512,8 +1560,15 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
                   <input className="abp-campo corto" value={fichaElegida.dorsal} maxLength={3} onFocus={marcarHistorial} onChange={(e) => sinHistorial(cambiarFicha(jugada, fichaElegida.id, { dorsal: e.target.value }))} />
                 </label>
                 <label className="inspector-fila"><span>{t("Jugador")}</span>
-                  <input className="abp-campo" value={fichaElegida.nombre ?? ""} maxLength={24} placeholder={t("Sin nombre")} onFocus={marcarHistorial}
-                    onChange={(e) => sinHistorial(cambiarFicha(jugada, fichaElegida.id, { nombre: e.target.value }))} />
+                  <input className="abp-campo" list={`abp-jugadores-${fichaElegida.equipo}`} value={fichaElegida.jugador ?? fichaElegida.nombre ?? ""} maxLength={60}
+                    placeholder={t("Sin nombre")} onFocus={marcarHistorial}
+                    onChange={(e) => {
+                      // Si es uno de la base, su apellido bajo la ficha y su tarjeta; si no, el texto tal cual.
+                      const valor = e.target.value, deLaBase = plantillaElegida(fichaElegida.equipo).find((j) => j.nombre === valor);
+                      sinHistorial(cambiarFicha(jugada, fichaElegida.id, deLaBase
+                        ? { nombre: apellido(deLaBase.nombre).slice(0, 24), jugador: deLaBase.nombre }
+                        : { nombre: valor.slice(0, 24), jugador: undefined }));
+                    }} />
                 </label>
                 <label className="inspector-fila"><span>{t("Rol")}</span>
                   <input className="abp-campo" list="abp-roles" value={deSerieEn(fichaElegida.rol)} maxLength={24} placeholder={t("Sin rol")} onFocus={marcarHistorial}
@@ -1539,6 +1594,24 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
                   <button type="button" className="peligro" onClick={borrarSeleccion}><Trash size={14} />{t("Quitar ficha")}</button>
                 </div>
               </div>
+            </section>}
+
+            {tarjeta && <section className="inspector-grupo">
+              <h3 className="inspector-titulo">{t("Tarjeta")}<small>{tarjeta.jugador.equipo}</small></h3>
+              <div className="inspector-tarjeta abp-tarjeta-jugador">
+                <div className="abp-tj-cabecera">
+                  <b>{tarjeta.jugador.nombre}</b>
+                  <span>{[tarjeta.jugador.puestos.slice(0, 3).join(", "), tarjeta.jugador.edad !== null ? tf("{n} años", { n: Math.round(tarjeta.jugador.edad) }) : "", `${Math.round(tarjeta.jugador.minutos).toLocaleString(idioma === "en" ? "en-GB" : "es-ES")}′`].filter(Boolean).join(" · ")}</span>
+                </div>
+                {tarjeta.metricas.map((m) => <div key={m.nombre} className="abp-tj-metrica" title={tf("Percentil {p} entre los de su línea en la base", { p: m.percentil })}>
+                  <span>{t(m.nombre)}</span>
+                  <b>{m.valor.toLocaleString(idioma === "en" ? "en-GB" : "es-ES", { maximumFractionDigits: 2 })}</b>
+                  <i aria-hidden="true"><em style={{ width: `${m.percentil}%` }} /></i>
+                  <small>{m.percentil}</small>
+                </div>)}
+                {!tarjeta.metricas.length && <p className="inspector-pie">{t("La base no trae números de su puesto.")}</p>}
+              </div>
+              <p className="inspector-pie">{t("La barra es su percentil entre los jugadores de su misma línea en la base cargada.")}</p>
             </section>}
 
             {anotacionElegida && <section className="inspector-grupo">
