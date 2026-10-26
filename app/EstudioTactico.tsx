@@ -224,7 +224,8 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
     if (entrante.jugada) {
       crear({ ...entrante.jugada, id: nuevoId("j"), actualizada: Date.now() });
       setSoloVer(entrante.soloVer);
-      setAviso(entrante.origen === "partido" ? t("Preparado desde El partido: los dos onces, el bloque del rival y las medidas. Es tu copia: cámbiala a gusto.") : "");
+      setAviso(entrante.origen === "partido" ? t("Preparado desde El partido: los dos onces, el bloque del rival y las medidas. Es tu copia: cámbiala a gusto.")
+        : entrante.origen === "fotograma" ? t("Llevado desde Pintado de acciones: cada jugador donde pisaba en la imagen. Añade fases y anímalo.") : "");
     } else {
       setModo("portal");
       setAviso(t("Ese enlace está incompleto o roto: pide que te lo vuelvan a enviar."));

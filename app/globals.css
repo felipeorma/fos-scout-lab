@@ -7577,6 +7577,8 @@ body.print-layout-check .app-shell[data-tema] .pizarra-duelos > ol { grid-templa
 .app-shell[data-tema] .pintado-puntos > button.puesto > b { background: var(--acento); color: #fff; }
 .app-shell[data-tema] .pintado-puntos > button.activa { box-shadow: inset 0 0 0 1.5px var(--acento); background: var(--acento-suave); }
 .pintado-calibrar { margin: 0; padding: 8px 10px 0; }
+.pintado-jugadores { margin-top: 8px; }
+.pintado-muestra { display: inline-block; width: 10px; height: 10px; margin-right: 5px; border-radius: 50%; box-shadow: 0 0 0 1px rgba(0,0,0,.45); vertical-align: -1px; }
 .app-shell[data-tema] .pintado-dorsales > button {
   min-height: 30px; padding: 0;
   border: 0; border-radius: 50%; aspect-ratio: 1; background: var(--paper); box-shadow: 0 0 0 1px var(--line);

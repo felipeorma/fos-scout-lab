@@ -8,8 +8,8 @@ import type { Jugada } from "@/lib/abp";
  * (se abre para mirarlo) o de otra página de la app, como El partido (se abre
  * para trabajarlo). `jugada` null: el enlace venía roto.
  */
-export type Entrante = { jugada: Jugada | null; soloVer: boolean; origen: "enlace" | "partido" };
+export type Entrante = { jugada: Jugada | null; soloVer: boolean; origen: "enlace" | "partido" | "fotograma" };
 
-/** Abre un sistema en el estudio táctico desde cualquier página. Fuera de la app, null. */
-export const ContextoAbrirEnPizarra = createContext<((jugada: Jugada) => void) | null>(null);
+/** Abre un sistema en el estudio táctico desde cualquier página (El partido o un fotograma). Fuera de la app, null. */
+export const ContextoAbrirEnPizarra = createContext<((jugada: Jugada, origen?: "partido" | "fotograma") => void) | null>(null);
 export const useAbrirEnPizarra = () => useContext(ContextoAbrirEnPizarra);

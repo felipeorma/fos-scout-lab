@@ -6,7 +6,7 @@
  */
 
 import { aplicar, type Matriz, type P } from "@/lib/homografia";
-import { LINEAS_DEL_CAMPO, areaDePoligono, centroDePoligono, contornoDeMarca, distancia, proyectar, puntaEnCampo, tramos, type MarcaDeCampo } from "@/lib/perspectiva";
+import { LINEAS_DEL_CAMPO, areaDePoligono, centroDePoligono, circulo, contornoDeMarca, distancia, proyectar, puntaEnCampo, tramos, type MarcaDeCampo } from "@/lib/perspectiva";
 import { ANCHO_BASE } from "@/lib/pintado";
 import { tintaSobre } from "./dibujo";
 
@@ -101,6 +101,31 @@ export function dibujarPuntosDeCalibracion(ctx: CanvasRenderingContext2D, puntos
     ctx.lineWidth = 3;
     ctx.strokeText(etiqueta, x + 12, y - 11);
     ctx.fillText(etiqueta, x + 12, y - 11);
+  }
+  ctx.restore();
+}
+
+/**
+ * Los jugadores encontrados en la imagen: un anillo tumbado en el césped a sus
+ * pies, del color de su equipo, con una mancha de luz dentro como en la tele;
+ * sin equipo, gris y discontinuo.
+ */
+export function dibujarAnillos(ctx: CanvasRenderingContext2D, H: Matriz, anillos: Array<{ p: P; color: string | null }>, o: OpcionesDeCampo) {
+  ctx.save();
+  for (const { p, color } of anillos) {
+    const pedazos = enPantalla(H, circulo(p, 0.95, 32), o);
+    if (!pedazos.length) continue;
+    camino(ctx, pedazos);
+    ctx.fillStyle = color ? rgba(color, 0.22) : "rgba(200,200,210,.14)";
+    ctx.fill();
+    ctx.setLineDash(color ? [] : [4, 3]);
+    ctx.strokeStyle = "rgba(0,0,0,.55)";
+    ctx.lineWidth = 4.5;
+    ctx.stroke();
+    ctx.strokeStyle = color ?? "rgba(220,220,228,.9)";
+    ctx.lineWidth = 2.2;
+    ctx.stroke();
+    ctx.setLineDash([]);
   }
   ctx.restore();
 }
