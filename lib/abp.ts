@@ -28,7 +28,11 @@ export type Equipo = "local" | "rival";
  * `nombre`: el jugador de verdad (su apellido), que se lee bajo la ficha en vez
  * del rol. `jugador`: su nombre completo en la base cargada, para su tarjeta.
  */
-export type Ficha = { id: string; equipo: Equipo; dorsal: string; rol: string; nombre?: string; jugador?: string };
+export type Ficha = {
+  id: string; equipo: Equipo; dorsal: string; rol: string; nombre?: string; jugador?: string;
+  /** El color del peto que lleva encima en un entrenamiento; la ficha conserva el de su equipo en el borde. */
+  peto?: string;
+};
 /**
  * Una carrera dentro de una fase: de donde está la ficha a `hasta`. `curva`,
  * en metros, la abre a un lado. `paso` (0–3) la pone en orden dentro de la
@@ -67,7 +71,11 @@ export type Anotacion =
     /** La ficha de la que sale y a la que llega, si se dibujó sobre ellas: la flecha va con ellas. */
     desde?: string; hasta?: string;
   }
-  | { id: string; tipo: "rect" | "zona"; a: Punto; b: Punto; color: string; estilo: EstiloZona }
+  | {
+    id: string; tipo: "rect" | "zona"; a: Punto; b: Punto; color: string; estilo: EstiloZona;
+    /** Rotula su largo × ancho en metros: el espacio de un rondo o de un partido reducido. */
+    medidas?: boolean;
+  }
   | { id: string; tipo: "texto" | "etiqueta"; a: Punto; texto: string; color: string }
   /** Una medida en metros entre dos puntos o dos fichas. */
   | { id: string; tipo: "medida"; a: Punto; b: Punto; color: string; desde?: string; hasta?: string }
@@ -76,8 +84,11 @@ export type Anotacion =
   | { id: string; tipo: "trazo"; puntos: Punto[]; color: string; grosor?: Grosor; punta?: boolean };
 /** El material de entrenamiento, del más pequeño al más grande. */
 export type TipoMaterial = "seta" | "cono" | "pica" | "valla" | "aro" | "escalera" | "balon" | "maniqui" | "miniporteria" | "porteria";
-/** Una pieza en el césped: dónde, girada cuántos grados y de qué color. */
-export type Material = { id: string; tipo: TipoMaterial; p: Punto; giro: number; color: string };
+/** Una pieza en el césped: dónde, girada cuántos grados, de qué color y, si no es la de serie, de qué tamaño. */
+export type Material = { id: string; tipo: TipoMaterial; p: Punto; giro: number; color: string; escala?: number };
+/** Cuánto se puede encoger o agrandar una pieza: de la mitad al triple. */
+export const ESCALA_MATERIAL = { min: 0.5, max: 3 } as const;
+const escalaValida = (v: number) => Math.round(Math.max(ESCALA_MATERIAL.min, Math.min(ESCALA_MATERIAL.max, v)) * 100) / 100;
 export type Fase = {
   id: string;
   nombre: string;
@@ -271,6 +282,9 @@ const EN_ABP: Record<string, string> = {
   "Cuando se cierran por un lado, el balón cruza al apoyo opuesto.": "When they close one side, the ball crosses to the opposite support.",
   // El material de entrenamiento y los dibujos de las camisetas.
   "Seta": "Marker", "Cono": "Cone", "Pica": "Pole", "Valla": "Hurdle", "Aro": "Hoop", "Escalera": "Ladder", "Balón suelto": "Spare ball", "Maniquí": "Mannequin", "Miniportería": "Mini goal", "Portería": "Goal", "Lisa": "Plain", "Rayas": "Stripes", "Aros": "Hoops", "Mitades": "Halves", "Banda": "Sash", "Degradado": "Gradient",
+  "Rondo 10 × 10": "Rondo 10 × 10", "Rondo 20 × 20": "Rondo 20 × 20", "Posesión 30 × 20": "Possession 30 × 20", "Posesión 40 × 30": "Possession 40 × 30",
+  "5 contra 5 · 40 × 25": "5 v 5 · 40 × 25", "7 contra 7 · 55 × 40": "7 v 7 · 55 × 40", "9 contra 9 · 70 × 50": "9 v 9 · 70 × 50",
+  "Amarillo": "Yellow", "Naranja": "Orange", "Verde": "Green", "Azul": "Blue", "Rosa": "Pink", "Blanco": "White",
 };
 
 /** Un nombre de serie en el idioma pedido; cualquier otro texto, sin tocar. */
@@ -534,7 +548,7 @@ export function agregarFicha(jugada: Jugada, equipo: Equipo, p: Punto): [Jugada,
   }, id];
 }
 
-export const cambiarFicha = (jugada: Jugada, id: string, cambios: Partial<Pick<Ficha, "dorsal" | "rol" | "equipo" | "nombre" | "jugador">>) =>
+export const cambiarFicha = (jugada: Jugada, id: string, cambios: Partial<Pick<Ficha, "dorsal" | "rol" | "equipo" | "nombre" | "jugador" | "peto">>) =>
   ({ ...jugada, fichas: jugada.fichas.map((f) => (f.id === id ? { ...f, ...cambios } : f)) });
 
 export function quitarFicha(jugada: Jugada, id: string): Jugada {
@@ -564,6 +578,10 @@ export const agregarAnotacion = (jugada: Jugada, indice: number, anotacion: Anot
 export type CambiosDeAnotacion = Partial<{
   texto: string; color: string; estilo: EstiloZona; estiloFlecha: EstiloFlecha;
   extremo: Extremo; grosor: Grosor; curva: number; relleno: RellenoBloque; punta: boolean;
+  /** Zonas: rotular su largo × ancho; y su tamaño en metros, alrededor de su centro. */
+  medidas: boolean; tamano: { largo: number; ancho: number };
+  /** Zonas: sus dos esquinas, al estirarla por una (nunca menos de un metro por lado). */
+  caja: { a: Punto; b: Punto };
   /** Despega la flecha o la medida de sus fichas: se queda donde está ahora. */
   soltar: true;
 }>;
@@ -653,8 +671,22 @@ function aplicarCambios(a: Anotacion, fase: Fase, c: CambiosDeAnotacion): Anotac
     case "medida":
       return { ...a, ...conColor, ...(c.soltar ? soltar(a, fase) : {}) };
     case "rect":
-    case "zona":
-      return { ...a, ...conColor, ...(c.estilo ? { estilo: c.estilo } : {}) };
+    case "zona": {
+      const conMedidas = c.medidas === undefined ? {} : { medidas: c.medidas || undefined };
+      if (c.caja) {
+        const { a: fija, b: movil } = c.caja;
+        const lejos = (de: number, a: number) => (Math.abs(a - de) >= 1 ? a : de + (a >= de ? 1 : -1));
+        return { ...a, ...conColor, ...conMedidas, a: limitar(fija), b: limitar({ x: lejos(fija.x, movil.x), z: lejos(fija.z, movil.z) }) };
+      }
+      if (!c.tamano) return { ...a, ...conColor, ...(c.estilo ? { estilo: c.estilo } : {}), ...conMedidas };
+      // Desde su centro: crece o mengua igual por los dos lados, sin salirse del todo del campo.
+      const cx = (a.a.x + a.b.x) / 2, cz = (a.a.z + a.b.z) / 2;
+      const largo = Math.max(1, Math.min(CAMPO.largo + 2 * MARGEN, c.tamano.largo)) / 2, ancho = Math.max(1, Math.min(CAMPO.ancho + 2 * MARGEN, c.tamano.ancho)) / 2;
+      return {
+        ...a, ...conColor, ...(c.estilo ? { estilo: c.estilo } : {}), ...conMedidas,
+        a: limitar({ x: cx - largo, z: cz - ancho }), b: limitar({ x: cx + largo, z: cz + ancho }),
+      };
+    }
     case "texto":
     case "etiqueta":
       return { ...a, ...conColor, ...(c.texto !== undefined ? { texto: c.texto } : {}) };
@@ -819,8 +851,14 @@ export const agregarMaterial = (jugada: Jugada, indice: number, piezas: Material
 export const moverMaterial = (jugada: Jugada, indice: number, id: string, p: Punto) =>
   enEstaYLasSiguientes(jugada, indice, id, deMaterial, ponerMaterial, (m) => ({ ...m, p: limitarMaterial(p) }));
 
-export const cambiarMaterial = (jugada: Jugada, indice: number, id: string, cambios: Partial<Pick<Material, "tipo" | "giro" | "color">>) =>
-  enEstaYLasSiguientes(jugada, indice, id, deMaterial, ponerMaterial, (m) => ({ ...m, ...cambios, giro: normalizarGiro(cambios.giro ?? m.giro) }));
+export const cambiarMaterial = (jugada: Jugada, indice: number, id: string, cambios: Partial<Pick<Material, "tipo" | "giro" | "color" | "escala">>) =>
+  enEstaYLasSiguientes(jugada, indice, id, deMaterial, ponerMaterial, (m) => {
+    const siguiente: Material = { ...m, ...cambios, giro: normalizarGiro(cambios.giro ?? m.giro) };
+    // A tamaño de serie no se guarda: el archivo y el enlace quedan como antes.
+    const escala = escalaValida(cambios.escala ?? m.escala ?? 1);
+    if (escala === 1) delete siguiente.escala; else siguiente.escala = escala;
+    return siguiente;
+  });
 
 export const quitarMaterial = (jugada: Jugada, indice: number, id: string) =>
   enEstaYLasSiguientes(jugada, indice, id, deMaterial, ponerMaterial, () => null);
@@ -828,12 +866,16 @@ export const quitarMaterial = (jugada: Jugada, indice: number, id: string) =>
 /** Dónde está una pieza en el instante `t` de la fase: si en la siguiente está en otro sitio, va hacia él. */
 export function materialEn(jugada: Jugada, indice: number, m: Material, t: number, lineal = false): Material {
   const despues = t > 0 ? jugada.fases[indice + 1]?.material?.find((x) => x.id === m.id) : undefined;
-  if (!despues || (igual(despues.p, m.p) && despues.giro === m.giro)) return m;
+  const e0 = m.escala ?? 1, e1 = despues?.escala ?? 1;
+  if (!despues || (igual(despues.p, m.p) && despues.giro === m.giro && e0 === e1)) return m;
   const k = suavizar(t, lineal);
   let giro = despues.giro - m.giro;
   if (giro > 180) giro -= 360;
   if (giro < -180) giro += 360;
-  return { ...m, p: { x: m.p.x + (despues.p.x - m.p.x) * k, z: m.p.z + (despues.p.z - m.p.z) * k }, giro: normalizarGiro(m.giro + giro * k) };
+  return {
+    ...m, p: { x: m.p.x + (despues.p.x - m.p.x) * k, z: m.p.z + (despues.p.z - m.p.z) * k }, giro: normalizarGiro(m.giro + giro * k),
+    ...(e0 !== e1 ? { escala: e0 + (e1 - e0) * k } : {}),
+  };
 }
 
 /** El material se puede poner algo fuera de las líneas: una portería, un cono de banda. */
@@ -846,7 +888,7 @@ export function materialCerca(fase: Fase, p: Punto): string | null {
   for (const m of fase.material ?? []) {
     const { largo, ancho } = datosDeMaterial(m.tipo);
     const d = distancia(m.p, p);
-    if (d < Math.max(1, Math.max(largo, ancho) / 2 + 0.3) && d < menor) { mejor = m.id; menor = d; }
+    if (d < Math.max(1, (Math.max(largo, ancho) / 2) * (m.escala ?? 1) + 0.3) && d < menor) { mejor = m.id; menor = d; }
   }
   return mejor;
 }
@@ -1246,7 +1288,11 @@ function materialValido(v: unknown): Material | null {
   const m = v as Record<string, unknown>;
   if (!m || typeof m.id !== "string" || !esPunto(m.p) || !MATERIALES.some((x) => x.id === m.tipo)) return null;
   const tipo = m.tipo as TipoMaterial;
-  return { id: m.id, tipo, p: limitarMaterial(m.p), giro: esNumero(m.giro) ? normalizarGiro(m.giro) : 0, color: color(m.color, datosDeMaterial(tipo).color) };
+  const escala = esNumero(m.escala) ? escalaValida(m.escala) : 1;
+  return {
+    id: m.id, tipo, p: limitarMaterial(m.p), giro: esNumero(m.giro) ? normalizarGiro(m.giro) : 0, color: color(m.color, datosDeMaterial(tipo).color),
+    ...(escala !== 1 ? { escala } : {}),
+  };
 }
 
 function equipacionValida(v: unknown): Equipacion {
@@ -1295,7 +1341,7 @@ function anotacionValida(v: unknown): Anotacion | null {
   }
   if (a.tipo === "rect" || a.tipo === "zona") {
     const estilo = a.estilo === "rayas" || a.estilo === "borde" || a.estilo === "foco" ? a.estilo : "translucida";
-    return { id: a.id, tipo: a.tipo, a: a.a, b: a.b, color: c, estilo };
+    return { id: a.id, tipo: a.tipo, a: a.a, b: a.b, color: c, estilo, ...(a.medidas === true ? { medidas: true } : {}) };
   }
   return null;
 }
@@ -1309,6 +1355,7 @@ export function jugadaValida(v: unknown): Jugada | null {
       id: f.id as string, equipo: f.equipo as Equipo, dorsal: texto(f.dorsal).slice(0, 3), rol: texto(f.rol).slice(0, 24),
       ...(typeof f.nombre === "string" && f.nombre.trim() ? { nombre: f.nombre.trim().slice(0, 24) } : {}),
       ...(typeof f.jugador === "string" && f.jugador.trim() ? { jugador: f.jugador.trim().slice(0, 80) } : {}),
+      ...(color(f.peto, "") ? { peto: color(f.peto, "") } : {}),
     }));
   const ids = new Set(fichas.map((f) => f.id));
   const fases: Fase[] = [];

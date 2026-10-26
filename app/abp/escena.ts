@@ -17,7 +17,7 @@ import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { SUPERFICIE } from "./temas";
 import { abreviar } from "@/lib/tablero";
-import { estaElegido, type Borrador, type Motor, type Opciones, type Seleccion, type Vista } from "./motor";
+import { estaElegido, rotuloDeZona, vestido, type Borrador, type Motor, type Opciones, type Seleccion, type Vista } from "./motor";
 import {
   datosDeMaterial, filaDeMaterial, type Equipacion, type Material,
   CAJA_DE_ENCUADRE, CAMPO, antesDelPaso, balonAntesDelPaso, balonEn, capaDe, distancia, enCurva, extremosDe, lineaDeBloque, materialEn, pasesDe, pasoDe, pasosDe,
@@ -817,6 +817,7 @@ export class EscenaABP implements Motor {
     }
     g.position.set(m.p.x, 0, m.p.z);
     g.rotation.y = -(m.giro * Math.PI) / 180;
+    g.scale.setScalar(m.escala ?? 1);
     return g;
   }
 
@@ -957,6 +958,12 @@ export class EscenaABP implements Motor {
       g.add(relleno);
     }
     g.add(this.linea(borde, color, seleccionada ? 5 : 3, false, opacidad));
+    if (a.medidas) {
+      // Su largo × ancho, sobre el borde del fondo: el que se ve arriba desde la grada.
+      const rotulo = this.rotuloSprite(rotuloDeZona(a.a, a.b, opciones.metros), { color: tintaSobre(color), fondo: color, alto: 1.3, peso: 800, fuente: opciones.fuente });
+      rotulo.position.set((x0 + x1) / 2, 0.9, z0);
+      g.add(rotulo);
+    }
     return g;
   }
 
@@ -1092,7 +1099,8 @@ export class EscenaABP implements Motor {
       // El portero, en un tono propio: se distingue de un vistazo como en la tele.
       const portero = /^(portero|por|gk|goalkeeper)$/i.test(f.rol.trim());
       const color = portero ? (f.equipo === "local" ? "#f3b64c" : "#45c6ba") : colorDe(f.equipo);
-      const g = this.ficha(f.dorsal, f.rol, color, opciones, estaElegido(seleccion, "ficha", f.id), portero ? null : opciones.equipaciones[f.equipo], f.nombre);
+      const v = vestido(f, color, portero ? null : opciones.equipaciones[f.equipo]);
+      const g = this.ficha(f.dorsal, f.rol, v.color, opciones, estaElegido(seleccion, "ficha", f.id), v.equipacion, f.nombre);
       g.position.set(sitio.x, 0, sitio.z);
       this.fichas.set(f.id, g);
       this.dinamico.add(g);
@@ -1151,6 +1159,7 @@ export class EscenaABP implements Motor {
         const ahora = materialEn(this.jugadaMontada, this.indiceMontado, m, t, lineal);
         g.position.set(ahora.p.x, 0, ahora.p.z);
         g.rotation.y = -(ahora.giro * Math.PI) / 180;
+        g.scale.setScalar(ahora.escala ?? 1);
       }
     }
     // Lo que va pegado a las fichas, donde están ahora.
