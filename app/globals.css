@@ -7168,6 +7168,22 @@ body.print-layout-check .app-shell[data-tema] .pizarra-duelos > ol { grid-templa
 .app-shell[data-tema] .inspector-fila.abp-fila-segmentos > .inspector-segmentos { flex: 1 0 100%; grid-auto-columns: minmax(0, 1fr); }
 .app-shell[data-tema] .inspector-fila.abp-fila-segmentos > .inspector-segmentos > button { min-width: 0; padding: 0 2px; font-size: 11px; }
 .abp-solo-lector { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* Una marca que sigue en las fases siguientes: el aviso y «Solo en esta fase». */
+.app-shell[data-tema] .inspector-fila.abp-enlazada { flex-wrap: wrap; row-gap: 4px; }
+.app-shell[data-tema] .inspector-fila.abp-enlazada > span:not([class]) { color: var(--muted); font-size: 12px; }
+/* Las acciones del grupo, en dos filas si no caben. */
+.app-shell[data-tema] .inspector-fila.abp-acciones-grupo { flex-wrap: wrap; justify-content: flex-start; gap: 6px; }
+/* Ctrl+K: la paleta de órdenes, centrada arriba sobre un velo. */
+.abp-paleta-fondo { position: fixed; inset: 0; z-index: 60; display: flex; justify-content: center; align-items: flex-start; padding: 12vh 16px 16px; background: rgba(4, 6, 10, .45); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+.abp-paleta { width: min(560px, 100%); max-height: 70vh; display: flex; flex-direction: column; overflow: hidden; border-radius: 16px; background: var(--paper, #16161c); color: var(--ink, #f5f5f7); box-shadow: 0 0 0 1px var(--line, rgba(255,255,255,.1)), 0 24px 64px rgba(0,0,0,.45); }
+.app-shell[data-tema] .abp-paleta > input { margin: 0; padding: 16px 18px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: none; box-shadow: none; color: var(--ink); font: inherit; font-size: 16px; outline: none; }
+.abp-paleta > ul { margin: 0; padding: 6px; overflow: auto; list-style: none; }
+.abp-paleta li { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 9px; font-size: 14px; cursor: pointer; }
+.abp-paleta li > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.abp-paleta li > small { color: var(--muted); font-size: 12px; }
+.abp-paleta li > kbd { padding: 1px 6px; border-radius: 5px; background: color-mix(in srgb, var(--ink) 10%, transparent); font: 600 11px/1.5 var(--font-geist-mono, ui-monospace, monospace); }
+.abp-paleta li[aria-selected="true"] { background: var(--acento-suave, rgba(255,59,48,.14)); }
+.abp-paleta li.abp-paleta-nada { color: var(--muted); cursor: default; }
 /* La fase en metros: dos tablas compactas, cifras alineadas. */
 .app-shell[data-tema] .abp-medidas { padding: 6px 12px 10px; }
 .app-shell[data-tema] .abp-medidas + .abp-medidas { margin-top: 8px; }

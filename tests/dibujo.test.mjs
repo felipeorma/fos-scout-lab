@@ -91,8 +91,8 @@ test("las marcas del campo pasan a la fase siguiente; las acciones de la fase, n
   j = agregarAnotacion(j, 0, { id: "s", tipo: "trazo", puntos: [{ x: 0, z: 0 }, { x: 5, z: 5 }], color: "#ffffff" });
   const siguiente = agregarFase(j, 0, "Fase 2").fases[1];
   assert.deepEqual(siguiente.anotaciones.map((a) => a.tipo).sort(), ["bloque", "flecha", "medida", "rect"]);
-  // Con ids nuevos, y la medida sigue pegada a sus jugadores.
-  assert.ok(siguiente.anotaciones.every((a) => !["z", "l", "m", "b"].includes(a.id)));
+  // Con el mismo id (es la misma marca), y la medida sigue pegada a sus jugadores.
+  assert.deepEqual(siguiente.anotaciones.map((a) => a.id).sort(), ["b", "l", "m", "z"]);
   assert.equal(siguiente.anotaciones.find((a) => a.tipo === "medida").desde, "L4");
 });
 

@@ -26,9 +26,15 @@ export type Punto = { x: number; z: number };
 export type Equipo = "local" | "rival";
 /** `nombre`: el jugador de verdad (su apellido), que se lee bajo la ficha en vez del rol. */
 export type Ficha = { id: string; equipo: Equipo; dorsal: string; rol: string; nombre?: string };
-/** Una carrera dentro de una fase: de donde empieza la ficha a `hasta`. `curva`, en metros, la abre a un lado. */
-export type Carrera = { fichaId: string; hasta: Punto; curva: number };
-export type Pase = { hasta: Punto; tipo: "aereo" | "raso" };
+/**
+ * Una carrera dentro de una fase: de donde está la ficha a `hasta`. `curva`,
+ * en metros, la abre a un lado. `paso` (0–3) la pone en orden dentro de la
+ * fase: una pared es el pase del paso 1 y la vuelta del paso 2. Sin `paso`,
+ * el primero.
+ */
+export type Carrera = { fichaId: string; hasta: Punto; curva: number; paso?: number };
+/** Un envío: sale de donde está el balón en su paso y llega a `hasta`. */
+export type Pase = { hasta: Punto; tipo: "aereo" | "raso"; paso?: number };
 /** "foco": la zona se queda con su color y todo lo de fuera se apaga, para mirar solo ahí. */
 export type EstiloZona = "translucida" | "rayas" | "borde" | "foco";
 /**
@@ -74,8 +80,10 @@ export type Fase = {
   nombre: string;
   pos: Record<string, Punto>;
   balon: Punto;
+  /** Como mucho una por ficha y paso; las de una ficha se encadenan, cada una desde donde acabó la anterior. */
   carreras: Carrera[];
-  pase: Pase | null;
+  /** Como mucho uno por paso, en orden: cada uno sale de donde llegó el anterior. */
+  pases: Pase[];
   anotaciones: Anotacion[];
   /** Conos, picas, vallas…: pasan a la fase siguiente al crearla, como en una sesión de verdad. */
   material?: Material[];
@@ -304,33 +312,97 @@ export function enCurva(desde: Punto, hasta: Punto, curva: number, t: number): P
   return { x: u * u * desde.x + 2 * u * t * c.x + t * t * hasta.x, z: u * u * desde.z + 2 * u * t * c.z + t * t * hasta.z };
 }
 
-export const carreraDe = (fase: Fase, fichaId: string) => fase.carreras.find((c) => c.fichaId === fichaId);
+// ---- Los pasos de una fase ------------------------------------------------------------------
+// Una fase puede llevar varias acciones en orden —una pared, un desmarque en
+// zigzag, un pase y la carrera que sale de él—: cada carrera y cada envío
+// tienen su paso, y el movimiento de la fase se reparte a partes iguales
+// entre los pasos. Dentro de su tramo, cada acción arranca y frena como si
+// fuera la fase entera.
+
+/** Hasta cuatro acciones encadenadas por fase, como en una pizarra de análisis. */
+export const MAX_PASOS = 4;
+export const pasoDe = (accion: { paso?: number }) => accion.paso ?? 0;
+const porPaso = (a: { paso?: number }, b: { paso?: number }) => pasoDe(a) - pasoDe(b);
+
+/** Cuántos pasos tiene la fase (al menos uno). */
+export function pasosDe(fase: Fase) {
+  let n = 1;
+  for (const c of fase.carreras) n = Math.max(n, pasoDe(c) + 1);
+  for (const p of fase.pases) n = Math.max(n, pasoDe(p) + 1);
+  return Math.min(MAX_PASOS, n);
+}
+
+/** El trozo del movimiento (0–1) que ocupa el paso `k` de `n`. */
+export const tramoDePaso = (k: number, n: number): [number, number] => [k / n, (k + 1) / n];
+
+/** Las carreras de una ficha en la fase, en orden. */
+export const carrerasDe = (fase: Fase, fichaId: string) => fase.carreras.filter((c) => c.fichaId === fichaId).sort(porPaso);
+/** La carrera de una ficha en un paso; sin paso, la última. */
+export function carreraDe(fase: Fase, fichaId: string, paso?: number) {
+  const suyas = carrerasDe(fase, fichaId);
+  return paso === undefined ? suyas[suyas.length - 1] : suyas.find((c) => pasoDe(c) === paso);
+}
+export const pasesDe = (fase: Fase) => [...fase.pases].sort(porPaso);
+export const paseDe = (fase: Fase, paso?: number) => {
+  const pases = pasesDe(fase);
+  return paso === undefined ? pases[pases.length - 1] : pases.find((p) => pasoDe(p) === paso);
+};
 
 /** Dónde acaba una ficha al terminar la fase. */
 export function posFinal(fase: Fase, fichaId: string): Punto | undefined {
   return carreraDe(fase, fichaId)?.hasta ?? fase.pos[fichaId];
 }
 
-export const balonFinal = (fase: Fase) => fase.pase?.hasta ?? fase.balon;
+export const balonFinal = (fase: Fase) => paseDe(fase)?.hasta ?? fase.balon;
 
-/** Dónde está una ficha en el instante `t` (0–1) de la fase. */
+/** Dónde está una ficha antes del paso `paso`: al final de sus carreras de los pasos anteriores. */
+export function antesDelPaso(fase: Fase, fichaId: string, paso: number): Punto | undefined {
+  let p = fase.pos[fichaId];
+  for (const c of carrerasDe(fase, fichaId)) if (pasoDe(c) < paso) p = c.hasta;
+  return p;
+}
+
+/** Dónde está el balón antes del paso `paso`: donde llegó el último envío anterior. */
+export function balonAntesDelPaso(fase: Fase, paso: number): Punto {
+  let p = fase.balon;
+  for (const pase of pasesDe(fase)) if (pasoDe(pase) < paso) p = pase.hasta;
+  return p;
+}
+
+/** Dónde está una ficha en el instante `t` (0–1) de la fase: cada carrera, en el tramo de su paso. */
 export function posicionEn(fase: Fase, fichaId: string, t: number, lineal = false): Punto | undefined {
-  const desde = fase.pos[fichaId];
-  const carrera = carreraDe(fase, fichaId);
-  if (!desde || !carrera) return desde;
-  return enCurva(desde, carrera.hasta, carrera.curva, suavizar(t, lineal));
+  let p = fase.pos[fichaId];
+  if (!p) return p;
+  const n = pasosDe(fase);
+  for (const c of carrerasDe(fase, fichaId)) {
+    const [a, b] = tramoDePaso(pasoDe(c), n);
+    if (t <= a) return p;
+    if (t < b) return enCurva(p, c.hasta, c.curva, suavizar((t - a) / (b - a), lineal));
+    p = c.hasta;
+  }
+  return p;
 }
 
 /** Cuánto sube un balón aéreo: más cuanto más lejos va, sin pasar de un globo razonable. */
 export const alturaDePase = (desde: Punto, pase: Pase) => (pase.tipo === "raso" ? 0 : Math.max(2.5, Math.min(10, distancia(desde, pase.hasta) * 0.22)));
 
-/** El balón en el instante `t`: en el suelo o en su parábola. */
+/** Un punto del envío de `desde` a `pase.hasta` a la fracción `u` de su vuelo. Va a velocidad constante: un pase no acelera como un jugador. */
+export function puntoDePase(desde: Punto, pase: Pase, u: number): Punto & { y: number } {
+  const k = Math.max(0, Math.min(1, u));
+  return { x: desde.x + (pase.hasta.x - desde.x) * k, z: desde.z + (pase.hasta.z - desde.z) * k, y: alturaDePase(desde, pase) * 4 * k * (1 - k) };
+}
+
+/** El balón en el instante `t`: quieto, o en el envío de su paso. */
 export function balonEn(fase: Fase, t: number): Punto & { y: number } {
-  if (!fase.pase) return { ...fase.balon, y: 0 };
-  // El balón va a velocidad constante: un pase no acelera como un jugador.
-  const u = Math.max(0, Math.min(1, t));
-  const p = { x: fase.balon.x + (fase.pase.hasta.x - fase.balon.x) * u, z: fase.balon.z + (fase.pase.hasta.z - fase.balon.z) * u };
-  return { ...p, y: alturaDePase(fase.balon, fase.pase) * 4 * u * (1 - u) };
+  let p = fase.balon;
+  const n = pasosDe(fase);
+  for (const pase of pasesDe(fase)) {
+    const [a, b] = tramoDePaso(pasoDe(pase), n);
+    if (t <= a) return { ...p, y: 0 };
+    if (t < b) return puntoDePase(p, pase, (t - a) / (b - a));
+    p = pase.hasta;
+  }
+  return { ...p, y: 0 };
 }
 
 // ---- Las fases ----------------------------------------------------------------------------
@@ -340,9 +412,10 @@ export function faseSiguiente(fase: Fase, nombre: string): Fase {
   const pos: Record<string, Punto> = {};
   for (const id of Object.keys(fase.pos)) pos[id] = { ...posFinal(fase, id)! };
   return {
-    id: nuevoId("f"), nombre, pos, balon: { ...balonFinal(fase) }, carreras: [], pase: null,
+    id: nuevoId("f"), nombre, pos, balon: { ...balonFinal(fase) }, carreras: [], pases: [],
     // Lo que marca el campo sigue en la fase siguiente, como el material: las zonas, los bloques, las líneas y las medidas.
-    anotaciones: fase.anotaciones.filter(pasaDeFase).map((a) => ({ ...structuredClone(a), id: nuevoId("a") })),
+    // Con el mismo id: es la misma marca, y lo que se le cambie en una fase llega a las siguientes.
+    anotaciones: fase.anotaciones.filter(pasaDeFase).map((a) => structuredClone(a)),
     material: (fase.material ?? []).map((m) => ({ ...m, p: { ...m.p } })), pausa: fase.pausa, duracion: fase.duracion, nota: "",
   };
 }
@@ -383,40 +456,59 @@ export const moverBalon = (jugada: Jugada, indice: number, p: Punto) => conFase(
 export function posar(jugada: Jugada, indice: number, fichaId: string, p: Punto): Jugada {
   const previa = jugada.fases[indice - 1];
   if (!previa || !igual(jugada.fases[indice].pos[fichaId], posFinal(previa, fichaId))) return moverFicha(jugada, indice, fichaId, p);
-  return fijarCarrera(jugada, indice - 1, fichaId, p);
+  // Se cambia la última carrera de la fase anterior, la que la trae aquí.
+  const ultima = carreraDe(previa, fichaId);
+  return fijarCarrera(jugada, indice - 1, fichaId, p, ultima?.curva, ultima ? pasoDe(ultima) : 0);
 }
 
-/** Lo mismo con el balón: moverlo en una pose es el pase desde la anterior. */
+/** Lo mismo con el balón: moverlo en una pose es el último envío de la anterior. */
 export function posarBalon(jugada: Jugada, indice: number, p: Punto): Jugada {
   const previa = jugada.fases[indice - 1];
   if (!previa || !igual(jugada.fases[indice].balon, balonFinal(previa))) return moverBalon(jugada, indice, p);
-  return fijarPase(jugada, indice - 1, p, previa.pase?.tipo ?? "raso");
+  const ultimo = paseDe(previa);
+  return fijarPase(jugada, indice - 1, p, ultimo?.tipo ?? "raso", ultimo ? pasoDe(ultimo) : 0);
 }
 
-/** Una carrera por ficha y fase: marcar otra la sustituye. Si el destino es el sitio de partida, la quita. */
-export function fijarCarrera(jugada: Jugada, indice: number, fichaId: string, hasta: Punto, curva?: number) {
+const pasoValido = (paso: number) => Math.max(0, Math.min(MAX_PASOS - 1, Math.round(paso)));
+
+/**
+ * Una carrera por ficha y paso: marcar otra la sustituye. Sale de donde la
+ * ficha acabó el paso anterior; si el destino es ese mismo sitio, la quita.
+ */
+export function fijarCarrera(jugada: Jugada, indice: number, fichaId: string, hasta: Punto, curva?: number, paso = 0) {
+  const k = pasoValido(paso);
   return conFase(jugada, indice, (f) => {
-    const resto = f.carreras.filter((c) => c.fichaId !== fichaId);
-    const desde = f.pos[fichaId];
+    const antes = carreraDe(f, fichaId, k);
+    const resto = f.carreras.filter((c) => c.fichaId !== fichaId || pasoDe(c) !== k);
+    const desde = antesDelPaso(f, fichaId, k);
     if (!desde || distancia(desde, hasta) < 0.5) return { ...f, carreras: resto };
-    return { ...f, carreras: [...resto, { fichaId, hasta: limitar(hasta), curva: curva ?? carreraDe(f, fichaId)?.curva ?? 0 }] };
+    return { ...f, carreras: [...resto, { fichaId, hasta: limitar(hasta), curva: curva ?? antes?.curva ?? 0, ...(k ? { paso: k } : {}) }] };
   });
 }
 
-export const curvarCarrera = (jugada: Jugada, indice: number, fichaId: string, curva: number) =>
-  conFase(jugada, indice, (f) => ({ ...f, carreras: f.carreras.map((c) => (c.fichaId === fichaId ? { ...c, curva } : c)) }));
+/** Sin `paso`, todas las carreras de la ficha en la fase. */
+export const curvarCarrera = (jugada: Jugada, indice: number, fichaId: string, curva: number, paso?: number) =>
+  conFase(jugada, indice, (f) => ({ ...f, carreras: f.carreras.map((c) => (c.fichaId === fichaId && (paso === undefined || pasoDe(c) === paso) ? { ...c, curva } : c)) }));
 
-export const quitarCarrera = (jugada: Jugada, indice: number, fichaId: string) =>
-  conFase(jugada, indice, (f) => ({ ...f, carreras: f.carreras.filter((c) => c.fichaId !== fichaId) }));
+export const quitarCarrera = (jugada: Jugada, indice: number, fichaId: string, paso?: number) =>
+  conFase(jugada, indice, (f) => ({ ...f, carreras: f.carreras.filter((c) => c.fichaId !== fichaId || (paso !== undefined && pasoDe(c) !== paso)) }));
 
-/** Un pase por fase: el balón sale de donde está y llega a `hasta`. */
-export const fijarPase = (jugada: Jugada, indice: number, hasta: Punto, tipo: Pase["tipo"]) =>
-  conFase(jugada, indice, (f) => ({ ...f, pase: distancia(f.balon, hasta) < 0.5 ? null : { hasta: limitar(hasta), tipo } }));
+/** Un envío por paso: el balón sale de donde llegó el anterior y va a `hasta`. */
+export function fijarPase(jugada: Jugada, indice: number, hasta: Punto, tipo: Pase["tipo"], paso = 0) {
+  const k = pasoValido(paso);
+  return conFase(jugada, indice, (f) => {
+    const resto = f.pases.filter((p) => pasoDe(p) !== k);
+    if (distancia(balonAntesDelPaso(f, k), hasta) < 0.5) return { ...f, pases: resto };
+    return { ...f, pases: [...resto, { hasta: limitar(hasta), tipo, ...(k ? { paso: k } : {}) }].sort(porPaso) };
+  });
+}
 
-export const tipoDePase = (jugada: Jugada, indice: number, tipo: Pase["tipo"]) =>
-  conFase(jugada, indice, (f) => ({ ...f, pase: f.pase ? { ...f.pase, tipo } : null }));
+/** Sin `paso`, todos los envíos de la fase. */
+export const tipoDePase = (jugada: Jugada, indice: number, tipo: Pase["tipo"], paso?: number) =>
+  conFase(jugada, indice, (f) => ({ ...f, pases: f.pases.map((p) => (paso === undefined || pasoDe(p) === paso ? { ...p, tipo } : p)) }));
 
-export const quitarPase = (jugada: Jugada, indice: number) => conFase(jugada, indice, (f) => ({ ...f, pase: null }));
+export const quitarPase = (jugada: Jugada, indice: number, paso?: number) =>
+  conFase(jugada, indice, (f) => ({ ...f, pases: f.pases.filter((p) => paso !== undefined && pasoDe(p) !== paso) }));
 
 /** El primer dorsal libre del equipo, contando desde el 1. */
 export function dorsalLibre(jugada: Jugada, equipo: Equipo) {
@@ -471,15 +563,73 @@ export type CambiosDeAnotacion = Partial<{
   soltar: true;
 }>;
 
-export function cambiarAnotacion(jugada: Jugada, indice: number, id: string, cambios: CambiosDeAnotacion): Jugada {
+// ---- Las marcas enlazadas entre fases ---------------------------------------------------------
+
+/**
+ * Lo que pasa de una fase a la siguiente (zonas, bloques, líneas, medidas,
+ * flechas pegadas y el material) conserva su id: es la misma marca. Un cambio
+ * en una fase llega también a las siguientes mientras la tengan igual que
+ * estaba; en cuanto una fase la tiene distinta (se cambió solo allí) o ya no
+ * la tiene, el cambio se para. Así una zona se marca una vez y se ajusta en un
+ * sitio, sin perder lo que se cambió a propósito más adelante.
+ */
+function enEstaYLasSiguientes<T extends { id: string }>(
+  jugada: Jugada, indice: number, id: string,
+  lista: (f: Fase) => T[], poner: (f: Fase, lista: T[]) => Fase,
+  cambio: (x: T, f: Fase) => T | null,
+): Jugada {
+  const original = lista(jugada.fases[indice] ?? ({ anotaciones: [], material: [] } as unknown as Fase)).find((x) => x.id === id);
+  if (!original) return jugada;
+  const igualQueAntes = JSON.stringify(original);
+  let sigue = true;
   return {
+    ...jugada,
+    fases: jugada.fases.map((f, i) => {
+      if (i < indice || !sigue) return f;
+      const x = lista(f).find((y) => y.id === id);
+      if (!x || (i > indice && JSON.stringify(x) !== igualQueAntes)) { sigue = false; return f; }
+      const nuevo = cambio(x, f);
+      return poner(f, nuevo ? lista(f).map((y) => (y.id === id ? nuevo : y)) : lista(f).filter((y) => y.id !== id));
+    }),
+  };
+}
+const deAnotaciones = (f: Fase) => f.anotaciones;
+const ponerAnotaciones = (f: Fase, anotaciones: Anotacion[]): Fase => ({ ...f, anotaciones });
+const deMaterial = (f: Fase) => f.material ?? [];
+const ponerMaterial = (f: Fase, material: Material[]): Fase => ({ ...f, material });
+
+/** En cuántas fases después de esta llegaría un cambio a la marca `id`. */
+export function fasesEnlazadas(jugada: Jugada, indice: number, id: string): number {
+  const original = jugada.fases[indice]?.anotaciones.find((a) => a.id === id) ?? jugada.fases[indice]?.material?.find((m) => m.id === id);
+  if (!original) return 0;
+  const clave = JSON.stringify(original);
+  let n = 0;
+  for (let i = indice + 1; i < jugada.fases.length; i += 1) {
+    const x = jugada.fases[i].anotaciones.find((a) => a.id === id) ?? jugada.fases[i].material?.find((m) => m.id === id);
+    if (!x || JSON.stringify(x) !== clave) break;
+    n += 1;
+  }
+  return n;
+}
+
+/**
+ * Separa la marca (o la pieza) de esta fase de las demás: lo que se le cambie
+ * ya solo cambia aquí. Devuelve también su id nuevo, para seguir elegida.
+ */
+export function separarDeLasDemas(jugada: Jugada, indice: number, id: string): [Jugada, string] {
+  const nuevo = nuevoId(jugada.fases[indice]?.material?.some((m) => m.id === id) ? "m" : "a");
+  return [{
     ...jugada,
     fases: jugada.fases.map((f, i) => (i !== indice ? f : {
       ...f,
-      anotaciones: f.anotaciones.map((a) => (a.id !== id ? a : aplicarCambios(a, f, cambios))),
+      anotaciones: f.anotaciones.map((a) => (a.id === id ? { ...a, id: nuevo } : a)),
+      material: f.material?.map((m) => (m.id === id ? { ...m, id: nuevo } : m)),
     })),
-  };
+  }, nuevo];
 }
+
+export const cambiarAnotacion = (jugada: Jugada, indice: number, id: string, cambios: CambiosDeAnotacion): Jugada =>
+  enEstaYLasSiguientes(jugada, indice, id, deAnotaciones, ponerAnotaciones, (a, f) => aplicarCambios(a, f, cambios));
 
 /** Solo lo que tiene sentido para cada tipo: el estilo de una flecha y el de una zona se llaman igual pero no son lo mismo. */
 function aplicarCambios(a: Anotacion, fase: Fase, c: CambiosDeAnotacion): Anotacion {
@@ -522,32 +672,25 @@ const soltar = (a: { a: Punto; b: Punto; desde?: string; hasta?: string }, fase:
  */
 export function desplazarAnotacion(jugada: Jugada, indice: number, id: string, dx: number, dz: number): Jugada {
   const mover = (p: Punto) => limitar({ x: p.x + dx, z: p.z + dz });
-  return {
-    ...jugada,
-    fases: jugada.fases.map((f, i) => (i !== indice ? f : {
-      ...f,
-      anotaciones: f.anotaciones.map((a): Anotacion => {
-        if (a.id !== id) return a;
-        switch (a.tipo) {
-          case "flecha":
-          case "medida": {
-            const e = extremosDe(a, f, 0);
-            return { ...a, a: mover(e.a), b: mover(e.b), desde: undefined, hasta: undefined };
-          }
-          case "rect":
-          case "zona":
-            return { ...a, a: mover(a.a), b: mover(a.b) };
-          case "texto":
-          case "etiqueta":
-            return { ...a, a: mover(a.a) };
-          case "trazo":
-            return { ...a, puntos: a.puntos.map(mover) };
-          case "bloque":
-            return a;
-        }
-      }),
-    })),
-  };
+  return enEstaYLasSiguientes(jugada, indice, id, deAnotaciones, ponerAnotaciones, (a, f): Anotacion => {
+    switch (a.tipo) {
+      case "flecha":
+      case "medida": {
+        const e = extremosDe(a, f, 0);
+        return { ...a, a: mover(e.a), b: mover(e.b), desde: undefined, hasta: undefined };
+      }
+      case "rect":
+      case "zona":
+        return { ...a, a: mover(a.a), b: mover(a.b) };
+      case "texto":
+      case "etiqueta":
+        return { ...a, a: mover(a.a) };
+      case "trazo":
+        return { ...a, puntos: a.puntos.map(mover) };
+      case "bloque":
+        return a;
+    }
+  });
 }
 
 /** Una copia de la anotación con otro id, `dx`, `dz` metros más allá (para pegar o duplicar). */
@@ -570,7 +713,9 @@ const desplazar = (ab: { a: Punto; b: Punto }, dx: number, dz: number) =>
 
 /** Lo que sigue en la fase siguiente: lo que marca el campo, no lo que pasa en esta fase. */
 export const pasaDeFase = (a: Anotacion) =>
-  a.tipo === "rect" || a.tipo === "zona" || a.tipo === "bloque" || a.tipo === "medida" || (a.tipo === "flecha" && a.estilo === "linea");
+  a.tipo === "rect" || a.tipo === "zona" || a.tipo === "bloque" || a.tipo === "medida"
+  // Una línea, y una flecha pegada a jugadores: va con ellos a la fase siguiente, no hay que volver a dibujarla.
+  || (a.tipo === "flecha" && (a.estilo === "linea" || Boolean(a.desde || a.hasta)));
 
 /** En qué capa va cada anotación, para ocultarlas por tipo. */
 export function capaDe(a: Anotacion): Capa {
@@ -635,8 +780,9 @@ export function puntosDeFlecha(a: Punto, b: Punto, curva = 0, pasos = 24): Punto
   return Array.from({ length: pasos + 1 }, (_, k) => enCurva(a, b, curva, k / pasos));
 }
 
+/** Quita la marca de esta fase y de las siguientes que la tienen igual; las anteriores la conservan. */
 export const quitarAnotacion = (jugada: Jugada, indice: number, id: string) =>
-  ({ ...jugada, fases: jugada.fases.map((f, i) => (i === indice ? { ...f, anotaciones: f.anotaciones.filter((a) => a.id !== id) } : f)) });
+  enEstaYLasSiguientes(jugada, indice, id, deAnotaciones, ponerAnotaciones, () => null);
 
 /** Añade una fase después de `indice`, arrancando donde aquella acaba. */
 export function agregarFase(jugada: Jugada, indice: number, nombre: string): Jugada {
@@ -663,14 +809,27 @@ export const datosDeMaterial = (tipo: TipoMaterial) => MATERIALES.find((m) => m.
 export const agregarMaterial = (jugada: Jugada, indice: number, piezas: Material[]) =>
   conFase(jugada, indice, (f) => ({ ...f, material: [...(f.material ?? []), ...piezas.map((m) => ({ ...m, p: limitarMaterial(m.p) }))] }));
 
+// El material también va enlazado: moverlo en una fase lo mueve en las siguientes, y entre dos
+// fases en que está en sitios distintos se ve moverse (abrir una portería, cerrar un pasillo).
 export const moverMaterial = (jugada: Jugada, indice: number, id: string, p: Punto) =>
-  conFase(jugada, indice, (f) => ({ ...f, material: (f.material ?? []).map((m) => (m.id === id ? { ...m, p: limitarMaterial(p) } : m)) }));
+  enEstaYLasSiguientes(jugada, indice, id, deMaterial, ponerMaterial, (m) => ({ ...m, p: limitarMaterial(p) }));
 
 export const cambiarMaterial = (jugada: Jugada, indice: number, id: string, cambios: Partial<Pick<Material, "tipo" | "giro" | "color">>) =>
-  conFase(jugada, indice, (f) => ({ ...f, material: (f.material ?? []).map((m) => (m.id === id ? { ...m, ...cambios, giro: normalizarGiro(cambios.giro ?? m.giro) } : m)) }));
+  enEstaYLasSiguientes(jugada, indice, id, deMaterial, ponerMaterial, (m) => ({ ...m, ...cambios, giro: normalizarGiro(cambios.giro ?? m.giro) }));
 
 export const quitarMaterial = (jugada: Jugada, indice: number, id: string) =>
-  conFase(jugada, indice, (f) => ({ ...f, material: (f.material ?? []).filter((m) => m.id !== id) }));
+  enEstaYLasSiguientes(jugada, indice, id, deMaterial, ponerMaterial, () => null);
+
+/** Dónde está una pieza en el instante `t` de la fase: si en la siguiente está en otro sitio, va hacia él. */
+export function materialEn(jugada: Jugada, indice: number, m: Material, t: number, lineal = false): Material {
+  const despues = t > 0 ? jugada.fases[indice + 1]?.material?.find((x) => x.id === m.id) : undefined;
+  if (!despues || (igual(despues.p, m.p) && despues.giro === m.giro)) return m;
+  const k = suavizar(t, lineal);
+  let giro = despues.giro - m.giro;
+  if (giro > 180) giro -= 360;
+  if (giro < -180) giro += 360;
+  return { ...m, p: { x: m.p.x + (despues.p.x - m.p.x) * k, z: m.p.z + (despues.p.z - m.p.z) * k }, giro: normalizarGiro(m.giro + giro * k) };
+}
 
 /** El material se puede poner algo fuera de las líneas: una portería, un cono de banda. */
 const limitarMaterial = (p: Punto): Punto => ({ x: Math.max(-CAMPO.largo / 2 - 4, Math.min(CAMPO.largo / 2 + 4, p.x)), z: Math.max(-CAMPO.ancho / 2 - 4, Math.min(CAMPO.ancho / 2 + 4, p.z)) });
@@ -981,7 +1140,7 @@ export function plantilla(tipo: TipoABP): Jugada {
       pos,
       balon,
       carreras: Object.entries(d.carreras ?? {}).map(([fichaId, [x, z, curva]]) => ({ fichaId, hasta: { x, z }, curva: curva ?? 0 })),
-      pase: d.pase ? { hasta: { x: d.pase[0], z: d.pase[1] }, tipo: d.pase[2] } : null,
+      pases: d.pase ? [{ hasta: { x: d.pase[0], z: d.pase[1] }, tipo: d.pase[2] }] : [],
       anotaciones: (d.anotaciones ?? []).map((a) => ({ ...a, id: nuevoId("a") })),
       material: material.map((m) => ({ ...m, p: { ...m.p } })),
       pausa: PAUSA_POR_DEFECTO,
@@ -1061,7 +1220,7 @@ export function sistemaDePartido(propia: string, rival: string, balon: "nuestro"
     // Como en una pizarra de análisis: la ficha dice el puesto.
     ambiente: { ...AMBIENTE_POR_DEFECTO, fichas: "puesto" },
     fichas: todos.map(({ id, equipo, dorsal, rol }) => ({ id, equipo, dorsal, rol })),
-    fases: [{ id: nuevoId("f"), nombre: "Fase 1", pos, balon: balonEn, carreras: [], pase: null, anotaciones: [], pausa: PAUSA_POR_DEFECTO, duracion: DURACION_POR_DEFECTO, nota: "" }],
+    fases: [{ id: nuevoId("f"), nombre: "Fase 1", pos, balon: balonEn, carreras: [], pases: [], anotaciones: [], pausa: PAUSA_POR_DEFECTO, duracion: DURACION_POR_DEFECTO, nota: "" }],
     actualizada: Date.now(),
   };
 }
@@ -1156,19 +1315,24 @@ export function jugadaValida(v: unknown): Jugada | null {
       // pone donde estaba en la fase anterior o, si es la primera, en el centro.
       pos[id] = esPunto(sitio) ? limitar(sitio) : (fases.length ? posFinal(fases[fases.length - 1], id) : undefined) ?? { x: 0, z: 0 };
     }
-    const carreras = Array.isArray(bruta.carreras) ? (bruta.carreras as Array<Record<string, unknown>>)
+    const pasoLeido = (v: unknown) => (esNumero(v) && v >= 1 ? { paso: pasoValido(v) } : {});
+    // Una carrera por ficha y paso, y un envío por paso: si hay dos, vale el último.
+    const carrerasLeidas = Array.isArray(bruta.carreras) ? (bruta.carreras as Array<Record<string, unknown>>)
       .filter((c) => c && ids.has(c.fichaId as string) && esPunto(c.hasta))
-      .map((c) => ({ fichaId: c.fichaId as string, hasta: limitar(c.hasta as Punto), curva: esNumero(c.curva) ? Math.max(-30, Math.min(30, c.curva)) : 0 })) : [];
-    const pase = bruta.pase && esPunto((bruta.pase as Pase).hasta)
-      ? { hasta: limitar((bruta.pase as Pase).hasta), tipo: (bruta.pase as Pase).tipo === "raso" ? "raso" as const : "aereo" as const }
-      : null;
+      .map((c): Carrera => ({ fichaId: c.fichaId as string, hasta: limitar(c.hasta as Punto), curva: esNumero(c.curva) ? Math.max(-30, Math.min(30, c.curva)) : 0, ...pasoLeido(c.paso) })) : [];
+    const carreras = [...new Map(carrerasLeidas.map((c) => [`${c.fichaId}|${pasoDe(c)}`, c])).values()];
+    // Lo guardado antes de los pasos tenía un solo `pase`.
+    const brutos = Array.isArray(bruta.pases) ? bruta.pases as unknown[] : bruta.pase ? [bruta.pase] : [];
+    const pasesLeidos = brutos.filter((x): x is Pase => Boolean(x) && esPunto((x as Pase).hasta))
+      .map((x): Pase => ({ hasta: limitar(x.hasta), tipo: x.tipo === "raso" ? "raso" : "aereo", ...pasoLeido(x.paso) }));
+    const pases = [...new Map(pasesLeidos.map((x) => [pasoDe(x), x])).values()].sort(porPaso);
     fases.push({
       id: typeof bruta.id === "string" ? bruta.id : nuevoId("f"),
       nombre: texto(bruta.nombre, `Fase ${fases.length + 1}`),
       pos,
       balon: limitar(bruta.balon as Punto),
       carreras,
-      pase,
+      pases,
       anotaciones: Array.isArray(bruta.anotaciones) ? (bruta.anotaciones as unknown[]).map(anotacionValida).filter((a): a is Anotacion => a !== null) : [],
       material: Array.isArray(bruta.material) ? (bruta.material as unknown[]).map(materialValido).filter((m): m is Material => m !== null).slice(0, 200) : [],
       pausa: esNumero(bruta.pausa) ? Math.max(0, Math.min(6, bruta.pausa)) : PAUSA_POR_DEFECTO,

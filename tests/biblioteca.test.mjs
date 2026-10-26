@@ -26,7 +26,7 @@ test("cada sistema de la biblioteca se monta, es continuo y solo mueve fichas qu
         assert.equal(j.fases[i].nota, paso.nota[idioma]);
         // Cada movimiento pedido quedó como carrera, y el envío, como envío.
         assert.equal(j.fases[i].carreras.length, Object.keys(paso.mover ?? {}).length, `${s.id}, fase ${i + 1}`);
-        assert.equal(Boolean(j.fases[i].pase), Boolean(paso.pase), `${s.id}, fase ${i + 1}`);
+        assert.equal(j.fases[i].pases.length, paso.pase ? 1 : 0, `${s.id}, fase ${i + 1}`);
       });
       for (let k = 1; k < j.fases.length; k += 1) {
         for (const id of ids) assert.ok(cerca(j.fases[k].pos[id], posFinal(j.fases[k - 1], id)), `${s.id}: ${id} salta en la fase ${k + 1}`);

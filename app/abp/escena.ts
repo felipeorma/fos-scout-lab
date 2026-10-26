@@ -17,11 +17,11 @@ import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { SUPERFICIE } from "./temas";
 import { abreviar } from "@/lib/tablero";
-import type { Borrador, Motor, Opciones, Seleccion, Vista } from "./motor";
+import { estaElegido, type Borrador, type Motor, type Opciones, type Seleccion, type Vista } from "./motor";
 import {
   datosDeMaterial, filaDeMaterial, type Equipacion, type Material,
-  CAJA_DE_ENCUADRE, CAMPO, balonEn, capaDe, distancia, enCurva, extremosDe, lineaDeBloque, posicionEn, puntosDeFlecha, sombraDeBloque,
-  type Anotacion, type Encuadre, type Extremo, type Fase, type Grosor, type Jugada, type Punto, type Superficie, type Zonas,
+  CAJA_DE_ENCUADRE, CAMPO, antesDelPaso, balonAntesDelPaso, balonEn, capaDe, distancia, enCurva, extremosDe, lineaDeBloque, materialEn, pasesDe, pasoDe, pasosDe,
+  posicionEn, puntoDePase, puntosDeFlecha, sombraDeBloque, type Anotacion, type Pase, type Encuadre, type Extremo, type Fase, type Grosor, type Jugada, type Punto, type Superficie, type Zonas,
 } from "@/lib/abp";
 import { ondularLinea, recortarLinea } from "@/lib/geometria";
 
@@ -61,6 +61,9 @@ export class EscenaABP implements Motor {
   private seleccionMontada: Seleccion = null;
   private materialesDeLinea = new Set<LineMaterial>();
   private fichas = new Map<string, THREE.Group>();
+  /** Las piezas de material montadas, para moverlas si en la fase siguiente están en otro sitio. */
+  private piezas = new Map<string, { g: THREE.Group; m: Material }>();
+  private indiceMontado = 0;
   private balon: THREE.Mesh;
   private sombraBalon: THREE.Mesh;
   private observador: ResizeObserver;
@@ -944,18 +947,17 @@ export class EscenaABP implements Motor {
     return g;
   }
 
-  private pase(desde: Punto, fase: Fase, color: string, opacidad = 1) {
+  private pase(desde: Punto, pase: Pase, color: string, opacidad = 1) {
     const g = new THREE.Group();
-    if (!fase.pase) return g;
     const aire: THREE.Vector3[] = [], suelo: THREE.Vector3[] = [];
     for (let i = 0; i <= 48; i += 1) {
-      const p = balonEn({ ...fase, balon: desde }, i / 48);
+      const p = puntoDePase(desde, pase, i / 48);
       // El aéreo se dibuja a la altura del centro del balón; el raso, pegado al césped.
-      aire.push(new THREE.Vector3(p.x, fase.pase.tipo === "aereo" ? 0.36 + p.y : 0.08, p.z));
+      aire.push(new THREE.Vector3(p.x, pase.tipo === "aereo" ? 0.36 + p.y : 0.08, p.z));
       suelo.push(new THREE.Vector3(p.x, 0.05, p.z));
     }
     g.add(this.linea(aire, color, 3.2, false, opacidad));
-    if (fase.pase.tipo === "aereo") g.add(this.linea(suelo, color, 1.5, true, 0.3 * opacidad));
+    if (pase.tipo === "aereo") g.add(this.linea(suelo, color, 1.5, true, 0.3 * opacidad));
     const fin = aire[aire.length - 1], previo = aire[aire.length - 4];
     const cono = new THREE.Mesh(new THREE.ConeGeometry(0.42, 1.3, 16), new THREE.MeshBasicMaterial({ color, transparent: opacidad < 1, opacity: opacidad }));
     cono.position.copy(fin);
@@ -988,16 +990,35 @@ export class EscenaABP implements Motor {
     const visibles = fase.anotaciones.filter((a) => !ocultas.has(capaDe(a)));
     this.anotacionesVivas = visibles.filter(vaConFichas);
     for (const a of visibles) {
-      if (!vaConFichas(a)) this.dinamico.add(this.anotacion(a, opciones, seleccion?.tipo === "anotacion" && seleccion.id === a.id));
+      if (!vaConFichas(a)) this.dinamico.add(this.anotacion(a, opciones, estaElegido(seleccion, "anotacion", a.id)));
     }
-    for (const m of fase.material ?? []) this.dinamico.add(this.material(m, opciones, seleccion?.tipo === "material" && seleccion.id === m.id));
+    this.piezas.clear();
+    this.indiceMontado = Math.min(indice, jugada.fases.length - 1);
+    for (const m of fase.material ?? []) {
+      const g = this.material(m, opciones, estaElegido(seleccion, "material", m.id));
+      this.piezas.set(m.id, { g, m });
+      this.dinamico.add(g);
+    }
     if (!ocultas.has("recorridos")) {
+      // Con varios pasos, cada acción lleva su número junto a su arranque.
+      const numerar = pasosDe(fase) > 1;
+      const numero = (p: Punto, n: number) => {
+        const sprite = this.rotuloSprite(String(n), { color: tintaSobre(opciones.acento), fondo: opciones.acento, alto: 1.1, peso: 800, fuente: opciones.fuente });
+        sprite.position.set(p.x, 0.9, p.z);
+        this.dinamico.add(sprite);
+      };
       for (const c of fase.carreras) {
         const ficha = jugada.fichas.find((f) => f.id === c.fichaId);
-        const desde = fase.pos[c.fichaId];
-        if (ficha && desde) this.dinamico.add(this.carrera(desde, c.hasta, c.curva, colorDe(ficha.equipo)));
+        const desde = antesDelPaso(fase, c.fichaId, pasoDe(c));
+        if (!ficha || !desde) continue;
+        this.dinamico.add(this.carrera(desde, c.hasta, c.curva, colorDe(ficha.equipo)));
+        if (numerar) numero(enCurva(desde, c.hasta, c.curva, 0.3), pasoDe(c) + 1);
       }
-      this.dinamico.add(this.pase(fase.balon, fase, "#ffffff"));
+      for (const pase of pasesDe(fase)) {
+        const desde = balonAntesDelPaso(fase, pasoDe(pase));
+        this.dinamico.add(this.pase(desde, pase, "#ffffff"));
+        if (numerar) numero({ x: desde.x + (pase.hasta.x - desde.x) * 0.3, z: desde.z + (pase.hasta.z - desde.z) * 0.3 }, pasoDe(pase) + 1);
+      }
     }
 
     for (const f of jugada.fichas) {
@@ -1006,7 +1027,7 @@ export class EscenaABP implements Motor {
       // El portero, en un tono propio: se distingue de un vistazo como en la tele.
       const portero = /^(portero|por|gk|goalkeeper)$/i.test(f.rol.trim());
       const color = portero ? (f.equipo === "local" ? "#f3b64c" : "#45c6ba") : colorDe(f.equipo);
-      const g = this.ficha(f.dorsal, f.rol, color, opciones, seleccion?.tipo === "ficha" && seleccion.id === f.id, portero ? null : opciones.equipaciones[f.equipo], f.nombre);
+      const g = this.ficha(f.dorsal, f.rol, color, opciones, estaElegido(seleccion, "ficha", f.id), portero ? null : opciones.equipaciones[f.equipo], f.nombre);
       g.position.set(sitio.x, 0, sitio.z);
       this.fichas.set(f.id, g);
       this.dinamico.add(g);
@@ -1018,7 +1039,7 @@ export class EscenaABP implements Motor {
         const ficha = jugada.fichas.find((f) => f.id === b.fichaId);
         this.dinamico.add(this.carrera(b.a, b.b, 0, ficha ? colorDe(ficha.equipo) : opciones.acento, 0.6));
       } else if (b.tipo === "pase") {
-        this.dinamico.add(this.pase(b.a, { ...fase, balon: b.a, pase: { hasta: b.b, tipo: fase.pase?.tipo ?? "aereo" } }, "#ffffff", 0.6));
+        this.dinamico.add(this.pase(b.a, { hasta: b.b, tipo: b.envio ?? "aereo" }, "#ffffff", 0.6));
       } else if (b.tipo === "material") {
         if (b.material) for (const m of filaDeMaterial(b.material.tipo, b.a, b.b, b.material.separacion, b.material.slalom, b.material.color)) this.dinamico.add(this.material(m, opciones, false, 0.6));
       } else if (b.tipo === "bloque") {
@@ -1034,6 +1055,10 @@ export class EscenaABP implements Motor {
         this.dinamico.add(this.anotacion({ id: "borrador", tipo: "trazo", puntos: b.puntos, color: opciones.colorAnotacion, grosor: b.grosor, punta: b.punta }, opciones, false, 0.8));
       } else if (b.tipo === "medida") {
         this.dinamico.add(this.anotacion({ id: "borrador", tipo: "medida", a: b.a, b: b.b, color: opciones.colorAnotacion, desde: b.desde, hasta: b.hasta }, opciones, false, 0.85));
+      } else if (b.tipo === "marco") {
+        const y = 0.08;
+        const esquinas = [[b.a.x, b.a.z], [b.b.x, b.a.z], [b.b.x, b.b.z], [b.a.x, b.b.z], [b.a.x, b.a.z]].map(([x, z]) => new THREE.Vector3(x, y, z));
+        this.dinamico.add(this.linea(esquinas, opciones.acento, 2, true, 0.9));
       } else if (b.tipo !== "guia") {
         const provisional: Anotacion = b.tipo === "flecha"
           ? { id: "borrador", tipo: "flecha", a: b.a, b: b.b, color: opciones.colorAnotacion, estilo: b.estilo ?? "continua", extremo: b.extremo, grosor: b.grosor, desde: b.desde, hasta: b.hasta }
@@ -1053,12 +1078,20 @@ export class EscenaABP implements Motor {
       const p = posicionEn(fase, id, t, lineal);
       if (p) g.position.set(p.x, 0, p.z);
     }
+    // El material que cambia de sitio en la fase siguiente, de camino.
+    if (this.jugadaMontada) {
+      for (const { g, m } of this.piezas.values()) {
+        const ahora = materialEn(this.jugadaMontada, this.indiceMontado, m, t, lineal);
+        g.position.set(ahora.p.x, 0, ahora.p.z);
+        g.rotation.y = -(ahora.giro * Math.PI) / 180;
+      }
+    }
     // Lo que va pegado a las fichas, donde están ahora.
     this.vaciar(this.vivas);
     const opciones = this.opcionesMontadas;
     if (opciones) {
       for (const a of this.anotacionesVivas) {
-        this.vivas.add(this.anotacion(a, opciones, this.seleccionMontada?.tipo === "anotacion" && this.seleccionMontada.id === a.id, 1, fase, t));
+        this.vivas.add(this.anotacion(a, opciones, estaElegido(this.seleccionMontada, "anotacion", a.id), 1, fase, t));
       }
     }
     const b = balonEn(fase, t);
