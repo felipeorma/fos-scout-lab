@@ -65,7 +65,7 @@ test("mover una ficha sin carrera la mueve también en las fases siguientes", ()
 test("el pase sustituye al anterior y mover su destino mueve el balón de la fase siguiente", () => {
   const jugada = plantilla("corner_der");
   const nueva = fijarPase(jugada, 1, { x: 47, z: 3 }, "aereo");
-  assert.ok(cerca(nueva.fases[1].pase.hasta, { x: 47, z: 3 }));
+  assert.ok(cerca(nueva.fases[1].pases[0].hasta, { x: 47, z: 3 }));
   assert.ok(cerca(nueva.fases[2].balon, { x: 47, z: 3 }));
 });
 
@@ -213,7 +213,7 @@ test("posar: en la segunda fase, mover una ficha crea su carrera desde la anteri
   assert.equal(carreraDe(primera.fases[0], "L2"), undefined);
   // El balón: moverlo en una pose es el envío desde la anterior.
   const conBalon = posarBalon(jugada, 1, { x: 45, z: 5 });
-  assert.ok(cerca(conBalon.fases[0].pase.hasta, { x: 45, z: 5 }));
+  assert.ok(cerca(conBalon.fases[0].pases.at(-1).hasta, { x: 45, z: 5 }));
   assert.ok(cerca(conBalon.fases[1].balon, { x: 45, z: 5 }));
 });
 

@@ -4,10 +4,14 @@
  * 3D (three.js, con estadio). La pantalla no sabe cuál tiene delante.
  */
 
-import type { Ambiente, Encuadre, Equipacion, Equipo, EstiloFlecha, Extremo, Grosor, Jugada, Punto, RellenoBloque, TipoMaterial } from "@/lib/abp";
+import type { Ambiente, Encuadre, Equipacion, Equipo, EstiloFlecha, Extremo, Grosor, Jugada, Pase, Punto, RellenoBloque, TipoMaterial } from "@/lib/abp";
 
 export type Vista = "tactica" | "3d" | "cenital";
-export type Seleccion = { tipo: "ficha" | "anotacion" | "material"; id: string } | null;
+export type Elemento = { tipo: "ficha" | "anotacion" | "material"; id: string };
+/** Lo elegido: una cosa, o un grupo (Mayús+clic o un recuadro con Mayús) que se mueve y se borra junto. */
+export type Seleccion = Elemento | { tipo: "grupo"; elementos: Elemento[] } | null;
+export const estaElegido = (s: Seleccion, tipo: Elemento["tipo"], id: string) =>
+  s?.tipo === "grupo" ? s.elementos.some((e) => e.tipo === tipo && e.id === id) : s?.tipo === tipo && s.id === id;
 /** Cómo se pone el material: qué pieza, cada cuántos metros y si en slalom. */
 export type ComoPoner = { tipo: TipoMaterial; separacion: number; slalom: boolean; color: string };
 /** Lo que se está dibujando con el puntero, antes de soltar. */
@@ -15,6 +19,8 @@ export type Borrador =
   | {
     tipo: "flecha" | "rect" | "zona" | "carrera" | "pase" | "material" | "medida"; a: Punto; b: Punto;
     fichaId?: string; estilo?: EstiloFlecha; extremo?: Extremo; grosor?: Grosor; material?: ComoPoner;
+    /** El envío que se está dibujando: raso o elevado. */
+    envio?: Pase["tipo"];
     /** Las fichas sobre las que empieza o acaba (flecha y medida): el trazo se pega a ellas. */
     desde?: string; hasta?: string;
   }
@@ -23,6 +29,8 @@ export type Borrador =
   | { tipo: "bloque"; fichas: string[]; relleno: RellenoBloque }
   /** Al arrastrar una ficha: la línea de la ficha con la que se ha alineado. */
   | { tipo: "guia"; x?: number; z?: number }
+  /** El recuadro de Mayús+arrastre que elige todo lo que queda dentro. */
+  | { tipo: "marco"; a: Punto; b: Punto }
   | null;
 export type Opciones = {
   colorLocal: string;

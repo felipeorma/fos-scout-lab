@@ -13,13 +13,13 @@
  */
 
 import {
-  CAJA_DE_ENCUADRE, CAMPO, alturaDePase, balonEn, capaDe, datosDeMaterial, distancia, enCurva, extremosDe, filaDeMaterial, lineaDeBloque, posicionEn,
-  puntosDeFlecha, sombraDeBloque, suavizar,
+  CAJA_DE_ENCUADRE, CAMPO, alturaDePase, antesDelPaso, balonAntesDelPaso, balonEn, capaDe, datosDeMaterial, distancia, enCurva, extremosDe, filaDeMaterial,
+  lineaDeBloque, materialEn, pasesDe, pasoDe, pasosDe, posicionEn, puntosDeFlecha, sombraDeBloque, suavizar,
   type Anotacion, type Capa, type Encuadre, type Equipacion, type Extremo, type Fase, type Grosor, type Jugada, type Material, type Punto,
 } from "@/lib/abp";
 import { abreviar, cajaDe, camaraDeCaja, interpolarCamara, transformacion, type Camara, type Transformacion } from "@/lib/tablero";
 import { SUPERFICIE, luz, rgba, tintaSobre } from "./temas";
-import type { Borrador, Motor, Opciones, Seleccion, Vista } from "./motor";
+import { estaElegido, type Borrador, type Motor, type Opciones, type Seleccion, type Vista } from "./motor";
 
 const MEDIO_L = CAMPO.largo / 2, MEDIO_A = CAMPO.ancho / 2;
 /** El radio de una ficha, en metros: algo más grande que un jugador, para leerse en un móvil. */
@@ -320,15 +320,26 @@ export class Tablero2D implements Motor {
       // El foco va encima de las zonas y debajo de flechas y fichas: apaga el césped de fuera, no a los jugadores.
       for (const a of de("rect", "zona")) if ((a.tipo === "rect" || a.tipo === "zona") && a.estilo === "foco") pintar(a);
       // El material va en el césped: debajo de las flechas y de los jugadores.
-      for (const m of fase.material ?? []) this.pintarMaterial(tr, m, o, this.seleccion?.tipo === "material" && this.seleccion.id === m.id);
+      // Si una pieza está en otro sitio en la fase siguiente, se ve moverse.
+      for (const m of fase.material ?? []) this.pintarMaterial(tr, materialEn(jugada, this.indice, m, this.t, lineal), o, estaElegido(this.seleccion, "material", m.id));
       for (const a of de("flecha", "trazo")) pintar(a);
       if (!ocultas.has("recorridos")) {
+        // Con varios pasos, cada acción lleva su número: se leen en orden.
+        const numerar = pasosDe(fase) > 1;
         for (const c of fase.carreras) {
           const ficha = jugada.fichas.find((f) => f.id === c.fichaId);
-          const desde = fase.pos[c.fichaId];
-          if (ficha && desde) this.pintarCarrera(tr, desde, c.hasta, c.curva, this.colorDe(ficha.equipo, ficha.rol, o), o);
+          const desde = antesDelPaso(fase, c.fichaId, pasoDe(c));
+          if (!ficha || !desde) continue;
+          // Solo la primera sale de debajo de la ficha; las siguientes, de donde acabó la anterior.
+          const enFicha = desde === fase.pos[c.fichaId];
+          this.pintarCarrera(tr, desde, c.hasta, c.curva, this.colorDe(ficha.equipo, ficha.rol, o), o, 1, enFicha);
+          if (numerar) this.pintarNumeroDePaso(tr, enCurva(desde, c.hasta, c.curva, enFicha ? 0.3 : 0.18), pasoDe(c) + 1, o);
         }
-        if (fase.pase) this.pintarPase(tr, fase.balon, fase.pase.hasta, alturaDePase(fase.balon, fase.pase), o, 1);
+        for (const pase of pasesDe(fase)) {
+          const desde = balonAntesDelPaso(fase, pasoDe(pase));
+          this.pintarPase(tr, desde, pase.hasta, alturaDePase(desde, pase), o, 1);
+          if (numerar) this.pintarNumeroDePaso(tr, { x: desde.x + (pase.hasta.x - desde.x) * 0.3, z: desde.z + (pase.hasta.z - desde.z) * 0.3 }, pasoDe(pase) + 1, o);
+        }
       }
       if (o.ambiente.estelas && this.t > 0) this.pintarEstelas(tr, fase, jugada, o, lineal);
       if (this.borrador?.tipo === "guia") this.pintarGuia(tr, o);
@@ -339,7 +350,7 @@ export class Tablero2D implements Motor {
       for (const f of jugada.fichas) {
         const p = posicionEn(fase, f.id, this.t, lineal);
         const portero = esPortero(f.rol);
-        if (p) this.pintarFicha(tr, p, f.dorsal, f.rol, this.colorDe(f.equipo, f.rol, o), o, this.seleccion?.tipo === "ficha" && this.seleccion.id === f.id, portero ? null : o.equipaciones[f.equipo], f.nombre);
+        if (p) this.pintarFicha(tr, p, f.dorsal, f.rol, this.colorDe(f.equipo, f.rol, o), o, estaElegido(this.seleccion, "ficha", f.id), portero ? null : o.equipaciones[f.equipo], f.nombre);
       }
       this.pintarBalon(tr, balonEn(fase, this.t), o);
       // Encima de todo, lo que se lee: las medidas, los jugadores elegidos para un bloque y los textos.
@@ -351,7 +362,7 @@ export class Tablero2D implements Motor {
   }
 
   private esElegida(id: string) {
-    return this.seleccion?.tipo === "anotacion" && this.seleccion.id === id;
+    return estaElegido(this.seleccion, "anotacion", id);
   }
 
   /** El color de la ficha; el portero, en un tono propio como en el 3D. */
@@ -493,11 +504,12 @@ export class Tablero2D implements Motor {
     ctx.fill();
   }
 
-  private pintarCarrera(tr: Transformacion, desde: Punto, hasta: Punto, curva: number, color: string, o: Opciones, alfa = 1) {
+  private pintarCarrera(tr: Transformacion, desde: Punto, hasta: Punto, curva: number, color: string, o: Opciones, alfa = 1, desdeFicha = true) {
     const ctx = this.ctx, e = tr.escala;
     const largo = Math.hypot(hasta.x - desde.x, hasta.z - desde.z);
     if (largo < 0.3) return;
-    const tIni = Math.min(0.45, (radioEnPantalla(e, this.radioMinimo) * 1.1) / e / largo), tFin = Math.max(tIni, 1 - Math.min(0.4, 1 / largo));
+    const tIni = desdeFicha ? Math.min(0.45, (radioEnPantalla(e, this.radioMinimo) * 1.1) / e / largo) : 0.04;
+    const tFin = Math.max(tIni, 1 - Math.min(0.4, 1 / largo));
     const trazo = this.trazoDe(color, o);
     ctx.save();
     ctx.globalAlpha = alfa;
@@ -544,6 +556,22 @@ export class Tablero2D implements Motor {
     ctx.restore();
   }
 
+  /** El número de un paso: un círculo pequeño del color de acento, junto al arranque de la acción. */
+  private pintarNumeroDePaso(tr: Transformacion, p: Punto, n: number, o: Opciones) {
+    const ctx = this.ctx, c = tr.aPantalla(p), r = Math.max(7, Math.min(11, 0.65 * tr.escala));
+    ctx.save();
+    ctx.fillStyle = this.halo(o);
+    ctx.beginPath(); ctx.arc(c.x, c.y, r + 1.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = o.acento;
+    ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = tintaSobre(o.acento);
+    ctx.font = `800 ${r * 1.15}px ${o.fuente}`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(String(n), c.x, c.y + r * 0.06);
+    ctx.restore();
+  }
+
   /** Lo que ya recorrió cada ficha y el balón, desvaneciéndose hacia atrás. */
   private pintarEstelas(tr: Transformacion, fase: Fase, jugada: Jugada, o: Opciones, lineal: boolean) {
     const ctx = this.ctx, e = tr.escala, tramo = 0.45;
@@ -559,17 +587,16 @@ export class Tablero2D implements Motor {
         ctx.beginPath(); ctx.moveTo(a.x, a.y - ya); ctx.lineTo(b.x, b.y - yb); ctx.stroke();
       }
     };
-    for (const c of fase.carreras) {
-      const ficha = jugada.fichas.find((f) => f.id === c.fichaId);
-      const desde = fase.pos[c.fichaId];
-      if (!ficha || !desde) continue;
+    // La estela sigue el recorrido de verdad, con sus pasos: así una pared deja su dibujo.
+    for (const id of new Set(fase.carreras.map((c) => c.fichaId))) {
+      const ficha = jugada.fichas.find((f) => f.id === id);
+      if (!ficha || !fase.pos[id]) continue;
       const color = this.trazoDe(this.colorDe(ficha.equipo, ficha.rol, o), o);
-      estela((u) => enCurva(desde, c.hasta, c.curva, suavizar(u, lineal)), color);
+      estela((u) => posicionEn(fase, id, u, lineal) ?? fase.pos[id], color);
     }
-    if (fase.pase) {
-      const altura = alturaDePase(fase.balon, fase.pase);
+    if (fase.pases.length) {
       const tinta = SUPERFICIE[o.ambiente.superficie].aro;
-      estela((u) => balonEn(fase, u), tinta, (u) => altura * 4 * u * (1 - u) * 0.55 * e);
+      estela((u) => balonEn(fase, u), tinta, (u) => balonEn(fase, u).y * 0.55 * e);
     }
   }
 
@@ -1262,6 +1289,19 @@ export class Tablero2D implements Motor {
       this.pintarAnotacion(tr, { id: "borrador", tipo: "medida", a: b.a, b: b.b, color: o.colorAnotacion, desde: b.desde, hasta: b.hasta }, o, false, 0.85);
       return;
     }
+    if (b.tipo === "marco") {
+      // El recuadro de la selección: discontinuo, del color de acento, con un velo muy suave.
+      const ctx = this.ctx, A = tr.aPantalla(b.a), B = tr.aPantalla(b.b);
+      ctx.save();
+      ctx.fillStyle = rgba(o.acento, 0.08);
+      ctx.strokeStyle = o.acento;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([6, 4]);
+      ctx.fillRect(Math.min(A.x, B.x), Math.min(A.y, B.y), Math.abs(B.x - A.x), Math.abs(B.y - A.y));
+      ctx.strokeRect(Math.min(A.x, B.x), Math.min(A.y, B.y), Math.abs(B.x - A.x), Math.abs(B.y - A.y));
+      ctx.restore();
+      return;
+    }
     if (b.tipo === "material") {
       if (b.material) for (const m of filaDeMaterial(b.material.tipo, b.a, b.b, b.material.separacion, b.material.slalom, b.material.color)) this.pintarMaterial(tr, m, o, false, 0.6);
       return;
@@ -1270,8 +1310,7 @@ export class Tablero2D implements Motor {
       const ficha = jugada.fichas.find((f) => f.id === b.fichaId);
       this.pintarCarrera(tr, b.a, b.b, 0, ficha ? this.colorDe(ficha.equipo, ficha.rol, o) : o.acento, o, 0.6);
     } else if (b.tipo === "pase") {
-      const tipo = fase.pase?.tipo ?? "aereo";
-      this.pintarPase(tr, b.a, b.b, alturaDePase(b.a, { hasta: b.b, tipo }), o, 0.6);
+      this.pintarPase(tr, b.a, b.b, alturaDePase(b.a, { hasta: b.b, tipo: b.envio ?? "aereo" }), o, 0.6);
     } else {
       const provisional: Anotacion = b.tipo === "flecha"
         ? { id: "borrador", tipo: "flecha", a: b.a, b: b.b, color: o.colorAnotacion, estilo: b.estilo ?? "continua", extremo: b.extremo, grosor: b.grosor, desde: b.desde, hasta: b.hasta }
