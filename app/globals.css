@@ -7578,6 +7578,25 @@ body.print-layout-check .app-shell[data-tema] .pizarra-duelos > ol { grid-templa
 .app-shell[data-tema] .pintado-puntos > button.activa { box-shadow: inset 0 0 0 1.5px var(--acento); background: var(--acento-suave); }
 .pintado-calibrar { margin: 0; padding: 8px 10px 0; }
 .pintado-jugadores { margin-top: 8px; }
+/* Las secuencias guardadas: el tramo de fases y la lista para soltarlas. */
+.abp-secuencia-tramo { display: flex; align-items: center; gap: 4px; min-width: 0; max-width: 70%; }
+.abp-secuencia-tramo > select { min-width: 0; flex: 1; }
+.abp-secuencia-tramo > i { font-style: normal; opacity: .6; }
+.abp-secuencias { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
+.app-shell[data-tema] .abp-secuencias > li {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 8px 7px 10px;
+  border-radius: 10px; background: color-mix(in srgb, var(--ink) 4%, transparent);
+}
+.abp-secuencias > li > div { display: flex; flex-direction: column; min-width: 0; }
+.app-shell[data-tema] .abp-secuencias b { overflow: hidden; color: var(--ink); font-size: 12.5px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.app-shell[data-tema] .abp-secuencias small { color: var(--muted); font-size: 11px; }
+.abp-secuencia-botones { display: flex; flex: none; gap: 2px; }
+.app-shell[data-tema] .abp-secuencia-botones > button {
+  min-height: 26px; padding: 0 8px; border: 0; border-radius: 7px; background: none; box-shadow: none;
+  color: var(--acento-claro); font-size: 11.5px; font-weight: 600; cursor: pointer;
+}
+.app-shell[data-tema] .abp-secuencia-botones > button:hover { background: var(--acento-suave); }
+.app-shell[data-tema] .abp-secuencia-botones > button.peligro { color: var(--muted); }
 .pintado-muestra { display: inline-block; width: 10px; height: 10px; margin-right: 5px; border-radius: 50%; box-shadow: 0 0 0 1px rgba(0,0,0,.45); vertical-align: -1px; }
 .app-shell[data-tema] .pintado-dorsales > button {
   min-height: 30px; padding: 0;
