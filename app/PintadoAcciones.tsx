@@ -6,20 +6,27 @@ import {
 } from "@/lib/pintado";
 import { numberLocale, t, tf } from "@/lib/i18n";
 import { aplicar, errorMedio, homografia, invertir, type P } from "@/lib/homografia";
-import { PUNTOS_DEL_CAMPO, desplazarMarca, marcaDeArrastre, puntoDeCampo, siguientePunto, type GrupoDePuntos, type MarcaDeCampo } from "@/lib/perspectiva";
+import {
+  PUNTOS_DEL_CAMPO, cerrarPuntoAPunto, desplazarMarca, marcaDeArrastre, puntoDeCampo, siguientePunto,
+  type GrupoDePuntos, type MarcaDeArrastre, type MarcaDeCampo, type MarcaPuntoAPunto,
+} from "@/lib/perspectiva";
 import { dibujarSeleccion, dibujarTodo, dibujarTrazo } from "./pintado/dibujo";
 import { dibujarLineas, dibujarMarca, dibujarPuntosDeCalibracion, marcaEn, type OpcionesDeCampo } from "./pintado/perspectiva";
 import { useFirma } from "./FirmaDelInforme";
 import { Interruptor } from "./Interruptor";
 import {
-  ArrowDownToLine, Camara, Conector, Duplicar, Elipse, Etiqueta, Flecha, FlechaRecta, Foco, ImageIcon, Linea, Mover, Pause, Pencil, Play, Rectangulo, Regla, RotateCcw,
+  ArrowDownToLine, Bloque, Camara, Conector, Duplicar, Elipse, Etiqueta, Flecha, FlechaRecta, Foco, ImageIcon, Linea, Mover, Pause, Pencil, Play, Rectangulo, Regla, RotateCcw,
   TextIcon, Trash, Triangulo, Upload, Video, X, ZonaSuelo,
 } from "./Icons";
 
 /** Las herramientas que pintan en el césped, en metros y con perspectiva: necesitan el campo calibrado. */
-type HerramientaDeCampo = "medir" | "fuera" | "circuloCampo" | "zonaCampo" | "flechaCampo";
+type HerramientaDeCampo = "medir" | "fuera" | "circuloCampo" | "zonaCampo" | "flechaCampo" | "areaCampo" | "huecosCampo";
 type Herramienta = "mover" | TipoTrazo | HerramientaDeCampo;
-const DE_CAMPO: Record<HerramientaDeCampo, MarcaDeCampo["tipo"]> = { medir: "medida", fuera: "fuera", circuloCampo: "circulo", zonaCampo: "zona", flechaCampo: "flecha" };
+const DE_CAMPO: Record<HerramientaDeCampo, MarcaDeCampo["tipo"]> = {
+  medir: "medida", fuera: "fuera", circuloCampo: "circulo", zonaCampo: "zona", flechaCampo: "flecha", areaCampo: "area", huecosCampo: "huecos",
+};
+/** Las que se hacen jugador a jugador, con un clic en los pies de cada uno. */
+const esPuntoAPunto = (h: Herramienta): h is "areaCampo" | "huecosCampo" => h === "areaCampo" || h === "huecosCampo";
 const esDeCampo = (h: Herramienta): h is HerramientaDeCampo => h in DE_CAMPO;
 /** Un arrastre en el césped: una marca que se mueve, una que se está dibujando o una diana de la calibración. */
 type ArrastreDeCampo =
@@ -153,7 +160,8 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
 
   function opcionesDeCampo(w: number, h: number): OpcionesDeCampo {
     const formato = formatoDeMetros();
-    return { w, h, fuente: letra, acento, metros: (m) => `${formato.format(m)} m`, rotuloFuera: t("Fuera de juego") };
+    const entero = new Intl.NumberFormat(numberLocale(), { maximumFractionDigits: 0 });
+    return { w, h, fuente: letra, acento, metros: (m) => `${formato.format(m)} m`, cuadrados: (m2) => `${entero.format(m2)} m²`, rotuloFuera: t("Fuera de juego") };
   }
   /** Las líneas del campo (al calibrar o si se piden) y las marcas en metros, con la perspectiva de la imagen. */
   function pintarCampo(ctx: CanvasRenderingContext2D, w: number, h: number, enPantalla: boolean) {
@@ -226,6 +234,7 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
       else if ((evento.key === "Delete" || evento.key === "Backspace") && seleccion) { evento.preventDefault(); borrar(); }
       else if ((evento.metaKey || evento.ctrlKey) && evento.key.toLowerCase() === "z") { evento.preventDefault(); deshacer(); }
       else if (evento.key === "Enter" && borrador?.tipo === "conector") terminarConector();
+      else if (evento.key === "Enter" && (borradorCampo?.tipo === "area" || borradorCampo?.tipo === "huecos")) terminarPuntoAPunto();
       else if (evento.key === "Escape") { setBorrador(null); setSeleccion(null); setMarcaElegida(null); setBorradorCampo(null); }
     };
     const alPegar = (evento: ClipboardEvent) => {
@@ -358,6 +367,15 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
   const nuevo = (tipo: TipoTrazo, puntos: PuntoP[], extra: Partial<Trazo> = {}): Trazo =>
     ({ id: idDeTrazo(), tipo, puntos, color, relleno, grosor, opacidad, ...(tipo === "foco" ? { foco } : {}), ...extra });
 
+  /** Cierra un área o una línea de huecos: el último punto, el que sigue al ratón, no cuenta. */
+  function terminarPuntoAPunto() {
+    if (borradorCampo?.tipo !== "area" && borradorCampo?.tipo !== "huecos") return;
+    const cerrada = cerrarPuntoAPunto({ ...borradorCampo, id: idDeTrazo(), puntos: borradorCampo.puntos.slice(0, -1) } as MarcaPuntoAPunto);
+    setBorradorCampo(null);
+    if (cerrada) { guardarCampo([...marcas, cerrada]); setMarcaElegida(cerrada.id); setAviso(""); }
+    else setAviso(borradorCampo.tipo === "area" ? t("Un área necesita al menos tres jugadores.") : t("Pulsa al menos dos jugadores."));
+  }
+
   function terminarConector() {
     if (borrador?.tipo !== "conector") return;
     // El último punto es el que sigue al ratón: no cuenta.
@@ -378,6 +396,18 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
       if (!puntoArmado) { setAviso(t("Elige en la lista qué punto del campo vas a marcar.")); return; }
       setPares((actuales) => ({ ...actuales, [puntoArmado]: p }));
       setPuntoArmado(siguientePunto(puntoArmado, new Set([...puestos, puntoArmado])));
+      return;
+    }
+    if (esPuntoAPunto(herramienta)) {
+      const q = inversa ? aplicar(inversa, p) : null;
+      if (!q) { setAviso(proyeccion ? t("Ahí no hay césped: pulsa sobre el campo.") : t("Calibra antes el campo: marca al menos cuatro de sus puntos.")); return; }
+      setSeleccion(null);
+      setMarcaElegida(null);
+      const tipo = DE_CAMPO[herramienta] as MarcaPuntoAPunto["tipo"];
+      // El primer clic empieza; cada uno más fija un jugador y el último punto sigue al ratón.
+      const actual = borradorCampo?.tipo === tipo ? borradorCampo.puntos.slice(0, -1) : [];
+      setBorradorCampo({ id: "borrador", tipo, puntos: [...actual, q, q], color });
+      if (!actual.length) setAviso(t("Pulsa en los pies de cada jugador; doble clic o Intro para terminar."));
       return;
     }
     if (esDeCampo(herramienta)) {
@@ -436,6 +466,11 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
 
   function alMover(evento: EventoDePuntero<HTMLCanvasElement>) {
     const p = punto(evento);
+    if (borradorCampo && (borradorCampo.tipo === "area" || borradorCampo.tipo === "huecos")) {
+      const q = inversa ? aplicar(inversa, p) : null;
+      if (q) setBorradorCampo({ ...borradorCampo, puntos: [...borradorCampo.puntos.slice(0, -1), q] });
+      return;
+    }
     const enCampo = arrastreCampo.current;
     if (enCampo) {
       if (enCampo.tipo === "diana") { setPares((actuales) => ({ ...actuales, [enCampo.id]: p })); return; }
@@ -446,7 +481,7 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
         if (Math.hypot(dx, dy) > 0.1) enCampo.movido = true;
         if (enCampo.movido) setMarcas(enCampo.base.map((m) => (m.id === enCampo.id ? desplazarMarca(m, dx, dy) : m)));
       } else if (esDeCampo(herramienta) && herramienta !== "fuera") {
-        setBorradorCampo(marcaDeArrastre(DE_CAMPO[herramienta] as Exclude<MarcaDeCampo["tipo"], "fuera">, "borrador", enCampo.desde, q, color));
+        setBorradorCampo(marcaDeArrastre(DE_CAMPO[herramienta] as MarcaDeArrastre, "borrador", enCampo.desde, q, color));
       }
       return;
     }
@@ -475,7 +510,7 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
       if (enCampo.tipo === "marca" && enCampo.movido && !enCampo.recienPuesta) { historialCampo.current.push(enCampo.base); pila.current.push("campo"); }
       if (enCampo.tipo === "nueva" && esDeCampo(herramienta) && herramienta !== "fuera") {
         const q = inversa ? aplicar(inversa, punto(evento)) : null;
-        const nueva = q ? marcaDeArrastre(DE_CAMPO[herramienta] as Exclude<MarcaDeCampo["tipo"], "fuera">, idDeTrazo(), enCampo.desde, q, color) : null;
+        const nueva = q ? marcaDeArrastre(DE_CAMPO[herramienta] as MarcaDeArrastre, idDeTrazo(), enCampo.desde, q, color) : null;
         if (nueva) { guardarCampo([...marcas, nueva]); setMarcaElegida(nueva.id); }
         setBorradorCampo(null);
       }
@@ -524,6 +559,8 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
     circuloCampo: t("Arrastra desde los pies del jugador hacia fuera: el círculo se tumba en el césped."),
     zonaCampo: t("Arrastra de esquina a esquina: la zona va alineada con las líneas del campo."),
     flechaCampo: t("Arrastra por el césped: la flecha sale con la perspectiva de la cámara."),
+    areaCampo: t("Pulsa en los pies de tres o más jugadores y termina con doble clic o Intro: el espacio entre ellos sale en m²."),
+    huecosCampo: t("Pulsa en los pies de cada jugador de una línea, en orden, y termina con doble clic o Intro: sale lo que mide cada hueco."),
   };
   const ayuda = ayudas[herramienta] ?? t("Arrastra sobre la imagen para dibujar.");
   const enElCesped: Array<{ id: HerramientaDeCampo; nombre: string; icono: ReactNode }> = [
@@ -532,6 +569,8 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
     { id: "circuloCampo", nombre: t("Círculo"), icono: <Elipse size={16} /> },
     { id: "zonaCampo", nombre: t("Zona"), icono: <Rectangulo size={16} /> },
     { id: "flechaCampo", nombre: t("Flecha"), icono: <FlechaRecta size={16} /> },
+    { id: "areaCampo", nombre: t("Área"), icono: <Triangulo size={16} /> },
+    { id: "huecosCampo", nombre: t("Huecos"), icono: <Bloque size={16} /> },
   ];
   const grupos: Array<{ id: GrupoDePuntos; nombre: string }> = [
     { id: "izquierda", nombre: t("Área izquierda") }, { id: "medio", nombre: t("Medio campo") }, { id: "derecha", nombre: t("Área derecha") },
@@ -617,7 +656,7 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
             <div className="abp-herramientas pintado-campo" role="toolbar" aria-label={t("En el césped")}>
               {enElCesped.map((h) => <button key={h.id} type="button" className={herramienta === h.id ? "activa" : ""} aria-pressed={herramienta === h.id} disabled={!proyeccion}
                 title={proyeccion ? ayudas[h.id] : t("Calibra antes el campo")}
-                onClick={() => { setHerramienta(h.id); setCalibrando(false); setBorrador(null); if (conMedio) setDibujando(true); }}>
+                onClick={() => { setHerramienta(h.id); setCalibrando(false); setBorrador(null); setBorradorCampo(null); if (conMedio) setDibujando(true); }}>
                 {h.icono}<span>{h.nombre}</span>
               </button>)}
             </div>
@@ -699,7 +738,7 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
             {congelado && <img className="pintado-fondo pintado-congelado" src={congelado} alt="" />}
             {fuente.tipo === "ninguna" && <p className="abp-cargando pintado-vacio">{t("Sube una imagen o un vídeo, pega una captura o carga un enlace de YouTube. También puedes dibujar sobre el fondo vacío.")}</p>}
             <canvas ref={lienzoRef} className="pintado-lienzo" onPointerDown={alPulsar} onPointerMove={alMover} onPointerUp={alSoltar} onPointerCancel={alSoltar}
-              onDoubleClick={terminarConector} />
+              onDoubleClick={() => { terminarConector(); terminarPuntoAPunto(); }} />
             {aviso && <p className="abp-flotante abp-aviso" role="status">{aviso}</p>}
           </div>
 

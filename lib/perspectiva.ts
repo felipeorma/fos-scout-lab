@@ -116,7 +116,15 @@ export type MarcaDeCampo =
   | { id: string; tipo: "circulo"; c: P; r: number; color: string }
   /** Una zona alineada con el campo, de esquina a esquina. */
   | { id: string; tipo: "zona"; a: P; b: P; color: string }
-  | { id: string; tipo: "flecha"; a: P; b: P; color: string };
+  | { id: string; tipo: "flecha"; a: P; b: P; color: string }
+  /** El espacio entre tres o más jugadores, con su área en m². */
+  | { id: string; tipo: "area"; puntos: P[]; color: string }
+  /** Una línea por varios jugadores (una línea defensiva) con la distancia de cada hueco. */
+  | { id: string; tipo: "huecos"; puntos: P[]; color: string };
+
+/** Las marcas que se dibujan punto a punto (un clic por jugador) y cuántos puntos piden como mínimo. */
+export const PUNTO_A_PUNTO = { area: 3, huecos: 2 } as const;
+export type MarcaPuntoAPunto = Extract<MarcaDeCampo, { tipo: keyof typeof PUNTO_A_PUNTO }>;
 
 export const distancia = (a: P, b: P) => Math.hypot(b.x - a.x, b.y - a.y);
 
@@ -126,12 +134,52 @@ export function desplazarMarca(m: MarcaDeCampo, dx: number, dy: number): MarcaDe
   switch (m.tipo) {
     case "fuera": return { ...m, x: Math.max(-L, Math.min(L, m.x + dx)) };
     case "circulo": return { ...m, c: mover(m.c) };
+    case "area":
+    case "huecos": return { ...m, puntos: m.puntos.map(mover) };
     default: return { ...m, a: mover(m.a), b: mover(m.b) };
   }
 }
 
+/**
+ * Cierra una marca de punto a punto: quita los puntos repetidos (el doble
+ * clic que la termina pone dos en el mismo sitio) y la da por buena si tiene
+ * los que pide; si no, null.
+ */
+export function cerrarPuntoAPunto(m: MarcaPuntoAPunto): MarcaPuntoAPunto | null {
+  const puntos = m.puntos.filter((p, i) => i === 0 || distancia(p, m.puntos[i - 1]) > 0.25);
+  if (puntos.length < PUNTO_A_PUNTO[m.tipo]) return null;
+  if (m.tipo === "area" && areaDePoligono(puntos) < 0.5) return null;
+  return { ...m, puntos };
+}
+
+/** El área de un polígono en m² (fórmula del lazo), sin importar el sentido en que se dibujó. */
+export function areaDePoligono(puntos: P[]): number {
+  let doble = 0;
+  for (let i = 0; i < puntos.length; i += 1) {
+    const a = puntos[i], b = puntos[(i + 1) % puntos.length];
+    doble += a.x * b.y - b.x * a.y;
+  }
+  return Math.abs(doble) / 2;
+}
+
+/** El centro de masas de un polígono, donde va el rótulo de su área; si es degenerado, la media de sus puntos. */
+export function centroDePoligono(puntos: P[]): P {
+  let doble = 0, cx = 0, cy = 0;
+  for (let i = 0; i < puntos.length; i += 1) {
+    const a = puntos[i], b = puntos[(i + 1) % puntos.length];
+    const k = a.x * b.y - b.x * a.y;
+    doble += k; cx += (a.x + b.x) * k; cy += (a.y + b.y) * k;
+  }
+  if (Math.abs(doble) < 1e-9) return { x: puntos.reduce((s, p) => s + p.x, 0) / puntos.length, y: puntos.reduce((s, p) => s + p.y, 0) / puntos.length };
+  return { x: cx / (3 * doble), y: cy / (3 * doble) };
+}
+
+/** Lo que mide cada tramo de una línea, en metros, en orden. */
+export const tramos = (puntos: P[]) => puntos.slice(1).map((p, i) => distancia(puntos[i], p));
+
 /** Una marca hecha arrastrando de `a` a `b` en el césped; null si es tan corta que fue un clic sin querer. */
-export function marcaDeArrastre(tipo: Exclude<MarcaDeCampo["tipo"], "fuera">, id: string, a: P, b: P, color: string): MarcaDeCampo | null {
+export type MarcaDeArrastre = "medida" | "circulo" | "zona" | "flecha";
+export function marcaDeArrastre(tipo: MarcaDeArrastre, id: string, a: P, b: P, color: string): MarcaDeCampo | null {
   if (distancia(a, b) < 0.4) return null;
   if (tipo === "circulo") return { id, tipo, c: a, r: Math.min(30, distancia(a, b)), color };
   return { id, tipo, a, b, color };
@@ -143,6 +191,8 @@ export function contornoDeMarca(m: MarcaDeCampo): P[] {
     case "fuera": return [{ x: m.x, y: -A }, { x: m.x, y: A }];
     case "circulo": return circulo(m.c, m.r);
     case "zona": return [m.a, { x: m.b.x, y: m.a.y }, m.b, { x: m.a.x, y: m.b.y }, m.a];
+    case "area": return [...m.puntos, m.puntos[0]];
+    case "huecos": return m.puntos;
     default: return [m.a, m.b];
   }
 }
