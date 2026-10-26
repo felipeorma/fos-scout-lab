@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BarChart3, Cancha, Check, Pincel, ChevronDown, ChevronRight, Database, FileSpreadsheet, ImageIcon, LockKeyhole, Menu, MoreHorizontal, Plus, Printer, RadarChart, RotateCcw, Route, Search, Sparkles, Trophy, Upload, X, ShieldCheck, LayoutDashboard, Wind } from "./Icons";
 import { PizzaRadar } from "./PizzaRadar";
 import { ScoutingBoard } from "./ScoutingBoard";
@@ -64,6 +64,9 @@ import { alphabeticCollator, blobToDataUrl, cohortLabel, firstPlayerSelection, h
 import { FECHA_NIVEL_RESPALDO, LIGA_DE_REFERENCIA, PUNTOS_POR_RATING, indiceANivel, nivelDeLiga, ratingDeTramos, type EntradaOpta, LIGAS_CON_NIVEL } from "@/lib/nivelDeLiga";
 import { METRIC_SOURCE_COLORS, SIMILARITY_METRIC_GROUPS, similarityMetricGroup } from "@/lib/similarityMetricGroups";
 import { setActiveLang, t, tDefault, tf, type Lang } from "@/lib/i18n";
+import { PREFIJO, jugadaDeHash } from "@/lib/enlace";
+import type { Jugada } from "@/lib/abp";
+import { ContextoAbrirEnPizarra, type Entrante } from "./abp/AbrirEnPizarra";
 
 // Página 1 = ficha del jugador · Página 2 = comparación de similitud.
 type ReportPage = number;
@@ -168,6 +171,24 @@ export default function ScoutStudio() {
    * sentido. Por eso se van sumando según se visitan.
    */
   const [paginasAbiertas, setPaginasAbiertas] = useState<ReportPage[]>([CARD_PAGE]);
+  // Un sistema que llega al estudio táctico: de un enlace que se reproduce o de El partido.
+  const [sistemaEntrante, setSistemaEntrante] = useState<Entrante | null>(null);
+  const abrirEnPizarra = useCallback((jugada: Jugada) => {
+    setSistemaEntrante({ jugada, soloVer: false, origen: "partido" });
+    setReportPage(ABP_PAGE);
+  }, []);
+  // Un enlace que se reproduce: el sistema viene en el #, se abre en el estudio y el # se limpia.
+  useEffect(() => {
+    if (!window.location.hash.startsWith(PREFIJO)) return;
+    let vivo = true;
+    void jugadaDeHash(window.location.hash).then((jugada) => {
+      if (!vivo) return;
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+      setSistemaEntrante({ jugada, soloVer: true, origen: "enlace" });
+      setReportPage(ABP_PAGE);
+    });
+    return () => { vivo = false; };
+  }, []);
   useEffect(() => {
     setPaginasAbiertas((abiertas) => (abiertas.includes(reportPage) ? abiertas : [...abiertas, reportPage]));
   }, [reportPage]);
@@ -2133,6 +2154,7 @@ export default function ScoutStudio() {
     <ProveedorDeBase valor={base}>
     <MomentoDeImpresion.Provider value={impresoEl}>
     <ContextoDeFirma.Provider value={firmaDelInforme}>
+    <ContextoAbrirEnPizarra.Provider value={abrirEnPizarra}>
     <div className="app-shell no-sidebar" data-paleta={paleta} data-tema={tema} data-informe={reportTheme.oscuro ? "oscuro" : "claro"}>
       <main className="main-area">
         {/* La barra de navegación, al modo de iOS: una guía a la izquierda,
@@ -2864,11 +2886,13 @@ export default function ScoutStudio() {
             </>}
             {/* La pizarra vive fuera de la base: el cuaderno de balón parado
                 y el pintado se dibujan igual con datos cargados o sin ellos. */}
-            {paginaMontada(ABP_PAGE) && <EstudioTactico claseHoja={claseHoja(ABP_PAGE)} idioma={lang} paleta={paleta} onVolver={dataReady ? undefined : () => setReportPage(CARD_PAGE)} />}
+            {(paginaMontada(ABP_PAGE) || sistemaEntrante) && <EstudioTactico claseHoja={claseHoja(ABP_PAGE)} idioma={lang} paleta={paleta} onVolver={dataReady ? undefined : () => setReportPage(CARD_PAGE)}
+              entrante={sistemaEntrante} onEntrante={() => setSistemaEntrante(null)} />}
             {paginaMontada(PINTADO_PAGE) && <PintadoAcciones claseHoja={claseHoja(PINTADO_PAGE)} onVolver={dataReady ? undefined : () => setReportPage(CARD_PAGE)} />}
           </div>
       </main>
     </div>
+    </ContextoAbrirEnPizarra.Provider>
     </ContextoDeFirma.Provider>
     </MomentoDeImpresion.Provider>
     </ProveedorDeBase>

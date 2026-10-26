@@ -7317,6 +7317,12 @@ body.print-layout-check .app-shell[data-tema] .pizarra-duelos > ol { grid-templa
   grid-template-areas: "barra barra barra" "izq centro der" "izq tira der";
   gap: 12px;
 }
+/* Abierto desde un enlace: solo el campo, la reproducción y las fases. */
+.abp-grid.abp-estudio.abp-ver { grid-template-columns: minmax(0, 1fr); grid-template-areas: "barra" "centro" "tira"; }
+.abp-estudio.abp-ver > .abp-izquierda, .abp-estudio.abp-ver > .abp-derecha, .abp-estudio.abp-ver .abp-herramientas,
+.abp-estudio.abp-ver .abp-barra-acciones > button.secondary, .abp-estudio.abp-ver .abp-miniatura-nueva, .abp-estudio.abp-ver .abp-tira-acciones { display: none; }
+.abp-estudio.abp-ver > .abp-barra { justify-content: flex-end; }
+.abp-cabecera .abp-compartido { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .abp-estudio > .abp-barra { grid-area: barra; }
 .abp-estudio > .abp-izquierda { grid-area: izq; }
 .abp-estudio > .abp-principal { grid-area: centro; }

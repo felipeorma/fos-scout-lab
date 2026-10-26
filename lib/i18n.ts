@@ -2627,4 +2627,13 @@ const EN: Record<string, string> = {
   "Banda izquierda": "Left flank",
   "Pasillo central": "Central channel",
   "Banda derecha": "Right flank",
+  // ---- Pizarra: el enlace que se reproduce ----
+  "Copiar el enlace que se reproduce": "Copy the playable link",
+  "Editar mi copia": "Edit my copy",
+  "Enlace copiado. Se abre en cualquier móvil, sin cuenta; si cambias el sistema, vuelve a copiarlo.": "Link copied. It opens on any phone, no account needed; if you change the system, copy it again.",
+  "Ese enlace está incompleto o roto: pide que te lo vuelvan a enviar.": "That link is incomplete or broken: ask for it to be sent again.",
+  "Este sistema es demasiado grande para un enlace: mándalo como archivo (.json).": "This system is too big for a link: send it as a file (.json).",
+  "No se pudo copiar el enlace: este navegador no deja usar el portapapeles.": "The link couldn't be copied: this browser doesn't allow clipboard access.",
+  "Preparado desde El partido: los dos onces, el bloque del rival y las medidas. Es tu copia: cámbiala a gusto.": "Prepared from The match: both elevens, the opponent's block and the measurements. It's your copy: change it as you like.",
+  "Te lo han enviado con un enlace. Pulsa Reproducir para verlo; se guardó una copia en «Tus sistemas».": "Someone sent you this as a link. Press Play to watch it; a copy was saved in “Your systems”.",
 };
