@@ -104,3 +104,4 @@ export const PantallaCompleta = icono(<><path d="M4 9V5.5A1.5 1.5 0 0 1 5.5 4H9"
 export const Conduccion = icono(<><path d="M3.5 15c1.6-3 3.2-3 4.8 0s3.2 3 4.8 0 3.2-3 4.8 0" /><path d="m17.5 11.5 3 3.5-3.6 2.4" /></>);
 export const Linea = icono(<path d="M4.5 18.5 19.5 5.5" />);
 export const Presion = icono(<><path d="M5 19 18 7" /><path d="M5 19 20 13" opacity=".55" /><path d="M5 19 12 4.5" opacity=".55" /></>);
+export const Cono = icono(<><path d="M9.6 4.5h4.8l3.4 13H6.2z" /><path d="M8.2 11h7.6" /><path d="M4 19.5h16" /></>);

@@ -4,9 +4,11 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as EventoDePunt
 import {
   agregarAnotacion, agregarFase, agregarFicha, anotacionCerca, cambiarAnotacion, cambiarDuracion, cambiarFicha, carreraDe, cuadernoInicial,
   curvarCarrera, desplazarAnotacion, distancia, duplicarFase, duracionTotal, fichaCerca, fijarCarrera, fijarPase, inicioDeFase, instanteEn,
-  moverFase, posar, posarBalon, cambiarPausa, AMBIENTE_POR_DEFECTO, normalizarCuaderno, nuevoId, quitarAnotacion, quitarCarrera, quitarFase, quitarFicha, quitarPase,
+  moverFase, posar, posarBalon, cambiarPausa, AMBIENTE_POR_DEFECTO, agregarMaterial, cambiarEquipacion, cambiarMaterial, datosDeMaterial, equipacionDe,
+  filaDeMaterial, materialCerca, moverMaterial, quitarMaterial, EQUIPACION_LISA, normalizarCuaderno, nuevoId, quitarAnotacion, quitarCarrera, quitarFase, quitarFicha, quitarPase,
   renombrarFase, tipoDePase, deSerie, CATEGORIAS, ENCUADRES, SUPERFICIES, ZONAS,
-  type Ambiente, type Categoria, type Cuaderno, type EstiloFlecha, type EstiloZona, type Fase, type Jugada, type Pase, type Punto,
+  type Ambiente, type Categoria, type Cuaderno, type Equipacion, type Equipo, type EstiloFlecha, type EstiloZona, type Fase, type Jugada, type Pase,
+  type Punto, type TipoMaterial,
 } from "@/lib/abp";
 import { t, tf, type Lang } from "@/lib/i18n";
 import type { Borrador, Motor, Opciones, Seleccion, Vista } from "./abp/motor";
@@ -15,8 +17,9 @@ import { useFirma } from "./FirmaDelInforme";
 import { Interruptor } from "./Interruptor";
 import { Biblioteca } from "./BibliotecaDeSistemas";
 import { Portal, archivoDeCuaderno, archivoDeSistema } from "./PortalDeSistemas";
+import { EditorDeEquipacion, SelectorDeMaterial } from "./abp/PiezasDeEntrenamiento";
 import {
-  ArrowDownToLine, Balon, Carrera, ChevronLeft, ChevronRight, Conduccion, Cubo, Duplicar, Elipse, Etiqueta, Flecha, Linea, Mover, PantallaCompleta,
+  ArrowDownToLine, Balon, Carrera, ChevronLeft, ChevronRight, Conduccion, Cono, Cubo, Duplicar, Elipse, Etiqueta, Flecha, Linea, Mover, PantallaCompleta,
   Pase as PaseIcono, Pause, Play, Plus, Presion, Rectangulo, RotateCcw, TextIcon, Trash, Video,
 } from "./Icons";
 
@@ -24,11 +27,12 @@ import {
 const CLAVE = "fos-scout-abp-v1";
 const CLAVE_MINIATURAS = "fos-scout-abp-miniaturas-v1";
 
-type Herramienta = "mover" | "local" | "rival" | "balon" | "carrera" | "pase" | "flecha" | "texto" | "etiqueta" | "rect" | "zona";
+type Herramienta = "mover" | "local" | "rival" | "balon" | "material" | "carrera" | "pase" | "flecha" | "texto" | "etiqueta" | "rect" | "zona";
 
 /** Lo que se está arrastrando, con el cuaderno de antes para poder deshacerlo de una vez. */
 type Arrastre = {
-  tipo: "ficha" | "balon" | "anotacion" | "carrera" | "pase" | "flecha" | "rect" | "zona";
+  /** "pieza": mover una pieza de material ya puesta; "material": poner piezas nuevas. */
+  tipo: "ficha" | "balon" | "anotacion" | "pieza" | "carrera" | "pase" | "flecha" | "rect" | "zona" | "material";
   id?: string;
   base: Cuaderno;
   desde: Punto;
@@ -84,6 +88,12 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
   const [seguir, setSeguir] = useState(false);
   const [estiloZona, setEstiloZona] = useState<EstiloZona>("translucida");
   const [tipoPase, setTipoPase] = useState<Pase["tipo"]>("aereo");
+  // Cómo se pone el material: la pieza, su color (null = el de serie), cada cuántos metros y si en slalom.
+  const [tipoMaterial, setTipoMaterial] = useState<TipoMaterial>("seta");
+  const [colorMaterial, setColorMaterial] = useState<string | null>(null);
+  const [separacion, setSeparacion] = useState(2);
+  const [slalom, setSlalom] = useState(false);
+  const colorDeMaterial = colorMaterial ?? datosDeMaterial(tipoMaterial).color;
   const [reproduciendo, setReproduciendo] = useState(false);
   const [grabando, setGrabando] = useState(false);
   const [aviso, setAviso] = useState("");
@@ -189,11 +199,14 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
   const colorRival = jugada?.colores.rival ?? "#e8e8ed";
   const colorAnotacion = jugada?.colores.anotacion ?? "#f3b64c";
   const ambiente = jugada?.ambiente;
+  const equipacionLocal = jugada ? equipacionDe(jugada, "local") : null;
+  const equipacionRival = jugada ? equipacionDe(jugada, "rival") : null;
   const opciones = useMemo<Opciones>(() => ({
     colorLocal, colorRival, colorAnotacion, acento, nombres, fuente,
     ambiente: ambiente ?? AMBIENTE_POR_DEFECTO,
+    equipaciones: { local: equipacionLocal ?? EQUIPACION_LISA, rival: equipacionRival ?? EQUIPACION_LISA },
     rotulo: (rol) => deSerie(rol, idioma),
-  }), [colorLocal, colorRival, colorAnotacion, acento, nombres, fuente, idioma, ambiente]);
+  }), [colorLocal, colorRival, colorAnotacion, acento, nombres, fuente, idioma, ambiente, equipacionLocal, equipacionRival]);
 
   useEffect(() => {
     const escena = escenaRef.current;
@@ -322,7 +335,9 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
 
   function borrarSeleccion() {
     if (!jugada || !seleccion) return;
-    guardar(seleccion.tipo === "ficha" ? quitarFicha(jugada, seleccion.id) : quitarAnotacion(jugada, indice, seleccion.id));
+    guardar(seleccion.tipo === "ficha" ? quitarFicha(jugada, seleccion.id)
+      : seleccion.tipo === "material" ? quitarMaterial(jugada, indice, seleccion.id)
+        : quitarAnotacion(jugada, indice, seleccion.id));
     setSeleccion(null);
   }
 
@@ -373,6 +388,8 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
         const ficha = fichaCerca(fase, p);
         if (ficha) { setSeleccion({ tipo: "ficha", id: ficha }); tomar(evento, { tipo: "ficha", id: ficha, base, desde: p, movido: false }); return; }
         if (distancia(fase.balon, p) < 1.3) { tomar(evento, { tipo: "balon", base, desde: p, movido: false }); return; }
+        const pieza = materialCerca(fase, p);
+        if (pieza) { setSeleccion({ tipo: "material", id: pieza }); tomar(evento, { tipo: "pieza", id: pieza, base, desde: p, movido: false }); return; }
         const anotacion = anotacionCerca(fase, p);
         if (anotacion) { setSeleccion({ tipo: "anotacion", id: anotacion }); tomar(evento, { tipo: "anotacion", id: anotacion, base, desde: p, movido: false }); return; }
         // En el vacío no se toma nada: el arrastre gira la cámara.
@@ -388,6 +405,11 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
       }
       case "balon":
         guardar(posarBalon(jugada, indice, p));
+        return;
+      case "material":
+        // Un clic pone una pieza; arrastrar pone una fila, cada `separacion` metros.
+        setBorrador({ tipo: "material", a: p, b: p, material: { tipo: tipoMaterial, separacion, slalom, color: colorDeMaterial } });
+        tomar(evento, { tipo: "material", base, desde: p, movido: false });
         return;
       case "carrera": {
         const ficha = fichaCerca(fase, p);
@@ -433,6 +455,10 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
     if (arrastre.tipo === "ficha" && arrastre.id) return posar(j, indice, arrastre.id, p);
     if (arrastre.tipo === "balon") return posarBalon(j, indice, p);
     if (arrastre.tipo === "anotacion" && arrastre.id) return desplazarAnotacion(j, indice, arrastre.id, p.x - arrastre.desde.x, p.z - arrastre.desde.z);
+    if (arrastre.tipo === "pieza" && arrastre.id) {
+      const antes = j.fases[indice].material?.find((m) => m.id === arrastre.id);
+      if (antes) return moverMaterial(j, indice, arrastre.id, { x: antes.p.x + p.x - arrastre.desde.x, z: antes.p.z + p.z - arrastre.desde.z });
+    }
     return null;
   }
 
@@ -465,7 +491,8 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
     switch (arrastre.tipo) {
       case "ficha":
       case "balon":
-      case "anotacion": {
+      case "anotacion":
+      case "pieza": {
         const siguiente = aplicarArrastre(arrastre, p);
         if (movido && siguiente) confirmar(siguiente);
         return;
@@ -481,6 +508,12 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
       case "pase":
         confirmar(fijarPase(j, indice, p, tipoPase));
         return;
+      case "material": {
+        const piezas = filaDeMaterial(tipoMaterial, arrastre.desde, p, separacion, slalom, colorDeMaterial);
+        confirmar(agregarMaterial(j, indice, piezas));
+        if (piezas.length === 1) setSeleccion({ tipo: "material", id: piezas[0].id });
+        return;
+      }
       case "flecha":
       case "rect":
       case "zona": {
@@ -737,7 +770,7 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
   // La barra de arriba, como en las pizarras de análisis: cada botón es una
   // herramienta y, si hace falta, el trazo o el envío con que dibuja.
   const botones: Array<{ id: string; herramienta: Herramienta; estilo?: EstiloFlecha; envio?: Pase["tipo"]; nombre: string; icono: ReactNode; ayuda: string }> = [
-    { id: "mover", herramienta: "mover", nombre: t("Mover"), icono: <Mover size={16} />, ayuda: t("Arrastra una ficha, el balón o una anotación. En el césped vacío, arrastra para girar la cámara.") },
+    { id: "mover", herramienta: "mover", nombre: t("Mover"), icono: <Mover size={16} />, ayuda: t("Arrastra una ficha, el balón, una pieza de material o una anotación. En el césped vacío, arrastra para girar la cámara.") },
     { id: "pase", herramienta: "pase", envio: "raso", nombre: t("Pase"), icono: <PaseIcono size={16} />, ayuda: t("Pulsa o arrastra hasta donde va el balón: sale desde donde está, por el suelo.") },
     { id: "elevado", herramienta: "pase", envio: "aereo", nombre: t("Elevado"), icono: <Balon size={16} />, ayuda: t("Pulsa o arrastra hasta donde cae el balón: sube con su sombra en el césped.") },
     { id: "carrera", herramienta: "carrera", nombre: t("Carrera"), icono: <Carrera size={16} />, ayuda: t("Arrastra desde una ficha hasta su destino, o pulsa la ficha y después el destino. Sale discontinua.") },
@@ -754,6 +787,7 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
     { id: "local", nombre: t("Local"), icono: <i className="abp-ficha-icono" style={{ background: colorLocal }} />, ayuda: t("Pulsa el césped para añadir una ficha propia.") },
     { id: "rival", nombre: t("Rival"), icono: <i className="abp-ficha-icono" style={{ background: colorRival }} />, ayuda: t("Pulsa el césped para añadir una ficha rival.") },
     { id: "balon", nombre: t("Balón"), icono: <Balon size={16} />, ayuda: t("Pulsa el césped para colocar el balón al empezar la fase.") },
+    { id: "material", nombre: t("Material"), icono: <Cono size={16} />, ayuda: t("Pulsa el césped para poner una pieza; arrastra para poner una fila, una cada tantos metros.") },
   ];
   const botonActivo = (b: typeof botones[number]) => herramienta === b.herramienta
     && (!b.estilo || estiloFlecha === b.estilo || (b.id === "flecha" && estiloFlecha === "discontinua"))
@@ -769,6 +803,13 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
   const fichaElegida = jugada && seleccion?.tipo === "ficha" ? jugada.fichas.find((f) => f.id === seleccion.id) ?? null : null;
   const carreraElegida = fichaElegida && fase ? carreraDe(fase, fichaElegida.id) : undefined;
   const anotacionElegida = fase && seleccion?.tipo === "anotacion" ? fase.anotaciones.find((a) => a.id === seleccion.id) ?? null : null;
+  const materialElegido = fase && seleccion?.tipo === "material" ? fase.material?.find((m) => m.id === seleccion.id) ?? null : null;
+  // Cambiar la equipación: de una vez con un botón, poco a poco con el selector de color.
+  const vestir = (equipo: Equipo) => (cambios: Partial<Equipacion>, conHistorial: boolean) => {
+    if (!jugada) return;
+    const siguiente = cambiarEquipacion(jugada, equipo, cambios);
+    if (conHistorial) guardar(siguiente); else sinHistorial(siguiente);
+  };
   const vistas: Array<{ id: Vista; nombre: string }> = [
     { id: "tactica", nombre: t("Táctica") },
     { id: "3d", nombre: t("3D") },
@@ -894,6 +935,14 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
             </section>
 
             <section className="inspector-grupo">
+              <h3 className="inspector-titulo">{t("Equipaciones")}</h3>
+              <EditorDeEquipacion titulo={t("Nuestra camiseta")} base={colorLocal} equipacion={equipacionDe(jugada, "local")} nombre={deSerieEn}
+                onCambio={vestir("local")} onEmpezar={marcarHistorial} />
+              <EditorDeEquipacion titulo={t("La suya")} base={colorRival} equipacion={equipacionDe(jugada, "rival")} nombre={deSerieEn}
+                onCambio={vestir("rival")} onEmpezar={marcarHistorial} />
+            </section>
+
+            <section className="inspector-grupo">
               <h3 className="inspector-titulo">{t("Sistema")}<small>{tf(jugada.fases.length === 1 ? "{n} fase" : "{n} fases", { n: jugada.fases.length })}</small></h3>
               <div className="inspector-tarjeta">
                 <label className="inspector-fila"><span>{t("Nombre")}</span>
@@ -1014,6 +1063,27 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
               </div>
             </section>}
 
+            {materialElegido && <section className="inspector-grupo">
+              <h3 className="inspector-titulo">{t("Material")}<small>{deSerieEn(datosDeMaterial(materialElegido.tipo).nombre)}</small></h3>
+              <div className="inspector-tarjeta">
+                <SelectorDeMaterial valor={materialElegido.tipo} color={materialElegido.color} nombre={deSerieEn} onCambio={(tipo) => {
+                  // Si llevaba el color de serie, toma el de la pieza nueva; si se lo cambiaste, lo conserva.
+                  const deFabrica = materialElegido.color === datosDeMaterial(materialElegido.tipo).color;
+                  guardar(cambiarMaterial(jugada, indice, materialElegido.id, { tipo, ...(deFabrica ? { color: datosDeMaterial(tipo).color } : {}) }));
+                }} />
+                <label className="inspector-fila"><span>{t("Color")}</span>
+                  <input type="color" value={materialElegido.color} onFocus={marcarHistorial} onChange={(e) => sinHistorial(cambiarMaterial(jugada, indice, materialElegido.id, { color: e.target.value }))} />
+                </label>
+                <label className="inspector-fila inspector-deslizador"><span>{t("Giro")}</span><b>{materialElegido.giro}°</b>
+                  <input type="range" min={0} max={355} step={5} value={materialElegido.giro} onPointerDown={marcarHistorial}
+                    onChange={(e) => sinHistorial(cambiarMaterial(jugada, indice, materialElegido.id, { giro: Number(e.target.value) }))} />
+                </label>
+                <div className="inspector-fila abp-acciones">
+                  <button type="button" className="peligro" onClick={borrarSeleccion}><Trash size={14} />{t("Quitar pieza")}</button>
+                </div>
+              </div>
+            </section>}
+
             <section className="inspector-grupo">
               <h3 className="inspector-titulo">{t("Fase")}<small>{tf("{n} de {total}", { n: indice + 1, total: jugada.fases.length })}</small></h3>
               <div className="inspector-tarjeta">
@@ -1056,6 +1126,17 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
                 <div className="inspector-fila"><span>{t("Relleno")}</span>
                   <SegmentosEstilo valor={estiloZona} onCambio={setEstiloZona} />
                 </div>
+              </div>}
+              {herramienta === "material" && <div className="inspector-tarjeta abp-tarjeta-extra">
+                <SelectorDeMaterial valor={tipoMaterial} color={colorDeMaterial} nombre={deSerieEn} onCambio={(tipo) => { setTipoMaterial(tipo); setColorMaterial(null); }} />
+                <label className="inspector-fila"><span>{t("Color")}</span>
+                  {colorMaterial && <button type="button" className="abp-enlace" onClick={() => setColorMaterial(null)}>{t("El de serie")}</button>}
+                  <input type="color" value={colorDeMaterial} onChange={(e) => setColorMaterial(e.target.value)} />
+                </label>
+                <label className="inspector-fila inspector-deslizador"><span>{t("Separación en la fila")}</span><b>{separacion.toFixed(1)} m</b>
+                  <input type="range" min={0.5} max={10} step={0.5} value={separacion} onChange={(e) => setSeparacion(Number(e.target.value))} />
+                </label>
+                <div className="inspector-fila"><span>{t("Slalom")}</span><Interruptor activo={slalom} onCambio={setSlalom} titulo={t("Slalom")} /></div>
               </div>}
               <p className="inspector-pie">{ayuda}</p>
             </section>

@@ -39,6 +39,10 @@ export type Anotacion =
   | { id: string; tipo: "flecha"; a: Punto; b: Punto; color: string; estilo: EstiloFlecha }
   | { id: string; tipo: "rect" | "zona"; a: Punto; b: Punto; color: string; estilo: EstiloZona }
   | { id: string; tipo: "texto" | "etiqueta"; a: Punto; texto: string; color: string };
+/** El material de entrenamiento, del más pequeño al más grande. */
+export type TipoMaterial = "seta" | "cono" | "pica" | "valla" | "aro" | "escalera" | "balon" | "maniqui" | "miniporteria" | "porteria";
+/** Una pieza en el césped: dónde, girada cuántos grados y de qué color. */
+export type Material = { id: string; tipo: TipoMaterial; p: Punto; giro: number; color: string };
 export type Fase = {
   id: string;
   nombre: string;
@@ -47,6 +51,8 @@ export type Fase = {
   carreras: Carrera[];
   pase: Pase | null;
   anotaciones: Anotacion[];
+  /** Conos, picas, vallas…: pasan a la fase siguiente al crearla, como en una sesión de verdad. */
+  material?: Material[];
   /** Segundos que la pose se queda quieta antes de moverse: lo que tarda en leerse. */
   pausa: number;
   /** Segundos que dura el movimiento. */
@@ -82,12 +88,22 @@ export type Colores = {
   rival: string;
   anotacion: string;
 };
+/** El dibujo de la camiseta en la ficha. */
+export type Patron = "liso" | "rayas" | "aros" | "mitades" | "banda" | "degradado";
+/**
+ * La equipación de un equipo: el color principal es el de `colores`; aquí va
+ * el dibujo, el segundo color, si el borde de la ficha lleva ese color (el
+ * ribete) y de qué color va el dorsal.
+ */
+export type Equipacion = { patron: Patron; secundario: string; ribete: boolean; dorsal: "auto" | "blanco" | "negro" };
 export type Jugada = {
   id: string;
   nombre: string;
   tipo: TipoABP;
   categoria: Categoria;
   colores: Colores;
+  /** Sin equipaciones, las fichas van lisas: así se abre lo guardado antes. */
+  equipaciones?: Record<Equipo, Equipacion>;
   ambiente: Ambiente;
   fichas: Ficha[];
   fases: Fase[];
@@ -128,6 +144,37 @@ export const ENCUADRES: Array<{ id: Encuadre; nombre: string }> = [
   { id: "campo", nombre: "Campo entero" }, { id: "dos_tercios", nombre: "Dos tercios" }, { id: "su_mitad", nombre: "Su mitad" },
   { id: "nuestra_mitad", nombre: "Nuestra mitad" }, { id: "su_area", nombre: "Su área" }, { id: "centro", nombre: "Círculo central" },
 ];
+/**
+ * El material, con su tamaño real en metros —largo en el sentido en que se
+ * corre, ancho de lado a lado— y su color de serie.
+ */
+export const MATERIALES: Array<{ id: TipoMaterial; nombre: string; color: string; largo: number; ancho: number }> = [
+  { id: "seta", nombre: "Seta", color: "#ff7a1a", largo: 0.4, ancho: 0.4 },
+  { id: "cono", nombre: "Cono", color: "#ff5f1f", largo: 0.45, ancho: 0.45 },
+  { id: "pica", nombre: "Pica", color: "#f3d34a", largo: 0.12, ancho: 0.12 },
+  { id: "valla", nombre: "Valla", color: "#f6c12d", largo: 0.12, ancho: 0.6 },
+  { id: "aro", nombre: "Aro", color: "#3aa0ff", largo: 0.7, ancho: 0.7 },
+  { id: "escalera", nombre: "Escalera", color: "#f6c12d", largo: 4, ancho: 0.5 },
+  { id: "balon", nombre: "Balón suelto", color: "#ffffff", largo: 0.22, ancho: 0.22 },
+  { id: "maniqui", nombre: "Maniquí", color: "#ffd23f", largo: 0.3, ancho: 0.6 },
+  { id: "miniporteria", nombre: "Miniportería", color: "#ffffff", largo: 0.9, ancho: 1.8 },
+  { id: "porteria", nombre: "Portería", color: "#ffffff", largo: 2, ancho: 7.32 },
+];
+export const PATRONES: Array<{ id: Patron; nombre: string }> = [
+  { id: "liso", nombre: "Lisa" }, { id: "rayas", nombre: "Rayas" }, { id: "aros", nombre: "Aros" },
+  { id: "mitades", nombre: "Mitades" }, { id: "banda", nombre: "Banda" }, { id: "degradado", nombre: "Degradado" },
+];
+export const EQUIPACION_LISA: Equipacion = { patron: "liso", secundario: "#ffffff", ribete: false, dorsal: "auto" };
+export const equipacionDe = (jugada: Jugada, equipo: Equipo): Equipacion => jugada.equipaciones?.[equipo] ?? EQUIPACION_LISA;
+export const cambiarEquipacion = (jugada: Jugada, equipo: Equipo, cambios: Partial<Equipacion>): Jugada => ({
+  ...jugada,
+  equipaciones: {
+    local: equipacionDe(jugada, "local"),
+    rival: equipacionDe(jugada, "rival"),
+    [equipo]: { ...equipacionDe(jugada, equipo), ...cambios },
+  },
+});
+
 /** El rectángulo que enseña cada encuadre, en metros. */
 export const CAJA_DE_ENCUADRE: Record<Encuadre, { x0: number; x1: number; z0: number; z1: number }> = {
   campo: { x0: -52.5, x1: 52.5, z0: -34, z1: 34 },
@@ -181,6 +228,8 @@ const EN_ABP: Record<string, string> = {
   "Remate al palo largo; el 8 cierra el rechace en la frontal.": "Header to the far post; No. 8 covers the second ball at the edge of the box.",
   "Pase al compañero libre; el primero presiona, el segundo tapa la línea de pase interior.": "Pass to the free teammate; the first defender presses, the second blocks the inside lane.",
   "Cuando se cierran por un lado, el balón cruza al apoyo opuesto.": "When they close one side, the ball crosses to the opposite support.",
+  // El material de entrenamiento y los dibujos de las camisetas.
+  "Seta": "Marker", "Cono": "Cone", "Pica": "Pole", "Valla": "Hurdle", "Aro": "Hoop", "Escalera": "Ladder", "Balón suelto": "Spare ball", "Maniquí": "Mannequin", "Miniportería": "Mini goal", "Portería": "Goal", "Lisa": "Plain", "Rayas": "Stripes", "Aros": "Hoops", "Mitades": "Halves", "Banda": "Sash", "Degradado": "Gradient",
 };
 
 /** Un nombre de serie en el idioma pedido; cualquier otro texto, sin tocar. */
@@ -262,7 +311,10 @@ export function balonEn(fase: Fase, t: number): Punto & { y: number } {
 export function faseSiguiente(fase: Fase, nombre: string): Fase {
   const pos: Record<string, Punto> = {};
   for (const id of Object.keys(fase.pos)) pos[id] = { ...posFinal(fase, id)! };
-  return { id: nuevoId("f"), nombre, pos, balon: { ...balonFinal(fase) }, carreras: [], pase: null, anotaciones: [], pausa: fase.pausa, duracion: fase.duracion, nota: "" };
+  return {
+    id: nuevoId("f"), nombre, pos, balon: { ...balonFinal(fase) }, carreras: [], pase: null, anotaciones: [],
+    material: (fase.material ?? []).map((m) => ({ ...m, p: { ...m.p } })), pausa: fase.pausa, duracion: fase.duracion, nota: "",
+  };
 }
 
 /**
@@ -424,6 +476,54 @@ export function duplicarFase(jugada: Jugada, indice: number, nombre: string): Ju
   return { ...jugada, fases };
 }
 
+// ---- El material de entrenamiento ----------------------------------------------------------
+
+export const datosDeMaterial = (tipo: TipoMaterial) => MATERIALES.find((m) => m.id === tipo) ?? MATERIALES[0];
+
+export const agregarMaterial = (jugada: Jugada, indice: number, piezas: Material[]) =>
+  conFase(jugada, indice, (f) => ({ ...f, material: [...(f.material ?? []), ...piezas.map((m) => ({ ...m, p: limitarMaterial(m.p) }))] }));
+
+export const moverMaterial = (jugada: Jugada, indice: number, id: string, p: Punto) =>
+  conFase(jugada, indice, (f) => ({ ...f, material: (f.material ?? []).map((m) => (m.id === id ? { ...m, p: limitarMaterial(p) } : m)) }));
+
+export const cambiarMaterial = (jugada: Jugada, indice: number, id: string, cambios: Partial<Pick<Material, "tipo" | "giro" | "color">>) =>
+  conFase(jugada, indice, (f) => ({ ...f, material: (f.material ?? []).map((m) => (m.id === id ? { ...m, ...cambios, giro: normalizarGiro(cambios.giro ?? m.giro) } : m)) }));
+
+export const quitarMaterial = (jugada: Jugada, indice: number, id: string) =>
+  conFase(jugada, indice, (f) => ({ ...f, material: (f.material ?? []).filter((m) => m.id !== id) }));
+
+/** El material se puede poner algo fuera de las líneas: una portería, un cono de banda. */
+const limitarMaterial = (p: Punto): Punto => ({ x: Math.max(-CAMPO.largo / 2 - 4, Math.min(CAMPO.largo / 2 + 4, p.x)), z: Math.max(-CAMPO.ancho / 2 - 4, Math.min(CAMPO.ancho / 2 + 4, p.z)) });
+const normalizarGiro = (grados: number) => ((Math.round(grados) % 360) + 360) % 360;
+
+/** La pieza que hay bajo `p`, si hay alguna: la más cercana dentro de su tamaño. */
+export function materialCerca(fase: Fase, p: Punto): string | null {
+  let mejor: string | null = null, menor = Infinity;
+  for (const m of fase.material ?? []) {
+    const { largo, ancho } = datosDeMaterial(m.tipo);
+    const d = distancia(m.p, p);
+    if (d < Math.max(1, Math.max(largo, ancho) / 2 + 0.3) && d < menor) { mejor = m.id; menor = d; }
+  }
+  return mejor;
+}
+
+/**
+ * Las piezas para arrastrar de `a` a `b`: una cada `separacion` metros, giradas
+ * en el sentido de la fila (una escalera queda a lo largo; una valla, cruzada).
+ * En slalom, se alternan a un lado y a otro de la línea.
+ */
+export function filaDeMaterial(tipo: TipoMaterial, a: Punto, b: Punto, separacion: number, slalom: boolean, color: string): Material[] {
+  const largo = distancia(a, b);
+  const paso = Math.max(0.5, separacion);
+  const cuantas = largo < paso / 2 ? 1 : Math.min(30, Math.floor(largo / paso) + 1);
+  const ux = largo ? (b.x - a.x) / largo : 1, uz = largo ? (b.z - a.z) / largo : 0;
+  const giro = largo ? normalizarGiro((Math.atan2(uz, ux) * 180) / Math.PI) : 0;
+  return Array.from({ length: cuantas }, (_, k) => {
+    const lado = slalom && cuantas > 1 ? (k % 2 ? 1 : -1) * 0.8 : 0;
+    return { id: nuevoId("m"), tipo, giro, color, p: { x: a.x + ux * paso * k - uz * lado, z: a.z + uz * paso * k + ux * lado } };
+  });
+}
+
 /**
  * Lleva una fase un puesto antes (-1) o después (+1). Las posiciones no se
  * tocan: cada fase guarda su propia pose, y la animación sale de comparar
@@ -522,7 +622,7 @@ export function anotacionCerca(fase: Fase, p: Punto, tolerancia = 1.2): string |
 
 type Sitio = [dorsal: string, rol: string, x: number, z: number];
 type DefFase = { nombre: string; nota?: string; carreras?: Record<string, [number, number, number?]>; pase?: [number, number, Pase["tipo"]]; anotaciones?: Anotacion[] };
-type DefJugada = { local: Sitio[]; rival: Sitio[]; balon: [number, number]; fases: DefFase[] };
+type DefJugada = { local: Sitio[]; rival: Sitio[]; balon: [number, number]; fases: DefFase[]; material?: Array<[TipoMaterial, number, number, number?]> };
 
 /*
  * Las jugadas de partida. No pretenden ser LA forma de sacar un córner: son un
@@ -625,6 +725,7 @@ const PIZARRA_LIBRE: DefJugada = { balon: [0, 0], local: [], rival: [], fases: [
 /** Un rondo en un cuadrado de 20 × 20 en el círculo central: cuatro fuera, dos dentro. */
 const RONDO: DefJugada = {
   balon: [-9.2, 0.5],
+  material: [["seta", -10, -10], ["seta", 10, -10], ["seta", 10, 10], ["seta", -10, 10]],
   local: [["1", "Apoyo", -10.5, 0], ["2", "Apoyo", 0, -10.5], ["3", "Apoyo", 10.5, 0], ["4", "Apoyo", 0, 10.5]],
   rival: [["1", "Presión", -3, 1.5], ["2", "Cobertura", 2.5, -1.5]],
   fases: [
@@ -689,6 +790,7 @@ export function plantilla(tipo: TipoABP): Jugada {
     ...def.rival.map(([d, , x, z]) => [`R${d}`, { x, z }]),
   ]);
   let balon: Punto = { x: def.balon[0], z: def.balon[1] };
+  const material: Material[] = (def.material ?? []).map(([tipo, x, z, giro]) => ({ id: nuevoId("m"), tipo, p: { x, z }, giro: giro ?? 0, color: datosDeMaterial(tipo).color }));
   const fases: Fase[] = def.fases.map((d) => {
     const fase: Fase = {
       id: nuevoId("f"),
@@ -698,6 +800,7 @@ export function plantilla(tipo: TipoABP): Jugada {
       carreras: Object.entries(d.carreras ?? {}).map(([fichaId, [x, z, curva]]) => ({ fichaId, hasta: { x, z }, curva: curva ?? 0 })),
       pase: d.pase ? { hasta: { x: d.pase[0], z: d.pase[1] }, tipo: d.pase[2] } : null,
       anotaciones: (d.anotaciones ?? []).map((a) => ({ ...a, id: nuevoId("a") })),
+      material: material.map((m) => ({ ...m, p: { ...m.p } })),
       pausa: PAUSA_POR_DEFECTO,
       duracion: DURACION_POR_DEFECTO,
       nota: d.nota ?? "",
@@ -792,6 +895,24 @@ const esPunto = (v: unknown): v is Punto => Boolean(v) && esNumero((v as Punto).
 const texto = (v: unknown, respaldo = "") => (typeof v === "string" ? v.slice(0, 80) : respaldo);
 const color = (v: unknown, respaldo: string) => (typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v) ? v : respaldo);
 
+function materialValido(v: unknown): Material | null {
+  const m = v as Record<string, unknown>;
+  if (!m || typeof m.id !== "string" || !esPunto(m.p) || !MATERIALES.some((x) => x.id === m.tipo)) return null;
+  const tipo = m.tipo as TipoMaterial;
+  return { id: m.id, tipo, p: limitarMaterial(m.p), giro: esNumero(m.giro) ? normalizarGiro(m.giro) : 0, color: color(m.color, datosDeMaterial(tipo).color) };
+}
+
+function equipacionValida(v: unknown): Equipacion {
+  const e = v as Record<string, unknown> | undefined;
+  if (!e) return EQUIPACION_LISA;
+  return {
+    patron: PATRONES.some((x) => x.id === e.patron) ? e.patron as Patron : "liso",
+    secundario: color(e.secundario, EQUIPACION_LISA.secundario),
+    ribete: e.ribete === true,
+    dorsal: e.dorsal === "blanco" || e.dorsal === "negro" ? e.dorsal : "auto",
+  };
+}
+
 function anotacionValida(v: unknown): Anotacion | null {
   const a = v as Record<string, unknown>;
   if (!a || typeof a.id !== "string" || !esPunto(a.a)) return null;
@@ -840,6 +961,7 @@ export function jugadaValida(v: unknown): Jugada | null {
       carreras,
       pase,
       anotaciones: Array.isArray(bruta.anotaciones) ? (bruta.anotaciones as unknown[]).map(anotacionValida).filter((a): a is Anotacion => a !== null) : [],
+      material: Array.isArray(bruta.material) ? (bruta.material as unknown[]).map(materialValido).filter((m): m is Material => m !== null).slice(0, 200) : [],
       pausa: esNumero(bruta.pausa) ? Math.max(0, Math.min(6, bruta.pausa)) : PAUSA_POR_DEFECTO,
       duracion: esNumero(bruta.duracion) ? Math.max(0.2, Math.min(15, bruta.duracion)) : DURACION_POR_DEFECTO,
       nota: typeof bruta.nota === "string" ? bruta.nota.slice(0, 160) : "",
@@ -873,6 +995,9 @@ export function jugadaValida(v: unknown): Jugada | null {
       rival: color(colores.rival, COLORES_POR_DEFECTO.rival),
       anotacion: color(colores.anotacion, COLORES_POR_DEFECTO.anotacion),
     },
+    ...(j.equipaciones && typeof j.equipaciones === "object"
+      ? { equipaciones: { local: equipacionValida((j.equipaciones as Record<string, unknown>).local), rival: equipacionValida((j.equipaciones as Record<string, unknown>).rival) } }
+      : {}),
     fichas,
     fases,
   };

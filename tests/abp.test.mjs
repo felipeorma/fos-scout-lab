@@ -275,3 +275,49 @@ test("el foco: una zona que apaga lo de fuera se guarda y se vuelve a abrir como
   const vuelta = normalizarCuaderno(JSON.parse(JSON.stringify(cuaderno)));
   assert.equal(vuelta.jugadas[0].fases[0].anotaciones.find((a) => a.id === "foco").estilo, "foco");
 });
+
+test("el material: en fila cada X metros, en slalom a los dos lados, y pasa a la fase siguiente", async () => {
+  const { filaDeMaterial, agregarMaterial, moverMaterial, quitarMaterial, materialCerca } = await import("../lib/abp.ts");
+  const fila = filaDeMaterial("pica", { x: 0, z: 0 }, { x: 10, z: 0 }, 2, false, "#ffff00");
+  assert.equal(fila.length, 6);
+  assert.ok(fila.every((m, k) => cerca(m.p, { x: 2 * k, z: 0 }) && m.giro === 0));
+  const slalom = filaDeMaterial("pica", { x: 0, z: 0 }, { x: 0, z: 9 }, 3, true, "#ffff00");
+  assert.equal(slalom.length, 4);
+  assert.ok(slalom.every((m) => m.giro === 90));
+  assert.ok(slalom[0].p.x * slalom[1].p.x < 0, "en slalom se alterna de lado");
+  // Un clic sin arrastrar: una sola pieza.
+  assert.equal(filaDeMaterial("cono", { x: 5, z: 5 }, { x: 5.1, z: 5 }, 2, false, "#ff0000").length, 1);
+  let jugada = plantilla("libre");
+  jugada = agregarMaterial(jugada, 0, fila);
+  assert.equal(materialCerca(jugada.fases[0], { x: 4.2, z: 0.3 }), fila[2].id);
+  assert.equal(materialCerca(jugada.fases[0], { x: 4, z: 6 }), null);
+  jugada = moverMaterial(jugada, 0, fila[0].id, { x: -3, z: 1 });
+  assert.ok(cerca(jugada.fases[0].material[0].p, { x: -3, z: 1 }));
+  jugada = agregarFase(jugada, 0, "Fase 2");
+  assert.equal(jugada.fases[1].material.length, 6, "la fase nueva empieza con el mismo material");
+  jugada = quitarMaterial(jugada, 1, fila[1].id);
+  assert.equal(jugada.fases[1].material.length, 5);
+  assert.equal(jugada.fases[0].material.length, 6, "quitarlo en una fase no lo quita de la anterior");
+});
+
+test("material y equipaciones se guardan y se vuelven a abrir; lo guardado antes, liso y sin material", async () => {
+  const { agregarMaterial, cambiarEquipacion, equipacionDe } = await import("../lib/abp.ts");
+  const cuaderno = cuadernoInicial();
+  let jugada = cuaderno.jugadas[0];
+  jugada = agregarMaterial(jugada, 0, [{ id: "m1", tipo: "escalera", p: { x: 1, z: 2 }, giro: 450, color: "#f6c12d" }]);
+  jugada = cambiarEquipacion(jugada, "rival", { patron: "rayas", secundario: "#000000", ribete: true });
+  const vuelta = normalizarCuaderno(JSON.parse(JSON.stringify({ ...cuaderno, jugadas: [jugada] }))).jugadas[0];
+  assert.deepEqual(vuelta.fases[0].material[0].p, { x: 1, z: 2 });
+  assert.equal(vuelta.fases[0].material[0].giro, 90);
+  assert.deepEqual(equipacionDe(vuelta, "rival"), { patron: "rayas", secundario: "#000000", ribete: true, dorsal: "auto" });
+  assert.equal(equipacionDe(vuelta, "local").patron, "liso");
+  // Basura y datos viejos: sin material raro y con la equipación lisa.
+  const sucio = JSON.parse(JSON.stringify({ ...cuaderno, jugadas: [{ ...jugada, equipaciones: { local: { patron: "lunares" } } }] }));
+  sucio.jugadas[0].fases[0].material.push({ id: "x", tipo: "trampolin", p: { x: 0, z: 0 } });
+  const limpio = normalizarCuaderno(sucio).jugadas[0];
+  assert.equal(limpio.fases[0].material.length, 1);
+  assert.equal(equipacionDe(limpio, "local").patron, "liso");
+  // El rondo de serie trae sus cuatro setas en todas las fases.
+  const rondo = plantilla("rondo");
+  assert.ok(rondo.fases.every((f) => f.material.length === 4));
+});

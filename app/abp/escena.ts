@@ -19,6 +19,7 @@ import { SUPERFICIE } from "./temas";
 import { abreviar } from "@/lib/tablero";
 import type { Borrador, Motor, Opciones, Seleccion, Vista } from "./motor";
 import {
+  datosDeMaterial, filaDeMaterial, type Equipacion, type Material,
   CAJA_DE_ENCUADRE, CAMPO, balonEn, enCurva, posicionEn, type Anotacion, type Encuadre, type Fase, type Jugada, type Punto, type Superficie, type Zonas,
 } from "@/lib/abp";
 
@@ -586,25 +587,51 @@ export class EscenaABP implements Motor {
     return lienzo;
   }
 
-  private dorsalTextura(dorsal: string, fondo: string, fuente: string) {
-    return this.enCache(["dorsal", dorsal, fondo, fuente].join("|"), () => this.lienzoDeDorsal(dorsal, fondo, fuente));
+  private dorsalTextura(dorsal: string, fondo: string, fuente: string, equipacion: Equipacion | null) {
+    const clave = ["dorsal", dorsal, fondo, fuente, equipacion ? Object.values(equipacion).join(",") : ""].join("|");
+    return this.enCache(clave, () => this.lienzoDeDorsal(dorsal, fondo, fuente, equipacion));
   }
 
-  private lienzoDeDorsal(dorsal: string, fondo: string, fuente: string) {
+  /** La tapa de la ficha: el color, el dibujo de la camiseta y el dorsal, como en el 2D. */
+  private lienzoDeDorsal(dorsal: string, fondo: string, fuente: string, equipacion: Equipacion | null) {
     const lienzo = document.createElement("canvas");
     lienzo.width = lienzo.height = 128;
     const ctx = lienzo.getContext("2d")!;
+    ctx.beginPath(); ctx.arc(64, 64, 64, 0, Math.PI * 2); ctx.clip();
     ctx.fillStyle = fondo;
-    ctx.beginPath(); ctx.arc(64, 64, 64, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = tintaSobre(fondo);
+    ctx.fillRect(0, 0, 128, 128);
+    const otro = equipacion?.secundario ?? fondo, ancho = 27;
+    ctx.fillStyle = otro;
+    switch (equipacion?.patron) {
+      case "rayas": for (const k of [-3, -1, 1, 3]) ctx.fillRect(64 + k * ancho - ancho / 2, 0, ancho, 128); break;
+      case "aros": for (const k of [-3, -1, 1, 3]) ctx.fillRect(0, 64 + k * ancho - ancho / 2, 128, ancho); break;
+      case "mitades": ctx.fillRect(0, 0, 64, 128); break;
+      case "banda": ctx.save(); ctx.translate(64, 64); ctx.rotate(Math.PI / 4); ctx.fillRect(-20, -100, 40, 200); ctx.restore(); break;
+      case "degradado": {
+        const degradado = ctx.createLinearGradient(0, 0, 128, 128);
+        degradado.addColorStop(0.15, fondo);
+        degradado.addColorStop(0.95, otro);
+        ctx.fillStyle = degradado;
+        ctx.fillRect(0, 0, 128, 128);
+        break;
+      }
+    }
+    const tinta = equipacion?.dorsal === "blanco" ? "#ffffff" : equipacion?.dorsal === "negro" ? "#0b0b0e" : tintaSobre(fondo);
     ctx.font = `800 ${dorsal.length > 2 ? 46 : 62}px ${fuente}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
+    if (equipacion && equipacion.patron !== "liso") {
+      ctx.strokeStyle = tinta === "#ffffff" ? "rgba(0,0,0,.5)" : "rgba(255,255,255,.6)";
+      ctx.lineWidth = 9;
+      ctx.lineJoin = "round";
+      ctx.strokeText(dorsal, 64, 68);
+    }
+    ctx.fillStyle = tinta;
     ctx.fillText(dorsal, 64, 68);
     return lienzo;
   }
 
-  private ficha(dorsal: string, rol: string, color: string, opciones: Opciones, seleccionada: boolean) {
+  private ficha(dorsal: string, rol: string, color: string, opciones: Opciones, seleccionada: boolean, equipacion: Equipacion | null = null) {
     const g = new THREE.Group();
     const nombreDeRol = opciones.rotulo(rol);
     // Dentro, el dorsal o el puesto, como en el tablero 2D.
@@ -612,11 +639,12 @@ export class EscenaABP implements Motor {
     const cuerpo = new THREE.Mesh(new THREE.CylinderGeometry(RADIO_FICHA, RADIO_FICHA * 1.04, 0.34, 40), new THREE.MeshStandardMaterial({ color, roughness: 0.5, metalness: 0.05 }));
     cuerpo.position.y = 0.17;
     cuerpo.castShadow = true;
-    const tapa = new THREE.Mesh(new THREE.CircleGeometry(RADIO_FICHA * 0.98, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: this.dorsalTextura(dentro, color, opciones.fuente) }));
+    const tapa = new THREE.Mesh(new THREE.CircleGeometry(RADIO_FICHA * 0.98, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: this.dorsalTextura(dentro, color, opciones.fuente, equipacion) }));
     tapa.position.y = 0.345;
     // El aro blanco que la despega del césped oscuro.
     const tema = SUPERFICIE[opciones.ambiente.superficie];
-    const aro = new THREE.Mesh(new THREE.RingGeometry(RADIO_FICHA * 1.02, RADIO_FICHA * 1.2, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: tema.aro, transparent: true, opacity: 0.85, depthWrite: false }));
+    const aro = new THREE.Mesh(new THREE.RingGeometry(RADIO_FICHA * 1.02, RADIO_FICHA * (equipacion?.ribete ? 1.28 : 1.2), 40).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ color: equipacion?.ribete ? equipacion.secundario : tema.aro, transparent: true, opacity: 0.85, depthWrite: false }));
     aro.position.y = 0.02;
     g.add(cuerpo, tapa, aro);
     if (seleccionada) {
@@ -629,6 +657,77 @@ export class EscenaABP implements Motor {
       nombre.position.y = 1.4;
       g.add(nombre);
     }
+    return g;
+  }
+
+  /** Una pieza de material: piezas sencillas a su tamaño real, giradas como en el 2D. */
+  private material(m: Material, opciones: Opciones, seleccionada: boolean, opacidad = 1) {
+    const g = new THREE.Group();
+    const transparente = opacidad < 1;
+    const mat = (color: string) => new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0.05, transparent: transparente, opacity: opacidad });
+    const pieza = (geo: THREE.BufferGeometry, color: string, x: number, y: number, z: number) => {
+      const malla = new THREE.Mesh(geo, mat(color));
+      malla.position.set(x, y, z);
+      malla.castShadow = true;
+      g.add(malla);
+      return malla;
+    };
+    const { largo, ancho } = datosDeMaterial(m.tipo);
+    switch (m.tipo) {
+      case "seta": pieza(new THREE.CylinderGeometry(0.12, 0.2, 0.07, 24), m.color, 0, 0.035, 0); break;
+      case "cono":
+        pieza(new THREE.BoxGeometry(0.42, 0.03, 0.42), m.color, 0, 0.015, 0);
+        pieza(new THREE.ConeGeometry(0.17, 0.45, 24), m.color, 0, 0.255, 0);
+        break;
+      case "pica":
+        pieza(new THREE.CylinderGeometry(0.15, 0.15, 0.04, 20), "#1d1d1f", 0, 0.02, 0);
+        pieza(new THREE.CylinderGeometry(0.02, 0.02, 1.6, 10), m.color, 0, 0.8, 0);
+        break;
+      case "valla":
+        pieza(new THREE.BoxGeometry(0.035, 0.035, 0.6), m.color, 0, 0.22, 0);
+        for (const z of [-0.3, 0.3]) {
+          pieza(new THREE.BoxGeometry(0.035, 0.22, 0.035), m.color, 0, 0.11, z);
+          pieza(new THREE.BoxGeometry(0.28, 0.02, 0.035), m.color, 0, 0.01, z);
+        }
+        break;
+      case "aro": {
+        const aro = pieza(new THREE.TorusGeometry(0.35, 0.02, 8, 40), m.color, 0, 0.02, 0);
+        aro.rotation.x = -Math.PI / 2;
+        break;
+      }
+      case "escalera":
+        for (const z of [-0.25, 0.25]) pieza(new THREE.BoxGeometry(4, 0.012, 0.03), m.color, 0, 0.006, z);
+        for (let x = -2; x <= 2.001; x += 0.5) pieza(new THREE.BoxGeometry(0.03, 0.012, 0.5), m.color, x, 0.006, 0);
+        break;
+      case "balon": pieza(new THREE.SphereGeometry(0.11, 18, 14), "#ffffff", 0, 0.11, 0); break;
+      case "maniqui":
+        pieza(new THREE.CylinderGeometry(0.16, 0.22, 1.55, 18), m.color, 0, 0.78, 0).scale.set(0.6, 1, 1.1);
+        pieza(new THREE.SphereGeometry(0.12, 16, 12), m.color, 0, 1.68, 0);
+        break;
+      case "miniporteria":
+      case "porteria": {
+        const alto = m.tipo === "porteria" ? 2.44 : 1.1, grosor = m.tipo === "porteria" ? 0.06 : 0.035;
+        for (const z of [-ancho / 2, ancho / 2]) {
+          pieza(new THREE.CylinderGeometry(grosor, grosor, alto, 10), m.color, 0, alto / 2, z);
+          pieza(new THREE.BoxGeometry(largo, grosor, grosor), m.color, -largo / 2, 0.02, z);
+        }
+        pieza(new THREE.BoxGeometry(grosor * 2, grosor * 2, ancho), m.color, 0, alto, 0);
+        pieza(new THREE.BoxGeometry(grosor, grosor, ancho), m.color, -largo, 0.02, 0);
+        const red = new THREE.Mesh(new THREE.PlaneGeometry(ancho, alto), new THREE.MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0.12 * opacidad, side: THREE.DoubleSide, depthWrite: false }));
+        red.rotation.y = Math.PI / 2;
+        red.position.set(-largo, alto / 2, 0);
+        g.add(red);
+        break;
+      }
+    }
+    if (seleccionada) {
+      const r = Math.max(0.6, Math.max(largo, ancho) / 2 + 0.3);
+      const sel = new THREE.Mesh(new THREE.RingGeometry(r, r + 0.18, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: opciones.acento, depthWrite: false }));
+      sel.position.y = 0.03;
+      g.add(sel);
+    }
+    g.position.set(m.p.x, 0, m.p.z);
+    g.rotation.y = -(m.giro * Math.PI) / 180;
     return g;
   }
 
@@ -783,6 +882,7 @@ export class EscenaABP implements Motor {
     for (const a of fase.anotaciones) {
       this.dinamico.add(this.anotacion(a, opciones, seleccion?.tipo === "anotacion" && seleccion.id === a.id));
     }
+    for (const m of fase.material ?? []) this.dinamico.add(this.material(m, opciones, seleccion?.tipo === "material" && seleccion.id === m.id));
     for (const c of fase.carreras) {
       const ficha = jugada.fichas.find((f) => f.id === c.fichaId);
       const desde = fase.pos[c.fichaId];
@@ -794,8 +894,9 @@ export class EscenaABP implements Motor {
       const sitio = fase.pos[f.id];
       if (!sitio) continue;
       // El portero, en un tono propio: se distingue de un vistazo como en la tele.
-      const color = /^(portero|por|gk|goalkeeper)$/i.test(f.rol.trim()) ? (f.equipo === "local" ? "#f3b64c" : "#45c6ba") : colorDe(f.equipo);
-      const g = this.ficha(f.dorsal, f.rol, color, opciones, seleccion?.tipo === "ficha" && seleccion.id === f.id);
+      const portero = /^(portero|por|gk|goalkeeper)$/i.test(f.rol.trim());
+      const color = portero ? (f.equipo === "local" ? "#f3b64c" : "#45c6ba") : colorDe(f.equipo);
+      const g = this.ficha(f.dorsal, f.rol, color, opciones, seleccion?.tipo === "ficha" && seleccion.id === f.id, portero ? null : opciones.equipaciones[f.equipo]);
       g.position.set(sitio.x, 0, sitio.z);
       this.fichas.set(f.id, g);
       this.dinamico.add(g);
@@ -808,6 +909,8 @@ export class EscenaABP implements Motor {
         this.dinamico.add(this.carrera(b.a, b.b, 0, ficha ? colorDe(ficha.equipo) : opciones.acento, 0.6));
       } else if (b.tipo === "pase") {
         this.dinamico.add(this.pase(b.a, { ...fase, balon: b.a, pase: { hasta: b.b, tipo: fase.pase?.tipo ?? "aereo" } }, "#ffffff", 0.6));
+      } else if (b.tipo === "material") {
+        if (b.material) for (const m of filaDeMaterial(b.material.tipo, b.a, b.b, b.material.separacion, b.material.slalom, b.material.color)) this.dinamico.add(this.material(m, opciones, false, 0.6));
       } else {
         const provisional: Anotacion = b.tipo === "flecha"
           ? { id: "borrador", tipo: "flecha", a: b.a, b: b.b, color: opciones.colorAnotacion, estilo: b.estilo ?? "continua" }

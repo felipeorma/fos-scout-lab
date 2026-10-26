@@ -22,3 +22,12 @@ test("cada clase del panel compartido que usa la pizarra tiene estilo en globals
     for (const clase of clases) assert.ok(hoja.includes(`.${clase}`), `${archivo}: .${clase} no tiene estilo`);
   }
 });
+
+test("los controles del material y las equipaciones tienen estilo", () => {
+  const hoja = leer("app/globals.css");
+  const clases = [...leer("app/abp/PiezasDeEntrenamiento.tsx").matchAll(/className="([^"]+)"/g)]
+    .flatMap((m) => m[1].split(/\s+/))
+    .filter((clase) => /^(inspector|abp)-/.test(clase));
+  assert.ok(clases.includes("abp-material") && clases.includes("abp-patrones"));
+  for (const clase of new Set(clases)) assert.ok(hoja.includes(`.${clase}`), `.${clase} no tiene estilo`);
+});

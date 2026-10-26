@@ -13,7 +13,8 @@
  */
 
 import {
-  CAJA_DE_ENCUADRE, CAMPO, alturaDePase, balonEn, enCurva, posicionEn, suavizar, type Anotacion, type Encuadre, type Fase, type Jugada, type Punto,
+  CAJA_DE_ENCUADRE, CAMPO, alturaDePase, balonEn, datosDeMaterial, enCurva, filaDeMaterial, posicionEn, suavizar,
+  type Anotacion, type Encuadre, type Equipacion, type Fase, type Jugada, type Material, type Punto,
 } from "@/lib/abp";
 import { abreviar, cajaDe, camaraDeCaja, interpolarCamara, transformacion, type Camara, type Transformacion } from "@/lib/tablero";
 import { SUPERFICIE, luz, rgba, tintaSobre } from "./temas";
@@ -28,6 +29,8 @@ const RADIO = 1.6;
  * todo los jugadores se separan, que es para lo que se hace zoom.
  */
 const radioEnPantalla = (escala: number, minimo = 11) => Math.max(minimo, Math.min(21, RADIO * escala));
+
+const esPortero = (rol: string) => /^(portero|por|gk|goalkeeper)$/i.test(rol.trim());
 
 /** Un color más oscuro, para el borde de la cúpula de una ficha. */
 function oscurecer(hex: string, factor: number) {
@@ -259,6 +262,8 @@ export class Tablero2D implements Motor {
       for (const a of fase.anotaciones) if ((a.tipo === "rect" || a.tipo === "zona") && a.estilo !== "foco") this.pintarAnotacion(tr, a, o, this.esElegida(a.id));
       // El foco va encima de las zonas y debajo de flechas y fichas: apaga el césped de fuera, no a los jugadores.
       for (const a of fase.anotaciones) if ((a.tipo === "rect" || a.tipo === "zona") && a.estilo === "foco") this.pintarAnotacion(tr, a, o, this.esElegida(a.id));
+      // El material va en el césped: debajo de las flechas y de los jugadores.
+      for (const m of fase.material ?? []) this.pintarMaterial(tr, m, o, this.seleccion?.tipo === "material" && this.seleccion.id === m.id);
       for (const a of fase.anotaciones) if (a.tipo === "flecha") this.pintarAnotacion(tr, a, o, this.esElegida(a.id));
       for (const c of fase.carreras) {
         const ficha = jugada.fichas.find((f) => f.id === c.fichaId);
@@ -270,7 +275,8 @@ export class Tablero2D implements Motor {
       this.pintarBorrador(tr, o);
       for (const f of jugada.fichas) {
         const p = posicionEn(fase, f.id, this.t, lineal);
-        if (p) this.pintarFicha(tr, p, f.dorsal, f.rol, this.colorDe(f.equipo, f.rol, o), o, this.seleccion?.tipo === "ficha" && this.seleccion.id === f.id);
+        const portero = esPortero(f.rol);
+        if (p) this.pintarFicha(tr, p, f.dorsal, f.rol, this.colorDe(f.equipo, f.rol, o), o, this.seleccion?.tipo === "ficha" && this.seleccion.id === f.id, portero ? null : o.equipaciones[f.equipo]);
       }
       this.pintarBalon(tr, balonEn(fase, this.t), o);
       for (const a of fase.anotaciones) if (a.tipo === "texto" || a.tipo === "etiqueta") this.pintarAnotacion(tr, a, o, this.esElegida(a.id));
@@ -284,7 +290,7 @@ export class Tablero2D implements Motor {
 
   /** El color de la ficha; el portero, en un tono propio como en el 3D. */
   private colorDe(equipo: "local" | "rival", rol: string, o: Opciones) {
-    if (/^(portero|por|gk|goalkeeper)$/i.test(rol.trim())) return equipo === "local" ? "#f3b64c" : "#45c6ba";
+    if (esPortero(rol)) return equipo === "local" ? "#f3b64c" : "#45c6ba";
     return equipo === "local" ? o.colorLocal : o.colorRival;
   }
 
@@ -506,7 +512,7 @@ export class Tablero2D implements Motor {
    * luz arriba a la izquierda, un aro oscuro por dentro y otro claro por fuera,
    * y un brillo. Así se separa del césped sin sombras borrosas.
    */
-  private pintarFicha(tr: Transformacion, p: Punto, dorsal: string, rol: string, color: string, o: Opciones, elegida: boolean) {
+  private pintarFicha(tr: Transformacion, p: Punto, dorsal: string, rol: string, color: string, o: Opciones, elegida: boolean, equipacion: Equipacion | null = null) {
     const ctx = this.ctx, e = tr.escala, tema = SUPERFICIE[o.ambiente.superficie];
     const c = tr.aPantalla(p), r = radioEnPantalla(e, this.radioMinimo);
     const nombre = o.rotulo(rol);
@@ -536,15 +542,22 @@ export class Tablero2D implements Motor {
     ctx.arc(0, 0, r, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
-    // La cúpula: la luz entra por arriba a la izquierda y el borde se oscurece.
-    const cupula = ctx.createRadialGradient(c.x - r * 0.28, c.y - r * 0.44, 0, c.x - r * 0.28, c.y - r * 0.44, r * 1.64);
-    cupula.addColorStop(0, color);
-    cupula.addColorStop(0.76, oscurecer(color, 0.8));
-    cupula.addColorStop(1, oscurecer(color, 0.8));
-    ctx.fillStyle = cupula;
+    // La camiseta —el color y su dibujo— y encima la sombra de la cúpula: la luz
+    // entra por arriba a la izquierda y el borde se oscurece, con o sin dibujo.
+    ctx.save();
     ctx.beginPath();
     ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.clip();
+    ctx.fillStyle = color;
+    ctx.fillRect(c.x - r, c.y - r, r * 2, r * 2);
+    if (equipacion && equipacion.patron !== "liso") this.pintarPatron(c, r, color, equipacion);
+    const cupula = ctx.createRadialGradient(c.x - r * 0.28, c.y - r * 0.44, 0, c.x - r * 0.28, c.y - r * 0.44, r * 1.64);
+    cupula.addColorStop(0, "rgba(0,0,0,0)");
+    cupula.addColorStop(0.76, "rgba(0,0,0,.2)");
+    cupula.addColorStop(1, "rgba(0,0,0,.2)");
+    ctx.fillStyle = cupula;
+    ctx.fillRect(c.x - r, c.y - r, r * 2, r * 2);
+    ctx.restore();
     ctx.globalAlpha = 0.7;
     ctx.strokeStyle = "rgba(0,0,0,.26)";
     ctx.lineWidth = r * 0.13;
@@ -552,8 +565,10 @@ export class Tablero2D implements Motor {
     ctx.arc(c.x, c.y, r * 0.98, 0, Math.PI * 2);
     ctx.stroke();
     ctx.globalAlpha = 1;
-    ctx.strokeStyle = papel && luz(color) > 0.78 ? "#6b6f76" : rgba(tema.aro, 0.88);
-    ctx.lineWidth = Math.max(1.2, r * 0.1);
+    // El ribete: el borde con el segundo color de la equipación.
+    const ribete = equipacion?.ribete ? equipacion.secundario : null;
+    ctx.strokeStyle = ribete ?? (papel && luz(color) > 0.78 ? "#6b6f76" : rgba(tema.aro, 0.88));
+    ctx.lineWidth = Math.max(1.2, r * (ribete ? 0.16 : 0.1));
     ctx.beginPath();
     ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
     ctx.stroke();
@@ -569,10 +584,18 @@ export class Tablero2D implements Motor {
     ctx.arc(0, 0, r, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
-    ctx.fillStyle = tintaSobre(color);
+    const tinta = equipacion?.dorsal === "blanco" ? "#ffffff" : equipacion?.dorsal === "negro" ? "#0b0b0e" : tintaSobre(color);
     ctx.font = `900 ${r * (dentro.length > 2 ? 0.7 : 0.86)}px ${o.fuente}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
+    // Sobre un dibujo, el número lleva un perfilado para leerse encima de los dos colores.
+    if (equipacion && equipacion.patron !== "liso") {
+      ctx.strokeStyle = tinta === "#ffffff" ? "rgba(0,0,0,.5)" : "rgba(255,255,255,.6)";
+      ctx.lineWidth = r * 0.16;
+      ctx.lineJoin = "round";
+      ctx.strokeText(dentro, c.x, c.y + r * 0.05);
+    }
+    ctx.fillStyle = tinta;
     ctx.fillText(dentro, c.x, c.y + r * 0.05);
     // El rol debajo, en una píldora que se lee en cualquier césped.
     const debajo = o.nombres && nombre.trim() && (o.ambiente.fichas === "dorsal" || nombre.trim().length > 3) ? nombre.toUpperCase() : "";
@@ -587,6 +610,179 @@ export class Tablero2D implements Motor {
       ctx.fill();
       ctx.fillStyle = papel ? "#1d1d1f" : "#f5f5f7";
       ctx.fillText(debajo, c.x, y + alto / 2 + alto * 0.04);
+    }
+    ctx.restore();
+  }
+
+  /** El dibujo de la camiseta dentro del círculo (ya recortado): rayas, aros, mitades, banda o degradado. */
+  private pintarPatron(c: { x: number; y: number }, r: number, base: string, equipacion: Equipacion) {
+    const ctx = this.ctx, otro = equipacion.secundario, ancho = r * 0.42;
+    ctx.fillStyle = otro;
+    switch (equipacion.patron) {
+      case "rayas":
+        for (const k of [-3, -1, 1, 3]) ctx.fillRect(c.x + k * ancho - ancho / 2, c.y - r, ancho, r * 2);
+        break;
+      case "aros":
+        for (const k of [-3, -1, 1, 3]) ctx.fillRect(c.x - r, c.y + k * ancho - ancho / 2, r * 2, ancho);
+        break;
+      case "mitades":
+        ctx.fillRect(c.x - r, c.y - r, r, r * 2);
+        break;
+      case "banda":
+        ctx.save();
+        ctx.translate(c.x, c.y);
+        ctx.rotate(Math.PI / 4);
+        ctx.fillRect(-r * 0.32, -r * 1.5, r * 0.64, r * 3);
+        ctx.restore();
+        break;
+      case "degradado": {
+        const degradado = ctx.createLinearGradient(c.x - r, c.y - r, c.x + r, c.y + r);
+        degradado.addColorStop(0.15, base);
+        degradado.addColorStop(0.95, otro);
+        ctx.fillStyle = degradado;
+        ctx.fillRect(c.x - r, c.y - r, r * 2, r * 2);
+        break;
+      }
+    }
+  }
+
+  /**
+   * Una pieza de material vista desde arriba, a su tamaño en metros (con un
+   * mínimo en pantalla para que una seta no desaparezca al alejarse).
+   */
+  private pintarMaterial(tr: Transformacion, m: Material, o: Opciones, elegida: boolean, alfa = 1) {
+    const ctx = this.ctx, e = tr.escala, datos = datosDeMaterial(m.tipo);
+    const g = (m.giro * Math.PI) / 180, cos = Math.cos(g), sin = Math.sin(g);
+    // De las medidas de la pieza (lx a lo largo, lz a lo ancho, en metros) a la pantalla.
+    const P = (lx: number, lz: number) => tr.aPantalla({ x: m.p.x + lx * cos - lz * sin, z: m.p.z + lx * sin + lz * cos });
+    const c = tr.aPantalla(m.p);
+    // Como en cualquier pizarra, lo pequeño se dibuja algo mayor que en la realidad: una seta de 20 cm no se vería.
+    const tamano = (metros: number, minimo: number) => Math.max(minimo, metros * e * 1.5);
+    const segmento = (a: [number, number], b: [number, number]) => { const p = P(...a), q = P(...b); ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke(); };
+    const sombra = o.ambiente.superficie === "papel" ? "rgba(0,0,0,.18)" : "rgba(0,0,0,.45)";
+    ctx.save();
+    ctx.globalAlpha = alfa;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    switch (m.tipo) {
+      case "seta": {
+        const r = tamano(0.2, 4);
+        ctx.fillStyle = sombra;
+        ctx.beginPath(); ctx.ellipse(c.x + r * 0.15, c.y + r * 0.25, r, r * 0.85, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = m.color;
+        ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "rgba(255,255,255,.45)";
+        ctx.beginPath(); ctx.arc(c.x, c.y, r * 0.38, 0, Math.PI * 2); ctx.fill();
+        break;
+      }
+      case "cono": {
+        const r = tamano(0.24, 5);
+        ctx.fillStyle = sombra;
+        ctx.beginPath(); ctx.ellipse(c.x + r * 0.5, c.y + r * 0.45, r * 1.15, r * 0.7, 0.5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = oscurecer(m.color, 0.78);
+        ctx.fillRect(c.x - r, c.y - r, r * 2, r * 2);
+        ctx.fillStyle = m.color;
+        ctx.beginPath(); ctx.arc(c.x, c.y, r * 0.86, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = "rgba(255,255,255,.9)";
+        ctx.lineWidth = Math.max(1, r * 0.18);
+        ctx.beginPath(); ctx.arc(c.x, c.y, r * 0.5, 0, Math.PI * 2); ctx.stroke();
+        break;
+      }
+      case "pica": {
+        // Desde arriba, una pica es un punto: se dibuja su sombra larga para que se lea alta.
+        const r = tamano(0.06, 2.8);
+        ctx.strokeStyle = sombra;
+        ctx.lineWidth = r * 1.4;
+        ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(c.x + r * 5, c.y + r * 3); ctx.stroke();
+        ctx.fillStyle = "rgba(20,20,22,.7)";
+        ctx.beginPath(); ctx.arc(c.x, c.y, r * 1.9, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = m.color;
+        ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "rgba(255,255,255,.7)";
+        ctx.beginPath(); ctx.arc(c.x - r * 0.3, c.y - r * 0.3, r * 0.35, 0, Math.PI * 2); ctx.fill();
+        break;
+      }
+      case "valla": {
+        ctx.strokeStyle = sombra;
+        ctx.lineWidth = tamano(0.12, 3);
+        segmento([0.08, -0.3], [0.08, 0.3]);
+        ctx.strokeStyle = m.color;
+        ctx.lineWidth = tamano(0.07, 2.2);
+        segmento([0, -0.3], [0, 0.3]);
+        ctx.lineWidth = tamano(0.05, 1.6);
+        segmento([-0.14, -0.3], [0.14, -0.3]);
+        segmento([-0.14, 0.3], [0.14, 0.3]);
+        break;
+      }
+      case "aro": {
+        ctx.strokeStyle = m.color;
+        ctx.lineWidth = tamano(0.05, 1.8);
+        ctx.beginPath(); ctx.arc(c.x, c.y, tamano(0.35, 4.5), 0, Math.PI * 2); ctx.stroke();
+        break;
+      }
+      case "escalera": {
+        ctx.strokeStyle = m.color;
+        ctx.lineWidth = tamano(0.04, 1.4);
+        segmento([-2, -0.25], [2, -0.25]);
+        segmento([-2, 0.25], [2, 0.25]);
+        for (let x = -2; x <= 2.001; x += 0.5) segmento([x, -0.25], [x, 0.25]);
+        break;
+      }
+      case "balon": {
+        const r = tamano(0.11, 3.6);
+        ctx.fillStyle = sombra;
+        ctx.beginPath(); ctx.ellipse(c.x, c.y + r * 0.35, r, r * 0.5, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = "rgba(0,0,0,.55)";
+        ctx.lineWidth = Math.max(1, r * 0.2);
+        ctx.stroke();
+        break;
+      }
+      case "maniqui": {
+        // El cuerpo, una elipse de hombro a hombro, y la cabeza en medio.
+        ctx.fillStyle = sombra;
+        ctx.beginPath(); ctx.ellipse(c.x + 3, c.y + 4, tamano(0.32, 6), tamano(0.32, 6) * 0.7, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath();
+        for (let k = 0; k <= 24; k += 1) {
+          const a = (k / 24) * Math.PI * 2, q = P(Math.cos(a) * 0.15, Math.sin(a) * 0.3);
+          if (k) ctx.lineTo(q.x, q.y); else ctx.moveTo(q.x, q.y);
+        }
+        ctx.closePath();
+        ctx.fillStyle = m.color;
+        ctx.fill();
+        ctx.strokeStyle = "rgba(0,0,0,.4)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.fillStyle = oscurecer(m.color, 0.72);
+        ctx.beginPath(); ctx.arc(c.x, c.y, tamano(0.11, 2.4), 0, Math.PI * 2); ctx.fill();
+        break;
+      }
+      case "miniporteria":
+      case "porteria": {
+        // La boca mira hacia +x de la pieza; la red queda detrás.
+        const ancho = datos.ancho / 2, fondo = datos.largo;
+        ctx.strokeStyle = "rgba(255,255,255,.35)";
+        ctx.lineWidth = Math.max(0.6, 0.03 * e);
+        for (let z = -ancho; z <= ancho + 0.001; z += ancho / 6) segmento([0, z], [-fondo, z]);
+        for (let x = 0; x <= fondo + 0.001; x += fondo / 3) segmento([-x, -ancho], [-x, ancho]);
+        ctx.strokeStyle = m.color;
+        ctx.lineWidth = tamano(m.tipo === "porteria" ? 0.12 : 0.06, 2);
+        segmento([0, -ancho], [0, ancho]);
+        ctx.lineWidth = tamano(0.05, 1.4);
+        segmento([0, -ancho], [-fondo, -ancho]);
+        segmento([0, ancho], [-fondo, ancho]);
+        segmento([-fondo, -ancho], [-fondo, ancho]);
+        break;
+      }
+    }
+    if (elegida) {
+      ctx.strokeStyle = o.acento;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, Math.max(9, (Math.max(datos.largo, datos.ancho) / 2) * e + 5), 0, Math.PI * 2);
+      ctx.stroke();
     }
     ctx.restore();
   }
@@ -781,6 +977,10 @@ export class Tablero2D implements Motor {
   private pintarBorrador(tr: Transformacion, o: Opciones) {
     const b = this.borrador, fase = this.fase, jugada = this.jugada;
     if (!b || !fase || !jugada) return;
+    if (b.tipo === "material") {
+      if (b.material) for (const m of filaDeMaterial(b.material.tipo, b.a, b.b, b.material.separacion, b.material.slalom, b.material.color)) this.pintarMaterial(tr, m, o, false, 0.6);
+      return;
+    }
     if (b.tipo === "carrera") {
       const ficha = jugada.fichas.find((f) => f.id === b.fichaId);
       this.pintarCarrera(tr, b.a, b.b, 0, ficha ? this.colorDe(ficha.equipo, ficha.rol, o) : o.acento, o, 0.6);

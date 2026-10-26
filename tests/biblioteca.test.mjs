@@ -43,3 +43,21 @@ test("abrir dos veces el mismo sistema da dos copias distintas", () => {
   assert.notEqual(a.id, b.id);
   assert.notEqual(a.fases[0].id, b.fases[0].id);
 });
+
+test("los ejercicios de entrenamiento traen sus fichas, su material en cada fase y sus equipaciones", () => {
+  const ejercicios = BIBLIOTECA.filter((s) => s.tema === "entrenamiento");
+  assert.ok(ejercicios.length >= 2);
+  for (const s of ejercicios.filter((e) => e.material)) {
+    const j = sistemaDeBiblioteca(s, "en");
+    for (const f of j.fases) assert.deepEqual(f.material.map((m) => m.id), j.fases[0].material.map((m) => m.id), s.id);
+    assert.equal(j.fases[0].material.length, s.material.length, s.id);
+  }
+  const circuito = sistemaDeBiblioteca(BIBLIOTECA.find((s) => s.id === "circuito-tecnico"), "en");
+  assert.deepEqual(circuito.fichas.map((f) => [f.id, f.rol]), [["L1", "Player"], ["L2", "Server"]]);
+  // La miniportería del remate mira hacia el jugador, que llega desde la izquierda.
+  assert.equal(circuito.fases[0].material.find((m) => m.tipo === "miniporteria").giro, 180);
+  const reducido = sistemaDeBiblioteca(BIBLIOTECA.find((s) => s.id === "reducido-4-contra-4"), "es");
+  assert.equal(reducido.fichas.length, 8);
+  assert.equal(reducido.equipaciones.local.patron, "rayas");
+  assert.equal(reducido.equipaciones.rival.dorsal, "negro");
+});
