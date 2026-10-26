@@ -22,9 +22,10 @@ import { Portal, archivoDeCuaderno, archivoDeSistema } from "./PortalDeSistemas"
 import { EditorDeEquipacion, EspaciosDeJuego, SelectorDeMaterial, SelectorDePeto } from "./abp/PiezasDeEntrenamiento";
 import { ESPACIOS, estirarZona, ponerEspacio, tamanoDeZona, type Espacio } from "@/lib/entrenamiento";
 import { PlanDeSesionPanel } from "./abp/PlanDeSesion";
+import { Explicacion } from "./abp/Explicacion";
 import {
   ArrowDownToLine, Balon, Bloque, Carrera, ChevronLeft, ChevronRight, Conduccion, Cono, Cubo, Duplicar, Elipse, Etiqueta, Flecha, Linea, Mover, PantallaCompleta,
-  Ojo, Pase as PaseIcono, Pause, Pencil, Play, Plus, Presion, Rectangulo, Regla, RotateCcw, RotateCw, Teclado, TextIcon, Trash, Video,
+  Microfono, Ojo, Pase as PaseIcono, Pause, Pencil, Play, Plus, Presion, Rectangulo, Regla, RotateCcw, RotateCw, Teclado, TextIcon, Trash, Video,
 } from "./Icons";
 import { PanelDeMedidas } from "./abp/PanelDeMedidas";
 import { PaletaDeOrdenes, type Orden } from "./abp/PaletaDeOrdenes";
@@ -146,6 +147,8 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
   const [rellenoBloque, setRellenoBloque] = useState<RellenoBloque>("atras");
   const [atajos, setAtajos] = useState(false);
   const [planAbierto, setPlanAbierto] = useState(false);
+  // Explicar: grabar el tablero con la voz y un lápiz encima.
+  const [explicando, setExplicando] = useState(false);
   const [paletaAbierta, setPaletaAbierta] = useState(false);
   // El paso en que se dibujan carreras y envíos: una pared es el pase del paso 1 y la vuelta del 2.
   const [pasoAccion, setPasoAccion] = useState(0);
@@ -693,7 +696,7 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
   function alPulsar(evento: EventoDePuntero<HTMLDivElement>) {
     // Mirando un enlace no se edita: un dedo en el móvil no mueve a nadie sin querer.
     if (evento.button !== 0 || !cuaderno || !jugada || !fase || grabando || soloVer) return;
-    if ((evento.target as HTMLElement).closest(".abp-flotante")) return;
+    if ((evento.target as HTMLElement).closest(".abp-flotante, .abp-telestrador")) return;
     const p = punto(evento);
     if (!p) return;
     // Editar siempre sobre el arranque de la fase: es lo que se ve con sus recorridos.
@@ -1356,6 +1359,7 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
     { id: "png", nombre: t("Imagen PNG de esta fase"), grupo: t("Exportar"), hacer: descargarImagen },
     { id: "pdf", nombre: t("PDF con una fase por página"), grupo: t("Exportar"), hacer: () => void descargarPdf() },
     { id: "video", nombre: t("Vídeo de la jugada"), grupo: t("Exportar"), hacer: () => void grabarVideo() },
+    { id: "explicar", nombre: t("Explicar: grabar con voz y lápiz"), grupo: t("Exportar"), hacer: () => setExplicando(true) },
     { id: "enlace", nombre: t("Copiar el enlace que se reproduce"), grupo: t("Exportar"), hacer: () => void copiarEnlace() },
     { id: "json", nombre: t("Archivo del sistema (.json)"), grupo: t("Exportar"), hacer: () => descargarSistema(jugada.id) },
     { id: "atajos", nombre: t("Atajos de teclado"), grupo: t("Ayuda"), atajo: "?", hacer: () => setAtajos(true) },
@@ -1424,6 +1428,8 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
             <button type="button" className="button primary compact abp-play" onClick={alternarReproduccion} disabled={grabando}>
               {reproduciendo ? <><Pause size={13} />{t("Detener")}</> : <><Play size={13} />{t("Reproducir")}</>}
             </button>
+            <button type="button" className={`button secondary compact${explicando ? " activa" : ""}`} onClick={() => setExplicando((x) => !x)} disabled={!lista || grabando}
+              aria-pressed={explicando} title={t("Graba el tablero con tu voz y un lápiz encima, como en la tele")}><Microfono size={13} />{t("Explicar")}</button>
             <details className="abp-exportar">
               <summary className="button secondary compact"><ArrowDownToLine size={13} />{t("Exportar")}</summary>
               <div className="abp-menu" role="menu">
@@ -1576,6 +1582,9 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
               </div>}
             </div>
             {atajos && <Atajos onCerrar={() => setAtajos(false)} />}
+            {explicando && jugada && lista && <Explicacion archivo={archivo(jugada.nombre)} onAviso={setAviso} onSalir={() => setExplicando(false)}
+              lienzoBase={() => escenaRef.current?.canvas ?? null}
+              componer={(destino) => lamina(destino, montadaRef.current >= 0 && montadaRef.current < jugada.fases.length ? montadaRef.current : indice)} />}
             <div className="abp-flotante abp-zoom" role="group" aria-label={t("Zoom")}>
               <button type="button" className="abp-boton-flotante" onClick={() => fase && escenaRef.current?.centrar(puntosDe(fase))} title={t("Encuadrar la jugada de esta fase")}><Cubo size={14} />{t("Centrar")}</button>
               {dimension === "2d" && <>
