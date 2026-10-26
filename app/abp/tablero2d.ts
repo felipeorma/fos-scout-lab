@@ -13,8 +13,9 @@
  */
 
 import {
-  CAJA_DE_ENCUADRE, CAMPO, alturaDePase, balonEn, datosDeMaterial, enCurva, filaDeMaterial, posicionEn, suavizar,
-  type Anotacion, type Encuadre, type Equipacion, type Fase, type Jugada, type Material, type Punto,
+  CAJA_DE_ENCUADRE, CAMPO, alturaDePase, balonEn, capaDe, datosDeMaterial, distancia, enCurva, extremosDe, filaDeMaterial, lineaDeBloque, posicionEn,
+  puntosDeFlecha, sombraDeBloque, suavizar,
+  type Anotacion, type Capa, type Encuadre, type Equipacion, type Extremo, type Fase, type Grosor, type Jugada, type Material, type Punto,
 } from "@/lib/abp";
 import { abreviar, cajaDe, camaraDeCaja, interpolarCamara, transformacion, type Camara, type Transformacion } from "@/lib/tablero";
 import { SUPERFICIE, luz, rgba, tintaSobre } from "./temas";
@@ -39,6 +40,57 @@ function oscurecer(hex: string, factor: number) {
   return `#${c((n >> 16) & 255)}${c((n >> 8) & 255)}${c(n & 255)}`;
 }
 const VIAJE_MS = 750;
+
+type Px = { x: number; y: number };
+/** Cuánto pesa cada grosor de trazo sobre el de serie. */
+const FACTOR_GROSOR: Record<Grosor, number> = { fino: 0.62, normal: 1, grueso: 1.65 };
+const metrosPorDefecto = (m: number) => `${m.toFixed(1)} m`;
+
+/** Una línea quebrada sin `ini` píxeles del principio ni `fin` del final (para no pisar las fichas ni la punta). */
+function recortar(puntos: Px[], ini: number, fin: number): Px[] {
+  if (puntos.length < 2) return puntos;
+  const tramos = puntos.slice(1).map((q, i) => Math.hypot(q.x - puntos[i].x, q.y - puntos[i].y));
+  const total = tramos.reduce((s, l) => s + l, 0);
+  if (total < 1) return puntos;
+  // Si no cabe, se recorta menos: una flecha corta nunca desaparece.
+  const escala = ini + fin > total * 0.8 ? (total * 0.8) / (ini + fin) : 1;
+  const s0 = ini * escala, s1 = total - fin * escala;
+  const salida: Px[] = [];
+  let recorrido = 0;
+  const en = (i: number, s: number) => {
+    const k = tramos[i] ? (s - recorrido) / tramos[i] : 0;
+    return { x: puntos[i].x + (puntos[i + 1].x - puntos[i].x) * k, y: puntos[i].y + (puntos[i + 1].y - puntos[i].y) * k };
+  };
+  for (let i = 0; i < tramos.length; i += 1) {
+    const desde = recorrido, hasta = recorrido + tramos[i];
+    if (hasta >= s0 && desde <= s1) {
+      if (!salida.length) salida.push(en(i, Math.max(s0, desde)));
+      salida.push(hasta <= s1 ? puntos[i + 1] : en(i, s1));
+    }
+    recorrido = hasta;
+  }
+  return salida.length >= 2 ? salida : puntos;
+}
+
+/** La misma línea en zigzag suave, como se pinta una conducción: `onda` px de largo y `amp` de alto. */
+function ondular(puntos: Px[], onda: number, amp: number): Px[] {
+  const tramos = puntos.slice(1).map((q, i) => Math.hypot(q.x - puntos[i].x, q.y - puntos[i].y));
+  const total = tramos.reduce((s, l) => s + l, 0);
+  if (total < 2) return puntos;
+  const ondas = Math.max(2, Math.round(total / onda)), pasos = ondas * 12;
+  const salida: Px[] = [];
+  let i = 0, recorrido = 0;
+  for (let k = 0; k <= pasos; k += 1) {
+    const s = (total * k) / pasos;
+    while (i < tramos.length - 1 && recorrido + tramos[i] < s) { recorrido += tramos[i]; i += 1; }
+    const l = tramos[i] || 1, u = Math.min(1, (s - recorrido) / l);
+    const a = puntos[i], b = puntos[i + 1];
+    const ux = (b.x - a.x) / l, uy = (b.y - a.y) / l;
+    const v = s / total, alto = amp * Math.sin(v * ondas * Math.PI * 2) * Math.min(1, v * 6, (1 - v) * 6);
+    salida.push({ x: a.x + (b.x - a.x) * u - uy * alto, y: a.y + (b.y - a.y) * u + ux * alto });
+  }
+  return salida;
+}
 
 export class Tablero2D implements Motor {
   readonly canvas: HTMLCanvasElement;
@@ -259,19 +311,30 @@ export class Tablero2D implements Motor {
     const fase = this.fase, jugada = this.jugada;
     if (fase && jugada) {
       const lineal = o.ambiente.suavizado === "lineal";
-      for (const a of fase.anotaciones) if ((a.tipo === "rect" || a.tipo === "zona") && a.estilo !== "foco") this.pintarAnotacion(tr, a, o, this.esElegida(a.id));
+      const ocultas = new Set<Capa>(o.ambiente.ocultas ?? []);
+      const de = (...tipos: Anotacion["tipo"][]) => fase.anotaciones.filter((a) => tipos.includes(a.tipo) && !ocultas.has(capaDe(a)));
+      const pintar = (a: Anotacion) => this.pintarAnotacion(tr, a, o, this.esElegida(a.id), 1, jugada, fase);
+      // Abajo, lo que marca el césped: las zonas y la sombra de los bloques.
+      for (const a of de("rect", "zona")) if ((a.tipo === "rect" || a.tipo === "zona") && a.estilo !== "foco") pintar(a);
+      for (const a of de("bloque")) pintar(a);
       // El foco va encima de las zonas y debajo de flechas y fichas: apaga el césped de fuera, no a los jugadores.
-      for (const a of fase.anotaciones) if ((a.tipo === "rect" || a.tipo === "zona") && a.estilo === "foco") this.pintarAnotacion(tr, a, o, this.esElegida(a.id));
+      for (const a of de("rect", "zona")) if ((a.tipo === "rect" || a.tipo === "zona") && a.estilo === "foco") pintar(a);
       // El material va en el césped: debajo de las flechas y de los jugadores.
       for (const m of fase.material ?? []) this.pintarMaterial(tr, m, o, this.seleccion?.tipo === "material" && this.seleccion.id === m.id);
-      for (const a of fase.anotaciones) if (a.tipo === "flecha") this.pintarAnotacion(tr, a, o, this.esElegida(a.id));
-      for (const c of fase.carreras) {
-        const ficha = jugada.fichas.find((f) => f.id === c.fichaId);
-        const desde = fase.pos[c.fichaId];
-        if (ficha && desde) this.pintarCarrera(tr, desde, c.hasta, c.curva, this.colorDe(ficha.equipo, ficha.rol, o), o);
+      for (const a of de("flecha", "trazo")) pintar(a);
+      if (!ocultas.has("recorridos")) {
+        for (const c of fase.carreras) {
+          const ficha = jugada.fichas.find((f) => f.id === c.fichaId);
+          const desde = fase.pos[c.fichaId];
+          if (ficha && desde) this.pintarCarrera(tr, desde, c.hasta, c.curva, this.colorDe(ficha.equipo, ficha.rol, o), o);
+        }
+        if (fase.pase) this.pintarPase(tr, fase.balon, fase.pase.hasta, alturaDePase(fase.balon, fase.pase), o, 1);
       }
-      if (fase.pase) this.pintarPase(tr, fase.balon, fase.pase.hasta, alturaDePase(fase.balon, fase.pase), o, 1);
       if (o.ambiente.estelas && this.t > 0) this.pintarEstelas(tr, fase, jugada, o, lineal);
+      if (this.borrador?.tipo === "guia") this.pintarGuia(tr, o);
+      // La línea de cada medida va bajo los jugadores; su cifra, encima (más abajo).
+      const medidas = de("medida");
+      for (const a of medidas) if (a.tipo === "medida") this.conAlfa(() => this.pintarMedida(tr, a, fase, this.trazoDe(a.color || o.colorAnotacion, o), o, this.esElegida(a.id), "linea"));
       this.pintarBorrador(tr, o);
       for (const f of jugada.fichas) {
         const p = posicionEn(fase, f.id, this.t, lineal);
@@ -279,7 +342,10 @@ export class Tablero2D implements Motor {
         if (p) this.pintarFicha(tr, p, f.dorsal, f.rol, this.colorDe(f.equipo, f.rol, o), o, this.seleccion?.tipo === "ficha" && this.seleccion.id === f.id, portero ? null : o.equipaciones[f.equipo]);
       }
       this.pintarBalon(tr, balonEn(fase, this.t), o);
-      for (const a of fase.anotaciones) if (a.tipo === "texto" || a.tipo === "etiqueta") this.pintarAnotacion(tr, a, o, this.esElegida(a.id));
+      // Encima de todo, lo que se lee: las medidas, los jugadores elegidos para un bloque y los textos.
+      for (const a of medidas) if (a.tipo === "medida") this.conAlfa(() => this.pintarMedida(tr, a, fase, this.trazoDe(a.color || o.colorAnotacion, o), o, this.esElegida(a.id), "rotulo"));
+      if (this.borrador?.tipo === "bloque") this.pintarElegidosDeBloque(tr, this.borrador.fichas, fase, o, lineal);
+      for (const a of de("texto", "etiqueta")) pintar(a);
     }
     ctx.restore();
   }
@@ -818,15 +884,28 @@ export class Tablero2D implements Motor {
     ctx.restore();
   }
 
-  private pintarAnotacion(tr: Transformacion, a: Anotacion, o: Opciones, elegida: boolean, alfa = 1) {
+  private pintarAnotacion(tr: Transformacion, a: Anotacion, o: Opciones, elegida: boolean, alfa = 1, jugada = this.jugada, fase = this.fase) {
     const ctx = this.ctx, e = tr.escala;
     const color = this.trazoDe(a.color || o.colorAnotacion, o);
     const halo = this.halo(o);
+    if (a.tipo === "flecha" || a.tipo === "medida" || a.tipo === "bloque" || a.tipo === "trazo") {
+      if (!fase || !jugada) return;
+      ctx.save();
+      ctx.globalAlpha = alfa;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      if (a.tipo === "flecha") this.pintarFlecha(tr, a, fase, color, o, elegida);
+      else if (a.tipo === "medida") this.pintarMedida(tr, a, fase, color, o, elegida);
+      else if (a.tipo === "bloque") this.pintarBloque(tr, a, jugada, fase, color, o, elegida);
+      else this.pintarTrazo(tr, a.puntos, color, o, elegida, a.grosor ?? "normal", a.punta === true);
+      ctx.restore();
+      return;
+    }
     ctx.save();
     ctx.globalAlpha = alfa;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    if (!("b" in a)) {
+    if (a.tipo === "texto" || a.tipo === "etiqueta") {
       const p = tr.aPantalla(a.a);
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
@@ -863,53 +942,8 @@ export class Tablero2D implements Motor {
       ctx.restore();
       return;
     }
+    if (a.tipo !== "rect" && a.tipo !== "zona") { ctx.restore(); return; }
     const A = tr.aPantalla(a.a), B = tr.aPantalla(a.b);
-    if (a.tipo === "flecha") {
-      const grosor = Math.max(2, (elegida ? 0.42 : 0.32) * e);
-      const largo = Math.hypot(B.x - A.x, B.y - A.y) || 1;
-      const ux = (B.x - A.x) / largo, uy = (B.y - A.y) / largo;
-      const cabeza = Math.max(11, 1.6 * e);
-      if (a.estilo === "presion") {
-        // La cuña de la presión: estrecha en quien aprieta, abierta hacia el balón.
-        const abre = Math.max(10, Math.min(largo * 0.35, 4 * e));
-        ctx.globalAlpha = alfa * 0.28;
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.moveTo(A.x, A.y);
-        ctx.lineTo(B.x - uy * abre, B.y + ux * abre);
-        ctx.lineTo(B.x + uy * abre, B.y - ux * abre);
-        ctx.closePath();
-        ctx.fill();
-        ctx.globalAlpha = alfa;
-        this.conHalo(o, grosor, color, () => {
-          ctx.beginPath();
-          ctx.moveTo(A.x, A.y); ctx.lineTo(B.x - uy * abre, B.y + ux * abre);
-          ctx.moveTo(A.x, A.y); ctx.lineTo(B.x + uy * abre, B.y - ux * abre);
-        });
-      } else {
-        const fin = a.estilo === "linea" ? B : { x: B.x - ux * cabeza * 0.6, y: B.y - uy * cabeza * 0.6 };
-        if (a.estilo === "discontinua") ctx.setLineDash([Math.max(5, 0.9 * e), Math.max(5, 0.75 * e)]);
-        this.conHalo(o, grosor, color, () => {
-          ctx.beginPath();
-          if (a.estilo === "ondulada") {
-            // La conducción: el balón pegado al pie, en zigzag suave.
-            const tramo = Math.hypot(fin.x - A.x, fin.y - A.y), ondas = Math.max(2, Math.round(tramo / Math.max(14, 2.4 * e))), pasos = ondas * 12;
-            for (let i = 0; i <= pasos; i += 1) {
-              const k = i / pasos, amp = Math.max(3, 0.45 * e) * Math.sin(k * ondas * Math.PI * 2) * Math.min(1, k * 6, (1 - k) * 6);
-              const x = A.x + (fin.x - A.x) * k - uy * amp, y = A.y + (fin.y - A.y) * k + ux * amp;
-              if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
-            }
-          } else {
-            ctx.moveTo(A.x, A.y);
-            ctx.lineTo(fin.x, fin.y);
-          }
-        });
-        ctx.setLineDash([]);
-        if (a.estilo !== "linea") this.punta(A, B, cabeza, color, halo);
-      }
-      ctx.restore();
-      return;
-    }
     // Rectángulo o zona: el contorno de cada una, para rellenar, recortar o apagar lo de fuera.
     const x0 = Math.min(A.x, B.x), x1 = Math.max(A.x, B.x), y0 = Math.min(A.y, B.y), y1 = Math.max(A.y, B.y);
     const esquinas = a.tipo === "rect"
@@ -974,9 +1008,258 @@ export class Tablero2D implements Motor {
     ctx.restore();
   }
 
+  /** Lo que mide una ficha en metros en esta escala, para empezar y acabar los trazos en su borde. */
+  private radioEnMetros(e: number) {
+    return radioEnPantalla(e, this.radioMinimo) / e;
+  }
+
+  /**
+   * Una flecha: recta o curva, continua, discontinua, punteada u ondulada,
+   * con punta, doble punta, barra o nada, y su grosor. Si está pegada a una
+   * ficha, empieza o acaba en su borde y va con ella cuando se mueve.
+   */
+  private pintarFlecha(tr: Transformacion, a: Extract<Anotacion, { tipo: "flecha" }>, fase: Fase, color: string, o: Opciones, elegida: boolean) {
+    const ctx = this.ctx, e = tr.escala, halo = this.halo(o);
+    const lineal = o.ambiente.suavizado === "lineal";
+    const ext = extremosDe(a, fase, this.t, lineal);
+    const factor = FACTOR_GROSOR[a.grosor ?? "normal"];
+    const grosor = Math.max(1.6, (elegida ? 0.42 : 0.32) * e) * factor;
+    const cabeza = Math.max(10, 1.6 * e) * (0.75 + 0.25 * factor);
+    const extremo: Extremo = a.extremo ?? (a.estilo === "linea" ? "nada" : "punta");
+    const radio = this.radioEnMetros(e) * e * 1.12;
+    const crudo = puntosDeFlecha(ext.a, ext.b, a.estilo === "presion" ? 0 : a.curva ?? 0, 32).map((q) => tr.aPantalla(q));
+    const linea = recortar(crudo, ext.enFichaA ? radio : 0, ext.enFichaB ? radio : 0);
+    const A = linea[0], B = linea[linea.length - 1];
+    if (Math.hypot(B.x - A.x, B.y - A.y) < 2) return;
+    if (a.estilo === "presion") {
+      // La cuña de la presión: estrecha en quien aprieta, abierta hacia el balón.
+      const largo = Math.hypot(B.x - A.x, B.y - A.y), ux = (B.x - A.x) / largo, uy = (B.y - A.y) / largo;
+      const abre = Math.max(10, Math.min(largo * 0.35, 4 * e));
+      ctx.save();
+      ctx.globalAlpha *= 0.28;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(A.x, A.y);
+      ctx.lineTo(B.x - uy * abre, B.y + ux * abre);
+      ctx.lineTo(B.x + uy * abre, B.y - ux * abre);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+      this.conHalo(o, grosor, color, () => {
+        ctx.beginPath();
+        ctx.moveTo(A.x, A.y); ctx.lineTo(B.x - uy * abre, B.y + ux * abre);
+        ctx.moveTo(A.x, A.y); ctx.lineTo(B.x + uy * abre, B.y - ux * abre);
+      });
+      return;
+    }
+    // La línea acaba bajo la punta, no en su vértice: así la punta queda limpia.
+    const conPuntaFin = extremo === "punta" || extremo === "doble", conPuntaIni = extremo === "doble";
+    let trazo = recortar(linea, conPuntaIni ? cabeza * 0.6 : 0, conPuntaFin ? cabeza * 0.6 : 0);
+    if (a.estilo === "ondulada") trazo = ondular(trazo, Math.max(14, 2.4 * e), Math.max(3, 0.45 * e));
+    if (a.estilo === "discontinua") ctx.setLineDash([Math.max(5, 0.9 * e), Math.max(5, 0.75 * e)]);
+    if (a.estilo === "punteada") ctx.setLineDash([0.1, Math.max(5, grosor * 2.4)]);
+    this.conHalo(o, grosor, color, () => {
+      ctx.beginPath();
+      trazo.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)));
+    });
+    ctx.setLineDash([]);
+    const antes = (lista: Px[], desdeElFinal: boolean) => {
+      // La dirección de la punta: unos píxeles atrás, para que en una curva mire hacia donde llega.
+      const orden = desdeElFinal ? [...lista].reverse() : lista;
+      const fin = orden[0];
+      return orden.find((q) => Math.hypot(q.x - fin.x, q.y - fin.y) > cabeza * 0.8) ?? orden[orden.length - 1];
+    };
+    if (conPuntaFin) this.punta(antes(linea, true), B, cabeza, color, halo);
+    if (conPuntaIni) this.punta(antes(linea, false), A, cabeza, color, halo);
+    if (extremo === "barra") {
+      // La barra de parada: hasta aquí y no más.
+      const previo = antes(linea, true), l = Math.hypot(B.x - previo.x, B.y - previo.y) || 1;
+      const nx = -(B.y - previo.y) / l, ny = (B.x - previo.x) / l, mitad = cabeza * 0.55;
+      this.conHalo(o, grosor * 1.15, color, () => {
+        ctx.beginPath();
+        ctx.moveTo(B.x - nx * mitad, B.y - ny * mitad);
+        ctx.lineTo(B.x + nx * mitad, B.y + ny * mitad);
+      });
+    }
+  }
+
+  /** Dibuja con el lienzo guardado y restaurado, y los trazos redondeados. */
+  private conAlfa(dibujar: () => void, alfa = 1) {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.globalAlpha = alfa;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    dibujar();
+    ctx.restore();
+  }
+
+  /**
+   * Una medida: la línea fina con sus topes y la distancia en metros en medio,
+   * como en un análisis de la tele. `parte` deja pintar la línea bajo los
+   * jugadores y la cifra encima.
+   */
+  private pintarMedida(tr: Transformacion, a: Extract<Anotacion, { tipo: "medida" }>, fase: Fase, color: string, o: Opciones, elegida: boolean, parte: "todo" | "linea" | "rotulo" = "todo") {
+    const ctx = this.ctx, e = tr.escala;
+    const ext = extremosDe(a, fase, this.t, o.ambiente.suavizado === "lineal");
+    const metros = distancia(ext.a, ext.b);
+    if (metros < 0.05) return;
+    const radio = this.radioEnMetros(e) * e * 1.05;
+    const [A, B] = recortar([tr.aPantalla(ext.a), tr.aPantalla(ext.b)], ext.enFichaA ? radio : 0, ext.enFichaB ? radio : 0);
+    const l = Math.hypot(B.x - A.x, B.y - A.y) || 1, nx = -(B.y - A.y) / l, ny = (B.x - A.x) / l;
+    const tope = Math.max(5, 0.55 * e), grosor = Math.max(1.4, (elegida ? 0.22 : 0.15) * e);
+    if (parte !== "rotulo") {
+      this.conHalo(o, grosor, color, () => {
+        ctx.beginPath();
+        ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y);
+        ctx.moveTo(A.x - nx * tope, A.y - ny * tope); ctx.lineTo(A.x + nx * tope, A.y + ny * tope);
+        ctx.moveTo(B.x - nx * tope, B.y - ny * tope); ctx.lineTo(B.x + nx * tope, B.y + ny * tope);
+      });
+    }
+    if (parte === "linea") return;
+    const texto = (o.metros ?? metrosPorDefecto)(metros);
+    const alto = Math.max(15, Math.min(26, 1.5 * e));
+    ctx.font = `800 ${alto * 0.58}px ${o.fuente}`;
+    const ancho = ctx.measureText(texto).width + alto * 0.8;
+    const c = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 };
+    ctx.fillStyle = this.halo(o);
+    ctx.beginPath();
+    ctx.roundRect(c.x - ancho / 2 - 1.5, c.y - alto / 2 - 1.5, ancho + 3, alto + 3, alto / 2 + 1.5);
+    ctx.fill();
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.roundRect(c.x - ancho / 2, c.y - alto / 2, ancho, alto, alto / 2);
+    ctx.fill();
+    ctx.fillStyle = tintaSobre(color);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(texto, c.x, c.y + alto * 0.04);
+  }
+
+  /**
+   * El bloque: la sombra de su espacio (hacia la portería que defienden o
+   * alrededor de ellos) y una línea gruesa que pasa por los jugadores. Va con
+   * ellos: se calcula en cada cuadro desde donde están.
+   */
+  private pintarBloque(tr: Transformacion, a: Extract<Anotacion, { tipo: "bloque" }>, jugada: Jugada, fase: Fase, color: string, o: Opciones, elegida: boolean) {
+    const ctx = this.ctx, e = tr.escala, lineal = o.ambiente.suavizado === "lineal";
+    const linea = lineaDeBloque(a, fase, this.t, lineal).map((q) => tr.aPantalla(q));
+    if (!linea.length) return;
+    const sombra = sombraDeBloque(a, jugada, fase, this.t, lineal).map((q) => tr.aPantalla(q));
+    if (sombra.length >= 3) {
+      ctx.beginPath();
+      sombra.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)));
+      ctx.closePath();
+      if (a.relleno === "atras") {
+        // Más intensa junto a la línea y apagándose hacia la portería.
+        const cx = linea.reduce((s, q) => s + q.x, 0) / linea.length, cy = linea.reduce((s, q) => s + q.y, 0) / linea.length;
+        const lejos = sombra.slice(linea.length);
+        const fx = lejos.reduce((s, q) => s + q.x, 0) / lejos.length, fy = lejos.reduce((s, q) => s + q.y, 0) / lejos.length;
+        const velo = ctx.createLinearGradient(cx, cy, fx, fy);
+        velo.addColorStop(0, rgba(color, 0.3));
+        velo.addColorStop(1, rgba(color, 0.03));
+        ctx.fillStyle = velo;
+        ctx.fill();
+      } else {
+        ctx.fillStyle = rgba(color, 0.11);
+        ctx.fill();
+        ctx.strokeStyle = rgba(color, 0.7);
+        ctx.lineWidth = Math.max(1.4, 0.2 * e);
+        ctx.setLineDash([Math.max(6, 1.2 * e), Math.max(4, 0.8 * e)]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+    if (a.relleno === "cerrado") return;
+    const grosor = Math.max(2.4, (elegida ? 0.5 : 0.4) * e);
+    if (linea.length === 1) {
+      ctx.fillStyle = color;
+      ctx.beginPath(); ctx.arc(linea[0].x, linea[0].y, grosor, 0, Math.PI * 2); ctx.fill();
+      return;
+    }
+    this.conHalo(o, grosor, color, () => {
+      ctx.beginPath();
+      linea.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)));
+    });
+  }
+
+  /** Un trazo a mano alzada, suavizado con curvas por los puntos medios. */
+  private pintarTrazo(tr: Transformacion, puntos: Punto[], color: string, o: Opciones, elegida: boolean, grosor: Grosor, punta: boolean) {
+    const ctx = this.ctx, e = tr.escala;
+    const px = puntos.map((q) => tr.aPantalla(q));
+    if (px.length < 2) return;
+    const ancho = Math.max(1.6, (elegida ? 0.4 : 0.3) * e) * FACTOR_GROSOR[grosor];
+    const cabeza = Math.max(10, 1.5 * e) * (0.75 + 0.25 * FACTOR_GROSOR[grosor]);
+    const linea = punta ? recortar(px, 0, cabeza * 0.6) : px;
+    this.conHalo(o, ancho, color, () => {
+      ctx.beginPath();
+      ctx.moveTo(linea[0].x, linea[0].y);
+      for (let i = 1; i < linea.length - 1; i += 1) {
+        const m = { x: (linea[i].x + linea[i + 1].x) / 2, y: (linea[i].y + linea[i + 1].y) / 2 };
+        ctx.quadraticCurveTo(linea[i].x, linea[i].y, m.x, m.y);
+      }
+      ctx.lineTo(linea[linea.length - 1].x, linea[linea.length - 1].y);
+    });
+    if (punta) {
+      const fin = px[px.length - 1];
+      const previo = [...px].reverse().find((q) => Math.hypot(q.x - fin.x, q.y - fin.y) > cabeza * 0.8) ?? px[0];
+      this.punta(previo, fin, cabeza, color, this.halo(o));
+    }
+  }
+
+  /** Al arrastrar una ficha: la línea de la ficha con la que se alinea, de lado a lado del campo. */
+  private pintarGuia(tr: Transformacion, o: Opciones) {
+    const b = this.borrador;
+    if (b?.tipo !== "guia") return;
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.strokeStyle = rgba(o.acento, 0.85);
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([6, 5]);
+    ctx.beginPath();
+    if (b.x !== undefined) {
+      const p = tr.aPantalla({ x: b.x, z: -MEDIO_A - 2 }), q = tr.aPantalla({ x: b.x, z: MEDIO_A + 2 });
+      ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y);
+    }
+    if (b.z !== undefined) {
+      const p = tr.aPantalla({ x: -MEDIO_L - 2, z: b.z }), q = tr.aPantalla({ x: MEDIO_L + 2, z: b.z });
+      ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /** Los jugadores que ya van en el bloque que se está formando: un aro del color de acento. */
+  private pintarElegidosDeBloque(tr: Transformacion, fichas: string[], fase: Fase, o: Opciones, lineal: boolean) {
+    const ctx = this.ctx, r = radioEnPantalla(tr.escala, this.radioMinimo);
+    ctx.save();
+    ctx.strokeStyle = o.acento;
+    ctx.lineWidth = 2.5;
+    ctx.setLineDash([4, 3]);
+    for (const id of fichas) {
+      const p = posicionEn(fase, id, this.t, lineal);
+      if (!p) continue;
+      const c = tr.aPantalla(p);
+      ctx.beginPath(); ctx.arc(c.x, c.y, r + 5, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   private pintarBorrador(tr: Transformacion, o: Opciones) {
     const b = this.borrador, fase = this.fase, jugada = this.jugada;
-    if (!b || !fase || !jugada) return;
+    if (!b || !fase || !jugada || b.tipo === "guia") return;
+    if (b.tipo === "bloque") {
+      if (b.fichas.length) this.pintarAnotacion(tr, { id: "borrador", tipo: "bloque", fichas: b.fichas, color: o.colorAnotacion, relleno: b.relleno }, o, false, 0.75);
+      return;
+    }
+    if (b.tipo === "trazo") {
+      this.pintarAnotacion(tr, { id: "borrador", tipo: "trazo", puntos: b.puntos, color: o.colorAnotacion, grosor: b.grosor, punta: b.punta }, o, false, 0.8);
+      return;
+    }
+    if (b.tipo === "medida") {
+      this.pintarAnotacion(tr, { id: "borrador", tipo: "medida", a: b.a, b: b.b, color: o.colorAnotacion, desde: b.desde, hasta: b.hasta }, o, false, 0.85);
+      return;
+    }
     if (b.tipo === "material") {
       if (b.material) for (const m of filaDeMaterial(b.material.tipo, b.a, b.b, b.material.separacion, b.material.slalom, b.material.color)) this.pintarMaterial(tr, m, o, false, 0.6);
       return;
@@ -989,7 +1272,7 @@ export class Tablero2D implements Motor {
       this.pintarPase(tr, b.a, b.b, alturaDePase(b.a, { hasta: b.b, tipo }), o, 0.6);
     } else {
       const provisional: Anotacion = b.tipo === "flecha"
-        ? { id: "borrador", tipo: "flecha", a: b.a, b: b.b, color: o.colorAnotacion, estilo: b.estilo ?? "continua" }
+        ? { id: "borrador", tipo: "flecha", a: b.a, b: b.b, color: o.colorAnotacion, estilo: b.estilo ?? "continua", extremo: b.extremo, grosor: b.grosor, desde: b.desde, hasta: b.hasta }
         : { id: "borrador", tipo: b.tipo, a: b.a, b: b.b, color: o.colorAnotacion, estilo: "translucida" };
       this.pintarAnotacion(tr, provisional, o, false, 0.7);
     }

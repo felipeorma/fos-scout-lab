@@ -20,8 +20,14 @@ import { abreviar } from "@/lib/tablero";
 import type { Borrador, Motor, Opciones, Seleccion, Vista } from "./motor";
 import {
   datosDeMaterial, filaDeMaterial, type Equipacion, type Material,
-  CAJA_DE_ENCUADRE, CAMPO, balonEn, enCurva, posicionEn, type Anotacion, type Encuadre, type Fase, type Jugada, type Punto, type Superficie, type Zonas,
+  CAJA_DE_ENCUADRE, CAMPO, balonEn, capaDe, distancia, enCurva, extremosDe, lineaDeBloque, posicionEn, puntosDeFlecha, sombraDeBloque,
+  type Anotacion, type Encuadre, type Extremo, type Fase, type Grosor, type Jugada, type Punto, type Superficie, type Zonas,
 } from "@/lib/abp";
+import { ondularLinea, recortarLinea } from "@/lib/geometria";
+
+const FACTOR_GROSOR: Record<Grosor, number> = { fino: 0.62, normal: 1, grueso: 1.65 };
+/** Lo que se dibuja cada cuadro porque va con los jugadores: flechas y medidas pegadas a fichas, y los bloques. */
+const vaConFichas = (a: Anotacion) => a.tipo === "bloque" || ((a.tipo === "flecha" || a.tipo === "medida") && Boolean(a.desde || a.hasta));
 
 const LARGO = CAMPO.largo, ANCHO = CAMPO.ancho;
 const MEDIO_L = LARGO / 2, MEDIO_A = ANCHO / 2;
@@ -48,6 +54,11 @@ export class EscenaABP implements Motor {
   private fijo = new THREE.Group();
   private grada = new THREE.Group();
   private dinamico = new THREE.Group();
+  /** Lo que va pegado a las fichas: se vuelve a construir en cada instante. */
+  private vivas = new THREE.Group();
+  private anotacionesVivas: Anotacion[] = [];
+  private jugadaMontada: Jugada | null = null;
+  private seleccionMontada: Seleccion = null;
   private materialesDeLinea = new Set<LineMaterial>();
   private fichas = new Map<string, THREE.Group>();
   private balon: THREE.Mesh;
@@ -88,7 +99,7 @@ export class EscenaABP implements Motor {
 
     this.scene.background = new THREE.Color(SUPERFICIE.noche.fondo);
     this.scene.fog = new THREE.Fog(SUPERFICIE.noche.fondo, 150, 300);
-    this.scene.add(this.fijo, this.grada, this.dinamico);
+    this.scene.add(this.fijo, this.grada, this.dinamico, this.vivas);
 
     this.cielo = new THREE.HemisphereLight(0xffffff, 0x1a221d, 1.25);
     this.scene.add(this.cielo);
@@ -561,6 +572,17 @@ export class EscenaABP implements Motor {
     return sprite;
   }
 
+  /** Un rótulo que cambia a cada cuadro (una medida que se mueve): no se guarda, se libera al volver a montar. */
+  private rotuloLibre(texto: string, opciones: { color: string; fondo?: string; alto: number; peso?: number; fuente: string }) {
+    const textura = new THREE.CanvasTexture(this.lienzoDeRotulo(texto, opciones));
+    textura.colorSpace = THREE.SRGBColorSpace;
+    textura.minFilter = THREE.LinearFilter;
+    const { width, height } = textura.image as HTMLCanvasElement;
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: textura, depthWrite: false, transparent: true }));
+    sprite.scale.set((opciones.alto * width) / height, opciones.alto, 1);
+    return sprite;
+  }
+
   private lienzoDeRotulo(texto: string, opciones: { color: string; fondo?: string; peso?: number; fuente: string; sinSombra?: boolean }) {
     const px = 96;
     const lienzo = document.createElement("canvas");
@@ -731,10 +753,55 @@ export class EscenaABP implements Motor {
     return g;
   }
 
-  private anotacion(a: Anotacion, opciones: Opciones, seleccionada: boolean, opacidad = 1) {
+  private anotacion(a: Anotacion, opciones: Opciones, seleccionada: boolean, opacidad = 1, fase: Fase | null = this.fase, t = 0) {
     const g = new THREE.Group();
     const color = a.color || opciones.colorAnotacion;
-    if (!("b" in a)) {
+    const lineal = opciones.ambiente.suavizado === "lineal";
+    if (a.tipo === "flecha" && a.estilo !== "presion" && fase) return this.flecha(a, fase, t, color, opciones, seleccionada, opacidad);
+    if (a.tipo === "medida" && fase) {
+      const e = extremosDe(a, fase, t, lineal);
+      const metros = distancia(e.a, e.b);
+      if (metros < 0.05) return g;
+      const [p, q] = recortarLinea([e.a, e.b], e.enFichaA ? RADIO_FICHA * 1.2 : 0, e.enFichaB ? RADIO_FICHA * 1.2 : 0);
+      const y = 0.07, l = distancia(p, q) || 1, nx = -(q.z - p.z) / l, nz = (q.x - p.x) / l, tope = 0.6;
+      const v = (x: number, z: number) => new THREE.Vector3(x, y, z);
+      const ancho = seleccionada ? 3.5 : 2.5;
+      g.add(this.linea([v(p.x, p.z), v(q.x, q.z)], color, ancho, false, opacidad));
+      g.add(this.linea([v(p.x - nx * tope, p.z - nz * tope), v(p.x + nx * tope, p.z + nz * tope)], color, ancho, false, opacidad));
+      g.add(this.linea([v(q.x - nx * tope, q.z - nz * tope), v(q.x + nx * tope, q.z + nz * tope)], color, ancho, false, opacidad));
+      const rotulo = this.rotuloLibre((opciones.metros ?? ((m: number) => `${m.toFixed(1)} m`))(metros), { color: tintaSobre(color), fondo: color, alto: 1.3, peso: 800, fuente: opciones.fuente });
+      rotulo.position.set((p.x + q.x) / 2, 1.05, (p.z + q.z) / 2);
+      (rotulo.material as THREE.SpriteMaterial).opacity = opacidad;
+      g.add(rotulo);
+      return g;
+    }
+    if (a.tipo === "bloque" && fase && this.jugadaMontada) {
+      const y = 0.05;
+      const sombra = sombraDeBloque(a, this.jugadaMontada, fase, t, lineal);
+      if (sombra.length >= 3) {
+        const forma = new THREE.Shape();
+        sombra.forEach((q, i) => (i ? forma.lineTo(q.x, -q.z) : forma.moveTo(q.x, -q.z)));
+        forma.closePath();
+        const malla = new THREE.Mesh(new THREE.ShapeGeometry(forma).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({
+          color, transparent: true, opacity: (a.relleno === "atras" ? 0.16 : 0.12) * opacidad, depthWrite: false, side: THREE.DoubleSide,
+        }));
+        malla.position.y = y;
+        g.add(malla);
+        if (a.relleno === "cerrado") g.add(this.linea([...sombra, sombra[0]].map((q) => new THREE.Vector3(q.x, y + 0.01, q.z)), color, 2, true, 0.85 * opacidad));
+      }
+      const linea = lineaDeBloque(a, fase, t, lineal);
+      if (a.relleno !== "cerrado" && linea.length >= 2) g.add(this.linea(linea.map((q) => new THREE.Vector3(q.x, y + 0.02, q.z)), color, seleccionada ? 8 : 6, false, opacidad));
+      return g;
+    }
+    if (a.tipo === "trazo") {
+      const grosor = FACTOR_GROSOR[a.grosor ?? "normal"];
+      const puntos = a.punta ? recortarLinea(a.puntos, 0, 1) : a.puntos;
+      g.add(this.linea(puntos.map((q) => new THREE.Vector3(q.x, 0.06, q.z)), color, (seleccionada ? 5 : 4) * grosor, false, opacidad));
+      if (a.punta && a.puntos.length >= 2) g.add(this.punta(a.puntos[Math.max(0, a.puntos.length - 3)], a.puntos[a.puntos.length - 1], color, 1.6 * (0.75 + 0.25 * grosor), 0.07, opacidad));
+      return g;
+    }
+    if (a.tipo === "bloque" || a.tipo === "medida" || (a.tipo === "flecha" && a.estilo !== "presion")) return g;
+    if (a.tipo === "texto" || a.tipo === "etiqueta") {
       const sprite = a.tipo === "etiqueta"
         ? this.rotuloSprite(a.texto || "·", { color: tintaSobre(color), fondo: color, alto: 1.5, peso: 700, fuente: opciones.fuente })
         : this.rotuloSprite(a.texto || "·", { color, alto: 2.1, peso: 800, fuente: opciones.fuente });
@@ -750,6 +817,7 @@ export class EscenaABP implements Motor {
     }
     const y = 0.06;
     if (a.tipo === "flecha") {
+      // Aquí solo llega la presión: las demás flechas las dibuja `flecha`.
       const largo = Math.hypot(a.b.x - a.a.x, a.b.z - a.a.z) || 1;
       const ux = (a.b.x - a.a.x) / largo, uz = (a.b.z - a.a.z) / largo;
       // La línea sin punta llega hasta el final; las demás acaban bajo la punta.
@@ -785,6 +853,7 @@ export class EscenaABP implements Motor {
       if (a.estilo !== "linea") g.add(this.punta(a.a, a.b, color, 1.8, y + 0.01, opacidad));
       return g;
     }
+    if (a.tipo !== "rect" && a.tipo !== "zona") return g;
     const x0 = Math.min(a.a.x, a.b.x), x1 = Math.max(a.a.x, a.b.x), z0 = Math.min(a.a.z, a.b.z), z1 = Math.max(a.a.z, a.b.z);
     const ancho = Math.max(x1 - x0, 0.2), alto = Math.max(z1 - z0, 0.2);
     const borde: THREE.Vector3[] = [];
@@ -821,6 +890,39 @@ export class EscenaABP implements Motor {
       g.add(relleno);
     }
     g.add(this.linea(borde, color, seleccionada ? 5 : 3, false, opacidad));
+    return g;
+  }
+
+  /** Una flecha con su curva, su trazo, su grosor y sus extremos; si está pegada a fichas, empieza y acaba en su borde. */
+  private flecha(a: Extract<Anotacion, { tipo: "flecha" }>, fase: Fase, t: number, color: string, opciones: Opciones, seleccionada: boolean, opacidad: number) {
+    const g = new THREE.Group(), y = 0.06;
+    const e = extremosDe(a, fase, t, opciones.ambiente.suavizado === "lineal");
+    const factor = FACTOR_GROSOR[a.grosor ?? "normal"], cabeza = 1.8 * (0.75 + 0.25 * factor);
+    const extremo: Extremo = a.extremo ?? (a.estilo === "linea" ? "nada" : "punta");
+    const linea = recortarLinea(puntosDeFlecha(e.a, e.b, a.curva ?? 0, 32), e.enFichaA ? RADIO_FICHA * 1.25 : 0, e.enFichaB ? RADIO_FICHA * 1.25 : 0);
+    if (linea.length < 2 || distancia(linea[0], linea[linea.length - 1]) < 0.2) return g;
+    const conPuntaFin = extremo === "punta" || extremo === "doble", conPuntaIni = extremo === "doble";
+    let trazo = recortarLinea(linea, conPuntaIni ? cabeza * 0.6 : 0, conPuntaFin ? cabeza * 0.6 : 0);
+    if (a.estilo === "ondulada") trazo = ondularLinea(trazo, 2.4, 0.45);
+    const mat = this.linea(trazo.map((q) => new THREE.Vector3(q.x, y, q.z)), color, (seleccionada ? 6 : 4) * factor, a.estilo === "discontinua" || a.estilo === "punteada", opacidad);
+    if (a.estilo === "punteada") {
+      const m = mat.material as LineMaterial;
+      m.dashSize = 0.08;
+      m.gapSize = 0.55;
+    }
+    g.add(mat);
+    const antes = (desdeElFinal: boolean) => {
+      const orden = desdeElFinal ? [...linea].reverse() : linea;
+      return orden.find((q) => distancia(q, orden[0]) > cabeza * 0.8) ?? orden[orden.length - 1];
+    };
+    const fin = linea[linea.length - 1], ini = linea[0];
+    if (conPuntaFin) g.add(this.punta(antes(true), fin, color, cabeza, y + 0.01, opacidad));
+    if (conPuntaIni) g.add(this.punta(antes(false), ini, color, cabeza, y + 0.01, opacidad));
+    if (extremo === "barra") {
+      const previo = antes(true), l = distancia(previo, fin) || 1;
+      const nx = -(fin.z - previo.z) / l, nz = (fin.x - previo.x) / l, mitad = cabeza * 0.55;
+      g.add(this.linea([new THREE.Vector3(fin.x - nx * mitad, y, fin.z - nz * mitad), new THREE.Vector3(fin.x + nx * mitad, y, fin.z + nz * mitad)], color, 5 * factor, false, opacidad));
+    }
     return g;
   }
 
@@ -875,20 +977,28 @@ export class EscenaABP implements Motor {
     this.vaciar(this.dinamico);
     this.fichas.clear();
     this.opcionesMontadas = opciones;
+    this.jugadaMontada = jugada;
+    this.seleccionMontada = seleccion;
     const fase = jugada.fases[Math.min(indice, jugada.fases.length - 1)];
     this.fase = fase;
     const colorDe = (equipo: "local" | "rival") => (equipo === "local" ? opciones.colorLocal : opciones.colorRival);
+    const ocultas = new Set(opciones.ambiente.ocultas ?? []);
 
-    for (const a of fase.anotaciones) {
-      this.dinamico.add(this.anotacion(a, opciones, seleccion?.tipo === "anotacion" && seleccion.id === a.id));
+    // Lo que va con las fichas se dibuja en cada instante; lo demás, una vez.
+    const visibles = fase.anotaciones.filter((a) => !ocultas.has(capaDe(a)));
+    this.anotacionesVivas = visibles.filter(vaConFichas);
+    for (const a of visibles) {
+      if (!vaConFichas(a)) this.dinamico.add(this.anotacion(a, opciones, seleccion?.tipo === "anotacion" && seleccion.id === a.id));
     }
     for (const m of fase.material ?? []) this.dinamico.add(this.material(m, opciones, seleccion?.tipo === "material" && seleccion.id === m.id));
-    for (const c of fase.carreras) {
-      const ficha = jugada.fichas.find((f) => f.id === c.fichaId);
-      const desde = fase.pos[c.fichaId];
-      if (ficha && desde) this.dinamico.add(this.carrera(desde, c.hasta, c.curva, colorDe(ficha.equipo)));
+    if (!ocultas.has("recorridos")) {
+      for (const c of fase.carreras) {
+        const ficha = jugada.fichas.find((f) => f.id === c.fichaId);
+        const desde = fase.pos[c.fichaId];
+        if (ficha && desde) this.dinamico.add(this.carrera(desde, c.hasta, c.curva, colorDe(ficha.equipo)));
+      }
+      this.dinamico.add(this.pase(fase.balon, fase, "#ffffff"));
     }
-    this.dinamico.add(this.pase(fase.balon, fase, "#ffffff"));
 
     for (const f of jugada.fichas) {
       const sitio = fase.pos[f.id];
@@ -911,9 +1021,22 @@ export class EscenaABP implements Motor {
         this.dinamico.add(this.pase(b.a, { ...fase, balon: b.a, pase: { hasta: b.b, tipo: fase.pase?.tipo ?? "aereo" } }, "#ffffff", 0.6));
       } else if (b.tipo === "material") {
         if (b.material) for (const m of filaDeMaterial(b.material.tipo, b.a, b.b, b.material.separacion, b.material.slalom, b.material.color)) this.dinamico.add(this.material(m, opciones, false, 0.6));
-      } else {
+      } else if (b.tipo === "bloque") {
+        if (b.fichas.length) this.dinamico.add(this.anotacion({ id: "borrador", tipo: "bloque", fichas: b.fichas, color: opciones.colorAnotacion, relleno: b.relleno }, opciones, false, 0.75));
+        for (const id of b.fichas) {
+          const sitio = fase.pos[id];
+          if (!sitio) continue;
+          const aro = new THREE.Mesh(new THREE.RingGeometry(1.05, 1.3, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: opciones.acento, depthWrite: false }));
+          aro.position.set(sitio.x, 0.05, sitio.z);
+          this.dinamico.add(aro);
+        }
+      } else if (b.tipo === "trazo") {
+        this.dinamico.add(this.anotacion({ id: "borrador", tipo: "trazo", puntos: b.puntos, color: opciones.colorAnotacion, grosor: b.grosor, punta: b.punta }, opciones, false, 0.8));
+      } else if (b.tipo === "medida") {
+        this.dinamico.add(this.anotacion({ id: "borrador", tipo: "medida", a: b.a, b: b.b, color: opciones.colorAnotacion, desde: b.desde, hasta: b.hasta }, opciones, false, 0.85));
+      } else if (b.tipo !== "guia") {
         const provisional: Anotacion = b.tipo === "flecha"
-          ? { id: "borrador", tipo: "flecha", a: b.a, b: b.b, color: opciones.colorAnotacion, estilo: b.estilo ?? "continua" }
+          ? { id: "borrador", tipo: "flecha", a: b.a, b: b.b, color: opciones.colorAnotacion, estilo: b.estilo ?? "continua", extremo: b.extremo, grosor: b.grosor, desde: b.desde, hasta: b.hasta }
           : { id: "borrador", tipo: b.tipo, a: b.a, b: b.b, color: opciones.colorAnotacion, estilo: "translucida" };
         this.dinamico.add(this.anotacion(provisional, opciones, false, 0.7));
       }
@@ -929,6 +1052,14 @@ export class EscenaABP implements Motor {
     for (const [id, g] of this.fichas) {
       const p = posicionEn(fase, id, t, lineal);
       if (p) g.position.set(p.x, 0, p.z);
+    }
+    // Lo que va pegado a las fichas, donde están ahora.
+    this.vaciar(this.vivas);
+    const opciones = this.opcionesMontadas;
+    if (opciones) {
+      for (const a of this.anotacionesVivas) {
+        this.vivas.add(this.anotacion(a, opciones, this.seleccionMontada?.tipo === "anotacion" && this.seleccionMontada.id === a.id, 1, fase, t));
+      }
     }
     const b = balonEn(fase, t);
     if (this.seguirBalon) {
