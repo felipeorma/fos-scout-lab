@@ -4,6 +4,9 @@
  * pizarras de análisis —defensa, salida, presión, ataque y balón parado—,
  * cada sistema contesta una pregunta y va en el idioma de la pantalla.
  *
+ * Los ejercicios de entrenamiento traen además sus fichas, el material
+ * montado y, si hace falta distinguir a los equipos, sus equipaciones.
+ *
  * Los sistemas no se guardan hechos: se describen fase a fase (quién se mueve
  * a dónde, adónde va el balón y qué se marca) y se montan con las mismas
  * funciones del cuaderno, así que cada fase empieza donde acabó la anterior.
@@ -12,8 +15,9 @@
  */
 
 import {
-  agregarFase, deSerie, fijarCarrera, fijarPase, nuevoId, plantilla, sistemaDePartido,
-  type Ambiente, type Anotacion, type Categoria, type EstiloFlecha, type EstiloZona, type Jugada, type Pase, type Punto, type TipoABP,
+  agregarFase, cambiarEquipacion, datosDeMaterial, deSerie, fijarCarrera, fijarPase, nuevoId, plantilla, sistemaDePartido,
+  type Ambiente, type Anotacion, type Categoria, type Equipacion, type Equipo, type EstiloFlecha, type EstiloZona, type Ficha, type Jugada, type Pase,
+  type Punto, type TipoABP, type TipoMaterial,
 } from "./abp.ts";
 
 export type Idioma = "es" | "en";
@@ -45,6 +49,11 @@ export type SistemaDeBiblioteca = {
   pregunta: Texto;
   /** De dónde sale: dos dibujos frente a frente o una plantilla de balón parado. */
   base: { propia: string; rival: string; balon: "nuestro" | "suyo" } | { plantilla: TipoABP };
+  /** Para un ejercicio: las fichas que hay (dorsal, rol y sitio) en vez de las del dibujo. */
+  fichas?: Partial<Record<Equipo, Array<[string, Texto, number, number]>>>;
+  /** El material montado al empezar: la pieza, dónde y girada cuántos grados. Se queda en todas las fases. */
+  material?: Array<[TipoMaterial, number, number, number?]>;
+  equipaciones?: Partial<Record<Equipo, Partial<Equipacion>>>;
   /** Dónde está cada ficha al empezar, si no es donde la pone su dibujo. */
   colocar?: Record<string, Sitio>;
   balon?: Sitio;
@@ -58,6 +67,7 @@ export const TEMAS: Array<{ id: Categoria; nombre: Texto; descripcion: Texto }> 
   { id: "presion", nombre: { es: "Presión", en: "Pressing" }, descripcion: { es: "Recuperar el balón a propósito: señales, trampas y lo que cuesta fallar.", en: "Winning the ball back on purpose: triggers, traps and the price of getting it wrong." } },
   { id: "ataque", nombre: { es: "Ataque", en: "Attacking" }, descripcion: { es: "Crear espacio y usarlo en el último tercio contra una defensa ordenada.", en: "Creating space and using it in the final third against a set defence." } },
   { id: "abp", nombre: { es: "Balón parado", en: "Set pieces" }, descripcion: { es: "Jugadas a balón parado y cómo se defienden.", en: "Dead-ball routines and how they are defended." } },
+  { id: "entrenamiento", nombre: { es: "Entrenamiento", en: "Training" }, descripcion: { es: "Ejercicios montados con su material: rondos, circuitos y partidos reducidos.", en: "Drills set up with their gear: rondos, circuits and small-sided games." } },
 ];
 
 const CORAL = "#ff8172";
@@ -383,6 +393,118 @@ export const BIBLIOTECA: SistemaDeBiblioteca[] = [
     base: { plantilla: "falta_lateral" },
     pasos: [],
   },
+  {
+    id: "rondo-4-contra-2",
+    tema: "entrenamiento",
+    titulo: { es: "Rondo 4 contra 2", en: "4v2 rondo" },
+    pregunta: { es: "¿Cómo se mueve el balón para que los dos de dentro nunca lleguen?", en: "How do you move the ball so the two in the middle never get there?" },
+    base: { plantilla: "rondo" },
+    pasos: [],
+  },
+  {
+    id: "circuito-tecnico",
+    tema: "entrenamiento",
+    titulo: { es: "Circuito técnico con remate", en: "Technical circuit with a finish" },
+    pregunta: { es: "¿Cómo se juntan coordinación, conducción y remate en una sola estación?", en: "How do you put footwork, dribbling and finishing into one station?" },
+    base: { plantilla: "libre" },
+    fichas: {
+      local: [["1", { es: "Jugador", en: "Player" }, -19, -4], ["2", { es: "Pasador", en: "Server" }, 2, 8]],
+    },
+    material: [
+      ["seta", -17, -5.6], ["seta", -17, -2.4],
+      ["escalera", -13.5, -4],
+      ["pica", -7, -4.8], ["pica", -5, -3.2], ["pica", -3, -4.8], ["pica", -1, -3.2],
+      ["valla", 4, -4], ["valla", 5.5, -4], ["valla", 7, -4],
+      ["cono", 10, -8], ["cono", 10, 0],
+      ["miniporteria", 17, -4, 180],
+      ["balon", 4.6, 9.4], ["balon", 5.3, 8.6],
+    ],
+    balon: [2.6, 7.4],
+    ambiente: { encuadre: "centro" },
+    pasos: [
+      {
+        nombre: { es: "Escalera", en: "Ladder" },
+        nota: { es: "Un apoyo en cada hueco y la mirada arriba: el pase llega al salir.", en: "One touch in every gap, eyes up: the pass arrives as you come out." },
+        mover: { L1: [-10.5, -4] },
+        pase: [-9.8, -4, "raso"],
+        duracion: 2.2,
+      },
+      {
+        nombre: { es: "Slalom con balón", en: "Dribble through the poles" },
+        nota: { es: "Toques cortos con las dos piernas, el cuerpo entre el balón y la pica.", en: "Short touches with both feet, body between the ball and the pole." },
+        mover: { L1: [1.5, -4] },
+        pase: [2.3, -4, "raso"],
+        marcas: [{ tipo: "flecha", a: [-9, -4], b: [1, -4], estilo: "ondulada" }],
+        duracion: 3,
+      },
+      {
+        nombre: { es: "Pared y vallas", en: "One-two over the hurdles" },
+        nota: { es: "Se la da al pasador y salta las vallas sin balón, con los dos pies.", en: "Plays it to the server and jumps the hurdles without the ball, two-footed." },
+        mover: { L1: [9, -4] },
+        pase: [2.6, 7.4, "raso"],
+        duracion: 2.2,
+      },
+      {
+        nombre: { es: "Devolución", en: "The return pass" },
+        nota: { es: "El pasador la deja en carrera, por delante de la línea de conos.", en: "The server plays it into the player's stride, ahead of the line of cones." },
+        mover: { L1: [10.2, -4] },
+        pase: [10.8, -3.8, "raso"],
+        marcas: [{ tipo: "etiqueta", en: [10, 2.2], texto: { es: "Tirar desde aquí", en: "Shoot from here" } }],
+      },
+      {
+        nombre: { es: "Remate", en: "Finish" },
+        nota: { es: "Al primer toque, a la miniportería, y vuelta a empezar.", en: "First time into the mini goal, then back to the start." },
+        mover: { L1: [11.4, -4] },
+        pase: [16.6, -4, "raso"],
+      },
+    ],
+  },
+  {
+    id: "reducido-4-contra-4",
+    tema: "entrenamiento",
+    titulo: { es: "Partido reducido 4 contra 4", en: "4v4 small-sided game" },
+    pregunta: { es: "¿Cómo se ataca rápido cuando el espacio es pequeño?", en: "How do you attack quickly when space is tight?" },
+    base: { plantilla: "libre" },
+    fichas: {
+      local: [["2", { es: "Lateral", en: "Full back" }, -9, 6], ["4", { es: "Central", en: "Centre back" }, -10, -3], ["8", { es: "Interior", en: "Midfielder" }, -2, 2], ["9", { es: "Punta", en: "Striker" }, 7, -2]],
+      rival: [["5", { es: "Central", en: "Centre back" }, 10, -1], ["6", { es: "Pivote", en: "Holding midfielder" }, 2, 0], ["7", { es: "Extremo", en: "Winger" }, -3, 6], ["11", { es: "Extremo", en: "Winger" }, -4, -5]],
+    },
+    material: [
+      ["cono", -15, -10], ["cono", 15, -10], ["cono", 15, 10], ["cono", -15, 10], ["cono", 0, -10], ["cono", 0, 10],
+      ["miniporteria", -15.6, 0], ["miniporteria", 15.6, 0, 180],
+    ],
+    equipaciones: { local: { patron: "rayas", secundario: "#ffffff" }, rival: { patron: "aros", secundario: "#1d1d1f", dorsal: "negro" } },
+    balon: [-9.4, -2.4],
+    ambiente: { encuadre: "centro" },
+    pasos: [
+      {
+        nombre: { es: "Fijar", en: "Draw them in" },
+        nota: { es: "El central conduce hacia el 11 para atraerlo y liberar al lateral.", en: "The centre back carries at the 11 to draw them in and free the full back." },
+        mover: { L4: [-7, -2.5], R11: [-5.5, -3.5], L2: [-6, 8] },
+        pase: [-7.4, -2, "raso"],
+      },
+      {
+        nombre: { es: "Soltar por fuera", en: "Release wide" },
+        nota: { es: "Pase al lateral, que ya tiene el campo de frente.", en: "Pass to the full back, who already faces the pitch." },
+        pase: [-5.4, 8.2, "raso"],
+        mover: { R7: [-3.5, 7], L8: [1, -1], L9: [8, -5] },
+      },
+      {
+        nombre: { es: "Tercer hombre", en: "Third man" },
+        nota: { es: "El interior la toca de cara y el punta ataca la espalda del central.", en: "The midfielder sets it back and the striker runs behind the centre back." },
+        pase: [1.4, -0.6, "raso"],
+        mover: { R6: [2.5, -2], L9: [12, -3] },
+        curvas: { L9: 2 },
+      },
+      {
+        nombre: { es: "A la miniportería", en: "Into the mini goal" },
+        nota: { es: "Pase al espacio y remate antes de que cierren: tres toques desde el robo.", en: "Ball into space and a finish before they close: three touches from the start." },
+        pase: [12.4, -2.4, "raso"],
+        mover: { R5: [12.8, -0.5] },
+        marcas: [{ tipo: "flecha", a: [12.5, -2.4], b: [15, -0.4], estilo: "continua" }],
+      },
+    ],
+  },
 ];
 
 const punto = ([x, z]: Sitio): Punto => ({ x, z });
@@ -409,6 +531,20 @@ export function sistemaDeBiblioteca(sistema: SistemaDeBiblioteca, idioma: Idioma
     fases: base.fases.map((f) => ({ ...f, nombre: deSerie(f.nombre, idioma), nota: deSerie(f.nota, idioma) })),
     actualizada: Date.now(),
   };
+  if (sistema.fichas) {
+    // Un ejercicio trae su gente: estas fichas sustituyen a las del dibujo.
+    const lista = (["local", "rival"] as const).flatMap((equipo) => (sistema.fichas?.[equipo] ?? []).map(([dorsal, rol, x, z]) => ({ equipo, dorsal, rol, x, z })));
+    const idDe = (f: { equipo: Equipo; dorsal: string }) => `${f.equipo === "local" ? "L" : "R"}${f.dorsal}`;
+    const fichas: Ficha[] = lista.map((f) => ({ id: idDe(f), equipo: f.equipo, dorsal: f.dorsal, rol: f.rol[idioma] }));
+    const pos = Object.fromEntries(lista.map((f) => [idDe(f), { x: f.x, z: f.z }]));
+    jugada = { ...jugada, fichas, fases: jugada.fases.map((f) => ({ ...f, pos, carreras: [] })) };
+  }
+  if (sistema.material) {
+    // Las mismas piezas (y los mismos ids) en cada fase, como al copiar una fase en el estudio.
+    const material = sistema.material.map(([tipo, x, z, giro]) => ({ id: nuevoId("m"), tipo, p: { x, z }, giro: giro ?? 0, color: datosDeMaterial(tipo).color }));
+    jugada = { ...jugada, fases: jugada.fases.map((f) => ({ ...f, material: material.map((m) => ({ ...m, p: { ...m.p } })) })) };
+  }
+  for (const [equipo, equipacion] of Object.entries(sistema.equipaciones ?? {}) as Array<[Equipo, Partial<Equipacion>]>) jugada = cambiarEquipacion(jugada, equipo, equipacion);
   if (sistema.colocar || sistema.balon) {
     const [primera, ...resto] = jugada.fases;
     const colocadas = Object.fromEntries(Object.entries(sistema.colocar ?? {}).map(([id, sitio]) => [id, punto(sitio)]));

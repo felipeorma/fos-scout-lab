@@ -7161,6 +7161,30 @@ body.print-layout-check .app-shell[data-tema] .pizarra-duelos > ol { grid-templa
 .abp-ficha-icono { width: 14px; height: 14px; display: block; border-radius: 50%; box-shadow: 0 0 0 2px rgba(255,255,255,.85); }
 .app-shell[data-tema] .abp-tarjeta-extra { margin-top: 8px; }
 
+/* El material de entrenamiento: una rejilla de piezas, como el carro del almacén. */
+.app-shell[data-tema] .abp-material { padding: 8px 6px 4px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 3px; }
+.app-shell[data-tema] .abp-material > button {
+  min-width: 0; padding: 6px 1px 4px;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  border: 0; border-radius: 8px; background: none; box-shadow: none;
+  color: var(--ink); font-size: 9.5px; line-height: 1.15; cursor: pointer;
+}
+.app-shell[data-tema] .abp-material > button > span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-shell[data-tema] .abp-material > button:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.app-shell[data-tema] .abp-material > button.activa { background: var(--acento-suave); box-shadow: inset 0 0 0 1px var(--acento-borde); font-weight: 600; }
+/* Las equipaciones: el dibujo de la camiseta en fichas pequeñas. */
+.app-shell[data-tema] .abp-equipacion + .abp-equipacion { margin-top: 8px; }
+.app-shell[data-tema] .abp-equipacion > .inspector-fila:first-child > span { font-weight: 600; }
+.app-shell[data-tema] .abp-patrones { padding: 2px 8px 8px; display: flex; flex-wrap: wrap; gap: 3px; }
+.app-shell[data-tema] .abp-patrones > button {
+  width: 28px; height: 28px; padding: 0;
+  display: grid; place-items: center;
+  border: 0; border-radius: 50%; background: none; box-shadow: none; cursor: pointer;
+}
+.app-shell[data-tema] .abp-patrones > button:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.app-shell[data-tema] .abp-patrones > button.activa { box-shadow: 0 0 0 2px var(--acento); }
+.app-shell[data-tema] :is(.abp-material, .abp-patrones) > button:focus-visible { outline: 2px solid var(--acento-borde); outline-offset: 1px; }
+
 .app-shell[data-tema] input.abp-campo {
   flex: 1; min-width: 0; max-width: 62%; min-height: 28px; margin: 0; padding: 0 2px;
   border: 0; border-radius: 6px; background: none; box-shadow: none;

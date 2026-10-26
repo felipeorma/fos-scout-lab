@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Jugada } from "@/lib/abp";
+import { equipacionDe, type Jugada } from "@/lib/abp";
 import { BIBLIOTECA, TEMAS, sistemaDeBiblioteca } from "@/lib/biblioteca";
 import { t, tf, type Lang } from "@/lib/i18n";
 import type { Opciones } from "./abp/motor";
@@ -31,7 +31,8 @@ export function Biblioteca({ idioma, opciones, onAbrir }: {
       const nuevas: Record<string, string> = {};
       for (const { sistema, jugada } of sistemas) {
         const fase = Math.min(jugada.fases.length - 1, Math.floor(jugada.fases.length / 2));
-        fotografo.montar(jugada, fase, { ...opciones, ambiente: jugada.ambiente, nombres: false }, null, null);
+        const equipaciones = { local: equipacionDe(jugada, "local"), rival: equipacionDe(jugada, "rival") };
+        fotografo.montar(jugada, fase, { ...opciones, ambiente: jugada.ambiente, equipaciones, nombres: false }, null, null);
         fotografo.vista("tactica", jugada.ambiente.encuadre, null, true);
         nuevas[sistema.id] = fotografo.capturar("image/jpeg", 0.75);
       }

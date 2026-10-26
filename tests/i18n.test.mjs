@@ -14,7 +14,8 @@ import { estaTraducido, setActiveLang, t, tf } from "../lib/i18n.ts";
  * `t()` o `tf()` y comprueba que tenga traducción.
  */
 
-const FUENTES = ["app", "lib"]
+// También las carpetas de dentro (app/abp, app/estudio): ahí también hay textos a la vista.
+const FUENTES = ["app", "app/abp", "app/estudio", "lib"]
   .flatMap((dir) => readdirSync(dir).map((archivo) => `${dir}/${archivo}`))
   .filter((ruta) => /\.tsx?$/.test(ruta) && !ruta.endsWith("lib/i18n.ts"));
 

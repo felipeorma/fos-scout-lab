@@ -4,18 +4,24 @@
  * 3D (three.js, con estadio). La pantalla no sabe cuál tiene delante.
  */
 
-import type { Ambiente, Encuadre, EstiloFlecha, Jugada, Punto } from "@/lib/abp";
+import type { Ambiente, Encuadre, Equipacion, Equipo, EstiloFlecha, Jugada, Punto, TipoMaterial } from "@/lib/abp";
 
 export type Vista = "tactica" | "3d" | "cenital";
-export type Seleccion = { tipo: "ficha" | "anotacion"; id: string } | null;
+export type Seleccion = { tipo: "ficha" | "anotacion" | "material"; id: string } | null;
+/** Cómo se pone el material: qué pieza, cada cuántos metros y si en slalom. */
+export type ComoPoner = { tipo: TipoMaterial; separacion: number; slalom: boolean; color: string };
 /** Lo que se está dibujando con el puntero, antes de soltar. */
-export type Borrador = { tipo: "flecha" | "rect" | "zona" | "carrera" | "pase"; a: Punto; b: Punto; fichaId?: string; estilo?: EstiloFlecha } | null;
+export type Borrador = {
+  tipo: "flecha" | "rect" | "zona" | "carrera" | "pase" | "material"; a: Punto; b: Punto; fichaId?: string; estilo?: EstiloFlecha; material?: ComoPoner;
+} | null;
 export type Opciones = {
   colorLocal: string;
   colorRival: string;
   colorAnotacion: string;
   acento: string;
   nombres: boolean;
+  /** El dibujo de la camiseta de cada equipo; el portero va siempre liso. */
+  equipaciones: Record<Equipo, Equipacion>;
   ambiente: Ambiente;
   fuente: string;
   /** El rol tal como se enseña (traducido si es uno de los de serie). */
