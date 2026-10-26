@@ -173,8 +173,8 @@ export default function ScoutStudio() {
   const [paginasAbiertas, setPaginasAbiertas] = useState<ReportPage[]>([CARD_PAGE]);
   // Un sistema que llega al estudio táctico: de un enlace que se reproduce o de El partido.
   const [sistemaEntrante, setSistemaEntrante] = useState<Entrante | null>(null);
-  const abrirEnPizarra = useCallback((jugada: Jugada) => {
-    setSistemaEntrante({ jugada, soloVer: false, origen: "partido" });
+  const abrirEnPizarra = useCallback((jugada: Jugada, origen: "partido" | "fotograma" = "partido") => {
+    setSistemaEntrante({ jugada, soloVer: false, origen });
     setReportPage(ABP_PAGE);
   }, []);
   // Un enlace que se reproduce: el sistema viene en el #, se abre en el estudio y el # se limpia.

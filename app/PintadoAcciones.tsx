@@ -5,13 +5,15 @@ import {
   DE_DOS_PUNTOS, desplazar, duplicar, escalar, idDeTrazo, idDeYoutube, inicioDeYoutube, trazoEn, type EstiloFoco, type PuntoP, type TipoTrazo, type Trazo,
 } from "@/lib/pintado";
 import { numberLocale, t, tf } from "@/lib/i18n";
-import { aplicar, errorMedio, homografia, invertir, type P } from "@/lib/homografia";
+import { aplicar, errorMedio, homografia, invertir, type Matriz, type P } from "@/lib/homografia";
+import { colorDeEquipo, detectarJugadores, jugadaDelFotograma, type JugadorDetectado } from "@/lib/deteccion";
+import { useAbrirEnPizarra } from "./abp/AbrirEnPizarra";
 import {
   PUNTOS_DEL_CAMPO, cerrarPuntoAPunto, desplazarMarca, marcaDeArrastre, puntoDeCampo, siguientePunto,
   type GrupoDePuntos, type MarcaDeArrastre, type MarcaDeCampo, type MarcaPuntoAPunto,
 } from "@/lib/perspectiva";
 import { dibujarSeleccion, dibujarTodo, dibujarTrazo } from "./pintado/dibujo";
-import { dibujarLineas, dibujarMarca, dibujarPuntosDeCalibracion, marcaEn, type OpcionesDeCampo } from "./pintado/perspectiva";
+import { dibujarAnillos, dibujarLineas, dibujarMarca, dibujarPuntosDeCalibracion, marcaEn, type OpcionesDeCampo } from "./pintado/perspectiva";
 import { useFirma } from "./FirmaDelInforme";
 import { Interruptor } from "./Interruptor";
 import {
@@ -115,6 +117,14 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
   const inversa = useMemo(() => (proyeccion ? invertir(proyeccion) : null), [proyeccion]);
   const desvio = proyeccion && puestos.length > 4 ? errorMedio(proyeccion, puestos.map((id) => puntoDeCampo(id)!.p), puestos.map((id) => pares[id])) * Math.max(tamano.w, 1) : null;
   const marca = marcas.find((m) => m.id === marcaElegida) ?? null;
+  // Los jugadores encontrados en la imagen, con la calibración con que se buscaron: si cambia, ya no valen.
+  const [encontrados, setEncontrados] = useState<{ con: Matriz; jugadores: JugadorDetectado[] } | null>(null);
+  const [buscando, setBuscando] = useState(false);
+  const [nuestro, setNuestro] = useState<0 | 1>(0);
+  const [haciaLaDerecha, setHaciaLaDerecha] = useState(true);
+  const abrirEnPizarra = useAbrirEnPizarra();
+  const jugadores = encontrados && encontrados.con === proyeccion ? encontrados.jugadores : [];
+  const colores: [string, string] = [colorDeEquipo(jugadores, 0) ?? "#ff3b30", colorDeEquipo(jugadores, 1) ?? "#f5f5f7"];
 
   const elegido = trazos.find((x) => x.id === seleccion) ?? null;
   // Sobre un vídeo que corre, el lienzo deja pasar el puntero a los controles hasta que se pide dibujar.
@@ -156,7 +166,7 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
     if (calibrando) {
       dibujarPuntosDeCalibracion(ctx, puestos.map((id) => ({ p: pares[id], etiqueta: String(PUNTOS_DEL_CAMPO.findIndex((x) => x.id === id) + 1) })), opcionesDeCampo(tamano.w, tamano.h));
     }
-  }, [trazos, borrador, elegido, tamano, letra, acento, proyeccion, marcas, marcaElegida, borradorCampo, verLineas, calibrando, pares]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [trazos, borrador, elegido, tamano, letra, acento, proyeccion, marcas, marcaElegida, borradorCampo, verLineas, calibrando, pares, encontrados]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function opcionesDeCampo(w: number, h: number): OpcionesDeCampo {
     const formato = formatoDeMetros();
@@ -168,6 +178,7 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
     if (!proyeccion) return;
     const o = opcionesDeCampo(w, h);
     if (verLineas || (enPantalla && calibrando)) dibujarLineas(ctx, proyeccion, o);
+    if (jugadores.length) dibujarAnillos(ctx, proyeccion, jugadores.map((j) => ({ p: j.pie, color: j.equipo === null ? null : colores[j.equipo] })), o);
     for (const m of marcas) dibujarMarca(ctx, proyeccion, m, o, enPantalla && m.id === marcaElegida);
     if (enPantalla && borradorCampo) dibujarMarca(ctx, proyeccion, borradorCampo, o, false, 0.75);
   }
@@ -200,6 +211,61 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
     const previo = historial.current.pop();
     if (previo) { setTrazos(previo); setSeleccion(null); }
   }
+  /**
+   * Busca a los jugadores en el fondo que se ve (la imagen, el fotograma
+   * congelado o el del vídeo en pausa) con la calibración de ahora.
+   */
+  async function encontrarJugadores() {
+    if (!proyeccion || !inversa) return;
+    let fuenteDeImagen: CanvasImageSource, ancho: number, alto: number;
+    try {
+      if (congelado) { const img = await cargarImagen(congelado); fuenteDeImagen = img; ancho = img.naturalWidth; alto = img.naturalHeight; }
+      else if (fuente.tipo === "imagen" && imagenRef.current) { fuenteDeImagen = imagenRef.current; ancho = imagenRef.current.naturalWidth; alto = imagenRef.current.naturalHeight; }
+      else if (fuente.tipo === "video" && videoRef.current) { fuenteDeImagen = videoRef.current; ancho = videoRef.current.videoWidth; alto = videoRef.current.videoHeight; }
+      else { setAviso(t("Congela primero un fotograma: YouTube no deja leer la imagen del vídeo.")); return; }
+    } catch {
+      setAviso(t("No se pudo leer el fondo. Prueba a congelar el fotograma."));
+      return;
+    }
+    if (!ancho || !alto) return;
+    setBuscando(true);
+    setAviso(t("Buscando a los jugadores…"));
+    // Un respiro para que se vea el aviso antes de ponerse a contar píxeles.
+    await new Promise((resolver) => window.setTimeout(resolver, 30));
+    try {
+      const k = Math.min(1, 1280 / ancho);
+      const lienzo = document.createElement("canvas");
+      lienzo.width = Math.round(ancho * k);
+      lienzo.height = Math.round(alto * k);
+      const ctx = lienzo.getContext("2d", { willReadFrequently: true })!;
+      ctx.drawImage(fuenteDeImagen, 0, 0, lienzo.width, lienzo.height);
+      const datos = ctx.getImageData(0, 0, lienzo.width, lienzo.height);
+      // De un píxel de la imagen a su sitio en el escenario (contain) y de ahí, al césped en metros.
+      const r = encaje(ancho, alto, tamano.w, tamano.h);
+      const aCampo = (x: number, y: number) => aplicar(inversa, { x: (r.x + (x / k) * (r.w / ancho)) / tamano.w, y: (r.y + (y / k) * (r.h / alto)) / tamano.h });
+      const lista = detectarJugadores(datos, aCampo);
+      setEncontrados({ con: proyeccion, jugadores: lista });
+      const sinEquipo = lista.filter((j) => j.equipo === null).length;
+      setAviso(lista.length ? tf("{n} jugadores: {a} de un equipo, {b} del otro y {c} sin equipo. Pulsa un anillo para cambiarlo.", {
+        n: lista.length, a: lista.filter((j) => j.equipo === 0).length, b: lista.filter((j) => j.equipo === 1).length, c: sinEquipo,
+      }) : t("No se encontró a nadie: revisa la calibración o prueba con otro fotograma."));
+    } catch {
+      setAviso(t("No se pudo leer el fondo. Prueba a congelar el fotograma."));
+    } finally {
+      setBuscando(false);
+    }
+  }
+  /** Un anillo pulsado cambia de equipo: de uno al otro, a ninguno y vuelta. */
+  function cambiarEquipo(id: string) {
+    if (!encontrados) return;
+    setEncontrados({ ...encontrados, jugadores: encontrados.jugadores.map((j) => (j.id !== id ? j : { ...j, equipo: j.equipo === 0 ? 1 : j.equipo === 1 ? null : 0 })) });
+  }
+  function llevarAlEstudio() {
+    if (!abrirEnPizarra || !jugadores.length) return;
+    const fecha = new Date().toLocaleDateString(numberLocale(), { day: "numeric", month: "short" });
+    abrirEnPizarra(jugadaDelFotograma(jugadores, { nuestro, haciaLaDerecha, nombre: tf("Fotograma del {fecha}", { fecha }) }), "fotograma");
+  }
+
   function borrarMarca() {
     if (marcaElegida) { guardarCampo(marcas.filter((m) => m.id !== marcaElegida)); setMarcaElegida(null); }
   }
@@ -426,6 +492,11 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
       }
       arrastreCampo.current = { tipo: "nueva", desde: q };
       return;
+    }
+    if (herramienta === "mover" && proyeccion && jugadores.length && inversa) {
+      const q = aplicar(inversa, p);
+      const anillo = q ? jugadores.find((j) => Math.hypot(j.pie.x - q.x, j.pie.y - q.y) < 1.3) : null;
+      if (anillo) { cambiarEquipo(anillo.id); return; }
     }
     if (herramienta === "mover" && proyeccion) {
       const id = marcaEn(proyeccion, marcas, enPixeles, tamano);
@@ -670,6 +741,31 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
               </div>
             </div>}
             {!proyeccion && <p className="inspector-pie">{t("Congela el fotograma antes de calibrar: si la cámara se mueve, la calibración deja de casar.")}</p>}
+            {proyeccion && <div className="inspector-tarjeta pintado-jugadores">
+              <div className="inspector-fila abp-acciones">
+                <button type="button" onClick={() => void encontrarJugadores()} disabled={buscando || fuente.tipo === "ninguna"}>{buscando ? t("Buscando…") : t("Encontrar a los jugadores")}</button>
+                {jugadores.length > 0 && <button type="button" onClick={() => setEncontrados(null)}>{t("Quitar los anillos")}</button>}
+              </div>
+              {jugadores.length > 0 && <>
+                <div className="inspector-fila"><span>{t("Nuestro equipo")}</span>
+                  <div className="inspector-segmentos">
+                    {([0, 1] as const).map((e) => <button key={e} type="button" className={nuestro === e ? "activa" : ""} onClick={() => setNuestro(e)}>
+                      <i className="pintado-muestra" style={{ background: colores[e] }} aria-hidden="true" />{tf("{n} jugadores", { n: jugadores.filter((j) => j.equipo === e).length })}
+                    </button>)}
+                  </div>
+                </div>
+                <div className="inspector-fila"><span>{t("Atacamos hacia")}</span>
+                  <div className="inspector-segmentos">
+                    <button type="button" className={!haciaLaDerecha ? "activa" : ""} onClick={() => setHaciaLaDerecha(false)}>{t("La izquierda")}</button>
+                    <button type="button" className={haciaLaDerecha ? "activa" : ""} onClick={() => setHaciaLaDerecha(true)}>{t("La derecha")}</button>
+                  </div>
+                </div>
+                <div className="inspector-fila abp-acciones">
+                  <button type="button" onClick={llevarAlEstudio} disabled={!abrirEnPizarra}>{t("Llevar al estudio táctico")}</button>
+                </div>
+              </>}
+              <p className="inspector-pie">{t("Busca en el fondo a cada jugador sobre el césped y separa los equipos por la camiseta. Con Mover, pulsa un anillo para cambiarle el equipo; los que quedan sin equipo (el árbitro) no pasan al estudio.")}</p>
+            </div>}
           </section>
 
           <section className="inspector-grupo">
