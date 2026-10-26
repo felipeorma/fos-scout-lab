@@ -1,19 +1,32 @@
 "use client";
 
-import { useEffect, useRef, useState, type ChangeEvent, type PointerEvent as EventoDePuntero, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type PointerEvent as EventoDePuntero, type ReactNode } from "react";
 import {
   DE_DOS_PUNTOS, desplazar, duplicar, escalar, idDeTrazo, idDeYoutube, inicioDeYoutube, trazoEn, type EstiloFoco, type PuntoP, type TipoTrazo, type Trazo,
 } from "@/lib/pintado";
-import { t, tf } from "@/lib/i18n";
+import { numberLocale, t, tf } from "@/lib/i18n";
+import { aplicar, errorMedio, homografia, invertir, type P } from "@/lib/homografia";
+import { PUNTOS_DEL_CAMPO, desplazarMarca, marcaDeArrastre, puntoDeCampo, siguientePunto, type GrupoDePuntos, type MarcaDeCampo } from "@/lib/perspectiva";
 import { dibujarSeleccion, dibujarTodo, dibujarTrazo } from "./pintado/dibujo";
+import { dibujarLineas, dibujarMarca, dibujarPuntosDeCalibracion, marcaEn, type OpcionesDeCampo } from "./pintado/perspectiva";
 import { useFirma } from "./FirmaDelInforme";
 import { Interruptor } from "./Interruptor";
 import {
-  ArrowDownToLine, Camara, Conector, Duplicar, Elipse, Etiqueta, Flecha, FlechaRecta, Foco, ImageIcon, Mover, Pause, Pencil, Play, Rectangulo, RotateCcw,
+  ArrowDownToLine, Camara, Conector, Duplicar, Elipse, Etiqueta, Flecha, FlechaRecta, Foco, ImageIcon, Linea, Mover, Pause, Pencil, Play, Rectangulo, Regla, RotateCcw,
   TextIcon, Trash, Triangulo, Upload, Video, X, ZonaSuelo,
 } from "./Icons";
 
-type Herramienta = "mover" | TipoTrazo;
+/** Las herramientas que pintan en el césped, en metros y con perspectiva: necesitan el campo calibrado. */
+type HerramientaDeCampo = "medir" | "fuera" | "circuloCampo" | "zonaCampo" | "flechaCampo";
+type Herramienta = "mover" | TipoTrazo | HerramientaDeCampo;
+const DE_CAMPO: Record<HerramientaDeCampo, MarcaDeCampo["tipo"]> = { medir: "medida", fuera: "fuera", circuloCampo: "circulo", zonaCampo: "zona", flechaCampo: "flecha" };
+const esDeCampo = (h: Herramienta): h is HerramientaDeCampo => h in DE_CAMPO;
+/** Un arrastre en el césped: una marca que se mueve, una que se está dibujando o una diana de la calibración. */
+type ArrastreDeCampo =
+  | { tipo: "marca"; id: string; desde: P; base: MarcaDeCampo[]; movido: boolean; recienPuesta: boolean }
+  | { tipo: "nueva"; desde: P }
+  | { tipo: "diana"; id: string };
+const formatoDeMetros = () => new Intl.NumberFormat(numberLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 type Fuente =
   | { tipo: "ninguna" }
   | { tipo: "imagen"; url: string }
@@ -76,6 +89,25 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
   const textoRef = useRef<HTMLInputElement>(null);
   const arrastreRef = useRef<{ id: string; desde: PuntoP; base: Trazo[]; movido: boolean } | null>(null);
   const [tamano, setTamano] = useState({ w: 0, h: 0 });
+  // La perspectiva: los puntos del campo puestos en la imagen y las marcas en metros.
+  const [calibrando, setCalibrando] = useState(false);
+  const [pares, setPares] = useState<Record<string, P>>({});
+  const [puntoArmado, setPuntoArmado] = useState<string | null>(PUNTOS_DEL_CAMPO[0].id);
+  const [verLineas, setVerLineas] = useState(false);
+  const [marcas, setMarcas] = useState<MarcaDeCampo[]>([]);
+  const [marcaElegida, setMarcaElegida] = useState<string | null>(null);
+  const [borradorCampo, setBorradorCampo] = useState<MarcaDeCampo | null>(null);
+  const historialCampo = useRef<MarcaDeCampo[][]>([]);
+  // Qué se deshace primero: un trazo o una marca del césped, en el orden en que se hicieron.
+  const pila = useRef<Array<"trazos" | "campo">>([]);
+  const arrastreCampo = useRef<ArrastreDeCampo | null>(null);
+
+  // Del césped (metros) a la imagen (fracciones del escenario), y al revés.
+  const puestos = Object.keys(pares).filter((id) => puntoDeCampo(id));
+  const proyeccion = useMemo(() => homografia(puestos.map((id) => puntoDeCampo(id)!.p), puestos.map((id) => pares[id])), [pares]); // eslint-disable-line react-hooks/exhaustive-deps
+  const inversa = useMemo(() => (proyeccion ? invertir(proyeccion) : null), [proyeccion]);
+  const desvio = proyeccion && puestos.length > 4 ? errorMedio(proyeccion, puestos.map((id) => puntoDeCampo(id)!.p), puestos.map((id) => pares[id])) * Math.max(tamano.w, 1) : null;
+  const marca = marcas.find((m) => m.id === marcaElegida) ?? null;
 
   const elegido = trazos.find((x) => x.id === seleccion) ?? null;
   // Sobre un vídeo que corre, el lienzo deja pasar el puntero a los controles hasta que se pide dibujar.
@@ -109,23 +141,65 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
     const ctx = lienzo.getContext("2d")!;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, tamano.w, tamano.h);
+    // Lo del césped va debajo de los trazos: es el suelo de la jugada.
+    pintarCampo(ctx, tamano.w, tamano.h, true);
     dibujarTodo(ctx, trazos, tamano.w, tamano.h, letra);
     if (borrador) dibujarTrazo(ctx, borrador, tamano.w, tamano.h, letra);
     if (elegido && !borrador) dibujarSeleccion(ctx, elegido, tamano.w, tamano.h, acento, letra);
-  }, [trazos, borrador, elegido, tamano, letra, acento]);
+    if (calibrando) {
+      dibujarPuntosDeCalibracion(ctx, puestos.map((id) => ({ p: pares[id], etiqueta: String(PUNTOS_DEL_CAMPO.findIndex((x) => x.id === id) + 1) })), opcionesDeCampo(tamano.w, tamano.h));
+    }
+  }, [trazos, borrador, elegido, tamano, letra, acento, proyeccion, marcas, marcaElegida, borradorCampo, verLineas, calibrando, pares]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function opcionesDeCampo(w: number, h: number): OpcionesDeCampo {
+    const formato = formatoDeMetros();
+    return { w, h, fuente: letra, acento, metros: (m) => `${formato.format(m)} m`, rotuloFuera: t("Fuera de juego") };
+  }
+  /** Las líneas del campo (al calibrar o si se piden) y las marcas en metros, con la perspectiva de la imagen. */
+  function pintarCampo(ctx: CanvasRenderingContext2D, w: number, h: number, enPantalla: boolean) {
+    if (!proyeccion) return;
+    const o = opcionesDeCampo(w, h);
+    if (verLineas || (enPantalla && calibrando)) dibujarLineas(ctx, proyeccion, o);
+    for (const m of marcas) dibujarMarca(ctx, proyeccion, m, o, enPantalla && m.id === marcaElegida);
+    if (enPantalla && borradorCampo) dibujarMarca(ctx, proyeccion, borradorCampo, o, false, 0.75);
+  }
 
   // ---- Cambios con deshacer ----
-  function guardar(siguiente: Trazo[]) {
-    historial.current.push(trazos);
+  function apuntar(previo: Trazo[]) {
+    historial.current.push(previo);
+    pila.current.push("trazos");
     if (historial.current.length > 100) historial.current.shift();
+  }
+  function guardar(siguiente: Trazo[]) {
+    apuntar(trazos);
     setTrazos(siguiente);
   }
   function marcarHistorial() {
-    historial.current.push(trazos);
+    apuntar(trazos);
+  }
+  function guardarCampo(siguiente: MarcaDeCampo[], previo = marcas) {
+    historialCampo.current.push(previo);
+    pila.current.push("campo");
+    if (historialCampo.current.length > 100) historialCampo.current.shift();
+    setMarcas(siguiente);
   }
   function deshacer() {
+    if (pila.current.pop() === "campo") {
+      const previo = historialCampo.current.pop();
+      if (previo) { setMarcas(previo); setMarcaElegida(null); }
+      return;
+    }
     const previo = historial.current.pop();
     if (previo) { setTrazos(previo); setSeleccion(null); }
+  }
+  function borrarMarca() {
+    if (marcaElegida) { guardarCampo(marcas.filter((m) => m.id !== marcaElegida)); setMarcaElegida(null); }
+  }
+  /** Otra imagen u otro plano de cámara: la calibración ya no vale (las marcas, en metros, sí). */
+  function olvidarCalibracion() {
+    setPares({});
+    setPuntoArmado(PUNTOS_DEL_CAMPO[0].id);
+    setCalibrando(false);
   }
   function borrar() {
     if (seleccion) { guardar(trazos.filter((x) => x.id !== seleccion)); setSeleccion(null); }
@@ -148,10 +222,11 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
     const alPulsarTecla = (evento: KeyboardEvent) => {
       if (!visible()) return;
       if ((evento.target as HTMLElement).closest("input, textarea, select, [contenteditable='true']")) return;
-      if ((evento.key === "Delete" || evento.key === "Backspace") && seleccion) { evento.preventDefault(); borrar(); }
+      if ((evento.key === "Delete" || evento.key === "Backspace") && marcaElegida) { evento.preventDefault(); borrarMarca(); }
+      else if ((evento.key === "Delete" || evento.key === "Backspace") && seleccion) { evento.preventDefault(); borrar(); }
       else if ((evento.metaKey || evento.ctrlKey) && evento.key.toLowerCase() === "z") { evento.preventDefault(); deshacer(); }
       else if (evento.key === "Enter" && borrador?.tipo === "conector") terminarConector();
-      else if (evento.key === "Escape") { setBorrador(null); setSeleccion(null); }
+      else if (evento.key === "Escape") { setBorrador(null); setSeleccion(null); setMarcaElegida(null); setBorradorCampo(null); }
     };
     const alPegar = (evento: ClipboardEvent) => {
       if (!visible()) return;
@@ -167,6 +242,7 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
   function abrirArchivo(archivo: File) {
     const url = URL.createObjectURL(archivo);
     if (fuente.tipo === "imagen" || fuente.tipo === "video") URL.revokeObjectURL(fuente.url);
+    olvidarCalibracion();
     setCongelado(null);
     setAviso("");
     if (archivo.type.startsWith("video/")) { setFuente({ tipo: "video", url, nombre: archivo.name }); setDibujando(false); }
@@ -182,6 +258,7 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
     const id = idDeYoutube(enlace);
     if (!id) { setAviso(t("No reconozco ese enlace de YouTube.")); return; }
     setCongelado(null);
+    olvidarCalibracion();
     setAviso("");
     setFuente({ tipo: "youtube", id, inicio: inicioDeYoutube(enlace) });
     setDibujando(false);
@@ -190,6 +267,7 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
     if (fuente.tipo === "imagen" || fuente.tipo === "video") URL.revokeObjectURL(fuente.url);
     setFuente({ tipo: "ninguna" });
     setCongelado(null);
+    olvidarCalibracion();
   }
 
   /** Detiene el vídeo en el fotograma que se ve y lo deja de fondo para dibujar y exportar. */
@@ -263,6 +341,7 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
       setAviso(t("No se pudo leer el fondo. Prueba a congelar el fotograma."));
       return;
     }
+    pintarCampo(ctx, W, H, false);
     dibujarTodo(ctx, trazos, W, H, letra);
     ctx.font = `600 18px ${letra}`;
     ctx.textAlign = "right";
@@ -291,6 +370,45 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
     if (evento.button !== 0) return;
     const p = punto(evento);
     const lienzo = evento.currentTarget;
+    const enPixeles = { x: p.x * tamano.w, y: p.y * tamano.h };
+    if (calibrando) {
+      // Una diana ya puesta se arrastra para afinarla; si no, se pone el punto elegido de la lista.
+      const diana = puestos.find((id) => Math.hypot((pares[id].x - p.x) * tamano.w, (pares[id].y - p.y) * tamano.h) < 13);
+      if (diana) { lienzo.setPointerCapture(evento.pointerId); arrastreCampo.current = { tipo: "diana", id: diana }; return; }
+      if (!puntoArmado) { setAviso(t("Elige en la lista qué punto del campo vas a marcar.")); return; }
+      setPares((actuales) => ({ ...actuales, [puntoArmado]: p }));
+      setPuntoArmado(siguientePunto(puntoArmado, new Set([...puestos, puntoArmado])));
+      return;
+    }
+    if (esDeCampo(herramienta)) {
+      const q = inversa ? aplicar(inversa, p) : null;
+      if (!q) { setAviso(proyeccion ? t("Ahí no hay césped: pulsa sobre el campo.") : t("Calibra antes el campo: marca al menos cuatro de sus puntos.")); return; }
+      setSeleccion(null);
+      lienzo.setPointerCapture(evento.pointerId);
+      if (herramienta === "fuera") {
+        // La línea va por los pies del último defensor; se arrastra para afinarla.
+        const nueva: MarcaDeCampo = { id: idDeTrazo(), tipo: "fuera", x: Math.max(-52.5, Math.min(52.5, q.x)), color };
+        const siguiente = [...marcas, nueva];
+        guardarCampo(siguiente);
+        setMarcaElegida(nueva.id);
+        arrastreCampo.current = { tipo: "marca", id: nueva.id, desde: q, base: siguiente, movido: false, recienPuesta: true };
+        return;
+      }
+      arrastreCampo.current = { tipo: "nueva", desde: q };
+      return;
+    }
+    if (herramienta === "mover" && proyeccion) {
+      const id = marcaEn(proyeccion, marcas, enPixeles, tamano);
+      const q = inversa ? aplicar(inversa, p) : null;
+      if (id && q) {
+        setMarcaElegida(id);
+        setSeleccion(null);
+        lienzo.setPointerCapture(evento.pointerId);
+        arrastreCampo.current = { tipo: "marca", id, desde: q, base: marcas, movido: false, recienPuesta: false };
+        return;
+      }
+    }
+    setMarcaElegida(null);
     if (herramienta === "mover") {
       const id = trazoEn(trazos, p, tamano.w / Math.max(tamano.h, 1));
       setSeleccion(id);
@@ -318,6 +436,20 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
 
   function alMover(evento: EventoDePuntero<HTMLCanvasElement>) {
     const p = punto(evento);
+    const enCampo = arrastreCampo.current;
+    if (enCampo) {
+      if (enCampo.tipo === "diana") { setPares((actuales) => ({ ...actuales, [enCampo.id]: p })); return; }
+      const q = inversa ? aplicar(inversa, p) : null;
+      if (!q) return;
+      if (enCampo.tipo === "marca") {
+        const dx = q.x - enCampo.desde.x, dy = q.y - enCampo.desde.y;
+        if (Math.hypot(dx, dy) > 0.1) enCampo.movido = true;
+        if (enCampo.movido) setMarcas(enCampo.base.map((m) => (m.id === enCampo.id ? desplazarMarca(m, dx, dy) : m)));
+      } else if (esDeCampo(herramienta) && herramienta !== "fuera") {
+        setBorradorCampo(marcaDeArrastre(DE_CAMPO[herramienta] as Exclude<MarcaDeCampo["tipo"], "fuera">, "borrador", enCampo.desde, q, color));
+      }
+      return;
+    }
     const arrastre = arrastreRef.current;
     if (arrastre) {
       const dx = p.x - arrastre.desde.x, dy = p.y - arrastre.desde.y;
@@ -336,10 +468,23 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
 
   function alSoltar(evento: EventoDePuntero<HTMLCanvasElement>) {
     if (evento.currentTarget.hasPointerCapture(evento.pointerId)) evento.currentTarget.releasePointerCapture(evento.pointerId);
+    const enCampo = arrastreCampo.current;
+    arrastreCampo.current = null;
+    if (enCampo) {
+      // Movida, entra en el deshacer; recién puesta, ya entró al ponerla.
+      if (enCampo.tipo === "marca" && enCampo.movido && !enCampo.recienPuesta) { historialCampo.current.push(enCampo.base); pila.current.push("campo"); }
+      if (enCampo.tipo === "nueva" && esDeCampo(herramienta) && herramienta !== "fuera") {
+        const q = inversa ? aplicar(inversa, punto(evento)) : null;
+        const nueva = q ? marcaDeArrastre(DE_CAMPO[herramienta] as Exclude<MarcaDeCampo["tipo"], "fuera">, idDeTrazo(), enCampo.desde, q, color) : null;
+        if (nueva) { guardarCampo([...marcas, nueva]); setMarcaElegida(nueva.id); }
+        setBorradorCampo(null);
+      }
+      return;
+    }
     const arrastre = arrastreRef.current;
     arrastreRef.current = null;
     if (arrastre) {
-      if (arrastre.movido) { historial.current.push(arrastre.base); }
+      if (arrastre.movido) apuntar(arrastre.base);
       return;
     }
     if (!borrador || borrador.tipo === "conector") return;
@@ -374,8 +519,23 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
     conector: t("Pulsa en cada jugador para unirlos. Doble clic o Intro para terminar."),
     dorsal: t("Pulsa sobre el jugador para ponerle el dorsal. El número avanza solo."),
     foco: t("Arrastra desde arriba hasta los pies del jugador."),
+    medir: t("Arrastra de un punto a otro del césped: la distancia sale en metros."),
+    fuera: t("Pulsa en los pies del último defensor: la línea cruza el campo paralela a la de gol. Arrástrala para afinarla."),
+    circuloCampo: t("Arrastra desde los pies del jugador hacia fuera: el círculo se tumba en el césped."),
+    zonaCampo: t("Arrastra de esquina a esquina: la zona va alineada con las líneas del campo."),
+    flechaCampo: t("Arrastra por el césped: la flecha sale con la perspectiva de la cámara."),
   };
   const ayuda = ayudas[herramienta] ?? t("Arrastra sobre la imagen para dibujar.");
+  const enElCesped: Array<{ id: HerramientaDeCampo; nombre: string; icono: ReactNode }> = [
+    { id: "medir", nombre: t("Metros"), icono: <Regla size={16} /> },
+    { id: "fuera", nombre: t("Fuera de juego"), icono: <Linea size={16} /> },
+    { id: "circuloCampo", nombre: t("Círculo"), icono: <Elipse size={16} /> },
+    { id: "zonaCampo", nombre: t("Zona"), icono: <Rectangulo size={16} /> },
+    { id: "flechaCampo", nombre: t("Flecha"), icono: <FlechaRecta size={16} /> },
+  ];
+  const grupos: Array<{ id: GrupoDePuntos; nombre: string }> = [
+    { id: "izquierda", nombre: t("Área izquierda") }, { id: "medio", nombre: t("Medio campo") }, { id: "derecha", nombre: t("Área derecha") },
+  ];
   const estiloFoco = elegido?.tipo === "foco" ? elegido.foco ?? "abierto" : foco;
 
   return <div className={claseHoja}>
@@ -425,6 +585,52 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
                 onClick={() => { setHerramienta("dorsal"); setDorsal(n); if (conMedio) setDibujando(true); }}>{n}</button>)}
             </div>
             <p className="inspector-pie">{ayuda}</p>
+          </section>
+
+          <section className="inspector-grupo">
+            <h3 className="inspector-titulo">{t("Perspectiva")}<small>{proyeccion ? t("campo calibrado") : tf("{n} de 4 puntos", { n: Math.min(4, puestos.length) })}</small></h3>
+            <div className="inspector-tarjeta">
+              {!calibrando && <div className="inspector-fila abp-acciones">
+                <button type="button" onClick={() => { setCalibrando(true); setDibujando(true); setHerramienta("mover"); setAviso(""); }}>{proyeccion ? t("Ajustar la calibración") : t("Calibrar el campo")}</button>
+                {puestos.length > 0 && <button type="button" onClick={olvidarCalibracion}>{t("Quitar la calibración")}</button>}
+              </div>}
+              {calibrando && <>
+                <p className="inspector-pie pintado-calibrar">{t("Elige un punto y púlsalo en la imagen; el siguiente de su zona queda listo. Con cuatro que no estén en línea (las esquinas del área, por ejemplo) ya se pinta en el césped; con más, casa mejor. Arrastra una diana para afinarla.")}</p>
+                {grupos.map((g) => <div key={g.id} className="pintado-puntos" role="group" aria-label={g.nombre}>
+                  <small>{g.nombre}</small>
+                  {PUNTOS_DEL_CAMPO.map((x, i) => x.grupo !== g.id ? null : <button key={x.id} type="button" title={t(x.nombre)}
+                    className={`${puntoArmado === x.id ? "activa" : ""}${pares[x.id] ? " puesto" : ""}`} aria-pressed={puntoArmado === x.id}
+                    onClick={() => setPuntoArmado(x.id)} onDoubleClick={() => setPares((actuales) => Object.fromEntries(Object.entries(actuales).filter(([id]) => id !== x.id)))}>
+                    <b>{i + 1}</b><span>{t(x.nombre)}</span>
+                  </button>)}
+                </div>)}
+                {desvio !== null && <p className="inspector-pie">{tf("Los puntos casan con un error medio de {n} px.", { n: Math.round(desvio) })}</p>}
+                <div className="inspector-fila abp-acciones">
+                  <button type="button" onClick={() => setCalibrando(false)} disabled={!proyeccion}>{t("Listo")}</button>
+                  <button type="button" onClick={() => { setPares({}); setPuntoArmado(PUNTOS_DEL_CAMPO[0].id); }} disabled={!puestos.length}>{t("Empezar de nuevo")}</button>
+                </div>
+              </>}
+              <div className="inspector-fila"><span>{t("Ver las líneas del campo")}</span>
+                <Interruptor activo={verLineas} onCambio={setVerLineas} titulo={t("Ver las líneas del campo")} />
+              </div>
+            </div>
+            <div className="abp-herramientas pintado-campo" role="toolbar" aria-label={t("En el césped")}>
+              {enElCesped.map((h) => <button key={h.id} type="button" className={herramienta === h.id ? "activa" : ""} aria-pressed={herramienta === h.id} disabled={!proyeccion}
+                title={proyeccion ? ayudas[h.id] : t("Calibra antes el campo")}
+                onClick={() => { setHerramienta(h.id); setCalibrando(false); setBorrador(null); if (conMedio) setDibujando(true); }}>
+                {h.icono}<span>{h.nombre}</span>
+              </button>)}
+            </div>
+            {marca && <div className="inspector-tarjeta">
+              <label className="inspector-fila"><span>{t("Color")}</span>
+                <input type="color" value={marca.color} onFocus={() => { historialCampo.current.push(marcas); pila.current.push("campo"); }}
+                  onChange={(e) => setMarcas(marcas.map((m) => (m.id === marca.id ? { ...m, color: e.target.value } : m)))} />
+              </label>
+              <div className="inspector-fila abp-acciones">
+                <button type="button" className="peligro" onClick={borrarMarca}><Trash size={14} />{t("Borrar")}</button>
+              </div>
+            </div>}
+            {!proyeccion && <p className="inspector-pie">{t("Congela el fotograma antes de calibrar: si la cámara se mueve, la calibración deja de casar.")}</p>}
           </section>
 
           <section className="inspector-grupo">
