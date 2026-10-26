@@ -5,11 +5,12 @@ import {
   agregarAnotacion, agregarFase, agregarFicha, anotacionCerca, cambiarAnotacion, cambiarDuracion, cambiarFicha, carreraDe, cuadernoInicial,
   curvarCarrera, desplazarAnotacion, distancia, duplicarFase, duracionTotal, fichaCerca, fijarCarrera, fijarPase, inicioDeFase, instanteEn,
   moverFase, posar, posarBalon, cambiarPausa, AMBIENTE_POR_DEFECTO, agregarMaterial, cambiarEquipacion, cambiarMaterial, datosDeMaterial, equipacionDe,
-  filaDeMaterial, materialCerca, moverMaterial, quitarMaterial, EQUIPACION_LISA, normalizarCuaderno, nuevoId, quitarAnotacion, quitarCarrera, quitarFase, quitarFicha, quitarPase,
+  filaDeMaterial, materialCerca, moverMaterial, quitarMaterial, EQUIPACION_LISA, copiaDeAnotacion, extremosDe, normalizarCuaderno, nuevoId, quitarAnotacion, quitarCarrera, quitarFase, quitarFicha, quitarPase,
   renombrarFase, tipoDePase, deSerie, CATEGORIAS, ENCUADRES, SUPERFICIES, ZONAS,
-  type Ambiente, type Categoria, type Cuaderno, type Equipacion, type Equipo, type EstiloFlecha, type EstiloZona, type Fase, type Jugada, type Pase,
-  type Punto, type TipoMaterial,
+  type Ambiente, type Anotacion, type Capa, type Categoria, type Cuaderno, type Equipacion, type Equipo, type EstiloFlecha, type EstiloZona, type Extremo,
+  type Fase, type Grosor, type Jugada, type Material, type Pase, type Punto, type RellenoBloque, type TipoMaterial,
 } from "@/lib/abp";
+import { simplificar } from "@/lib/geometria";
 import { t, tf, type Lang } from "@/lib/i18n";
 import type { Borrador, Motor, Opciones, Seleccion, Vista } from "./abp/motor";
 import { Tablero2D } from "./abp/tablero2d";
@@ -19,25 +20,42 @@ import { Biblioteca } from "./BibliotecaDeSistemas";
 import { Portal, archivoDeCuaderno, archivoDeSistema } from "./PortalDeSistemas";
 import { EditorDeEquipacion, SelectorDeMaterial } from "./abp/PiezasDeEntrenamiento";
 import {
-  ArrowDownToLine, Balon, Carrera, ChevronLeft, ChevronRight, Conduccion, Cono, Cubo, Duplicar, Elipse, Etiqueta, Flecha, Linea, Mover, PantallaCompleta,
-  Pase as PaseIcono, Pause, Play, Plus, Presion, Rectangulo, RotateCcw, TextIcon, Trash, Video,
+  ArrowDownToLine, Balon, Bloque, Carrera, ChevronLeft, ChevronRight, Conduccion, Cono, Cubo, Duplicar, Elipse, Etiqueta, Flecha, Linea, Mover, PantallaCompleta,
+  Pase as PaseIcono, Pause, Pencil, Play, Plus, Presion, Rectangulo, Regla, RotateCcw, RotateCw, Teclado, TextIcon, Trash, Video,
 } from "./Icons";
+import { PanelDeMedidas } from "./abp/PanelDeMedidas";
 
 // La clave no cambia al pasar de cuaderno a estudio: así se abre lo ya guardado.
 const CLAVE = "fos-scout-abp-v1";
 const CLAVE_MINIATURAS = "fos-scout-abp-miniaturas-v1";
 
-type Herramienta = "mover" | "local" | "rival" | "balon" | "material" | "carrera" | "pase" | "flecha" | "texto" | "etiqueta" | "rect" | "zona";
+type Herramienta = "mover" | "local" | "rival" | "balon" | "material" | "carrera" | "pase" | "flecha" | "texto" | "etiqueta" | "rect" | "zona"
+  | "lapiz" | "medida" | "bloque";
 
 /** Lo que se está arrastrando, con el cuaderno de antes para poder deshacerlo de una vez. */
 type Arrastre = {
   /** "pieza": mover una pieza de material ya puesta; "material": poner piezas nuevas. */
-  tipo: "ficha" | "balon" | "anotacion" | "pieza" | "carrera" | "pase" | "flecha" | "rect" | "zona" | "material";
+  tipo: "ficha" | "balon" | "anotacion" | "pieza" | "carrera" | "pase" | "flecha" | "rect" | "zona" | "material" | "medida" | "trazo";
   id?: string;
   base: Cuaderno;
   desde: Punto;
   movido: boolean;
+  /** El trazo a mano alzada, punto a punto. */
+  puntos?: Punto[];
+  /** Con Alt pulsado, la ficha no se alinea con las demás. */
+  libre?: boolean;
 };
+
+const formatosDeMetros = new Map<string, Intl.NumberFormat>();
+/** «12,4» en español y «12.4» en inglés: el formato, hecho una vez por idioma. */
+function metrosConUnDecimal(idioma: Lang) {
+  let f = formatosDeMetros.get(idioma);
+  if (!f) {
+    f = new Intl.NumberFormat(idioma === "en" ? "en-GB" : "es-ES", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    formatosDeMetros.set(idioma, f);
+  }
+  return f;
+}
 
 const activaDe = (c: Cuaderno) => c.jugadas.find((j) => j.id === c.activa) ?? c.jugadas[0];
 const conJugada = (c: Cuaderno, j: Jugada): Cuaderno => ({ ...c, jugadas: c.jugadas.map((x) => (x.id === j.id ? { ...j, actualizada: Date.now() } : x)) });
@@ -75,6 +93,10 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
   const deSerieEn = (texto: string) => deSerie(texto, idioma);
   const [cuaderno, setCuaderno] = useState<Cuaderno | null>(null);
   const historial = useRef<Cuaderno[]>([]);
+  // Lo deshecho, para rehacerlo; se vacía con el primer cambio nuevo.
+  const futuro = useRef<Cuaderno[]>([]);
+  // Lo copiado con Ctrl+C: la anotación tal cual y suelta (si se pega en otro sistema), o una pieza.
+  const portapapeles = useRef<{ jugada: string; fase: number; anotacion?: Anotacion; suelta?: Anotacion; pieza?: Material } | null>(null);
   const [faseIdx, setFaseIdx] = useState(0);
   const [herramienta, setHerramienta] = useState<Herramienta>("mover");
   const [seleccion, setSeleccion] = useState<Seleccion>(null);
@@ -87,6 +109,13 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
   const [estiloFlecha, setEstiloFlecha] = useState<EstiloFlecha>("continua");
   const [seguir, setSeguir] = useState(false);
   const [estiloZona, setEstiloZona] = useState<EstiloZona>("translucida");
+  // Cómo sale la próxima flecha (null: el extremo de su trazo), el lápiz y el bloque.
+  const [extremoFlecha, setExtremoFlecha] = useState<Extremo | null>(null);
+  const [grosorFlecha, setGrosorFlecha] = useState<Grosor>("normal");
+  const [grosorTrazo, setGrosorTrazo] = useState<Grosor>("normal");
+  const [puntaTrazo, setPuntaTrazo] = useState(false);
+  const [rellenoBloque, setRellenoBloque] = useState<RellenoBloque>("atras");
+  const [atajos, setAtajos] = useState(false);
   const [tipoPase, setTipoPase] = useState<Pase["tipo"]>("aereo");
   // Cómo se pone el material: la pieza, su color (null = el de serie), cada cuántos metros y si en slalom.
   const [tipoMaterial, setTipoMaterial] = useState<TipoMaterial>("seta");
@@ -206,6 +235,7 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
     ambiente: ambiente ?? AMBIENTE_POR_DEFECTO,
     equipaciones: { local: equipacionLocal ?? EQUIPACION_LISA, rival: equipacionRival ?? EQUIPACION_LISA },
     rotulo: (rol) => deSerie(rol, idioma),
+    metros: (m) => `${metrosConUnDecimal(idioma).format(m)} m`,
   }), [colorLocal, colorRival, colorAnotacion, acento, nombres, fuente, idioma, ambiente, equipacionLocal, equipacionRival]);
 
   useEffect(() => {
@@ -308,18 +338,23 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
   }
 
   // ---- Cambiar la jugada ----
+  /** Apunta el estado de antes de un cambio para poder deshacerlo; lo deshecho ya no se puede rehacer. */
+  function apuntar(previo: Cuaderno) {
+    historial.current.push(previo);
+    if (historial.current.length > 80) historial.current.shift();
+    futuro.current = [];
+  }
+
   function guardar(siguiente: Jugada) {
     if (!cuaderno) return;
-    historial.current.push(cuaderno);
-    if (historial.current.length > 80) historial.current.shift();
+    apuntar(cuaderno);
     setCuaderno(conJugada(cuaderno, siguiente));
   }
 
   /** Para lo que se cambia tecla a tecla: un solo paso de deshacer por edición. */
   function marcarHistorial() {
     if (!cuaderno) return;
-    historial.current.push(cuaderno);
-    if (historial.current.length > 80) historial.current.shift();
+    apuntar(cuaderno);
   }
   function sinHistorial(siguiente: Jugada) {
     setCuaderno((actual) => (actual ? conJugada(actual, siguiente) : actual));
@@ -328,9 +363,106 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
   function deshacer() {
     const previo = historial.current.pop();
     if (!previo) return;
+    if (cuaderno) futuro.current.push(cuaderno);
     setCuaderno(previo);
     setSeleccion(null);
     setOrigen(null);
+  }
+
+  function rehacer() {
+    const siguiente = futuro.current.pop();
+    if (!siguiente) return;
+    if (cuaderno) historial.current.push(cuaderno);
+    setCuaderno(siguiente);
+    setSeleccion(null);
+    setOrigen(null);
+  }
+
+  /** La dirección de una flecha del teclado en el campo, según cómo se esté viendo: la del eje del campo más parecido. */
+  function direccionDeTecla(dx: number, dy: number): Punto | null {
+    const escena = escenaRef.current;
+    if (!escena) return null;
+    const r = escena.canvas.getBoundingClientRect();
+    const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    const a = escena.puntoDelCampo(cx, cy), b = escena.puntoDelCampo(cx + dx * 40, cy + dy * 40);
+    if (!a || !b) return null;
+    const vx = b.x - a.x, vz = b.z - a.z;
+    return Math.abs(vx) >= Math.abs(vz) ? { x: Math.sign(vx), z: 0 } : { x: 0, z: Math.sign(vz) };
+  }
+
+  /** Mueve lo elegido `paso` metros con las flechas del teclado. */
+  function empujar(dx: number, dy: number, paso: number) {
+    if (!jugada || !fase || !seleccion) return;
+    const d = direccionDeTecla(dx, dy);
+    if (!d) return;
+    const mx = d.x * paso, mz = d.z * paso;
+    if (seleccion.tipo === "ficha") {
+      const p = fase.pos[seleccion.id];
+      if (p) guardar(posar(jugada, indice, seleccion.id, { x: p.x + mx, z: p.z + mz }));
+    } else if (seleccion.tipo === "anotacion") {
+      guardar(desplazarAnotacion(jugada, indice, seleccion.id, mx, mz));
+    } else {
+      const m = fase.material?.find((x) => x.id === seleccion.id);
+      if (m) guardar(moverMaterial(jugada, indice, m.id, { x: m.p.x + mx, z: m.p.z + mz }));
+    }
+  }
+
+  /** Ctrl+C: lo elegido, para pegarlo en esta fase, en otra o en otro sistema. */
+  function copiar() {
+    if (!jugada || !fase || !seleccion || seleccion.tipo === "ficha") return false;
+    if (seleccion.tipo === "anotacion") {
+      const a = fase.anotaciones.find((x) => x.id === seleccion.id);
+      if (!a) return false;
+      portapapeles.current = { jugada: jugada.id, fase: indice, anotacion: structuredClone(a), suelta: a.tipo === "bloque" ? undefined : copiaDeAnotacion(a, fase, 0, 0) };
+    } else {
+      const m = fase.material?.find((x) => x.id === seleccion.id);
+      if (!m) return false;
+      portapapeles.current = { jugada: jugada.id, fase: indice, pieza: structuredClone(m) };
+    }
+    return true;
+  }
+
+  /**
+   * Ctrl+V: en otra fase del mismo sistema cae en el mismo sitio y sigue
+   * pegado a sus jugadores; en la misma fase, un poco al lado; en otro
+   * sistema, suelto (sus jugadores son otros).
+   */
+  function pegar() {
+    const pp = portapapeles.current;
+    if (!pp || !jugada || !fase) return;
+    const mismoSistema = pp.jugada === jugada.id, mismaFase = mismoSistema && pp.fase === indice;
+    const d = mismaFase ? 1.5 : 0;
+    if (pp.pieza) {
+      const pieza = { ...pp.pieza, id: nuevoId("m"), p: { x: pp.pieza.p.x + d, z: pp.pieza.p.z + d } };
+      guardar(agregarMaterial(jugada, indice, [pieza]));
+      setSeleccion({ tipo: "material", id: pieza.id });
+      return;
+    }
+    const original = pp.anotacion;
+    if (!original) return;
+    let nueva: Anotacion | null;
+    if (!mismoSistema) nueva = pp.suelta ? { ...structuredClone(pp.suelta), id: nuevoId("a") } : null;
+    else if (mismaFase) nueva = original.tipo === "bloque" ? null : copiaDeAnotacion(original, fase, d, d);
+    else nueva = { ...structuredClone(original), id: nuevoId("a") };
+    if (!nueva) { setAviso(t("Un bloque va con sus jugadores: se pega en otra fase del mismo sistema.")); return; }
+    guardar(agregarAnotacion(jugada, indice, nueva));
+    setSeleccion({ tipo: "anotacion", id: nueva.id });
+  }
+
+  /** El bloque que se está formando, ya en el campo. */
+  function cerrarBloque() {
+    if (!jugada || borrador?.tipo !== "bloque" || !borrador.fichas.length) return;
+    const id = nuevoId("a");
+    guardar(agregarAnotacion(jugada, indice, { id, tipo: "bloque", fichas: borrador.fichas, color: jugada.colores.anotacion, relleno: borrador.relleno }));
+    setBorrador(null);
+    setSeleccion({ tipo: "anotacion", id });
+  }
+
+  /** Ocultar o enseñar una capa en toda la jugada (y en lo que se descargue). */
+  function alternarCapa(capas: Capa[], ver: boolean) {
+    if (!jugada) return;
+    const ocultas = (jugada.ambiente.ocultas ?? []).filter((c) => !capas.includes(c));
+    cambiarAmbiente({ ocultas: ver ? ocultas : [...ocultas, ...capas] });
   }
 
   function borrarSeleccion() {
@@ -348,15 +480,27 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
       const objetivo = evento.target as HTMLElement;
       if (objetivo.closest("input, textarea, select, [contenteditable='true']")) return;
       if (modo !== "estudio" || !jugada) return;
+      const tecla = evento.key.toLowerCase(), mando = evento.metaKey || evento.ctrlKey;
+      const flechas: Record<string, [number, number]> = { arrowleft: [-1, 0], arrowright: [1, 0], arrowup: [0, -1], arrowdown: [0, 1] };
       if ((evento.key === "Delete" || evento.key === "Backspace") && seleccion) { evento.preventDefault(); borrarSeleccion(); }
-      else if ((evento.metaKey || evento.ctrlKey) && evento.key.toLowerCase() === "z") { evento.preventDefault(); deshacer(); }
-      else if (evento.key === "Escape") { setOrigen(null); setBorrador(null); setSeleccion(null); }
-      else if (evento.metaKey || evento.ctrlKey || evento.altKey) return;
-      // Los atajos de siempre: espacio reproduce, N añade una fase, [ y ] cambian de fase.
+      else if (mando && tecla === "z" && evento.shiftKey) { evento.preventDefault(); rehacer(); }
+      else if (mando && tecla === "z") { evento.preventDefault(); deshacer(); }
+      else if (mando && tecla === "y") { evento.preventDefault(); rehacer(); }
+      else if (mando && tecla === "c") { if (copiar()) evento.preventDefault(); }
+      else if (mando && tecla === "v") { if (portapapeles.current) { evento.preventDefault(); pegar(); } }
+      else if (mando && tecla === "d") { evento.preventDefault(); if (copiar()) pegar(); }
+      else if (evento.key === "Escape") { setOrigen(null); setBorrador(null); setSeleccion(null); setAtajos(false); }
+      else if (evento.key === "Enter" && borrador?.tipo === "bloque") { evento.preventDefault(); cerrarBloque(); }
+      else if (flechas[tecla] && seleccion && !mando) { evento.preventDefault(); empujar(...flechas[tecla], evento.shiftKey ? 2 : 0.5); }
+      else if (mando || evento.altKey) return;
+      // Los atajos de siempre: espacio reproduce, N añade una fase, [ y ] (o 1 a 9) cambian de fase, H oculta las flechas.
       else if (evento.key === " ") { evento.preventDefault(); alternarReproduccion(); }
-      else if (evento.key.toLowerCase() === "n") { guardar(agregarFase(jugada, indice, tf("Fase {n}", { n: jugada.fases.length + 1 }))); irAFase(indice + 1); }
+      else if (tecla === "n") { guardar(agregarFase(jugada, indice, tf("Fase {n}", { n: jugada.fases.length + 1 }))); irAFase(indice + 1); }
       else if (evento.key === "[" && indice > 0) irAFase(indice - 1);
       else if (evento.key === "]" && indice < jugada.fases.length - 1) irAFase(indice + 1);
+      else if (/^[1-9]$/.test(evento.key) && Number(evento.key) <= jugada.fases.length) irAFase(Number(evento.key) - 1);
+      else if (tecla === "h") alternarCapa(["flechas", "recorridos"], (jugada.ambiente.ocultas ?? []).includes("flechas"));
+      else if (evento.key === "?") setAtajos((a) => !a);
     };
     window.addEventListener("keydown", alPulsarTecla);
     return () => window.removeEventListener("keydown", alPulsarTecla);
@@ -390,7 +534,7 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
         if (distancia(fase.balon, p) < 1.3) { tomar(evento, { tipo: "balon", base, desde: p, movido: false }); return; }
         const pieza = materialCerca(fase, p);
         if (pieza) { setSeleccion({ tipo: "material", id: pieza }); tomar(evento, { tipo: "pieza", id: pieza, base, desde: p, movido: false }); return; }
-        const anotacion = anotacionCerca(fase, p);
+        const anotacion = anotacionCerca(fase, p, 1.2, jugada.ambiente.ocultas);
         if (anotacion) { setSeleccion({ tipo: "anotacion", id: anotacion }); tomar(evento, { tipo: "anotacion", id: anotacion, base, desde: p, movido: false }); return; }
         // En el vacío no se toma nada: el arrastre gira la cámara.
         setSeleccion(null);
@@ -432,11 +576,38 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
         tomar(evento, { tipo: "pase", base, desde: fase.balon, movido: false });
         return;
       case "flecha":
+      case "medida": {
+        // Empezar sobre una ficha pega el trazo a ella: va con ella cuando se mueve.
+        const ficha = fichaCerca(fase, p, 1.5);
+        const a = ficha ? fase.pos[ficha] : p;
+        setBorrador(herramienta === "flecha"
+          ? { tipo: "flecha", a, b: p, estilo: estiloFlecha, extremo: extremoFlecha ?? undefined, grosor: grosorFlecha, desde: ficha ?? undefined }
+          : { tipo: "medida", a, b: p, desde: ficha ?? undefined });
+        tomar(evento, { tipo: herramienta, id: ficha ?? undefined, base, desde: a, movido: false });
+        return;
+      }
       case "rect":
       case "zona":
-        setBorrador({ tipo: herramienta, a: p, b: p, estilo: estiloFlecha });
+        setBorrador({ tipo: herramienta, a: p, b: p });
         tomar(evento, { tipo: herramienta, base, desde: p, movido: false });
         return;
+      case "lapiz":
+        setBorrador({ tipo: "trazo", puntos: [p], grosor: grosorTrazo, punta: puntaTrazo });
+        tomar(evento, { tipo: "trazo", base, desde: p, movido: false, puntos: [p] });
+        return;
+      case "bloque": {
+        // Cada jugador que se pulsa entra (o sale) del bloque; pulsar el césped lo termina.
+        const ficha = fichaCerca(fase, p);
+        const elegidas = borrador?.tipo === "bloque" ? borrador.fichas : [];
+        if (ficha) {
+          setBorrador({ tipo: "bloque", relleno: rellenoBloque, fichas: elegidas.includes(ficha) ? elegidas.filter((x) => x !== ficha) : [...elegidas, ficha] });
+        } else if (elegidas.length) {
+          cerrarBloque();
+        } else {
+          setAviso(t("Pulsa los jugadores del bloque uno a uno; después, el césped o Intro."));
+        }
+        return;
+      }
       case "texto":
       case "etiqueta": {
         const id = nuevoId("a");
@@ -452,7 +623,7 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
   function aplicarArrastre(arrastre: Arrastre, p: Punto): Jugada | null {
     const j = activaDe(arrastre.base);
     // Mover en una pose: de la segunda fase en adelante, el estudio anima la diferencia.
-    if (arrastre.tipo === "ficha" && arrastre.id) return posar(j, indice, arrastre.id, p);
+    if (arrastre.tipo === "ficha" && arrastre.id) return posar(j, indice, arrastre.id, alinear(j, arrastre.id, p, arrastre.libre).p);
     if (arrastre.tipo === "balon") return posarBalon(j, indice, p);
     if (arrastre.tipo === "anotacion" && arrastre.id) return desplazarAnotacion(j, indice, arrastre.id, p.x - arrastre.desde.x, p.z - arrastre.desde.z);
     if (arrastre.tipo === "pieza" && arrastre.id) {
@@ -462,15 +633,59 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
     return null;
   }
 
+  /**
+   * Una ficha que se suelta cerca de la línea de un compañero (a lo largo o a
+   * lo ancho) se queda a su altura o en su carril, como al ordenar una línea
+   * a mano. Con Alt, donde se suelte.
+   */
+  function alinear(j: Jugada, id: string, p: Punto, libre = false): { p: Punto; guia: { x?: number; z?: number } | null } {
+    const f = j.fases[indice], equipo = j.fichas.find((x) => x.id === id)?.equipo;
+    if (libre || !f || !equipo) return { p, guia: null };
+    const UMBRAL = 0.6;
+    let x = p.x, z = p.z, gx: number | undefined, gz: number | undefined, dx = UMBRAL, dz = UMBRAL;
+    for (const otra of j.fichas) {
+      const q = otra.id !== id && otra.equipo === equipo ? f.pos[otra.id] : undefined;
+      if (!q) continue;
+      if (Math.abs(q.x - p.x) < dx) { dx = Math.abs(q.x - p.x); x = q.x; gx = q.x; }
+      if (Math.abs(q.z - p.z) < dz) { dz = Math.abs(q.z - p.z); z = q.z; gz = q.z; }
+    }
+    return { p: { x, z }, guia: gx !== undefined || gz !== undefined ? { x: gx, z: gz } : null };
+  }
+
+  /** La ficha bajo `p` en la que acaba un trazo pegado (que no sea en la que empieza). */
+  function fichaDeLlegada(p: Punto, desde?: string) {
+    const ficha = fase ? fichaCerca(fase, p, 1.5) : null;
+    return ficha && ficha !== desde ? ficha : null;
+  }
+
   function alMover(evento: EventoDePuntero<HTMLDivElement>) {
     const arrastre = arrastreRef.current;
     if (!arrastre) return;
     const p = punto(evento);
     if (!p) return;
     if (distancia(p, arrastre.desde) > 0.3) arrastre.movido = true;
+    arrastre.libre = evento.altKey;
+    if (arrastre.tipo === "ficha" && arrastre.id) {
+      const { guia } = alinear(activaDe(arrastre.base), arrastre.id, p, arrastre.libre);
+      setBorrador(guia ? { tipo: "guia", ...guia } : null);
+    }
     const siguiente = aplicarArrastre(arrastre, p);
     if (siguiente) { if (arrastre.movido) sinHistorial(siguiente); return; }
-    setBorrador((actual) => (actual ? { ...actual, b: p } : actual));
+    if (arrastre.tipo === "trazo" && arrastre.puntos) {
+      const ultimo = arrastre.puntos[arrastre.puntos.length - 1];
+      if (distancia(ultimo, p) < 0.25 || arrastre.puntos.length > 1500) return;
+      arrastre.puntos.push(p);
+      const puntos = [...arrastre.puntos];
+      setBorrador((actual) => (actual?.tipo === "trazo" ? { ...actual, puntos } : actual));
+      return;
+    }
+    if (arrastre.tipo === "flecha" || arrastre.tipo === "medida") {
+      const hasta = fichaDeLlegada(p, arrastre.id);
+      const b = hasta && fase ? fase.pos[hasta] : p;
+      setBorrador((actual) => (actual && (actual.tipo === "flecha" || actual.tipo === "medida") ? { ...actual, b, hasta: hasta ?? undefined } : actual));
+      return;
+    }
+    setBorrador((actual) => (actual && "b" in actual ? { ...actual, b: p } : actual));
   }
 
   function alSoltar(evento: EventoDePuntero<HTMLDivElement>) {
@@ -483,8 +698,7 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
     const p = punto(evento) ?? arrastre.desde;
     const j = activaDe(arrastre.base);
     const confirmar = (siguiente: Jugada) => {
-      historial.current.push(arrastre.base);
-      if (historial.current.length > 80) historial.current.shift();
+      apuntar(arrastre.base);
       setCuaderno(conJugada(arrastre.base, siguiente));
     };
     const movido = arrastre.movido || distancia(p, arrastre.desde) > 0.3;
@@ -515,13 +729,38 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
         return;
       }
       case "flecha":
+      case "medida": {
+        const hasta = fichaDeLlegada(p, arrastre.id);
+        const b = hasta ? j.fases[indice].pos[hasta] : p;
+        if (distancia(b, arrastre.desde) < (arrastre.tipo === "flecha" ? 0.8 : 0.3)) return;
+        const id = nuevoId("a");
+        const pegada = { ...(arrastre.id ? { desde: arrastre.id } : {}), ...(hasta ? { hasta } : {}) };
+        confirmar(agregarAnotacion(j, indice, arrastre.tipo === "flecha"
+          ? {
+            id, tipo: "flecha", a: arrastre.desde, b, color: j.colores.anotacion, estilo: estiloFlecha, ...pegada,
+            ...(extremoFlecha ? { extremo: extremoFlecha } : {}), ...(grosorFlecha !== "normal" ? { grosor: grosorFlecha } : {}),
+          }
+          : { id, tipo: "medida", a: arrastre.desde, b, color: j.colores.anotacion, ...pegada }));
+        setSeleccion({ tipo: "anotacion", id });
+        return;
+      }
       case "rect":
       case "zona": {
         if (distancia(p, arrastre.desde) < 0.8) return;
         const id = nuevoId("a");
-        confirmar(agregarAnotacion(j, indice, arrastre.tipo === "flecha"
-          ? { id, tipo: "flecha", a: arrastre.desde, b: p, color: j.colores.anotacion, estilo: estiloFlecha }
-          : { id, tipo: arrastre.tipo, a: arrastre.desde, b: p, color: j.colores.anotacion, estilo: estiloZona }));
+        confirmar(agregarAnotacion(j, indice, { id, tipo: arrastre.tipo, a: arrastre.desde, b: p, color: j.colores.anotacion, estilo: estiloZona }));
+        setSeleccion({ tipo: "anotacion", id });
+        return;
+      }
+      case "trazo": {
+        const puntos = simplificar([...(arrastre.puntos ?? []), p], 0.12);
+        const largo = puntos.slice(1).reduce((suma, q, i) => suma + distancia(puntos[i], q), 0);
+        if (puntos.length < 2 || largo < 0.8) return;
+        const id = nuevoId("a");
+        confirmar(agregarAnotacion(j, indice, {
+          id, tipo: "trazo", puntos: puntos.slice(0, 600), color: j.colores.anotacion,
+          ...(grosorTrazo !== "normal" ? { grosor: grosorTrazo } : {}), ...(puntaTrazo ? { punta: true } : {}),
+        }));
         setSeleccion({ tipo: "anotacion", id });
         return;
       }
@@ -534,6 +773,7 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
     setCuaderno({ ...cuaderno, activa: id });
     setModo("estudio");
     historial.current = [];
+    futuro.current = [];
     irAFase(0, true);
   }
 
@@ -542,6 +782,7 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
     setCuaderno({ ...cuaderno, activa: nueva.id, jugadas: [...cuaderno.jugadas, nueva] });
     setModo("estudio");
     historial.current = [];
+    futuro.current = [];
     irAFase(0, true);
   }
 
@@ -776,12 +1017,15 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
     { id: "carrera", herramienta: "carrera", nombre: t("Carrera"), icono: <Carrera size={16} />, ayuda: t("Arrastra desde una ficha hasta su destino, o pulsa la ficha y después el destino. Sale discontinua.") },
     { id: "conduccion", herramienta: "flecha", estilo: "ondulada", nombre: t("Conducción"), icono: <Conduccion size={16} />, ayuda: t("Arrastra por donde avanza con el balón pegado al pie.") },
     { id: "presion", herramienta: "flecha", estilo: "presion", nombre: t("Presión"), icono: <Presion size={16} />, ayuda: t("Arrastra desde quien presiona hacia el balón: la cuña marca el ángulo por donde llega.") },
-    { id: "flecha", herramienta: "flecha", estilo: "continua", nombre: t("Flecha"), icono: <Flecha size={16} />, ayuda: t("Arrastra sobre el césped para dibujar una flecha.") },
+    { id: "flecha", herramienta: "flecha", estilo: "continua", nombre: t("Flecha"), icono: <Flecha size={16} />, ayuda: t("Arrastra sobre el césped para dibujar una flecha. Si empieza o acaba en un jugador, va pegada a él.") },
     { id: "linea", herramienta: "flecha", estilo: "linea", nombre: t("Línea"), icono: <Linea size={16} />, ayuda: t("Sin punta: una altura, un límite o la línea de fuera de juego.") },
     { id: "texto", herramienta: "texto", nombre: t("Texto"), icono: <TextIcon size={16} />, ayuda: t("Pulsa el césped para escribir un texto grande, como «2 contra 2».") },
     { id: "etiqueta", herramienta: "etiqueta", nombre: t("Etiqueta"), icono: <Etiqueta size={16} />, ayuda: t("Pulsa el césped para poner una etiqueta, como «PRESIÓN» junto a un jugador.") },
     { id: "rect", herramienta: "rect", nombre: t("Zona"), icono: <Rectangulo size={16} />, ayuda: t("Arrastra sobre el césped para marcar una zona. Con «Foco», lo de fuera se apaga.") },
     { id: "zona", herramienta: "zona", nombre: t("Elipse"), icono: <Elipse size={16} />, ayuda: t("Arrastra sobre el césped para marcar una zona redonda.") },
+    { id: "bloque", herramienta: "bloque", nombre: t("Bloque"), icono: <Bloque size={16} />, ayuda: t("Pulsa los jugadores de una línea o un bloque, uno a uno, y después el césped (o Intro): la línea pasa por ellos y sombrea su espacio. Va con ellos al moverse.") },
+    { id: "medida", herramienta: "medida", nombre: t("Medir"), icono: <Regla size={16} />, ayuda: t("Arrastra entre dos puntos o dos jugadores para medir en metros. Si empieza o acaba en un jugador, la medida va con él.") },
+    { id: "lapiz", herramienta: "lapiz", nombre: t("Lápiz"), icono: <Pencil size={16} />, ayuda: t("Dibuja a mano alzada sobre el césped.") },
   ];
   const piezas: Array<{ id: Herramienta; nombre: string; icono: ReactNode; ayuda: string }> = [
     { id: "local", nombre: t("Local"), icono: <i className="abp-ficha-icono" style={{ background: colorLocal }} />, ayuda: t("Pulsa el césped para añadir una ficha propia.") },
@@ -790,19 +1034,32 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
     { id: "material", nombre: t("Material"), icono: <Cono size={16} />, ayuda: t("Pulsa el césped para poner una pieza; arrastra para poner una fila, una cada tantos metros.") },
   ];
   const botonActivo = (b: typeof botones[number]) => herramienta === b.herramienta
-    && (!b.estilo || estiloFlecha === b.estilo || (b.id === "flecha" && estiloFlecha === "discontinua"))
+    && (!b.estilo || estiloFlecha === b.estilo || (b.id === "flecha" && (estiloFlecha === "discontinua" || estiloFlecha === "punteada")))
     && (!b.envio || tipoPase === b.envio);
   function elegir(b: { herramienta: Herramienta; estilo?: EstiloFlecha; envio?: Pase["tipo"] }) {
     setHerramienta(b.herramienta);
     if (b.estilo) setEstiloFlecha(b.estilo);
     if (b.envio) setTipoPase(b.envio);
     setOrigen(null);
+    setBorrador(null);
     setAviso("");
   }
   const ayuda = botones.find(botonActivo)?.ayuda ?? piezas.find((p) => p.id === herramienta)?.ayuda ?? "";
   const fichaElegida = jugada && seleccion?.tipo === "ficha" ? jugada.fichas.find((f) => f.id === seleccion.id) ?? null : null;
   const carreraElegida = fichaElegida && fase ? carreraDe(fase, fichaElegida.id) : undefined;
   const anotacionElegida = fase && seleccion?.tipo === "anotacion" ? fase.anotaciones.find((a) => a.id === seleccion.id) ?? null : null;
+  const ocultas = jugada?.ambiente.ocultas ?? [];
+  const capas: Array<{ capas: Capa[]; nombre: string }> = [
+    { capas: ["recorridos"], nombre: t("Carreras y envíos") },
+    { capas: ["flechas"], nombre: t("Flechas y trazos") },
+    { capas: ["zonas"], nombre: t("Zonas y bloques") },
+    { capas: ["medidas"], nombre: t("Medidas") },
+    { capas: ["textos"], nombre: t("Textos y etiquetas") },
+  ];
+  const nombreDeAnotacion: Record<Anotacion["tipo"], string> = {
+    flecha: t("Flecha"), rect: t("Zona"), zona: t("Elipse"), texto: t("Texto"), etiqueta: t("Etiqueta"), medida: t("Medida"), bloque: t("Bloque"), trazo: t("Trazo"),
+  };
+  const dorsalDe = (id?: string) => (id ? jugada?.fichas.find((f) => f.id === id)?.dorsal ?? "?" : "");
   const materialElegido = fase && seleccion?.tipo === "material" ? fase.material?.find((m) => m.id === seleccion.id) ?? null : null;
   // Cambiar la equipación: de una vez con un botón, poco a poco con el selector de color.
   const vestir = (equipo: Equipo) => (cambios: Partial<Equipacion>, conHistorial: boolean) => {
@@ -865,6 +1122,8 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
           </div>
           <div className="abp-barra-acciones">
             <button type="button" className="button secondary compact" onClick={deshacer} title={t("Deshacer (Ctrl+Z)")}><RotateCcw size={13} />{t("Deshacer")}</button>
+            <button type="button" className="button secondary compact abp-solo-icono" onClick={rehacer} title={t("Rehacer (Ctrl+Mayús+Z)")} aria-label={t("Rehacer")}><RotateCw size={13} /></button>
+            <button type="button" className="button secondary compact abp-solo-icono" onClick={() => setAtajos((a) => !a)} title={t("Atajos de teclado (?)")} aria-label={t("Atajos de teclado")} aria-expanded={atajos}><Teclado size={14} /></button>
             <button type="button" className="button primary compact abp-play" onClick={alternarReproduccion} disabled={grabando}>
               {reproduciendo ? <><Pause size={13} />{t("Detener")}</> : <><Play size={13} />{t("Reproducir")}</>}
             </button>
@@ -909,6 +1168,16 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
                 <div className="inspector-fila"><span>{t("Cámara tras el balón")}</span><Interruptor activo={seguir} onCambio={setSeguir} titulo={t("Cámara tras el balón")} /></div>
                 {jugada.ambiente.dimension === "3d" && <div className="inspector-fila"><span>{t("Estadio")}</span><Interruptor activo={jugada.ambiente.estadio} onCambio={(estadio) => cambiarAmbiente({ estadio })} titulo={t("Estadio")} /></div>}
               </div>
+            </section>
+
+            <section className="inspector-grupo">
+              <h3 className="inspector-titulo">{t("Qué se ve")}</h3>
+              <div className="inspector-tarjeta">
+                {capas.map((c) => <div key={c.nombre} className="inspector-fila"><span>{c.nombre}</span>
+                  <Interruptor activo={!c.capas.some((x) => ocultas.includes(x))} onCambio={(ver) => alternarCapa(c.capas, ver)} titulo={c.nombre} />
+                </div>)}
+              </div>
+              <p className="inspector-pie">{t("Lo oculto no se borra: tampoco sale en la imagen, el PDF ni el vídeo. H oculta o enseña las flechas.")}</p>
             </section>
 
             <section className="inspector-grupo">
@@ -982,6 +1251,7 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
                 {vistas.map((v) => <button key={v.id} type="button" className={vista === v.id ? "activa" : ""} onClick={() => { setVista(v.id); escenaRef.current?.vista(v.id, encuadre, fase ? centroDe(fase) : null); }}>{v.nombre}</button>)}
               </div>}
             </div>
+            {atajos && <Atajos onCerrar={() => setAtajos(false)} />}
             <div className="abp-flotante abp-zoom" role="group" aria-label={t("Zoom")}>
               <button type="button" className="abp-boton-flotante" onClick={() => fase && escenaRef.current?.centrar(puntosDe(fase))} title={t("Encuadrar la jugada de esta fase")}><Cubo size={14} />{t("Centrar")}</button>
               {dimension === "2d" && <>
@@ -1042,7 +1312,10 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
             </section>}
 
             {anotacionElegida && <section className="inspector-grupo">
-              <h3 className="inspector-titulo">{t("Anotación")}</h3>
+              <h3 className="inspector-titulo">{nombreDeAnotacion[anotacionElegida.tipo]}
+                {anotacionElegida.tipo === "medida" && <small>{opciones.metros!(distancia(extremosDe(anotacionElegida, fase, 0).a, extremosDe(anotacionElegida, fase, 0).b))}</small>}
+                {anotacionElegida.tipo === "bloque" && <small>{tf(anotacionElegida.fichas.length === 1 ? "{n} jugador" : "{n} jugadores", { n: anotacionElegida.fichas.length })}</small>}
+              </h3>
               <div className="inspector-tarjeta">
                 {(anotacionElegida.tipo === "texto" || anotacionElegida.tipo === "etiqueta") && <label className="inspector-fila"><span>{t("Texto")}</span>
                   <input ref={textoRef} className="abp-campo" value={anotacionElegida.texto} maxLength={80} onFocus={marcarHistorial}
@@ -1051,13 +1324,45 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
                 <label className="inspector-fila"><span>{t("Color")}</span>
                   <input type="color" value={anotacionElegida.color} onFocus={marcarHistorial} onChange={(e) => sinHistorial(cambiarAnotacion(jugada, indice, anotacionElegida.id, { color: e.target.value }))} />
                 </label>
-                {anotacionElegida.tipo === "flecha" && <div className="inspector-fila"><span>{t("Trazo")}</span>
-                  <SegmentosFlecha valor={anotacionElegida.estilo} onCambio={(estilo) => guardar(cambiarAnotacion(jugada, indice, anotacionElegida.id, { estiloFlecha: estilo }))} />
+                {anotacionElegida.tipo === "flecha" && <>
+                  <div className="inspector-fila abp-fila-segmentos"><span>{t("Trazo")}</span>
+                    <SegmentosFlecha valor={anotacionElegida.estilo} onCambio={(estilo) => guardar(cambiarAnotacion(jugada, indice, anotacionElegida.id, { estiloFlecha: estilo }))} />
+                  </div>
+                  {anotacionElegida.estilo !== "presion" && <>
+                    <div className="inspector-fila"><span>{t("Final")}</span>
+                      <SegmentosExtremo valor={anotacionElegida.extremo ?? (anotacionElegida.estilo === "linea" ? "nada" : "punta")} onCambio={(extremo) => guardar(cambiarAnotacion(jugada, indice, anotacionElegida.id, { extremo }))} />
+                    </div>
+                    <div className="inspector-fila"><span>{t("Grosor")}</span>
+                      <SegmentosGrosor valor={anotacionElegida.grosor ?? "normal"} onCambio={(grosor) => guardar(cambiarAnotacion(jugada, indice, anotacionElegida.id, { grosor }))} />
+                    </div>
+                    <label className="inspector-fila inspector-deslizador"><span>{t("Curva")}</span><b>{(anotacionElegida.curva ?? 0).toFixed(0)} m</b>
+                      <input type="range" min={-15} max={15} step={0.5} value={anotacionElegida.curva ?? 0} onPointerDown={marcarHistorial}
+                        onChange={(e) => sinHistorial(cambiarAnotacion(jugada, indice, anotacionElegida.id, { curva: Number(e.target.value) }))} />
+                    </label>
+                  </>}
+                </>}
+                {(anotacionElegida.tipo === "flecha" || anotacionElegida.tipo === "medida") && (anotacionElegida.desde || anotacionElegida.hasta) && <div className="inspector-fila">
+                  <span>{anotacionElegida.desde && anotacionElegida.hasta
+                    ? tf("Pegada al {a} y al {b}", { a: dorsalDe(anotacionElegida.desde), b: dorsalDe(anotacionElegida.hasta) })
+                    : tf("Pegada al {a}", { a: dorsalDe(anotacionElegida.desde ?? anotacionElegida.hasta) })}</span>
+                  <button type="button" className="abp-enlace" onClick={() => guardar(cambiarAnotacion(jugada, indice, anotacionElegida.id, { soltar: true }))}>{t("Despegar")}</button>
                 </div>}
+                {anotacionElegida.tipo === "bloque" && <div className="inspector-fila"><span>{t("Sombra")}</span>
+                  <SegmentosRelleno valor={anotacionElegida.relleno} onCambio={(relleno) => guardar(cambiarAnotacion(jugada, indice, anotacionElegida.id, { relleno }))} />
+                </div>}
+                {anotacionElegida.tipo === "trazo" && <>
+                  <div className="inspector-fila"><span>{t("Grosor")}</span>
+                    <SegmentosGrosor valor={anotacionElegida.grosor ?? "normal"} onCambio={(grosor) => guardar(cambiarAnotacion(jugada, indice, anotacionElegida.id, { grosor }))} />
+                  </div>
+                  <div className="inspector-fila"><span>{t("Con punta")}</span>
+                    <Interruptor activo={anotacionElegida.punta === true} onCambio={(punta) => guardar(cambiarAnotacion(jugada, indice, anotacionElegida.id, { punta }))} titulo={t("Con punta")} />
+                  </div>
+                </>}
                 {(anotacionElegida.tipo === "rect" || anotacionElegida.tipo === "zona") && <div className="inspector-fila"><span>{t("Relleno")}</span>
                   <SegmentosEstilo valor={anotacionElegida.estilo} onCambio={(estilo) => guardar(cambiarAnotacion(jugada, indice, anotacionElegida.id, { estilo }))} />
                 </div>}
                 <div className="inspector-fila abp-acciones">
+                  {anotacionElegida.tipo !== "bloque" && <button type="button" onClick={() => { if (copiar()) pegar(); }} title={t("Duplicar (Ctrl+D)")}><Duplicar size={13} />{t("Duplicar")}</button>}
                   <button type="button" className="peligro" onClick={borrarSeleccion}><Trash size={14} />{t("Quitar anotación")}</button>
                 </div>
               </div>
@@ -1117,10 +1422,31 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
               <p className="inspector-pie">{t("De la segunda fase en adelante, mueve las fichas a su nueva posición: el estudio anima la diferencia desde la fase anterior.")}</p>
             </section>
 
+            <PanelDeMedidas jugada={jugada} fase={fase} idioma={idioma} colores={{ local: colorLocal, rival: colorRival }} metros={opciones.metros!}
+              onDibujar={(nuevas) => guardar(nuevas.reduce((j, a) => agregarAnotacion(j, indice, a), jugada))} />
+
             <section className="inspector-grupo">
               <h3 className="inspector-titulo">{t("Herramienta")}</h3>
               {herramienta === "flecha" && <div className="inspector-tarjeta abp-tarjeta-extra">
-                <div className="inspector-fila"><span>{t("Trazo")}</span><SegmentosFlecha valor={estiloFlecha} onCambio={setEstiloFlecha} /></div>
+                <div className="inspector-fila abp-fila-segmentos"><span>{t("Trazo")}</span><SegmentosFlecha valor={estiloFlecha} onCambio={setEstiloFlecha} /></div>
+                {estiloFlecha !== "presion" && <>
+                  <div className="inspector-fila"><span>{t("Final")}</span>
+                    <SegmentosExtremo valor={extremoFlecha ?? (estiloFlecha === "linea" ? "nada" : "punta")} onCambio={setExtremoFlecha} />
+                  </div>
+                  <div className="inspector-fila"><span>{t("Grosor")}</span><SegmentosGrosor valor={grosorFlecha} onCambio={setGrosorFlecha} /></div>
+                </>}
+              </div>}
+              {herramienta === "lapiz" && <div className="inspector-tarjeta abp-tarjeta-extra">
+                <div className="inspector-fila"><span>{t("Grosor")}</span><SegmentosGrosor valor={grosorTrazo} onCambio={setGrosorTrazo} /></div>
+                <div className="inspector-fila"><span>{t("Con punta")}</span><Interruptor activo={puntaTrazo} onCambio={setPuntaTrazo} titulo={t("Con punta")} /></div>
+              </div>}
+              {herramienta === "bloque" && <div className="inspector-tarjeta abp-tarjeta-extra">
+                <div className="inspector-fila"><span>{t("Sombra")}</span>
+                  <SegmentosRelleno valor={rellenoBloque} onCambio={(relleno) => { setRellenoBloque(relleno); setBorrador((b) => (b?.tipo === "bloque" ? { ...b, relleno } : b)); }} />
+                </div>
+                <div className="inspector-fila"><span>{tf("Elegidos: {n}", { n: borrador?.tipo === "bloque" ? borrador.fichas.length : 0 })}</span>
+                  <button type="button" className="abp-enlace" disabled={borrador?.tipo !== "bloque" || !borrador.fichas.length} onClick={cerrarBloque}>{t("Crear bloque")}</button>
+                </div>
               </div>}
               {(herramienta === "rect" || herramienta === "zona") && <div className="inspector-tarjeta abp-tarjeta-extra">
                 <div className="inspector-fila"><span>{t("Relleno")}</span>
@@ -1174,12 +1500,64 @@ function SegmentosFlecha({ valor, onCambio }: { valor: EstiloFlecha; onCambio: (
   const opciones: Array<{ id: EstiloFlecha; nombre: string; titulo: string }> = [
     { id: "continua", nombre: t("Continua"), titulo: t("Línea continua: un pase o un movimiento.") },
     { id: "discontinua", nombre: t("Discontinua"), titulo: t("Línea discontinua: un desmarque sin balón.") },
+    { id: "punteada", nombre: t("Punteada"), titulo: t("Línea de puntos: una opción, lo que podría pasar.") },
     { id: "ondulada", nombre: t("Ondulada"), titulo: t("Línea ondulada: el balón pegado al pie.") },
     { id: "linea", nombre: t("Línea"), titulo: t("Sin punta: una altura, un límite o la línea de fuera de juego.") },
     { id: "presion", nombre: t("Presión"), titulo: t("Una cuña desde quien presiona hacia el balón: el ángulo por donde llega.") },
   ];
   return <div className="inspector-segmentos">
     {opciones.map((o) => <button key={o.id} type="button" title={o.titulo} className={valor === o.id ? "activa" : ""} onClick={() => onCambio(o.id)}>{o.nombre}</button>)}
+  </div>;
+}
+
+function SegmentosExtremo({ valor, onCambio }: { valor: Extremo; onCambio: (extremo: Extremo) => void }) {
+  const opciones: Array<{ id: Extremo; nombre: string; titulo: string }> = [
+    { id: "punta", nombre: "→", titulo: t("Con punta") },
+    { id: "doble", nombre: "↔", titulo: t("Con punta en los dos lados") },
+    { id: "barra", nombre: "⊣", titulo: t("Con una barra de parada: hasta aquí") },
+    { id: "nada", nombre: "—", titulo: t("Sin punta") },
+  ];
+  return <div className="inspector-segmentos">
+    {opciones.map((o) => <button key={o.id} type="button" title={o.titulo} aria-label={o.titulo} className={valor === o.id ? "activa" : ""} onClick={() => onCambio(o.id)}>{o.nombre}</button>)}
+  </div>;
+}
+
+function SegmentosGrosor({ valor, onCambio }: { valor: Grosor; onCambio: (grosor: Grosor) => void }) {
+  const opciones: Array<{ id: Grosor; nombre: string }> = [{ id: "fino", nombre: t("Fino") }, { id: "normal", nombre: t("Normal") }, { id: "grueso", nombre: t("Grueso") }];
+  return <div className="inspector-segmentos">
+    {opciones.map((o) => <button key={o.id} type="button" className={valor === o.id ? "activa" : ""} onClick={() => onCambio(o.id)}>{o.nombre}</button>)}
+  </div>;
+}
+
+function SegmentosRelleno({ valor, onCambio }: { valor: RellenoBloque; onCambio: (relleno: RellenoBloque) => void }) {
+  const opciones: Array<{ id: RellenoBloque; nombre: string; titulo: string }> = [
+    { id: "atras", nombre: t("Atrás"), titulo: t("Sombrea el espacio que dejan a su espalda, hasta su portería.") },
+    { id: "cerrado", nombre: t("Alrededor"), titulo: t("Un contorno alrededor de todos.") },
+    { id: "linea", nombre: t("Línea"), titulo: t("Solo la línea que los une.") },
+  ];
+  return <div className="inspector-segmentos">
+    {opciones.map((o) => <button key={o.id} type="button" title={o.titulo} className={valor === o.id ? "activa" : ""} onClick={() => onCambio(o.id)}>{o.nombre}</button>)}
+  </div>;
+}
+
+/** La chuleta de atajos, encima del campo. */
+function Atajos({ onCerrar }: { onCerrar: () => void }) {
+  const lista: Array<[string, string]> = [
+    [t("Espacio"), t("Reproducir o parar")],
+    ["N", t("Añadir una fase")],
+    ["[ ]  ·  1–9", t("Cambiar de fase")],
+    ["← ↑ → ↓", t("Mover lo elegido medio metro (con Mayús, dos)")],
+    [t("Supr"), t("Quitar lo elegido")],
+    [t("Ctrl+Z  ·  Ctrl+Mayús+Z"), t("Deshacer y rehacer")],
+    ["Ctrl+C  ·  Ctrl+V  ·  Ctrl+D", t("Copiar, pegar y duplicar (también en otra fase)")],
+    ["H", t("Ocultar o enseñar las flechas")],
+    [t("Intro"), t("Terminar el bloque")],
+    ["Alt", t("Al arrastrar una ficha: sin alinearla con las demás")],
+    ["Esc", t("Soltar la herramienta o la selección")],
+  ];
+  return <div className="abp-flotante abp-atajos" role="dialog" aria-label={t("Atajos de teclado")}>
+    <header><b>{t("Atajos de teclado")}</b><button type="button" className="abp-enlace" onClick={onCerrar}>{t("Cerrar")}</button></header>
+    <dl>{lista.map(([tecla, que]) => <div key={tecla}><dt>{tecla.split("  ·  ").map((k) => <kbd key={k}>{k}</kbd>)}</dt><dd>{que}</dd></div>)}</dl>
   </div>;
 }
 

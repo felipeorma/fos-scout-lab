@@ -20,6 +20,7 @@
  */
 
 import { DIBUJOS, SITIO } from "./pizarra.ts";
+import { aPolilinea, aSegmento, contornoHolgado, ordenarEnLinea } from "./geometria.ts";
 
 export type Punto = { x: number; z: number };
 export type Equipo = "local" | "rival";
@@ -30,15 +31,39 @@ export type Pase = { hasta: Punto; tipo: "aereo" | "raso" };
 /** "foco": la zona se queda con su color y todo lo de fuera se apaga, para mirar solo ahí. */
 export type EstiloZona = "translucida" | "rayas" | "borde" | "foco";
 /**
- * Continua: un pase o un movimiento. Discontinua: sin balón. Ondulada:
- * conducción. Línea: una altura o un límite, sin punta. Presión: una cuña
- * que se abre del que presiona hacia el balón, con el ángulo por donde llega.
+ * Continua: un pase o un movimiento. Discontinua: sin balón. Punteada: una
+ * opción, lo que podría pasar. Ondulada: conducción. Línea: una altura o un
+ * límite, sin punta. Presión: una cuña que se abre del que presiona hacia el
+ * balón, con el ángulo por donde llega.
  */
-export type EstiloFlecha = "continua" | "discontinua" | "ondulada" | "linea" | "presion";
+export type EstiloFlecha = "continua" | "discontinua" | "punteada" | "ondulada" | "linea" | "presion";
+/** Cómo acaba una flecha: con punta, con punta en los dos lados, con una barra de parada o sin nada. */
+export type Extremo = "punta" | "doble" | "barra" | "nada";
+export type Grosor = "fino" | "normal" | "grueso";
+/**
+ * El bloque: una línea que pasa por los jugadores elegidos y, si se quiere,
+ * sombrea su espacio: hacia la portería que defienden (atrás) o a su
+ * alrededor (cerrado). Se mueve con ellos.
+ */
+export type RellenoBloque = "atras" | "cerrado" | "linea";
+/** Lo que se puede ocultar de un golpe en toda la jugada, sin borrarlo. */
+export type Capa = "recorridos" | "flechas" | "zonas" | "textos" | "medidas";
 export type Anotacion =
-  | { id: string; tipo: "flecha"; a: Punto; b: Punto; color: string; estilo: EstiloFlecha }
+  | {
+    id: string; tipo: "flecha"; a: Punto; b: Punto; color: string; estilo: EstiloFlecha;
+    extremo?: Extremo; grosor?: Grosor;
+    /** Metros que se abre la flecha hacia su izquierda, como la curva de una carrera. */
+    curva?: number;
+    /** La ficha de la que sale y a la que llega, si se dibujó sobre ellas: la flecha va con ellas. */
+    desde?: string; hasta?: string;
+  }
   | { id: string; tipo: "rect" | "zona"; a: Punto; b: Punto; color: string; estilo: EstiloZona }
-  | { id: string; tipo: "texto" | "etiqueta"; a: Punto; texto: string; color: string };
+  | { id: string; tipo: "texto" | "etiqueta"; a: Punto; texto: string; color: string }
+  /** Una medida en metros entre dos puntos o dos fichas. */
+  | { id: string; tipo: "medida"; a: Punto; b: Punto; color: string; desde?: string; hasta?: string }
+  | { id: string; tipo: "bloque"; fichas: string[]; color: string; relleno: RellenoBloque }
+  /** Un trazo a mano alzada, en metros, ya sin los puntos que no cambian su forma. */
+  | { id: string; tipo: "trazo"; puntos: Punto[]; color: string; grosor?: Grosor; punta?: boolean };
 /** El material de entrenamiento, del más pequeño al más grande. */
 export type TipoMaterial = "seta" | "cono" | "pica" | "valla" | "aro" | "escalera" | "balon" | "maniqui" | "miniporteria" | "porteria";
 /** Una pieza en el césped: dónde, girada cuántos grados y de qué color. */
@@ -81,6 +106,8 @@ export type Ambiente = {
   suavizado: "suave" | "lineal";
   /** Una estela que se desvanece detrás de cada ficha y del balón al reproducir. */
   estelas: boolean;
+  /** Lo que no se enseña ahora (en el tablero, el vídeo, la imagen y el PDF), sin borrarlo. */
+  ocultas?: Capa[];
 };
 export type Colores = {
   /** null: el color del espacio de trabajo (rojo en Cavalry, verde en Maldonado). */
@@ -312,7 +339,9 @@ export function faseSiguiente(fase: Fase, nombre: string): Fase {
   const pos: Record<string, Punto> = {};
   for (const id of Object.keys(fase.pos)) pos[id] = { ...posFinal(fase, id)! };
   return {
-    id: nuevoId("f"), nombre, pos, balon: { ...balonFinal(fase) }, carreras: [], pase: null, anotaciones: [],
+    id: nuevoId("f"), nombre, pos, balon: { ...balonFinal(fase) }, carreras: [], pase: null,
+    // Lo que marca el campo sigue en la fase siguiente, como el material: las zonas, los bloques, las líneas y las medidas.
+    anotaciones: fase.anotaciones.filter(pasaDeFase).map((a) => ({ ...structuredClone(a), id: nuevoId("a") })),
     material: (fase.material ?? []).map((m) => ({ ...m, p: { ...m.p } })), pausa: fase.pausa, duracion: fase.duracion, nota: "",
   };
 }
@@ -417,7 +446,16 @@ export function quitarFicha(jugada: Jugada, id: string): Jugada {
     fases: jugada.fases.map((f) => {
       const pos = { ...f.pos };
       delete pos[id];
-      return { ...f, pos, carreras: f.carreras.filter((c) => c.fichaId !== id) };
+      // Lo que iba pegado a la ficha se queda donde ella estaba; el bloque sigue con los demás.
+      const anotaciones = f.anotaciones.map((a) => {
+        if (a.tipo === "bloque") return { ...a, fichas: a.fichas.filter((x) => x !== id) };
+        if ((a.tipo === "flecha" || a.tipo === "medida") && (a.desde === id || a.hasta === id)) {
+          const e = extremosDe(a, f, 0);
+          return { ...a, a: e.a, b: e.b, desde: a.desde === id ? undefined : a.desde, hasta: a.hasta === id ? undefined : a.hasta };
+        }
+        return a;
+      }).filter((a) => a.tipo !== "bloque" || a.fichas.length > 0);
+      return { ...f, pos, carreras: f.carreras.filter((c) => c.fichaId !== id), anotaciones };
     }),
   };
 }
@@ -425,34 +463,175 @@ export function quitarFicha(jugada: Jugada, id: string): Jugada {
 export const agregarAnotacion = (jugada: Jugada, indice: number, anotacion: Anotacion) =>
   ({ ...jugada, fases: jugada.fases.map((f, i) => (i === indice ? { ...f, anotaciones: [...f.anotaciones, anotacion] } : f)) });
 
-export function cambiarAnotacion(
-  jugada: Jugada, indice: number, id: string, cambios: Partial<{ texto: string; color: string; estilo: EstiloZona; estiloFlecha: EstiloFlecha }>,
-): Jugada {
-  const { estiloFlecha, ...resto } = cambios;
+export type CambiosDeAnotacion = Partial<{
+  texto: string; color: string; estilo: EstiloZona; estiloFlecha: EstiloFlecha;
+  extremo: Extremo; grosor: Grosor; curva: number; relleno: RellenoBloque; punta: boolean;
+  /** Despega la flecha o la medida de sus fichas: se queda donde está ahora. */
+  soltar: true;
+}>;
+
+export function cambiarAnotacion(jugada: Jugada, indice: number, id: string, cambios: CambiosDeAnotacion): Jugada {
   return {
     ...jugada,
     fases: jugada.fases.map((f, i) => (i !== indice ? f : {
       ...f,
-      anotaciones: f.anotaciones.map((a) => {
-        if (a.id !== id) return a;
-        // El estilo de una flecha y el de una zona se llaman igual pero no son lo mismo.
-        if (a.tipo === "flecha") return { ...a, ...(resto.color ? { color: resto.color } : {}), ...(estiloFlecha ? { estilo: estiloFlecha } : {}) };
-        return { ...a, ...resto } as Anotacion;
-      }),
+      anotaciones: f.anotaciones.map((a) => (a.id !== id ? a : aplicarCambios(a, f, cambios))),
     })),
   };
 }
 
-/** Mueve una anotación entera `dx`, `dz` metros: la flecha o la zona se arrastran sin deformarse. */
+/** Solo lo que tiene sentido para cada tipo: el estilo de una flecha y el de una zona se llaman igual pero no son lo mismo. */
+function aplicarCambios(a: Anotacion, fase: Fase, c: CambiosDeAnotacion): Anotacion {
+  const conColor = c.color ? { color: c.color } : {};
+  switch (a.tipo) {
+    case "flecha": {
+      const suelta = c.soltar ? soltar(a, fase) : {};
+      return {
+        ...a, ...conColor, ...suelta,
+        ...(c.estiloFlecha ? { estilo: c.estiloFlecha } : {}),
+        ...(c.extremo ? { extremo: c.extremo } : {}),
+        ...(c.grosor ? { grosor: c.grosor } : {}),
+        ...(c.curva !== undefined ? { curva: Math.max(-20, Math.min(20, c.curva)) } : {}),
+      };
+    }
+    case "medida":
+      return { ...a, ...conColor, ...(c.soltar ? soltar(a, fase) : {}) };
+    case "rect":
+    case "zona":
+      return { ...a, ...conColor, ...(c.estilo ? { estilo: c.estilo } : {}) };
+    case "texto":
+    case "etiqueta":
+      return { ...a, ...conColor, ...(c.texto !== undefined ? { texto: c.texto } : {}) };
+    case "bloque":
+      return { ...a, ...conColor, ...(c.relleno ? { relleno: c.relleno } : {}) };
+    case "trazo":
+      return { ...a, ...conColor, ...(c.grosor ? { grosor: c.grosor } : {}), ...(c.punta !== undefined ? { punta: c.punta } : {}) };
+  }
+}
+
+const soltar = (a: { a: Punto; b: Punto; desde?: string; hasta?: string }, fase: Fase) => {
+  const e = extremosDe(a, fase, 0);
+  return { a: e.a, b: e.b, desde: undefined, hasta: undefined };
+};
+
+/**
+ * Mueve una anotación entera `dx`, `dz` metros: la flecha o la zona se
+ * arrastran sin deformarse. Una flecha pegada a fichas se despega y va donde
+ * se la lleve; un bloque no se mueve, que va con sus jugadores.
+ */
 export function desplazarAnotacion(jugada: Jugada, indice: number, id: string, dx: number, dz: number): Jugada {
   const mover = (p: Punto) => limitar({ x: p.x + dx, z: p.z + dz });
   return {
     ...jugada,
     fases: jugada.fases.map((f, i) => (i !== indice ? f : {
       ...f,
-      anotaciones: f.anotaciones.map((a) => (a.id !== id ? a : "b" in a ? { ...a, a: mover(a.a), b: mover(a.b) } : { ...a, a: mover(a.a) })),
+      anotaciones: f.anotaciones.map((a): Anotacion => {
+        if (a.id !== id) return a;
+        switch (a.tipo) {
+          case "flecha":
+          case "medida": {
+            const e = extremosDe(a, f, 0);
+            return { ...a, a: mover(e.a), b: mover(e.b), desde: undefined, hasta: undefined };
+          }
+          case "rect":
+          case "zona":
+            return { ...a, a: mover(a.a), b: mover(a.b) };
+          case "texto":
+          case "etiqueta":
+            return { ...a, a: mover(a.a) };
+          case "trazo":
+            return { ...a, puntos: a.puntos.map(mover) };
+          case "bloque":
+            return a;
+        }
+      }),
     })),
   };
+}
+
+/** Una copia de la anotación con otro id, `dx`, `dz` metros más allá (para pegar o duplicar). */
+export function copiaDeAnotacion(a: Anotacion, fase: Fase, dx: number, dz: number): Anotacion {
+  const copia = { ...structuredClone(a), id: nuevoId("a") };
+  if (copia.tipo === "bloque") return copia;
+  // La copia de algo pegado a fichas va suelta: si no, caería encima del original.
+  if (copia.tipo === "flecha" || copia.tipo === "medida") {
+    const e = extremosDe(a as typeof copia, fase, 0);
+    return { ...copia, desde: undefined, hasta: undefined, ...desplazar({ a: e.a, b: e.b }, dx, dz) };
+  }
+  if (copia.tipo === "trazo") return { ...copia, puntos: copia.puntos.map((p) => limitar({ x: p.x + dx, z: p.z + dz })) };
+  if (copia.tipo === "rect" || copia.tipo === "zona") return { ...copia, ...desplazar({ a: copia.a, b: copia.b }, dx, dz) };
+  return { ...copia, a: limitar({ x: copia.a.x + dx, z: copia.a.z + dz }) };
+}
+const desplazar = (ab: { a: Punto; b: Punto }, dx: number, dz: number) =>
+  ({ a: limitar({ x: ab.a.x + dx, z: ab.a.z + dz }), b: limitar({ x: ab.b.x + dx, z: ab.b.z + dz }) });
+
+// ---- La geometría de las anotaciones ---------------------------------------------------------
+
+/** Lo que sigue en la fase siguiente: lo que marca el campo, no lo que pasa en esta fase. */
+export const pasaDeFase = (a: Anotacion) =>
+  a.tipo === "rect" || a.tipo === "zona" || a.tipo === "bloque" || a.tipo === "medida" || (a.tipo === "flecha" && a.estilo === "linea");
+
+/** En qué capa va cada anotación, para ocultarlas por tipo. */
+export function capaDe(a: Anotacion): Capa {
+  switch (a.tipo) {
+    case "flecha":
+    case "trazo":
+      return "flechas";
+    case "rect":
+    case "zona":
+    case "bloque":
+      return "zonas";
+    case "texto":
+    case "etiqueta":
+      return "textos";
+    case "medida":
+      return "medidas";
+  }
+}
+
+export const visible = (ambiente: Ambiente, capa: Capa) => !(ambiente.ocultas ?? []).includes(capa);
+
+/**
+ * Los dos extremos de una flecha o una medida en el instante `t`: si está
+ * pegada a una ficha, donde va la ficha. `enFichaA` y `enFichaB` dicen si el
+ * extremo es una ficha, para empezar el trazo en su borde y no en su centro.
+ */
+export function extremosDe(
+  a: { a: Punto; b: Punto; desde?: string; hasta?: string }, fase: Fase, t: number, lineal = false,
+): { a: Punto; b: Punto; enFichaA: boolean; enFichaB: boolean } {
+  const pa = a.desde ? posicionEn(fase, a.desde, t, lineal) : undefined;
+  const pb = a.hasta ? posicionEn(fase, a.hasta, t, lineal) : undefined;
+  return { a: pa ?? a.a, b: pb ?? a.b, enFichaA: Boolean(pa), enFichaB: Boolean(pb) };
+}
+
+/** Los puntos de la línea de un bloque en el instante `t`, en el orden en que se leen. */
+export function lineaDeBloque(a: { fichas: string[] }, fase: Fase, t: number, lineal = false): Punto[] {
+  return ordenarEnLinea(a.fichas.map((id) => posicionEn(fase, id, t, lineal)).filter((p): p is Punto => Boolean(p)));
+}
+
+/**
+ * La sombra de un bloque: hasta la línea de fondo de la portería que
+ * defienden (los nuestros defienden la de la izquierda) o un contorno
+ * alrededor de todos. Vacía si solo lleva la línea.
+ */
+export function sombraDeBloque(a: { fichas: string[]; relleno: RellenoBloque }, jugada: Jugada, fase: Fase, t: number, lineal = false): Punto[] {
+  const linea = lineaDeBloque(a, fase, t, lineal);
+  if (!linea.length || a.relleno === "linea") return [];
+  if (a.relleno === "cerrado") return contornoHolgado(linea, 1.6);
+  const equipo = jugada.fichas.find((f) => f.id === a.fichas[0])?.equipo ?? "local";
+  const fondo = equipo === "local" ? -MEDIO_LARGO : MEDIO_LARGO;
+  // Una línea de lado a lado se cierra contra el fondo; una a lo largo, contra su banda más cercana.
+  const xs = linea.map((p) => p.x), zs = linea.map((p) => p.z);
+  const deLado = Math.max(...zs) - Math.min(...zs) >= Math.max(...xs) - Math.min(...xs);
+  if (deLado) return [...linea, { x: fondo, z: linea[linea.length - 1].z }, { x: fondo, z: linea[0].z }];
+  const banda = zs.reduce((s, z) => s + z, 0) / zs.length >= 0 ? CAMPO.ancho / 2 : -CAMPO.ancho / 2;
+  return [...linea, { x: linea[linea.length - 1].x, z: banda }, { x: linea[0].x, z: banda }];
+}
+
+/** Los puntos de una flecha con su curva, en metros, de `a` a `b`. */
+export function puntosDeFlecha(a: Punto, b: Punto, curva = 0, pasos = 24): Punto[] {
+  if (!curva) return [a, b];
+  return Array.from({ length: pasos + 1 }, (_, k) => enCurva(a, b, curva, k / pasos));
 }
 
 export const quitarAnotacion = (jugada: Jugada, indice: number, id: string) =>
@@ -589,22 +768,25 @@ export function fichaCerca(fase: Fase, p: Punto, radio = 1.6): string | null {
   return mejor;
 }
 
-function aSegmento(p: Punto, a: Punto, b: Punto) {
-  const lx = b.x - a.x, lz = b.z - a.z;
-  const l2 = lx * lx + lz * lz;
-  const t = l2 ? Math.max(0, Math.min(1, ((p.x - a.x) * lx + (p.z - a.z) * lz) / l2)) : 0;
-  return distancia(p, { x: a.x + lx * t, z: a.z + lz * t });
-}
-
 /** La anotación que se toca en `p`: la última dibujada gana, como en cualquier editor. */
-export function anotacionCerca(fase: Fase, p: Punto, tolerancia = 1.2): string | null {
+export function anotacionCerca(fase: Fase, p: Punto, tolerancia = 1.2, ocultas: Capa[] = []): string | null {
   for (let i = fase.anotaciones.length - 1; i >= 0; i -= 1) {
     const a = fase.anotaciones[i];
-    if (!("b" in a)) {
+    if (ocultas.includes(capaDe(a))) continue;
+    if (a.tipo === "texto" || a.tipo === "etiqueta") {
       if (distancia(a.a, p) <= tolerancia * 2.5) return a.id;
     } else if (a.tipo === "flecha") {
-      if (aSegmento(p, a.a, a.b) <= tolerancia) return a.id;
-    } else {
+      const e = extremosDe(a, fase, 0);
+      if (aPolilinea(p, puntosDeFlecha(e.a, e.b, a.curva)) <= tolerancia) return a.id;
+    } else if (a.tipo === "medida") {
+      const e = extremosDe(a, fase, 0);
+      if (aSegmento(p, e.a, e.b) <= tolerancia) return a.id;
+    } else if (a.tipo === "trazo") {
+      if (aPolilinea(p, a.puntos) <= tolerancia) return a.id;
+    } else if (a.tipo === "bloque") {
+      // Se toca por su línea, no por su sombra: así no tapa a los jugadores que hay dentro.
+      if (aPolilinea(p, lineaDeBloque(a, fase, 0)) <= tolerancia) return a.id;
+    } else if (a.tipo === "rect" || a.tipo === "zona") {
       const x0 = Math.min(a.a.x, a.b.x), x1 = Math.max(a.a.x, a.b.x), z0 = Math.min(a.a.z, a.b.z), z1 = Math.max(a.a.z, a.b.z);
       if (a.tipo === "rect") {
         if (p.x >= x0 - tolerancia && p.x <= x1 + tolerancia && p.z >= z0 - tolerancia && p.z <= z1 + tolerancia) return a.id;
@@ -913,15 +1095,38 @@ function equipacionValida(v: unknown): Equipacion {
   };
 }
 
+const ESTILOS_FLECHA: EstiloFlecha[] = ["continua", "discontinua", "punteada", "ondulada", "linea", "presion"];
+const EXTREMOS: Extremo[] = ["punta", "doble", "barra", "nada"];
+const GROSORES: Grosor[] = ["fino", "normal", "grueso"];
+const CAPAS: Capa[] = ["recorridos", "flechas", "zonas", "textos", "medidas"];
+const uno = <T extends string>(v: unknown, lista: T[]): T | undefined => (lista.includes(v as T) ? v as T : undefined);
+const idDeFicha = (v: unknown) => (typeof v === "string" && v ? v.slice(0, 40) : undefined);
+
 function anotacionValida(v: unknown): Anotacion | null {
   const a = v as Record<string, unknown>;
-  if (!a || typeof a.id !== "string" || !esPunto(a.a)) return null;
+  if (!a || typeof a.id !== "string") return null;
   const c = color(a.color, COLORES_POR_DEFECTO.anotacion);
+  if (a.tipo === "bloque") {
+    const fichas = Array.isArray(a.fichas) ? (a.fichas as unknown[]).map(idDeFicha).filter((x): x is string => Boolean(x)).slice(0, 22) : [];
+    return fichas.length ? { id: a.id, tipo: "bloque", fichas, color: c, relleno: uno(a.relleno, ["atras", "cerrado", "linea"] as RellenoBloque[]) ?? "atras" } : null;
+  }
+  if (a.tipo === "trazo") {
+    const puntos = Array.isArray(a.puntos) ? (a.puntos as unknown[]).filter(esPunto).map(limitar).slice(0, 600) : [];
+    return puntos.length >= 2 ? { id: a.id, tipo: "trazo", puntos, color: c, grosor: uno(a.grosor, GROSORES), punta: a.punta === true } : null;
+  }
+  if (!esPunto(a.a)) return null;
   if (a.tipo === "texto" || a.tipo === "etiqueta") return { id: a.id, tipo: a.tipo, a: a.a, texto: texto(a.texto), color: c };
   if (!esPunto(a.b)) return null;
+  const pegada = { ...(idDeFicha(a.desde) ? { desde: idDeFicha(a.desde) } : {}), ...(idDeFicha(a.hasta) ? { hasta: idDeFicha(a.hasta) } : {}) };
+  if (a.tipo === "medida") return { id: a.id, tipo: "medida", a: a.a, b: a.b, color: c, ...pegada };
   if (a.tipo === "flecha") {
-    const estilo = a.estilo === "discontinua" || a.estilo === "ondulada" || a.estilo === "linea" || a.estilo === "presion" ? a.estilo : "continua";
-    return { id: a.id, tipo: "flecha", a: a.a, b: a.b, color: c, estilo };
+    const extremo = uno(a.extremo, EXTREMOS), grosor = uno(a.grosor, GROSORES);
+    return {
+      id: a.id, tipo: "flecha", a: a.a, b: a.b, color: c, estilo: uno(a.estilo, ESTILOS_FLECHA) ?? "continua",
+      ...(extremo ? { extremo } : {}), ...(grosor ? { grosor } : {}),
+      ...(esNumero(a.curva) && a.curva ? { curva: Math.max(-20, Math.min(20, a.curva)) } : {}),
+      ...pegada,
+    };
   }
   if (a.tipo === "rect" || a.tipo === "zona") {
     const estilo = a.estilo === "rayas" || a.estilo === "borde" || a.estilo === "foco" ? a.estilo : "translucida";
@@ -988,6 +1193,7 @@ export function jugadaValida(v: unknown): Jugada | null {
       fichas: ambiente.fichas === "puesto" ? "puesto" : "dorsal",
       suavizado: ambiente.suavizado === "lineal" ? "lineal" : "suave",
       estelas: typeof ambiente.estelas === "boolean" ? ambiente.estelas : true,
+      ...(Array.isArray(ambiente.ocultas) ? { ocultas: CAPAS.filter((c) => (ambiente.ocultas as unknown[]).includes(c)) } : {}),
     },
     actualizada: esNumero(j.actualizada) ? j.actualizada : 0,
     colores: {

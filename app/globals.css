@@ -7160,6 +7160,34 @@ body.print-layout-check .app-shell[data-tema] .pizarra-duelos > ol { grid-templa
 .app-shell[data-tema] .abp-herramientas > button:focus-visible { outline: 2px solid var(--acento-borde); outline-offset: 2px; }
 .abp-ficha-icono { width: 14px; height: 14px; display: block; border-radius: 50%; box-shadow: 0 0 0 2px rgba(255,255,255,.85); }
 .app-shell[data-tema] .abp-tarjeta-extra { margin-top: 8px; }
+/* Un botón de la barra con solo el icono (rehacer, atajos). */
+.app-shell[data-tema] .button.compact.abp-solo-icono { min-width: 32px; padding-inline: 8px; justify-content: center; }
+/* Una fila con muchos segmentos: la etiqueta arriba y los segmentos a todo lo ancho. */
+.app-shell[data-tema] .inspector-fila.abp-fila-segmentos { flex-wrap: wrap; row-gap: 6px; }
+.app-shell[data-tema] .inspector-fila.abp-fila-segmentos > .inspector-segmentos { flex: 1 0 100%; grid-auto-columns: minmax(0, 1fr); }
+.app-shell[data-tema] .inspector-fila.abp-fila-segmentos > .inspector-segmentos > button { min-width: 0; padding: 0 2px; font-size: 11px; }
+.abp-solo-lector { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* La fase en metros: dos tablas compactas, cifras alineadas. */
+.app-shell[data-tema] .abp-medidas { padding: 6px 12px 10px; }
+.app-shell[data-tema] .abp-medidas + .abp-medidas { margin-top: 8px; }
+.app-shell[data-tema] .abp-medidas table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.app-shell[data-tema] .abp-medidas table + table { margin-top: 8px; }
+.app-shell[data-tema] .abp-medidas th, .app-shell[data-tema] .abp-medidas td { padding: 5px 0; border-bottom: 1px solid var(--line); text-align: right; font-weight: 400; }
+.app-shell[data-tema] .abp-medidas tr:last-child > * { border-bottom: 0; }
+.app-shell[data-tema] .abp-medidas th[scope="row"], .app-shell[data-tema] .abp-medidas thead th:first-child { text-align: left; color: var(--ink); }
+.app-shell[data-tema] .abp-medidas thead th { color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .02em; }
+.app-shell[data-tema] .abp-medidas thead i { display: inline-block; width: 8px; height: 8px; margin-right: 5px; border-radius: 50%; vertical-align: 0; box-shadow: 0 0 0 1px rgba(0,0,0,.25); }
+.app-shell[data-tema] .abp-medidas td { width: 26%; color: var(--ink); font-variant-numeric: tabular-nums; }
+.app-shell[data-tema] .abp-superioridades td { width: 14%; font-weight: 600; }
+.app-shell[data-tema] .abp-superioridades tr[data-ventaja="nuestra"] td:nth-of-type(1) { color: #2fbf71; }
+.app-shell[data-tema] .abp-superioridades tr[data-ventaja="suya"] td:nth-of-type(2) { color: #ff6b5e; }
+.app-shell[data-tema] .abp-medidas-acciones { margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.app-shell[data-tema] .abp-medidas-acciones > button {
+  min-height: 30px; padding: 0 8px; border: 0; border-radius: 8px;
+  background: color-mix(in srgb, var(--ink) 7%, transparent); color: var(--ink); font-size: 12px; font-weight: 500; cursor: pointer;
+}
+.app-shell[data-tema] .abp-medidas-acciones > button:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 12%, transparent); }
+.app-shell[data-tema] .abp-medidas-acciones > button:disabled { opacity: .4; cursor: not-allowed; }
 
 /* El material de entrenamiento: una rejilla de piezas, como el carro del almacén. */
 .app-shell[data-tema] .abp-material { padding: 8px 6px 4px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 3px; }
@@ -7338,6 +7366,14 @@ body.print-layout-check .app-shell[data-tema] .pizarra-duelos > ol { grid-templa
 .app-shell[data-tema] .abp-page > header.abp-cabecera.compacta h2 { margin: 2px 0 0; font-size: 22px; }
 .abp-estudio .abp-escenario:fullscreen { aspect-ratio: auto; width: 100vw; height: 100vh; max-height: none; border-radius: 0; }
 .abp-zoom { left: 50%; bottom: 12px; transform: translateX(-50%); display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: 11px; }
+/* La chuleta de atajos: arriba a la izquierda del campo, sin tapar el centro. */
+.abp-atajos { top: 12px; left: 12px; width: min(340px, calc(100% - 24px)); max-height: calc(100% - 80px); overflow: auto; padding: 12px 14px; border-radius: 14px; font-size: 12.5px; }
+.abp-atajos > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.abp-atajos dl { display: grid; gap: 7px; margin: 0; }
+.abp-atajos dl > div { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 10px; align-items: baseline; }
+.abp-atajos dt { display: flex; flex-wrap: wrap; gap: 3px; }
+.abp-atajos dd { margin: 0; color: rgba(245,245,247,.78); }
+.abp-atajos kbd { padding: 1px 6px; border-radius: 5px; background: rgba(255,255,255,.12); box-shadow: inset 0 -1px rgba(0,0,0,.4); font: 600 11px/1.5 var(--font-geist-mono, ui-monospace, monospace); white-space: nowrap; }
 .abp-zoom .abp-separador { background: rgba(255,255,255,.16); height: 18px; }
 .abp-zoom .abp-boton-flotante { min-width: 28px; justify-content: center; font-size: 13px; }
 .abp-zoom .abp-zoom-valor { min-width: 52px; font-variant-numeric: tabular-nums; }

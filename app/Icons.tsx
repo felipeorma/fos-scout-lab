@@ -105,3 +105,7 @@ export const Conduccion = icono(<><path d="M3.5 15c1.6-3 3.2-3 4.8 0s3.2 3 4.8 0
 export const Linea = icono(<path d="M4.5 18.5 19.5 5.5" />);
 export const Presion = icono(<><path d="M5 19 18 7" /><path d="M5 19 20 13" opacity=".55" /><path d="M5 19 12 4.5" opacity=".55" /></>);
 export const Cono = icono(<><path d="M9.6 4.5h4.8l3.4 13H6.2z" /><path d="M8.2 11h7.6" /><path d="M4 19.5h16" /></>);
+export const RotateCw = icono(<><path d="M20.5 5.5v5h-5" /><path d="M19.8 10.5a8 8 0 1 0-.3 5" /></>);
+export const Regla = icono(<><path d="M3.5 16 16 3.5l4.5 4.5L8 20.5z" /><path d="m7.2 12.3 1.8 1.8M10 9.5l1.4 1.4M12.8 6.7l1.8 1.8" /></>);
+export const Bloque = icono(<><path d="M3 8.5 9 10l6-1.5 6 1.5" /><path d="M3 8.5V19h18v-9" strokeDasharray="2 2.5" /><circle cx="3.5" cy="8.5" r="1.2" /><circle cx="9" cy="10" r="1.2" /><circle cx="15" cy="8.5" r="1.2" /><circle cx="20.5" cy="10" r="1.2" /></>);
+export const Teclado = icono(<><rect x="2.5" y="6" width="19" height="12" rx="2" /><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7.5 14h9" /></>);

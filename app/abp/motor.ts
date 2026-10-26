@@ -4,16 +4,26 @@
  * 3D (three.js, con estadio). La pantalla no sabe cuál tiene delante.
  */
 
-import type { Ambiente, Encuadre, Equipacion, Equipo, EstiloFlecha, Jugada, Punto, TipoMaterial } from "@/lib/abp";
+import type { Ambiente, Encuadre, Equipacion, Equipo, EstiloFlecha, Extremo, Grosor, Jugada, Punto, RellenoBloque, TipoMaterial } from "@/lib/abp";
 
 export type Vista = "tactica" | "3d" | "cenital";
 export type Seleccion = { tipo: "ficha" | "anotacion" | "material"; id: string } | null;
 /** Cómo se pone el material: qué pieza, cada cuántos metros y si en slalom. */
 export type ComoPoner = { tipo: TipoMaterial; separacion: number; slalom: boolean; color: string };
 /** Lo que se está dibujando con el puntero, antes de soltar. */
-export type Borrador = {
-  tipo: "flecha" | "rect" | "zona" | "carrera" | "pase" | "material"; a: Punto; b: Punto; fichaId?: string; estilo?: EstiloFlecha; material?: ComoPoner;
-} | null;
+export type Borrador =
+  | {
+    tipo: "flecha" | "rect" | "zona" | "carrera" | "pase" | "material" | "medida"; a: Punto; b: Punto;
+    fichaId?: string; estilo?: EstiloFlecha; extremo?: Extremo; grosor?: Grosor; material?: ComoPoner;
+    /** Las fichas sobre las que empieza o acaba (flecha y medida): el trazo se pega a ellas. */
+    desde?: string; hasta?: string;
+  }
+  | { tipo: "trazo"; puntos: Punto[]; grosor?: Grosor; punta?: boolean }
+  /** El bloque que se está formando: los jugadores ya elegidos, que se marcan con un aro. */
+  | { tipo: "bloque"; fichas: string[]; relleno: RellenoBloque }
+  /** Al arrastrar una ficha: la línea de la ficha con la que se ha alineado. */
+  | { tipo: "guia"; x?: number; z?: number }
+  | null;
 export type Opciones = {
   colorLocal: string;
   colorRival: string;
@@ -26,6 +36,8 @@ export type Opciones = {
   fuente: string;
   /** El rol tal como se enseña (traducido si es uno de los de serie). */
   rotulo: (rol: string) => string;
+  /** Una distancia como se lee en el idioma de la pantalla: «12,4 m» o «12.4 m». */
+  metros?: (m: number) => string;
 };
 
 export interface Motor {
