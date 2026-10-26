@@ -24,6 +24,8 @@ import {
   Pase as PaseIcono, Pause, Pencil, Play, Plus, Presion, Rectangulo, Regla, RotateCcw, RotateCw, Teclado, TextIcon, Trash, Video,
 } from "./Icons";
 import { PanelDeMedidas } from "./abp/PanelDeMedidas";
+import type { Entrante } from "./abp/AbrirEnPizarra";
+import { enlaceDeJugada } from "@/lib/enlace";
 
 // La clave no cambia al pasar de cuaderno a estudio: así se abre lo ya guardado.
 const CLAVE = "fos-scout-abp-v1";
@@ -80,7 +82,7 @@ const ROLES = [
  * la pizarra 3D por fases. Antes era solo el cuaderno de balón parado; lo
  * guardado entonces se abre igual, con noche y estadio.
  */
-export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
+export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante = null, onEntrante }: {
   claseHoja: string;
   /** Solo para volver a dibujar los rótulos al cambiar de idioma. */
   idioma: Lang;
@@ -88,6 +90,9 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
   paleta: string;
   /** Sin datos cargados no hay menú de secciones: este botón lleva de vuelta a la portada. */
   onVolver?: () => void;
+  /** Un sistema que llega de un enlace o de otra página: se guarda una copia y se abre. */
+  entrante?: Entrante | null;
+  onEntrante?: () => void;
 }) {
   const firma = useFirma();
   const deSerieEn = (texto: string) => deSerie(texto, idioma);
@@ -116,6 +121,8 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
   const [puntaTrazo, setPuntaTrazo] = useState(false);
   const [rellenoBloque, setRellenoBloque] = useState<RellenoBloque>("atras");
   const [atajos, setAtajos] = useState(false);
+  // Abierto desde un enlace: solo el campo, para mirarlo; «Editar» enseña las herramientas.
+  const [soloVer, setSoloVer] = useState(false);
   const [tipoPase, setTipoPase] = useState<Pase["tipo"]>("aereo");
   // Cómo se pone el material: la pieza, su color (null = el de serie), cada cuántos metros y si en slalom.
   const [tipoMaterial, setTipoMaterial] = useState<TipoMaterial>("seta");
@@ -177,6 +184,22 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
     }, 400);
     return () => window.clearTimeout(id);
   }, [cuaderno]);
+
+  // Un sistema que llega de fuera: una copia en «Tus sistemas», abierta.
+  useEffect(() => {
+    if (!entrante || !cuaderno) return;
+    /* eslint-disable react-hooks/set-state-in-effect -- llega de fuera una vez y se consume */
+    if (entrante.jugada) {
+      crear({ ...entrante.jugada, id: nuevoId("j"), actualizada: Date.now() });
+      setSoloVer(entrante.soloVer);
+      setAviso(entrante.origen === "partido" ? t("Preparado desde El partido: los dos onces, el bloque del rival y las medidas. Es tu copia: cámbiala a gusto.") : "");
+    } else {
+      setModo("portal");
+      setAviso(t("Ese enlace está incompleto o roto: pide que te lo vuelvan a enviar."));
+    }
+    /* eslint-enable react-hooks/set-state-in-effect */
+    onEntrante?.();
+  }, [entrante, cuaderno]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // El color y la letra del espacio activo, leídos del CSS: la grada y las fichas propias los siguen.
   useEffect(() => {
@@ -519,7 +542,8 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
   }
 
   function alPulsar(evento: EventoDePuntero<HTMLDivElement>) {
-    if (evento.button !== 0 || !cuaderno || !jugada || !fase || grabando) return;
+    // Mirando un enlace no se edita: un dedo en el móvil no mueve a nadie sin querer.
+    if (evento.button !== 0 || !cuaderno || !jugada || !fase || grabando || soloVer) return;
     if ((evento.target as HTMLElement).closest(".abp-flotante")) return;
     const p = punto(evento);
     if (!p) return;
@@ -814,6 +838,19 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
   function descargarJson(datos: unknown, nombre: string) {
     descargar(URL.createObjectURL(new Blob([JSON.stringify(datos, null, 1)], { type: "application/json" })), nombre);
   }
+  /** El enlace que se reproduce, copiado: se abre en cualquier navegador, sin cuenta y sin instalar nada. */
+  async function copiarEnlace() {
+    if (!jugada) return;
+    try {
+      const enlace = await enlaceDeJugada(jugada, window.location.href);
+      if (enlace.length > 60000) { setAviso(t("Este sistema es demasiado grande para un enlace: mándalo como archivo (.json).")); return; }
+      await navigator.clipboard.writeText(enlace);
+      setAviso(t("Enlace copiado. Se abre en cualquier móvil, sin cuenta; si cambias el sistema, vuelve a copiarlo."));
+    } catch {
+      setAviso(t("No se pudo copiar el enlace: este navegador no deja usar el portapapeles."));
+    }
+  }
+
   function descargarSistema(id: string) {
     const sistema = cuaderno?.jugadas.find((j) => j.id === id);
     if (sistema) descargarJson(archivoDeSistema(sistema), `${archivo(sistema.nombre)}.json`);
@@ -823,6 +860,7 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
   }
 
   function volverAlPortal() {
+    setSoloVer(false);
     setReproduciendo(false);
     setSeleccion(null);
     setOrigen(null);
@@ -1093,6 +1131,9 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
           <h2>{modo === "estudio" && jugada ? jugada.nombre : modo === "biblioteca" ? t("Biblioteca") : t("Tus sistemas")}</h2>
           {modo === "portal" && <p>{t("Cada sistema que construyas —salida, presión, ataque, balón parado o un ejercicio—, listo para abrir, duplicar o descargar. Se guarda en este navegador.")}</p>}
           {modo === "biblioteca" && <p>{t("Sistemas ya dibujados, por temas: cada uno contesta una pregunta. Ábrelo para verlo moverse y úsalo de base.")}</p>}
+          {modo !== "estudio" && aviso && <p className="abp-compartido" role="status">{aviso}</p>}
+          {modo === "estudio" && soloVer && <p className="abp-compartido">{t("Te lo han enviado con un enlace. Pulsa Reproducir para verlo; se guardó una copia en «Tus sistemas».")}
+            <button type="button" className="button secondary compact" onClick={() => setSoloVer(false)}>{t("Editar mi copia")}</button></p>}
         </div>
         <div className="abp-cabecera-acciones">
           {modo !== "estudio" && <div className="inspector-segmentos abp-modos" role="tablist" aria-label={t("Pizarra")}>
@@ -1109,7 +1150,7 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
       {modo === "portal" && cuaderno && <Portal jugadas={cuaderno.jugadas} miniaturas={miniaturas} idioma={idioma}
         onAbrir={abrir} onCrear={crear} onDuplicar={duplicar} onQuitar={quitar} onImportar={importar} onDescargar={descargarSistema} onCopiaDeTodo={copiaDeTodo} />}
 
-      <div className="abp-grid abp-estudio" hidden={modo !== "estudio"}>
+      <div className={`abp-grid abp-estudio${soloVer ? " abp-ver" : ""}`} hidden={modo !== "estudio"}>
         <div className="abp-barra">
           <div className="abp-herramientas" role="toolbar" aria-label={t("Herramientas")}>
             {botones.map((b) => <button key={b.id} type="button" className={botonActivo(b) ? "activa" : ""} aria-pressed={botonActivo(b)} title={b.ayuda} onClick={() => elegir(b)}>
@@ -1133,6 +1174,7 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver }: {
                 <button type="button" role="menuitem" onClick={(e) => { e.currentTarget.closest("details")?.removeAttribute("open"); descargarImagen(); }} disabled={!lista || grabando}>{t("Imagen PNG de esta fase")}</button>
                 <button type="button" role="menuitem" onClick={(e) => { e.currentTarget.closest("details")?.removeAttribute("open"); void descargarPdf(); }} disabled={!lista || grabando}>{t("PDF con una fase por página")}</button>
                 <button type="button" role="menuitem" onClick={(e) => { e.currentTarget.closest("details")?.removeAttribute("open"); void grabarVideo(); }} disabled={!lista || grabando}><Video size={13} />{grabando ? t("Grabando…") : t("Vídeo de la jugada")}</button>
+                <button type="button" role="menuitem" onClick={(e) => { e.currentTarget.closest("details")?.removeAttribute("open"); void copiarEnlace(); }}>{t("Copiar el enlace que se reproduce")}</button>
                 <button type="button" role="menuitem" onClick={(e) => { e.currentTarget.closest("details")?.removeAttribute("open"); if (jugada) descargarSistema(jugada.id); }}>{t("Archivo del sistema (.json)")}</button>
               </div>
             </details>
