@@ -7,7 +7,7 @@ import {
   moverFase, posar, posarBalon, cambiarPausa, AMBIENTE_POR_DEFECTO, agregarMaterial, cambiarEquipacion, cambiarMaterial, datosDeMaterial, equipacionDe,
   filaDeMaterial, materialCerca, moverMaterial, quitarMaterial, EQUIPACION_LISA, copiaDeAnotacion, extremosDe, normalizarCuaderno,
   antesDelPaso, balonAntesDelPaso, balonFinal, capaDe, carrerasDe, pasesDe, pasoDe, pasosDe, posFinal, MAX_PASOS, fasesEnlazadas, separarDeLasDemas, nuevoId, quitarAnotacion, quitarCarrera, quitarFase, quitarFicha, quitarPase,
-  renombrarFase, tipoDePase, deSerie, CATEGORIAS, ENCUADRES, SUPERFICIES, ZONAS,
+  renombrarFase, tipoDePase, deSerie, CATEGORIAS, ENCUADRES, SUPERFICIES, ZONAS, CAJA_DE_ENCUADRE, ESCALA_MATERIAL,
   type Ambiente, type Anotacion, type Capa, type Categoria, type Cuaderno, type Equipacion, type Equipo, type EstiloFlecha, type EstiloZona, type Extremo,
   type Fase, type Grosor, type Jugada, type Material, type Pase, type Punto, type RellenoBloque, type TipoMaterial,
 } from "@/lib/abp";
@@ -19,7 +19,9 @@ import { useFirma } from "./FirmaDelInforme";
 import { Interruptor } from "./Interruptor";
 import { Biblioteca } from "./BibliotecaDeSistemas";
 import { Portal, archivoDeCuaderno, archivoDeSistema } from "./PortalDeSistemas";
-import { EditorDeEquipacion, SelectorDeMaterial } from "./abp/PiezasDeEntrenamiento";
+import { EditorDeEquipacion, EspaciosDeJuego, SelectorDeMaterial, SelectorDePeto } from "./abp/PiezasDeEntrenamiento";
+import { ESPACIOS, estirarZona, ponerEspacio, tamanoDeZona, type Espacio } from "@/lib/entrenamiento";
+import { PlanDeSesionPanel } from "./abp/PlanDeSesion";
 import {
   ArrowDownToLine, Balon, Bloque, Carrera, ChevronLeft, ChevronRight, Conduccion, Cono, Cubo, Duplicar, Elipse, Etiqueta, Flecha, Linea, Mover, PantallaCompleta,
   Ojo, Pase as PaseIcono, Pause, Pencil, Play, Plus, Presion, Rectangulo, Regla, RotateCcw, RotateCw, Teclado, TextIcon, Trash, Video,
@@ -42,7 +44,7 @@ type Herramienta = "mover" | "local" | "rival" | "balon" | "material" | "carrera
 /** Lo que se está arrastrando, con el cuaderno de antes para poder deshacerlo de una vez. */
 type Arrastre = {
   /** "pieza": mover una pieza de material ya puesta; "material": poner piezas nuevas. */
-  tipo: "ficha" | "balon" | "anotacion" | "pieza" | "carrera" | "pase" | "flecha" | "rect" | "zona" | "material" | "medida" | "trazo" | "grupo" | "marco";
+  tipo: "ficha" | "balon" | "anotacion" | "pieza" | "carrera" | "pase" | "flecha" | "rect" | "zona" | "material" | "medida" | "trazo" | "grupo" | "marco" | "esquina";
   id?: string;
   base: Cuaderno;
   desde: Punto;
@@ -55,6 +57,8 @@ type Arrastre = {
   paso?: number;
   /** Lo que se mueve junto al arrastrar un grupo. */
   grupo?: Elemento[];
+  /** Al estirar una zona por una esquina: la de enfrente, que no se mueve. */
+  fija?: Punto;
 };
 
 /** Lo elegido, como lista: nada, una cosa o un grupo. */
@@ -141,6 +145,7 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
   const [puntaTrazo, setPuntaTrazo] = useState(false);
   const [rellenoBloque, setRellenoBloque] = useState<RellenoBloque>("atras");
   const [atajos, setAtajos] = useState(false);
+  const [planAbierto, setPlanAbierto] = useState(false);
   const [paletaAbierta, setPaletaAbierta] = useState(false);
   // El paso en que se dibujan carreras y envíos: una pared es el pase del paso 1 y la vuelta del 2.
   const [pasoAccion, setPasoAccion] = useState(0);
@@ -285,6 +290,27 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
     rotulo: (rol) => deSerie(rol, idioma),
     metros: (m) => `${metrosConUnDecimal(idioma).format(m)} m`,
   }), [colorLocal, colorRival, colorAnotacion, acento, nombres, fuente, idioma, ambiente, equipacionLocal, equipacionRival, ojosVivos]);
+
+  /** La foto de una fase de cualquier sistema, con sus colores y su encuadre, hecha en un tablero 2D aparte que no se ve. */
+  function fotoDeFase(j: Jugada, i: number): string {
+    const caja = document.createElement("div");
+    const vertical = j.ambiente.orientacion === "vertical";
+    caja.style.cssText = `position:fixed;left:-10000px;top:0;width:${vertical ? 620 : 960}px;height:${vertical ? 860 : 620}px;pointer-events:none`;
+    document.body.appendChild(caja);
+    const fotografo = new Tablero2D(caja);
+    try {
+      fotografo.montar(j, i, {
+        ...opciones, ojos: null, ambiente: j.ambiente,
+        colorLocal: j.colores.local ?? acento, colorRival: j.colores.rival, colorAnotacion: j.colores.anotacion,
+        equipaciones: { local: equipacionDe(j, "local"), rival: equipacionDe(j, "rival") },
+      }, null, null);
+      fotografo.vista("tactica", j.ambiente.encuadre, null, true);
+      return fotografo.capturar("image/jpeg", 0.86);
+    } finally {
+      fotografo.destruir();
+      caja.remove();
+    }
+  }
 
   useEffect(() => {
     const escena = escenaRef.current;
@@ -575,6 +601,17 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
   }
 
   /** Lo elegido deja de estar enlazado con las fases siguientes: sus cambios ya solo valen aquí. */
+  /** Un espacio de juego en el centro de lo que se ve, en esta fase y las siguientes; queda elegido para ajustarlo. */
+  function ponerEspacioDeJuego(espacio: Espacio) {
+    if (!jugada) return;
+    const caja = CAJA_DE_ENCUADRE[jugada.ambiente.encuadre];
+    const centro = { x: (caja.x0 + caja.x1) / 2, z: (caja.z0 + caja.z1) / 2 };
+    const puesto = ponerEspacio(jugada, indice, espacio, centro, jugada.colores.anotacion);
+    guardar(puesto.jugada);
+    setHerramienta("mover");
+    setSeleccion({ tipo: "anotacion", id: puesto.zona });
+  }
+
   function separarElegida(id: string, tipo: "anotacion" | "material") {
     if (!jugada) return;
     const [siguiente, nuevo] = separarDeLasDemas(jugada, indice, id);
@@ -665,6 +702,15 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
     const base = cuaderno;
     switch (herramienta) {
       case "mover": {
+        // La zona elegida se estira por sus esquinas: la de enfrente se queda donde está.
+        const zona = seleccion?.tipo === "anotacion" ? fase.anotaciones.find((a) => a.id === seleccion.id) : undefined;
+        if (!evento.shiftKey && zona && (zona.tipo === "rect" || zona.tipo === "zona")) {
+          const esquina = [zona.a, zona.b, { x: zona.a.x, z: zona.b.z }, { x: zona.b.x, z: zona.a.z }].find((q) => distancia(q, p) < 1.6);
+          if (esquina) {
+            tomar(evento, { tipo: "esquina", id: zona.id, base, desde: p, movido: false, fija: { x: zona.a.x + zona.b.x - esquina.x, z: zona.a.z + zona.b.z - esquina.z } });
+            return;
+          }
+        }
         const ficha = fichaCerca(fase, p);
         const pieza = ficha ? null : materialCerca(fase, p);
         const anotacion = ficha || pieza ? null : anotacionCerca(fase, p, 1.2, jugada.ambiente.ocultas);
@@ -784,6 +830,7 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
     if (arrastre.tipo === "ficha" && arrastre.id) return posar(j, indice, arrastre.id, alinear(j, arrastre.id, p, arrastre.libre).p);
     if (arrastre.tipo === "balon") return posarBalon(j, indice, p);
     if (arrastre.tipo === "anotacion" && arrastre.id) return desplazarAnotacion(j, indice, arrastre.id, p.x - arrastre.desde.x, p.z - arrastre.desde.z);
+    if (arrastre.tipo === "esquina" && arrastre.id && arrastre.fija) return estirarZona(j, indice, arrastre.id, { caja: { a: arrastre.fija, b: p } });
     if (arrastre.tipo === "grupo" && arrastre.grupo) return moverElementos(j, arrastre.grupo, p.x - arrastre.desde.x, p.z - arrastre.desde.z);
     if (arrastre.tipo === "pieza" && arrastre.id) {
       const antes = j.fases[indice].material?.find((m) => m.id === arrastre.id);
@@ -881,6 +928,7 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
       case "ficha":
       case "balon":
       case "anotacion":
+      case "esquina":
       case "pieza":
       case "grupo": {
         const siguiente = aplicarArrastre(arrastre, p);
@@ -1291,6 +1339,7 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
       { id: "lo-que-ve", nombre: t("Lo que ve el jugador elegido"), grupo: t("Ficha"), hacer: () => setOjos(ojosVivos === fichaElegida.id ? null : fichaElegida.id) },
       { id: "sus-ojos", nombre: t("Ver con sus ojos"), grupo: t("Ficha"), hacer: () => verConSusOjos(fichaElegida.id) },
     ] : []),
+    ...ESPACIOS.map((e): Orden => ({ id: `espacio-${e.id}`, nombre: deSerieEn(e.nombre), grupo: t("Espacios de juego"), hacer: () => ponerEspacioDeJuego(e) })),
     { id: "deshacer", nombre: t("Deshacer"), grupo: t("Edición"), atajo: "Ctrl+Z", hacer: deshacer },
     { id: "rehacer", nombre: t("Rehacer"), grupo: t("Edición"), atajo: t("Ctrl+Mayús+Z"), hacer: rehacer },
     { id: "d2", nombre: t("Tablero 2D"), grupo: t("Vista"), hacer: () => cambiarAmbiente({ dimension: "2d" }) },
@@ -1351,8 +1400,11 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
 
       {modo === "biblioteca" && cuaderno && <Biblioteca idioma={idioma} opciones={opciones} onAbrir={crear} />}
 
+      {modo === "portal" && cuaderno && planAbierto && <PlanDeSesionPanel jugadas={cuaderno.jugadas} miniaturas={miniaturas} idioma={idioma} nombre={deSerieEn}
+        acento={acento} firma={firma.nombre} foto={fotoDeFase} onCerrar={() => setPlanAbierto(false)} />}
       {modo === "portal" && cuaderno && <Portal jugadas={cuaderno.jugadas} miniaturas={miniaturas} idioma={idioma}
-        onAbrir={abrir} onCrear={crear} onDuplicar={duplicar} onQuitar={quitar} onImportar={importar} onDescargar={descargarSistema} onCopiaDeTodo={copiaDeTodo} />}
+        onAbrir={abrir} onCrear={crear} onDuplicar={duplicar} onQuitar={quitar} onImportar={importar} onDescargar={descargarSistema} onCopiaDeTodo={copiaDeTodo}
+        onPlan={() => setPlanAbierto((a) => !a)} />}
 
       <div className={`abp-grid abp-estudio${soloVer ? " abp-ver" : ""}`} hidden={modo !== "estudio"}>
         <div className="abp-barra">
@@ -1567,6 +1619,9 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
                     {nFichas >= 3 && <button type="button" onClick={repartirGrupo} title={t("A la misma distancia entre sí, entre las de los extremos.")}>{t("Repartir")}</button>}
                     <button type="button" onClick={bloqueDelGrupo}>{t("Formar bloque")}</button>
                   </div>}
+                  {nFichas >= 1 && <div className="inspector-fila"><span>{t("Peto")}</span>
+                    <SelectorDePeto valor={undefined} nombre={deSerieEn} onCambio={(peto) => guardar(seleccion.elementos.filter((e) => e.tipo === "ficha").reduce((j, e) => cambiarFicha(j, e.id, { peto }), jugada))} />
+                  </div>}
                   <div className="inspector-fila abp-acciones">
                     <button type="button" onClick={() => { if (copiar()) pegar(); }} title={t("Duplicar (Ctrl+D)")}><Duplicar size={13} />{t("Duplicar")}</button>
                     <button type="button" className="peligro" onClick={borrarSeleccion}><Trash size={14} />{t("Quitar")}</button>
@@ -1602,6 +1657,9 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
                     <button type="button" className={fichaElegida.equipo === "local" ? "activa" : ""} onClick={() => guardar(cambiarFicha(jugada, fichaElegida.id, { equipo: "local" }))}>{t("Local")}</button>
                     <button type="button" className={fichaElegida.equipo === "rival" ? "activa" : ""} onClick={() => guardar(cambiarFicha(jugada, fichaElegida.id, { equipo: "rival" }))}>{t("Rival")}</button>
                   </div>
+                </div>
+                <div className="inspector-fila"><span>{t("Peto")}</span>
+                  <SelectorDePeto valor={fichaElegida.peto} nombre={deSerieEn} onCambio={(peto) => guardar(cambiarFicha(jugada, fichaElegida.id, { peto }))} />
                 </div>
                 {carrerasDe(fase, fichaElegida.id).map((c) => {
                   const k = pasoDe(c), varias = pasosDe(fase) > 1;
@@ -1693,9 +1751,16 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
                     <Interruptor activo={anotacionElegida.punta === true} onCambio={(punta) => guardar(cambiarAnotacion(jugada, indice, anotacionElegida.id, { punta }))} titulo={t("Con punta")} />
                   </div>
                 </>}
-                {(anotacionElegida.tipo === "rect" || anotacionElegida.tipo === "zona") && <div className="inspector-fila"><span>{t("Relleno")}</span>
-                  <SegmentosEstilo valor={anotacionElegida.estilo} onCambio={(estilo) => guardar(cambiarAnotacion(jugada, indice, anotacionElegida.id, { estilo }))} />
-                </div>}
+                {(anotacionElegida.tipo === "rect" || anotacionElegida.tipo === "zona") && <>
+                  <div className="inspector-fila"><span>{t("Relleno")}</span>
+                    <SegmentosEstilo valor={anotacionElegida.estilo} onCambio={(estilo) => guardar(cambiarAnotacion(jugada, indice, anotacionElegida.id, { estilo }))} />
+                  </div>
+                  <div className="inspector-fila"><span>{t("Rotular sus medidas")}</span>
+                    <Interruptor activo={anotacionElegida.medidas === true} onCambio={(medidas) => guardar(cambiarAnotacion(jugada, indice, anotacionElegida.id, { medidas }))} titulo={t("Rotular sus medidas")} />
+                  </div>
+                  <MedidasDeZona {...tamanoDeZona(anotacionElegida.a, anotacionElegida.b)} onEmpezar={marcarHistorial}
+                    onCambio={(tamano) => sinHistorial(estirarZona(jugada, indice, anotacionElegida.id, { tamano }))} />
+                </>}
                 <Enlazada n={fasesEnlazadas(jugada, indice, anotacionElegida.id)} onSeparar={() => separarElegida(anotacionElegida.id, "anotacion")} />
                 <div className="inspector-fila abp-acciones">
                   {anotacionElegida.tipo !== "bloque" && <button type="button" onClick={() => { if (copiar()) pegar(); }} title={t("Duplicar (Ctrl+D)")}><Duplicar size={13} />{t("Duplicar")}</button>}
@@ -1718,6 +1783,10 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
                 <label className="inspector-fila inspector-deslizador"><span>{t("Giro")}</span><b>{materialElegido.giro}°</b>
                   <input type="range" min={0} max={355} step={5} value={materialElegido.giro} onPointerDown={marcarHistorial}
                     onChange={(e) => sinHistorial(cambiarMaterial(jugada, indice, materialElegido.id, { giro: Number(e.target.value) }))} />
+                </label>
+                <label className="inspector-fila inspector-deslizador"><span>{t("Tamaño")}</span><b>{Math.round((materialElegido.escala ?? 1) * 100)} %</b>
+                  <input type="range" min={ESCALA_MATERIAL.min} max={ESCALA_MATERIAL.max} step={0.05} value={materialElegido.escala ?? 1} onPointerDown={marcarHistorial}
+                    onChange={(e) => sinHistorial(cambiarMaterial(jugada, indice, materialElegido.id, { escala: Number(e.target.value) }))} />
                 </label>
                 <Enlazada n={fasesEnlazadas(jugada, indice, materialElegido.id)} onSeparar={() => separarElegida(materialElegido.id, "material")} />
                 <div className="inspector-fila abp-acciones">
@@ -1811,6 +1880,11 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
                   <input type="range" min={0.5} max={10} step={0.5} value={separacion} onChange={(e) => setSeparacion(Number(e.target.value))} />
                 </label>
                 <div className="inspector-fila"><span>{t("Slalom")}</span><Interruptor activo={slalom} onCambio={setSlalom} titulo={t("Slalom")} /></div>
+              </div>}
+              {herramienta === "material" && <div className="inspector-tarjeta abp-tarjeta-extra">
+                <div className="inspector-fila"><span>{t("Espacios de juego")}</span></div>
+                <EspaciosDeJuego nombre={deSerieEn} onPoner={ponerEspacioDeJuego} />
+                <p className="inspector-pie">{t("Con su medida rotulada, setas en las esquinas y, en los partidos reducidos, sus porterías. Se ajusta desde la zona: largo, ancho y arrastre.")}</p>
               </div>}
               <p className="inspector-pie">{ayuda}</p>
             </section>
@@ -1949,3 +2023,28 @@ function centroDe(fase: Fase): Punto {
 }
 
 export default EstudioTactico;
+
+/**
+ * El largo y el ancho de una zona en metros, para dejarla a la medida exacta
+ * (un rondo de 12 × 12, un pasillo de 8 m). Se escribe libre y se aplica al
+ * salir del campo o con Intro, alrededor de su centro.
+ */
+function MedidasDeZona({ largo, ancho, onCambio, onEmpezar }: { largo: number; ancho: number; onCambio: (tamano: { largo: number; ancho: number }) => void; onEmpezar: () => void }) {
+  const redondo = (n: number) => String(Math.round(n * 10) / 10);
+  const [texto, setTexto] = useState({ largo: redondo(largo), ancho: redondo(ancho) });
+  // Si cambia desde fuera (al arrastrar sus esquinas o al deshacer), se ve la medida nueva.
+  useEffect(() => { setTexto({ largo: redondo(largo), ancho: redondo(ancho) }); }, [largo, ancho]); // eslint-disable-line react-hooks/set-state-in-effect
+  const aplicar = () => {
+    const l = Number(texto.largo.replace(",", ".")), a = Number(texto.ancho.replace(",", "."));
+    if (l > 0 && a > 0 && (Math.abs(l - largo) > 0.05 || Math.abs(a - ancho) > 0.05)) onCambio({ largo: l, ancho: a });
+    else setTexto({ largo: redondo(largo), ancho: redondo(ancho) });
+  };
+  const campo = (lado: "largo" | "ancho", etiqueta: string) => <label className="abp-medida-zona"><span>{etiqueta}</span>
+    <input className="abp-campo corto" inputMode="decimal" value={texto[lado]} onFocus={onEmpezar} aria-label={etiqueta}
+      onChange={(e) => setTexto((x) => ({ ...x, [lado]: e.target.value }))} onBlur={aplicar}
+      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); aplicar(); } }} /><small>m</small>
+  </label>;
+  return <div className="inspector-fila"><span>{t("Medidas")}</span>
+    <div className="abp-medidas-zona">{campo("largo", t("Largo"))}<i aria-hidden="true">×</i>{campo("ancho", t("Ancho"))}</div>
+  </div>;
+}

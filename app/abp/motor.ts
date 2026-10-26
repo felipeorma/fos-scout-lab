@@ -4,7 +4,7 @@
  * 3D (three.js, con estadio). La pantalla no sabe cuál tiene delante.
  */
 
-import type { Ambiente, Encuadre, Equipacion, Equipo, EstiloFlecha, Extremo, Grosor, Jugada, Pase, Punto, RellenoBloque, TipoMaterial } from "@/lib/abp";
+import { EQUIPACION_LISA, type Ambiente, type Encuadre, type Equipacion, type Equipo, type EstiloFlecha, type Extremo, type Ficha, type Grosor, type Jugada, type Pase, type Punto, type RellenoBloque, type TipoMaterial } from "@/lib/abp";
 
 /** «jugador»: la cámara, en los ojos de la ficha de `Opciones.ojos`, mirando al balón. */
 export type Vista = "tactica" | "3d" | "cenital" | "jugador";
@@ -33,6 +33,21 @@ export type Borrador =
   /** El recuadro de Mayús+arrastre que elige todo lo que queda dentro. */
   | { tipo: "marco"; a: Punto; b: Punto }
   | null;
+/**
+ * Con peto, la ficha va del color del peto y con el de su equipo en el borde:
+ * se sigue sabiendo de quién es, como en un entrenamiento de verdad.
+ */
+export function vestido(ficha: Ficha, color: string, equipacion: Equipacion | null): { color: string; equipacion: Equipacion | null } {
+  if (!ficha.peto) return { color, equipacion };
+  return { color: ficha.peto, equipacion: { ...EQUIPACION_LISA, secundario: color, ribete: true } };
+}
+
+/** «20 × 15 m»: el rótulo de una zona con sus medidas, sin decimales cuando son metros enteros. */
+export function rotuloDeZona(a: Punto, b: Punto, metros?: (m: number) => string) {
+  const cifra = (m: number) => (metros ? metros(m).replace(/\s*m$/, "").replace(/[.,]0$/, "") : String(Math.round(m * 10) / 10));
+  return `${cifra(Math.abs(b.x - a.x))} × ${cifra(Math.abs(b.z - a.z))} m`;
+}
+
 export type Opciones = {
   colorLocal: string;
   colorRival: string;

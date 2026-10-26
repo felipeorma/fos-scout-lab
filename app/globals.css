@@ -7240,7 +7240,33 @@ body.print-layout-check .app-shell[data-tema] .pizarra-duelos > ol { grid-templa
 }
 .app-shell[data-tema] .abp-patrones > button:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
 .app-shell[data-tema] .abp-patrones > button.activa { box-shadow: 0 0 0 2px var(--acento); }
-.app-shell[data-tema] :is(.abp-material, .abp-patrones) > button:focus-visible { outline: 2px solid var(--acento-borde); outline-offset: 1px; }
+.app-shell[data-tema] :is(.abp-material, .abp-patrones, .abp-petos, .abp-espacios) > button:focus-visible { outline: 2px solid var(--acento-borde); outline-offset: 1px; }
+/* Los petos: una camiseta sin mangas de cada color, y «sin peto». */
+.app-shell[data-tema] .abp-petos { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 2px; }
+.app-shell[data-tema] .abp-petos > button {
+  width: 26px; height: 26px; padding: 0;
+  display: grid; place-items: center;
+  border: 0; border-radius: 7px; background: none; box-shadow: none; color: var(--ink); cursor: pointer;
+}
+.app-shell[data-tema] .abp-petos > button:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.app-shell[data-tema] .abp-petos > button.activa { box-shadow: 0 0 0 2px var(--acento); }
+/* Los espacios de juego: su rectángulo a escala y su nombre. */
+.app-shell[data-tema] .abp-espacios { padding: 2px 6px 6px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px; }
+.app-shell[data-tema] .abp-espacios > button {
+  min-width: 0; min-height: 34px; padding: 4px 6px;
+  display: flex; align-items: center; gap: 6px;
+  border: 0; border-radius: 8px; background: color-mix(in srgb, var(--ink) 4%, transparent); box-shadow: none;
+  color: var(--ink); font-size: 11px; line-height: 1.15; text-align: left; cursor: pointer;
+}
+.app-shell[data-tema] .abp-espacios > button > svg { flex: none; color: var(--acento-claro); }
+.app-shell[data-tema] .abp-espacios > button:hover { background: var(--acento-suave); }
+/* Largo × ancho de una zona, en metros. */
+.app-shell[data-tema] .abp-medidas-zona { display: flex; align-items: center; gap: 4px; }
+.app-shell[data-tema] .abp-medidas-zona > i { font-style: normal; color: var(--ink-suave, currentColor); opacity: .7; }
+.app-shell[data-tema] .abp-medida-zona { display: flex; align-items: center; gap: 2px; }
+.app-shell[data-tema] .abp-medida-zona > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.app-shell[data-tema] .abp-medida-zona input.abp-campo.corto { width: 44px; }
+.app-shell[data-tema] .abp-medida-zona > small { opacity: .7; }
 
 .app-shell[data-tema] input.abp-campo {
   flex: 1; min-width: 0; max-width: 62%; min-height: 28px; margin: 0; padding: 0 2px;
@@ -7566,6 +7592,44 @@ body.print-layout-check .app-shell[data-tema] .pizarra-duelos > ol { grid-templa
 .app-shell[data-tema] .tactico-nuevo { padding: 14px 16px 16px; border-radius: 16px; background: var(--paper); box-shadow: 0 0 0 1px var(--line), var(--shadow); }
 .tactico-nuevo > header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .app-shell[data-tema] .tactico-nuevo > header h3 { margin: 0; color: var(--ink); font-size: 16px; font-weight: 650; }
+/* El plan de sesión: cabecera, bloques en orden y el PDF. */
+.app-shell[data-tema] .tactico-plan { margin-bottom: 14px; }
+.app-shell[data-tema] .tactico-plan > header h3 small { margin-left: 8px; color: var(--muted); font-size: 12px; font-weight: 600; }
+.tactico-plan-cabecera { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 3fr); gap: 10px; margin-bottom: 12px; }
+.tactico-plan-cabecera > label { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.app-shell[data-tema] .tactico-plan-cabecera span { color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.app-shell[data-tema] .tactico-plan :is(input, select, textarea) {
+  min-height: 34px; min-width: 0; padding: 0 10px; border: 0; border-radius: 9px;
+  background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); font: inherit; font-size: 13px;
+}
+.app-shell[data-tema] .tactico-plan textarea { width: 100%; padding: 7px 10px; resize: vertical; line-height: 1.35; }
+.tactico-plan-bloques { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 8px; }
+.tactico-plan-bloques > li { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 12px; align-items: start; }
+.tactico-plan-bloques > li > img, .tactico-plan-sin-foto { width: 132px; aspect-ratio: 16 / 9; border-radius: 8px; object-fit: cover; }
+.app-shell[data-tema] .tactico-plan-sin-foto { display: block; background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.tactico-plan-datos { display: grid; gap: 6px; min-width: 0; }
+.tactico-plan-fila { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.app-shell[data-tema] .tactico-plan-fila > b { color: var(--acento-claro); font-variant-numeric: tabular-nums; }
+.tactico-plan-fila > select { flex: 1; }
+.tactico-plan-minutos { display: flex; align-items: center; gap: 4px; }
+.app-shell[data-tema] .tactico-plan-minutos > input { width: 64px; text-align: right; }
+.app-shell[data-tema] .tactico-plan-minutos > span { color: var(--muted); font-size: 12px; }
+.tactico-plan-botones { display: flex; gap: 2px; }
+.app-shell[data-tema] .tactico-plan-botones > button {
+  width: 28px; height: 28px; padding: 0; display: grid; place-items: center;
+  border: 0; border-radius: 7px; background: none; box-shadow: none; color: var(--ink); cursor: pointer;
+}
+.app-shell[data-tema] .tactico-plan-botones > button:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.app-shell[data-tema] .tactico-plan-botones > button:disabled { opacity: .35; cursor: default; }
+.app-shell[data-tema] .tactico-plan-botones > button.peligro { color: var(--peligro, #ff5f57); }
+.tactico-plan-acciones { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.app-shell[data-tema] .tactico-plan-acciones > span { color: var(--muted); font-size: 12px; }
+@media (max-width: 720px) {
+  .tactico-plan-cabecera { grid-template-columns: 1fr; }
+  .tactico-plan-bloques > li { grid-template-columns: 1fr; }
+  .tactico-plan-bloques > li > img, .tactico-plan-sin-foto { width: 100%; }
+  .tactico-plan-fila { flex-wrap: wrap; }
+}
 .tactico-pestanas { display: grid; margin-bottom: 14px; }
 .tactico-formulario { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) auto; align-items: end; gap: 12px; }
 .tactico-formulario > label, .tactico-formulario > div { display: flex; flex-direction: column; gap: 5px; min-width: 0; }

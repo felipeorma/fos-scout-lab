@@ -5,7 +5,7 @@ import {
   CATEGORIAS, FORMACIONES, TIPOS_ABP, deSerie, jugadaValida, nombreDeFormacion, nuevoId, plantilla, sistemaDePartido, type Categoria, type Jugada, type TipoABP,
 } from "@/lib/abp";
 import { t, tf, type Lang } from "@/lib/i18n";
-import { Cancha, Duplicar, ArrowDownToLine, Plus, Trash, Upload, X } from "./Icons";
+import { Cancha, Duplicar, ArrowDownToLine, Plus, Printer, Trash, Upload, X } from "./Icons";
 
 type Pestana = "partido" | "abp" | "entrenamiento" | "libre";
 
@@ -23,7 +23,7 @@ export function leerArchivo(texto: string): Jugada[] {
   return (brutas as unknown[]).map(jugadaValida).filter((j): j is Jugada => j !== null).map((j) => ({ ...j, id: nuevoId("j"), actualizada: Date.now() }));
 }
 
-export function Portal({ jugadas, miniaturas, idioma, onAbrir, onCrear, onDuplicar, onQuitar, onImportar, onDescargar, onCopiaDeTodo }: {
+export function Portal({ jugadas, miniaturas, idioma, onAbrir, onCrear, onDuplicar, onQuitar, onImportar, onDescargar, onCopiaDeTodo, onPlan }: {
   jugadas: Jugada[];
   miniaturas: Record<string, string>;
   idioma: Lang;
@@ -34,6 +34,8 @@ export function Portal({ jugadas, miniaturas, idioma, onAbrir, onCrear, onDuplic
   onImportar: (jugadas: Jugada[]) => void;
   onDescargar: (id: string) => void;
   onCopiaDeTodo: () => void;
+  /** Abre el plan de sesión: los sistemas en orden, con sus minutos, a PDF. */
+  onPlan: () => void;
 }) {
   const [filtro, setFiltro] = useState<Categoria | "todas">("todas");
   const [nuevo, setNuevo] = useState<Pestana | null>(null);
@@ -99,6 +101,7 @@ export function Portal({ jugadas, miniaturas, idioma, onAbrir, onCrear, onDuplic
       </div>
       <div className="tactico-portal-acciones">
         <button type="button" className="button secondary compact" onClick={() => entradaRef.current?.click()}><Upload size={14} />{t("Importar")}</button>
+        <button type="button" className="button secondary compact" onClick={onPlan} disabled={!jugadas.length}><Printer size={14} />{t("Plan de sesión")}</button>
         <button type="button" className="button secondary compact" onClick={onCopiaDeTodo} disabled={!jugadas.length}><ArrowDownToLine size={14} />{t("Copia de todo")}</button>
         <button type="button" className="button primary compact" onClick={() => setNuevo("partido")}><Plus size={14} />{t("Nuevo sistema")}</button>
         <input ref={entradaRef} type="file" accept="application/json,.json" hidden onChange={(e) => void importar(e)} />

@@ -2,7 +2,8 @@
 
 import { useId, type ReactNode } from "react";
 import { MATERIALES, PATRONES, type Equipacion, type Patron, type TipoMaterial } from "@/lib/abp";
-import { t } from "@/lib/i18n";
+import { ESPACIOS, PETOS, type Espacio } from "@/lib/entrenamiento";
+import { t, tf } from "@/lib/i18n";
 import { Interruptor } from "../Interruptor";
 
 /** El dibujo de cada pieza en el selector: de frente, como se reconoce en el almacén. */
@@ -94,5 +95,35 @@ export function EditorDeEquipacion({ titulo, base, equipacion, nombre, onCambio,
           <button key={id} type="button" className={equipacion.dorsal === id ? "activa" : ""} onClick={() => onCambio({ dorsal: id }, true)}>{texto}</button>)}
       </div>
     </div>
+  </div>;
+}
+
+/** Los petos: sin peto o uno de los colores de siempre. Cambia el de una ficha o el de todas las elegidas. */
+export function SelectorDePeto({ valor, nombre, onCambio }: { valor: string | undefined; nombre: (texto: string) => string; onCambio: (peto: string | undefined) => void }) {
+  return <div className="abp-petos" role="radiogroup" aria-label={t("Peto")}>
+    <button type="button" role="radio" aria-checked={!valor} className={!valor ? "activa" : ""} onClick={() => onCambio(undefined)} title={t("Sin peto")} aria-label={t("Sin peto")}>
+      <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><circle cx="10" cy="10" r="8.5" fill="none" stroke="currentColor" strokeOpacity=".55" /><path d="M4.5 15.5 15.5 4.5" stroke="currentColor" strokeOpacity=".55" /></svg>
+    </button>
+    {PETOS.map((p) => <button key={p.color} type="button" role="radio" aria-checked={valor === p.color} className={valor === p.color ? "activa" : ""}
+      onClick={() => onCambio(p.color)} title={nombre(p.nombre)} aria-label={nombre(p.nombre)}>
+      <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><path d="M6 2.5h2.5a1.5 1.5 0 0 0 3 0H14l2.5 3v12h-13v-12z" fill={p.color} stroke="rgba(0,0,0,.45)" strokeLinejoin="round" /></svg>
+    </button>)}
+  </div>;
+}
+
+/** Los espacios de juego con su medida: un botón cada uno, con su rectángulo a escala. */
+export function EspaciosDeJuego({ nombre, onPoner }: { nombre: (texto: string) => string; onPoner: (espacio: Espacio) => void }) {
+  return <div className="abp-espacios">
+    {ESPACIOS.map((e) => {
+      // El dibujo, a escala entre ellos: el más grande llena el botón.
+      const k = 18 / 70, w = Math.max(4, e.largo * k), h = Math.max(4, e.ancho * k);
+      return <button key={e.id} type="button" onClick={() => onPoner(e)} title={tf("{largo} × {ancho} m", { largo: e.largo, ancho: e.ancho })}>
+        <svg viewBox="0 0 22 16" width="26" height="19" aria-hidden="true">
+          <rect x={11 - w / 2} y={8 - h / 2} width={w} height={h} rx="0.6" fill="none" stroke="currentColor" strokeWidth="1.2" />
+          {e.porterias !== "ninguna" && <path d={`M${11 - w / 2} 6.6v2.8M${11 + w / 2} 6.6v2.8`} stroke="currentColor" strokeWidth="2" />}
+        </svg>
+        <span>{nombre(e.nombre)}</span>
+      </button>;
+    })}
   </div>;
 }

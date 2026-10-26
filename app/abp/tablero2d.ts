@@ -20,7 +20,7 @@ import {
 import { ALCANCE, APERTURA, miradaDe } from "@/lib/mirada";
 import { abreviar, cajaDe, camaraDeCaja, interpolarCamara, transformacion, type Camara, type Transformacion } from "@/lib/tablero";
 import { SUPERFICIE, luz, rgba, tintaSobre } from "./temas";
-import { estaElegido, type Borrador, type Motor, type Opciones, type Seleccion, type Vista } from "./motor";
+import { estaElegido, rotuloDeZona, vestido, type Borrador, type Motor, type Opciones, type Seleccion, type Vista } from "./motor";
 
 const MEDIO_L = CAMPO.largo / 2, MEDIO_A = CAMPO.ancho / 2;
 /** El radio de una ficha, en metros: algo más grande que un jugador, para leerse en un móvil. */
@@ -353,13 +353,17 @@ export class Tablero2D implements Motor {
       for (const f of jugada.fichas) {
         const p = posicionEn(fase, f.id, this.t, lineal);
         const portero = esPortero(f.rol);
-        if (p) this.pintarFicha(tr, p, f.dorsal, f.rol, this.colorDe(f.equipo, f.rol, o), o, estaElegido(this.seleccion, "ficha", f.id), portero ? null : o.equipaciones[f.equipo], f.nombre);
+        if (!p) continue;
+        const v = vestido(f, this.colorDe(f.equipo, f.rol, o), portero ? null : o.equipaciones[f.equipo]);
+        this.pintarFicha(tr, p, f.dorsal, f.rol, v.color, o, estaElegido(this.seleccion, "ficha", f.id), v.equipacion, f.nombre);
       }
       this.pintarBalon(tr, balonEn(fase, this.t), o);
       // Encima de todo, lo que se lee: las medidas, los jugadores elegidos para un bloque y los textos.
       for (const a of medidas) if (a.tipo === "medida") this.conAlfa(() => this.pintarMedida(tr, a, fase, this.trazoDe(a.color || o.colorAnotacion, o), o, this.esElegida(a.id), "rotulo"));
       if (this.borrador?.tipo === "bloque") this.pintarElegidosDeBloque(tr, this.borrador.fichas, fase, o, lineal);
       for (const a of de("texto", "etiqueta")) pintar(a);
+      // Las medidas de los espacios de juego, encima de todo para que se lean.
+      for (const a of de("rect", "zona")) if ((a.tipo === "rect" || a.tipo === "zona") && a.medidas) this.pintarRotuloDeZona(tr, a, this.trazoDe(a.color || o.colorAnotacion, o), o);
     }
     ctx.restore();
   }
@@ -795,6 +799,9 @@ export class Tablero2D implements Motor {
     ctx.globalAlpha = alfa;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
+    // Una pieza agrandada o encogida: todo lo suyo, alrededor de su centro.
+    const escala = m.escala ?? 1;
+    if (escala !== 1) { ctx.translate(c.x, c.y); ctx.scale(escala, escala); ctx.translate(-c.x, -c.y); }
     switch (m.tipo) {
       case "seta": {
         const r = tamano(0.2, 4);
@@ -1070,6 +1077,45 @@ export class Tablero2D implements Motor {
     ctx.lineWidth = Math.max(1.5, (elegida ? 0.36 : 0.24) * e);
     if (a.estilo !== "borde") ctx.setLineDash([Math.max(6, 1.4 * e), Math.max(4, 0.9 * e)]);
     ctx.stroke();
+    ctx.setLineDash([]);
+    if (elegida) {
+      // Elegida, sus cuatro esquinas: de ahí se estira.
+      const lado = Math.max(7, 0.7 * e);
+      ctx.fillStyle = o.acento;
+      ctx.strokeStyle = this.halo(o);
+      ctx.lineWidth = 1.5;
+      for (const [qx, qy] of [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]) {
+        ctx.beginPath();
+        ctx.roundRect(qx - lado / 2, qy - lado / 2, lado, lado, lado * 0.2);
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  /** «20 × 20 m» en una pastilla, en el borde de arriba de la zona tal como se ve. */
+  private pintarRotuloDeZona(tr: Transformacion, a: Extract<Anotacion, { tipo: "rect" | "zona" }>, color: string, o: Opciones) {
+    const ctx = this.ctx;
+    const esquinas = [a.a, { x: a.b.x, z: a.a.z }, a.b, { x: a.a.x, z: a.b.z }].map((q) => tr.aPantalla(q));
+    const x = (Math.min(...esquinas.map((q) => q.x)) + Math.max(...esquinas.map((q) => q.x))) / 2, y = Math.min(...esquinas.map((q) => q.y));
+    const texto = rotuloDeZona(a.a, a.b, o.metros);
+    const alto = Math.max(15, Math.min(24, 1.3 * tr.escala));
+    ctx.save();
+    ctx.font = `800 ${alto * 0.58}px ${o.fuente}`;
+    const ancho = ctx.measureText(texto).width + alto * 0.8;
+    ctx.fillStyle = this.halo(o);
+    ctx.beginPath();
+    ctx.roundRect(x - ancho / 2 - 1.5, y - alto / 2 - 1.5, ancho + 3, alto + 3, alto / 2 + 1.5);
+    ctx.fill();
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.roundRect(x - ancho / 2, y - alto / 2, ancho, alto, alto / 2);
+    ctx.fill();
+    ctx.fillStyle = tintaSobre(color);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(texto, x, y + alto * 0.04);
     ctx.restore();
   }
 
