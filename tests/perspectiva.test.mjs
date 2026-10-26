@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { aplicar, homografia, invertir } from "../lib/homografia.ts";
 import {
-  LINEAS_DEL_CAMPO, PUNTOS_DEL_CAMPO, contornoDeMarca, desplazarMarca, marcaDeArrastre, proyectar, puntaEnCampo, puntoDeCampo, siguientePunto,
+  LINEAS_DEL_CAMPO, PUNTOS_DEL_CAMPO, areaDePoligono, centroDePoligono, cerrarPuntoAPunto, contornoDeMarca, desplazarMarca, marcaDeArrastre, proyectar,
+  puntaEnCampo, puntoDeCampo, siguientePunto, tramos,
 } from "../lib/perspectiva.ts";
 
 const VERDAD = [0.0062, 0.0011, 0.5, -0.0004, 0.0049, 0.42, 0.0000, 0.0067, 1];
@@ -41,4 +42,27 @@ test("una marca se dibuja proyectada y se mide de vuelta en metros", () => {
   assert.deepEqual(desplazarMarca(c, 1, -1).c, { x: 1, y: -1 });
   assert.equal(desplazarMarca({ id: "f", tipo: "fuera", x: 50, color: "#fff" }, 10, 0).x, 52.5);
   assert.deepEqual(puntaEnCampo({ x: 0, y: 0 }, { x: 10, y: 0 })[0], { x: 10, y: 0 });
+});
+
+test("el área entre jugadores en m² y los huecos de una línea", () => {
+  const cuadrado = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }];
+  assert.equal(areaDePoligono(cuadrado), 100);
+  assert.equal(areaDePoligono([...cuadrado].reverse()), 100);
+  assert.deepEqual(centroDePoligono(cuadrado), { x: 5, y: 5 });
+  assert.equal(areaDePoligono([{ x: 0, y: 0 }, { x: 12, y: 0 }, { x: 0, y: 5 }]), 30);
+  assert.deepEqual(tramos([{ x: -36, y: -20 }, { x: -36, y: -8 }, { x: -37, y: 0 }]).map((d) => Math.round(d * 100) / 100), [12, 8.06]);
+});
+
+test("cerrar un área o una línea: fuera los puntos repetidos del doble clic, y con los mínimos", () => {
+  const p = (x, y) => ({ x, y });
+  const area = cerrarPuntoAPunto({ id: "a", tipo: "area", color: "#fff", puntos: [p(0, 0), p(10, 0), p(10, 0.1), p(5, 8), p(5, 8)] });
+  assert.equal(area.puntos.length, 3);
+  assert.equal(cerrarPuntoAPunto({ id: "a", tipo: "area", color: "#fff", puntos: [p(0, 0), p(10, 0)] }), null);
+  // Tres en línea no encierran nada.
+  assert.equal(cerrarPuntoAPunto({ id: "a", tipo: "area", color: "#fff", puntos: [p(0, 0), p(5, 0), p(10, 0)] }), null);
+  assert.equal(cerrarPuntoAPunto({ id: "h", tipo: "huecos", color: "#fff", puntos: [p(0, 0), p(0, 0.1)] }), null);
+  const linea = cerrarPuntoAPunto({ id: "h", tipo: "huecos", color: "#fff", puntos: [p(0, -20), p(0, -8), p(0, 3)] });
+  assert.equal(linea.puntos.length, 3);
+  assert.deepEqual(contornoDeMarca(area).length, 4);
+  assert.deepEqual(desplazarMarca(linea, 2, 1).puntos[0], { x: 2, y: -19 });
 });

@@ -6,7 +6,7 @@
  */
 
 import { aplicar, type Matriz, type P } from "@/lib/homografia";
-import { LINEAS_DEL_CAMPO, contornoDeMarca, distancia, proyectar, puntaEnCampo, type MarcaDeCampo } from "@/lib/perspectiva";
+import { LINEAS_DEL_CAMPO, areaDePoligono, centroDePoligono, contornoDeMarca, distancia, proyectar, puntaEnCampo, tramos, type MarcaDeCampo } from "@/lib/perspectiva";
 import { ANCHO_BASE } from "@/lib/pintado";
 import { tintaSobre } from "./dibujo";
 
@@ -22,12 +22,14 @@ export type OpcionesDeCampo = {
   acento: string;
   /** «12,4 m» en el idioma de la pantalla. */
   metros: (m: number) => string;
+  /** «310 m²». */
+  cuadrados: (m2: number) => string;
   rotuloFuera: string;
 };
 
 /** Una pastilla con texto, centrada en (x, y). */
-function pastilla(ctx: CanvasRenderingContext2D, texto: string, x: number, y: number, color: string, o: OpcionesDeCampo) {
-  const alto = Math.max(16, Math.min(30, 22 * (o.w / ANCHO_BASE)));
+function pastilla(ctx: CanvasRenderingContext2D, texto: string, x: number, y: number, color: string, o: OpcionesDeCampo, escala = 1) {
+  const alto = Math.max(15, Math.min(30, 22 * (o.w / ANCHO_BASE))) * escala;
   ctx.save();
   ctx.font = `800 ${alto * 0.56}px ${o.fuente}`;
   const ancho = ctx.measureText(texto).width + alto * 0.8;
@@ -123,7 +125,7 @@ export function dibujarMarca(ctx: CanvasRenderingContext2D, H: Matriz, m: MarcaD
     ctx.stroke();
     ctx.setLineDash([]);
   };
-  if (m.tipo === "circulo" || m.tipo === "zona") {
+  if (m.tipo === "circulo" || m.tipo === "zona" || m.tipo === "area") {
     camino(ctx, pedazos);
     ctx.fillStyle = rgba(m.color, 0.26);
     ctx.fill();
@@ -136,6 +138,20 @@ export function dibujarMarca(ctx: CanvasRenderingContext2D, H: Matriz, m: MarcaD
     ctx.fill();
   }
   trazo(grosor * (elegida ? 1.35 : 1), m.color, m.tipo === "medida");
+  if (m.tipo === "area" || m.tipo === "huecos") {
+    // Un punto en los pies de cada jugador por el que pasa.
+    for (const p of m.puntos) {
+      const q = aPixeles(H, p, o);
+      if (!q) continue;
+      ctx.beginPath();
+      ctx.arc(q.x, q.y, Math.max(3.5, grosor * 1.1), 0, Math.PI * 2);
+      ctx.fillStyle = m.color;
+      ctx.strokeStyle = "rgba(0,0,0,.55)";
+      ctx.lineWidth = 2;
+      ctx.fill();
+      ctx.stroke();
+    }
+  }
   if (m.tipo === "flecha") {
     const punta = enPantalla(H, [...puntaEnCampo(m.a, m.b), puntaEnCampo(m.a, m.b)[0]], o);
     camino(ctx, punta);
@@ -157,6 +173,16 @@ export function dibujarMarca(ctx: CanvasRenderingContext2D, H: Matriz, m: MarcaD
     }
     const medio = aPixeles(H, { x: (m.a.x + m.b.x) / 2, y: (m.a.y + m.b.y) / 2 }, o);
     if (medio) pastilla(ctx, o.metros(d), medio.x, medio.y, m.color, o);
+  } else if (m.tipo === "area") {
+    const centro = aPixeles(H, centroDePoligono(m.puntos), o);
+    if (centro && m.puntos.length >= 3) pastilla(ctx, o.cuadrados(areaDePoligono(m.puntos)), centro.x, centro.y, m.color, o);
+  } else if (m.tipo === "huecos") {
+    // Cada hueco con lo que mide, en medio de su tramo.
+    tramos(m.puntos).forEach((d, i) => {
+      const a = m.puntos[i], b = m.puntos[i + 1];
+      const medio = aPixeles(H, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, o);
+      if (medio && d >= 0.3) pastilla(ctx, o.metros(d), medio.x, medio.y, m.color, o, 0.85);
+    });
   } else if (m.tipo === "zona") {
     const centro = aPixeles(H, { x: (m.a.x + m.b.x) / 2, y: (m.a.y + m.b.y) / 2 }, o);
     const cifra = (n: number) => o.metros(n).replace(/\s*m$/, "").replace(/[.,]0$/, "");
@@ -197,7 +223,7 @@ export function marcaEn(H: Matriz, marcas: MarcaDeCampo[], p: P, o: { w: number;
     const pedazos = proyectar(H, contornoDeMarca(m)).map((pedazo) => pedazo.map((q) => ({ x: q.x * o.w, y: q.y * o.h })));
     for (const pedazo of pedazos) {
       for (let i = 1; i < pedazo.length; i += 1) if (aSegmento(p, pedazo[i - 1], pedazo[i]) <= tol) return m.id;
-      if ((m.tipo === "circulo" || m.tipo === "zona") && dentro(p, pedazo)) return m.id;
+      if ((m.tipo === "circulo" || m.tipo === "zona" || m.tipo === "area") && dentro(p, pedazo)) return m.id;
     }
   }
   return null;

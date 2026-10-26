@@ -2734,6 +2734,13 @@ const EN: Record<string, string> = {
   "Círculo central, lado lejano": "Centre circle, far side",
   "Círculo central, lado cercano": "Centre circle, near side",
   "Centro del campo": "Centre spot",
+  // ---- Pintado: medir entre jugadores ----
+  "Huecos": "Gaps",
+  "Pulsa al menos dos jugadores.": "Click at least two players.",
+  "Un área necesita al menos tres jugadores.": "An area needs at least three players.",
+  "Pulsa en los pies de cada jugador; doble clic o Intro para terminar.": "Click at each player's feet; double-click or Enter to finish.",
+  "Pulsa en los pies de tres o más jugadores y termina con doble clic o Intro: el espacio entre ellos sale en m².": "Click at the feet of three or more players and finish with a double-click or Enter: the space between them shows in m².",
+  "Pulsa en los pies de cada jugador de una línea, en orden, y termina con doble clic o Intro: sale lo que mide cada hueco.": "Click at the feet of each player in a line, in order, and finish with a double-click or Enter: each gap shows its size.",
   // ---- Pizarra: explicar con voz y lápiz ----
   "Explicar": "Explain",
   "Explicar la jugada": "Explain the move",
