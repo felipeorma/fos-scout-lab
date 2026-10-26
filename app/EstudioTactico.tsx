@@ -22,7 +22,7 @@ import { Portal, archivoDeCuaderno, archivoDeSistema } from "./PortalDeSistemas"
 import { EditorDeEquipacion, SelectorDeMaterial } from "./abp/PiezasDeEntrenamiento";
 import {
   ArrowDownToLine, Balon, Bloque, Carrera, ChevronLeft, ChevronRight, Conduccion, Cono, Cubo, Duplicar, Elipse, Etiqueta, Flecha, Linea, Mover, PantallaCompleta,
-  Pase as PaseIcono, Pause, Pencil, Play, Plus, Presion, Rectangulo, Regla, RotateCcw, RotateCw, Teclado, TextIcon, Trash, Video,
+  Ojo, Pase as PaseIcono, Pause, Pencil, Play, Plus, Presion, Rectangulo, Regla, RotateCcw, RotateCw, Teclado, TextIcon, Trash, Video,
 } from "./Icons";
 import { PanelDeMedidas } from "./abp/PanelDeMedidas";
 import { PaletaDeOrdenes, type Orden } from "./abp/PaletaDeOrdenes";
@@ -30,6 +30,7 @@ import type { Entrante } from "./abp/AbrirEnPizarra";
 import { enlaceDeJugada } from "@/lib/enlace";
 import { apellido, equiposDeBase, jugadorDeFicha, jugadoresDeBase, plantillaDe, ponerPorPuestos, tarjetaDe } from "@/lib/jugadoresDeBase";
 import { useBaseActiva } from "./BaseActiva";
+import { quienVe } from "@/lib/mirada";
 
 // La clave no cambia al pasar de cuaderno a estudio: así se abre lo ya guardado.
 const CLAVE = "fos-scout-abp-v1";
@@ -125,6 +126,8 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
   const [borrador, setBorrador] = useState<Borrador>(null);
   const [origen, setOrigen] = useState<string | null>(null);
   const [vista, setVista] = useState<Vista>("tactica");
+  // La ficha cuya visión se enseña: la cuña en el césped y, en la vista «Jugador», sus ojos.
+  const [ojos, setOjos] = useState<string | null>(null);
   const [nombres, setNombres] = useState(true);
   const [modo, setModo] = useState<"portal" | "biblioteca" | "estudio">("portal");
   const [miniaturas, setMiniaturas] = useState<Record<string, string>>({});
@@ -274,13 +277,14 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
   const ambiente = jugada?.ambiente;
   const equipacionLocal = jugada ? equipacionDe(jugada, "local") : null;
   const equipacionRival = jugada ? equipacionDe(jugada, "rival") : null;
+  const ojosVivos = jugada && ojos && jugada.fichas.some((f) => f.id === ojos) ? ojos : null;
   const opciones = useMemo<Opciones>(() => ({
-    colorLocal, colorRival, colorAnotacion, acento, nombres, fuente,
+    colorLocal, colorRival, colorAnotacion, acento, nombres, fuente, ojos: ojosVivos,
     ambiente: ambiente ?? AMBIENTE_POR_DEFECTO,
     equipaciones: { local: equipacionLocal ?? EQUIPACION_LISA, rival: equipacionRival ?? EQUIPACION_LISA },
     rotulo: (rol) => deSerie(rol, idioma),
     metros: (m) => `${metrosConUnDecimal(idioma).format(m)} m`,
-  }), [colorLocal, colorRival, colorAnotacion, acento, nombres, fuente, idioma, ambiente, equipacionLocal, equipacionRival]);
+  }), [colorLocal, colorRival, colorAnotacion, acento, nombres, fuente, idioma, ambiente, equipacionLocal, equipacionRival, ojosVivos]);
 
   useEffect(() => {
     const escena = escenaRef.current;
@@ -296,7 +300,9 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
   const encuadre = ambiente?.encuadre ?? "campo";
   const jugadaId = jugada?.id;
   const orientacion = ambiente?.orientacion ?? "horizontal";
-  useEffect(() => { escenaRef.current?.vista(vista, encuadre, fase ? centroDe(fase) : null); }, [vista, lista, encuadre, jugadaId, modo, motorVersion, orientacion]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { escenaRef.current?.vista(vista, encuadre, fase ? centroDe(fase) : null); }, [vista, lista, encuadre, jugadaId, modo, motorVersion, orientacion, ojosVivos]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Sin nadie en cuyos ojos ponerse (se quitó su ficha o se cambió de sistema), la cámara vuelve al 3D.
+  useEffect(() => { if (vista === "jugador" && !ojosVivos) setVista("3d"); }, [vista, ojosVivos]); // eslint-disable-line react-hooks/set-state-in-effect
 
   useEffect(() => { if (escenaRef.current) escenaRef.current.seguirBalon = seguir && reproduciendo; }, [seguir, reproduciendo, lista, motorVersion]);
 
@@ -1262,7 +1268,16 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
     { id: "tactica", nombre: t("Táctica") },
     { id: "3d", nombre: t("3D") },
     { id: "cenital", nombre: t("Cenital") },
+    { id: "jugador", nombre: t("Jugador") },
   ];
+  /** A los ojos de una ficha: en 3D, con la cámara donde él y mirando al balón. */
+  const verConSusOjos = (id: string) => {
+    setOjos(id);
+    setVista("jugador");
+    if (dimension !== "3d") cambiarAmbiente({ dimension: "3d" });
+    else if (vista === "jugador" && ojosVivos === id) escenaRef.current?.vista("jugador", encuadre, null);
+  };
+  const loQueVe = fichaElegida && fase && ojosVivos === fichaElegida.id && jugada ? quienVe(jugada, fase, fichaElegida.id, 0) : null;
   const nombreDeFase = (f: Fase, i: number) => (/^(fase|phase) \d+$/i.test(f.nombre.trim()) ? "" : deSerieEn(f.nombre)) || tf("Fase {n}", { n: i + 1 });
   // Ctrl+K: todo lo que se puede hacer, para buscarlo escribiendo.
   const ordenes: Orden[] = !jugada ? [] : [
@@ -1272,6 +1287,10 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
     { id: "fase-nueva", nombre: t("Añadir una fase"), grupo: t("Fases"), atajo: "N", hacer: () => { guardar(agregarFase(jugada, indice, tf("Fase {n}", { n: jugada.fases.length + 1 }))); irAFase(indice + 1); } },
     { id: "fase-copia", nombre: t("Duplicar la fase"), grupo: t("Fases"), hacer: () => { if (fase) { guardar(duplicarFase(jugada, indice, tf("{nombre} · copia", { nombre: deSerieEn(fase.nombre) }))); irAFase(indice + 1); } } },
     ...jugada.fases.map((f, i): Orden => ({ id: `ir-${f.id}`, nombre: tf("Ir a la fase {n}", { n: i + 1 }) + (nombreDeFase(f, i) !== tf("Fase {n}", { n: i + 1 }) ? ` · ${nombreDeFase(f, i)}` : ""), grupo: t("Fases"), atajo: i < 9 ? String(i + 1) : undefined, hacer: () => irAFase(i) })),
+    ...(fichaElegida ? [
+      { id: "lo-que-ve", nombre: t("Lo que ve el jugador elegido"), grupo: t("Ficha"), hacer: () => setOjos(ojosVivos === fichaElegida.id ? null : fichaElegida.id) },
+      { id: "sus-ojos", nombre: t("Ver con sus ojos"), grupo: t("Ficha"), hacer: () => verConSusOjos(fichaElegida.id) },
+    ] : []),
     { id: "deshacer", nombre: t("Deshacer"), grupo: t("Edición"), atajo: "Ctrl+Z", hacer: deshacer },
     { id: "rehacer", nombre: t("Rehacer"), grupo: t("Edición"), atajo: t("Ctrl+Mayús+Z"), hacer: rehacer },
     { id: "d2", nombre: t("Tablero 2D"), grupo: t("Vista"), hacer: () => cambiarAmbiente({ dimension: "2d" }) },
@@ -1497,7 +1516,11 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
                 <button type="button" className={dimension === "3d" ? "activa" : ""} onClick={() => cambiarAmbiente({ dimension: "3d" })}>{t("3D")}</button>
               </div>}
               {dimension === "3d" && <div className="inspector-segmentos">
-                {vistas.map((v) => <button key={v.id} type="button" className={vista === v.id ? "activa" : ""} onClick={() => { setVista(v.id); escenaRef.current?.vista(v.id, encuadre, fase ? centroDe(fase) : null); }}>{v.nombre}</button>)}
+                {vistas.map((v) => v.id === "jugador"
+                  ? <button key={v.id} type="button" className={vista === v.id ? "activa" : ""} disabled={!ojosVivos && !fichaElegida}
+                    title={ojosVivos || fichaElegida ? t("Con los ojos del jugador, mirando al balón") : t("Elige antes un jugador")}
+                    onClick={() => verConSusOjos(fichaElegida?.id ?? ojosVivos!)}><Ojo size={13} />{v.nombre}</button>
+                  : <button key={v.id} type="button" className={vista === v.id ? "activa" : ""} onClick={() => { setVista(v.id); escenaRef.current?.vista(v.id, encuadre, fase ? centroDe(fase) : null); }}>{v.nombre}</button>)}
               </div>}
             </div>
             {atajos && <Atajos onCerrar={() => setAtajos(false)} />}
@@ -1589,6 +1612,15 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
                       onChange={(e) => sinHistorial(curvarCarrera(jugada, indice, fichaElegida.id, Number(e.target.value), k))} />
                   </label>;
                 })}
+                <div className="inspector-fila abp-acciones">
+                  <button type="button" className={ojosVivos === fichaElegida.id ? "activa" : ""} aria-pressed={ojosVivos === fichaElegida.id}
+                    onClick={() => setOjos(ojosVivos === fichaElegida.id ? null : fichaElegida.id)} title={t("Una cuña en el césped con lo que ve, hacia el balón")}><Ojo size={14} />{t("Lo que ve")}</button>
+                  <button type="button" onClick={() => verConSusOjos(fichaElegida.id)} title={t("En 3D, con la cámara en sus ojos")}><Cubo size={14} />{t("Ver con sus ojos")}</button>
+                </div>
+                {loQueVe && <p className="inspector-pie">{loQueVe.companeros + loQueVe.rivales === 0 ? t("Al empezar la fase no tiene a nadie en su cuña.") : tf("Al empezar la fase ve a {companeros} y {rivales}.", {
+                  companeros: loQueVe.companeros === 1 ? t("1 compañero") : tf("{n} compañeros", { n: loQueVe.companeros }),
+                  rivales: loQueVe.rivales === 1 ? t("1 rival") : tf("{n} rivales", { n: loQueVe.rivales }),
+                })}</p>}
                 <div className="inspector-fila abp-acciones">
                   {carreraElegida && <button type="button" onClick={() => guardar(quitarCarrera(jugada, indice, fichaElegida.id))}>{carrerasDe(fase, fichaElegida.id).length > 1 ? t("Quitar sus carreras") : t("Quitar carrera")}</button>}
                   <button type="button" className="peligro" onClick={borrarSeleccion}><Trash size={14} />{t("Quitar ficha")}</button>

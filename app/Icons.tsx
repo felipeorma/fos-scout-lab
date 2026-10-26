@@ -109,3 +109,5 @@ export const RotateCw = icono(<><path d="M20.5 5.5v5h-5" /><path d="M19.8 10.5a8
 export const Regla = icono(<><path d="M3.5 16 16 3.5l4.5 4.5L8 20.5z" /><path d="m7.2 12.3 1.8 1.8M10 9.5l1.4 1.4M12.8 6.7l1.8 1.8" /></>);
 export const Bloque = icono(<><path d="M3 8.5 9 10l6-1.5 6 1.5" /><path d="M3 8.5V19h18v-9" strokeDasharray="2 2.5" /><circle cx="3.5" cy="8.5" r="1.2" /><circle cx="9" cy="10" r="1.2" /><circle cx="15" cy="8.5" r="1.2" /><circle cx="20.5" cy="10" r="1.2" /></>);
 export const Teclado = icono(<><rect x="2.5" y="6" width="19" height="12" rx="2" /><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7.5 14h9" /></>);
+export const Ojo = icono(<><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><circle cx="12" cy="12" r="3" /></>);
+export const Microfono = icono(<><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7" /></>);

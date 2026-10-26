@@ -24,6 +24,7 @@ import {
   posicionEn, puntoDePase, puntosDeFlecha, sombraDeBloque, type Anotacion, type Pase, type Encuadre, type Extremo, type Fase, type Grosor, type Jugada, type Punto, type Superficie, type Zonas,
 } from "@/lib/abp";
 import { ondularLinea, recortarLinea } from "@/lib/geometria";
+import { ALCANCE, APERTURA, OJOS, miradaDe } from "@/lib/mirada";
 
 const FACTOR_GROSOR: Record<Grosor, number> = { fino: 0.62, normal: 1, grueso: 1.65 };
 /** Lo que se dibuja cada cuadro porque va con los jugadores: flechas y medidas pegadas a fichas, y los bloques. */
@@ -32,6 +33,8 @@ const vaConFichas = (a: Anotacion) => a.tipo === "bloque" || ((a.tipo === "flech
 const LARGO = CAMPO.largo, ANCHO = CAMPO.ancho;
 const MEDIO_L = LARGO / 2, MEDIO_A = ANCHO / 2;
 const RADIO_FICHA = 0.85;
+/** El ángulo vertical de la cámara: el de siempre y, en los ojos de un jugador, el de una persona. */
+const FOV = 38, FOV_JUGADOR = 58;
 
 /** Blanco o casi negro, lo que se lea mejor sobre `fondo`. */
 function tintaSobre(fondo: string) {
@@ -77,6 +80,10 @@ export class EscenaABP implements Motor {
   private claveEstadio = "";
   private claveCampo = "";
   private vistaActual: Vista = "tactica";
+  /** El instante montado, para poner la cámara en los ojos de un jugador sin esperar a que se mueva. */
+  private tActual = 0;
+  /** Lo que pide la pantalla (no girar mientras se dibuja); en los ojos de un jugador no se gira nunca. */
+  private orbitarPedido = true;
   private encuadreActual: Encuadre = "campo";
   private cielo: THREE.HemisphereLight;
   private sol: THREE.DirectionalLight;
@@ -150,7 +157,7 @@ export class EscenaABP implements Motor {
         if (k >= 1) this.destino = null;
         this.sucio = true;
       }
-      this.controls.update();
+      this.actualizarCamara();
       if (this.sucio) {
         this.sucio = false;
         this.renderer.render(this.scene, this.camera);
@@ -161,7 +168,38 @@ export class EscenaABP implements Motor {
 
   /** Bloquea el giro de cámara mientras se dibuja con el puntero. */
   set orbitar(activo: boolean) {
-    this.controls.enabled = activo;
+    this.orbitarPedido = activo;
+    this.controls.enabled = activo && this.vistaActual !== "jugador";
+  }
+
+  /**
+   * En los ojos de un jugador, la cámara mira sin más a su objetivo: los
+   * controles de órbita la alejarían a su distancia mínima y le bajarían la
+   * cabeza a su ángulo máximo.
+   */
+  private actualizarCamara() {
+    if (this.vistaActual === "jugador") this.camera.lookAt(this.controls.target);
+    else this.controls.update();
+  }
+
+  /** La ficha en cuyos ojos va la cámara, si la vista es «jugador» y hay una. */
+  private get ojos() {
+    return this.vistaActual === "jugador" ? this.opcionesMontadas?.ojos ?? null : null;
+  }
+
+  /** Desde los ojos del jugador, mirando a donde mira en el instante `t`. */
+  private camaraDeJugador(t: number): { pos: THREE.Vector3; mira: THREE.Vector3 } | null {
+    const id = this.ojos, jugada = this.jugadaMontada, fase = this.fase;
+    if (!id || !jugada || !fase) return null;
+    const m = miradaDe(jugada, fase, id, t, this.opcionesMontadas?.ambiente.suavizado === "lineal");
+    if (!m) return null;
+    return { pos: new THREE.Vector3(m.desde.x, OJOS, m.desde.z), mira: new THREE.Vector3(m.mira.x, 0.36 + m.mira.y, m.mira.z) };
+  }
+
+  /** Su ficha no se ve: la cámara está dentro. */
+  private ocultarOjos() {
+    const id = this.ojos;
+    for (const [fichaId, g] of this.fichas) g.visible = fichaId !== id;
   }
 
   destruir() {
@@ -190,7 +228,7 @@ export class EscenaABP implements Motor {
 
   /** Renderiza ya, sin esperar al siguiente cuadro: para capturar la imagen justo después. */
   renderizarAhora() {
-    this.controls.update();
+    this.actualizarCamara();
     this.renderer.render(this.scene, this.camera);
   }
 
@@ -213,8 +251,33 @@ export class EscenaABP implements Motor {
    * jugada, desde atrás y a un lado. Cenital: la pizarra de siempre, desde arriba.
    */
   vista(vista: Vista, encuadre: Encuadre, centro: Punto | null, inmediato = false) {
+    const ojosAntes = this.ojos;
     this.vistaActual = vista;
     this.encuadreActual = encuadre;
+    if (this.ojos !== ojosAntes && this.jugadaMontada && this.opcionesMontadas) {
+      // Entrar en unos ojos o salir de ellos cambia lo que se dibuja (su carrera no se ve desde él).
+      const t = this.tActual;
+      this.montar(this.jugadaMontada, this.indiceMontado, this.opcionesMontadas, this.seleccionMontada, null);
+      this.instante(t);
+    }
+    this.controls.enabled = this.orbitarPedido && vista !== "jugador";
+    const fov = vista === "jugador" ? FOV_JUGADOR : FOV;
+    if (this.camera.fov !== fov) {
+      this.camera.fov = fov;
+      this.camera.updateProjectionMatrix();
+    }
+    this.ocultarOjos();
+    this.montarMirada();
+    if (vista === "jugador") {
+      const ojos = this.camaraDeJugador(this.tActual);
+      // Sin jugador elegido, se queda donde estaba: la pantalla no ofrece esta vista sin uno.
+      if (ojos) {
+        if (inmediato) { this.camera.position.copy(ojos.pos); this.controls.target.copy(ojos.mira); this.destino = null; }
+        else this.viajar(ojos.pos, ojos.mira);
+      }
+      this.sucio = true;
+      return;
+    }
     const caja = CAJA_DE_ENCUADRE[encuadre];
     const c = { x: (caja.x0 + caja.x1) / 2, z: (caja.z0 + caja.z1) / 2 };
     const dx = caja.x1 - caja.x0, dz = caja.z1 - caja.z0;
@@ -255,6 +318,7 @@ export class EscenaABP implements Motor {
 
   /** Acerca la cámara a lo que pasa en la fase: las fichas que se mueven, el balón y su destino. */
   centrar(puntos: Punto[]) {
+    if (this.vistaActual === "jugador") return;
     if (!puntos.length) return this.vista(this.vistaActual, this.encuadreActual, null);
     const xs = puntos.map((p) => p.x), zs = puntos.map((p) => p.z);
     const c = { x: (Math.min(...xs) + Math.max(...xs)) / 2, z: (Math.min(...zs) + Math.max(...zs)) / 2 };
@@ -1010,7 +1074,8 @@ export class EscenaABP implements Motor {
       for (const c of fase.carreras) {
         const ficha = jugada.fichas.find((f) => f.id === c.fichaId);
         const desde = antesDelPaso(fase, c.fichaId, pasoDe(c));
-        if (!ficha || !desde) continue;
+        // Desde sus ojos, su propia carrera sería una flecha enorme a sus pies.
+        if (!ficha || !desde || c.fichaId === this.ojos) continue;
         this.dinamico.add(this.carrera(desde, c.hasta, c.curva, colorDe(ficha.equipo)));
         if (numerar) numero(enCurva(desde, c.hasta, c.curva, 0.3), pasoDe(c) + 1);
       }
@@ -1032,6 +1097,7 @@ export class EscenaABP implements Motor {
       this.fichas.set(f.id, g);
       this.dinamico.add(g);
     }
+    this.ocultarOjos();
 
     if (borrador) {
       const b = borrador;
@@ -1073,6 +1139,7 @@ export class EscenaABP implements Motor {
   instante(t: number) {
     const fase = this.fase;
     if (!fase) return;
+    this.tActual = t;
     const lineal = this.opcionesMontadas?.ambiente.suavizado === "lineal";
     for (const [id, g] of this.fichas) {
       const p = posicionEn(fase, id, t, lineal);
@@ -1094,8 +1161,14 @@ export class EscenaABP implements Motor {
         this.vivas.add(this.anotacion(a, opciones, estaElegido(this.seleccionMontada, "anotacion", a.id), 1, fase, t));
       }
     }
+    this.montarMirada();
     const b = balonEn(fase, t);
-    if (this.seguirBalon) {
+    const ojos = this.camaraDeJugador(t);
+    if (ojos) {
+      // En sus ojos: la cámara corre con él y gira la cabeza hacia el balón.
+      if (this.destino) { this.destino.pos = ojos.pos; this.destino.mira = ojos.mira; }
+      else { this.camera.position.copy(ojos.pos); this.controls.target.copy(ojos.mira); }
+    } else if (this.seguirBalon) {
       // La cámara se desliza tras el balón sin perder su ángulo.
       const paso = new THREE.Vector3(b.x, 0, b.z).sub(this.controls.target).multiplyScalar(0.08);
       paso.y = 0;
@@ -1108,6 +1181,43 @@ export class EscenaABP implements Motor {
     this.sombraBalon.scale.set(escala, 1, escala);
     (this.sombraBalon.material as THREE.MeshBasicMaterial).opacity = 0.45 * escala;
     this.sucio = true;
+  }
+
+  /**
+   * La cuña de lo que ve el jugador de `Opciones.ojos`, sobre el césped. Va en
+   * el grupo de lo vivo porque se mueve con él; desde sus propios ojos no se
+   * pinta, que taparía lo que ve.
+   */
+  private montarMirada() {
+    const viejo = this.vivas.getObjectByName("mirada");
+    if (viejo) { this.vivas.remove(viejo); this.vaciar(viejo); }
+    const id = this.opcionesMontadas?.ojos, jugada = this.jugadaMontada, fase = this.fase;
+    if (!id || !jugada || !fase || this.vistaActual === "jugador") return;
+    const m = miradaDe(jugada, fase, id, this.tActual, this.opcionesMontadas?.ambiente.suavizado === "lineal");
+    if (!m) return;
+    const mitad = (APERTURA / 2) * (Math.PI / 180);
+    // CircleGeometry va en XY; tumbada, el ángulo θ queda en (cos θ, −sin θ) sobre el césped.
+    const geo = new THREE.CircleGeometry(ALCANCE, 32, -m.angulo - mitad, 2 * mitad).rotateX(-Math.PI / 2);
+    const cuna = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: this.degradadoDeMirada(), transparent: true, depthWrite: false }));
+    cuna.name = "mirada";
+    cuna.position.set(m.desde.x, 0.04, m.desde.z);
+    cuna.renderOrder = 1;
+    this.vivas.add(cuna);
+  }
+
+  /** Dorado en el centro y transparente en el borde: la cuña se apaga con la distancia. */
+  private degradadoDeMirada() {
+    return this.enCache("mirada", () => {
+      const lienzo = document.createElement("canvas");
+      lienzo.width = lienzo.height = 128;
+      const ctx = lienzo.getContext("2d")!;
+      const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+      g.addColorStop(0, "rgba(243,182,76,0.5)");
+      g.addColorStop(1, "rgba(243,182,76,0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, 128, 128);
+      return lienzo;
+    });
   }
 
   /** La imagen de lo que se ve ahora, para descargar o meter en el PDF. */

@@ -17,6 +17,7 @@ import {
   lineaDeBloque, materialEn, pasesDe, pasoDe, pasosDe, posicionEn, puntosDeFlecha, sombraDeBloque, suavizar,
   type Anotacion, type Capa, type Encuadre, type Equipacion, type Extremo, type Fase, type Grosor, type Jugada, type Material, type Punto,
 } from "@/lib/abp";
+import { ALCANCE, APERTURA, miradaDe } from "@/lib/mirada";
 import { abreviar, cajaDe, camaraDeCaja, interpolarCamara, transformacion, type Camara, type Transformacion } from "@/lib/tablero";
 import { SUPERFICIE, luz, rgba, tintaSobre } from "./temas";
 import { estaElegido, type Borrador, type Motor, type Opciones, type Seleccion, type Vista } from "./motor";
@@ -319,6 +320,8 @@ export class Tablero2D implements Motor {
       for (const a of de("bloque")) pintar(a);
       // El foco va encima de las zonas y debajo de flechas y fichas: apaga el césped de fuera, no a los jugadores.
       for (const a of de("rect", "zona")) if ((a.tipo === "rect" || a.tipo === "zona") && a.estilo === "foco") pintar(a);
+      // Lo que ve el jugador elegido: una cuña hacia el balón, en el césped.
+      if (o.ojos) this.pintarMirada(tr, jugada, fase, o.ojos, lineal);
       // El material va en el césped: debajo de las flechas y de los jugadores.
       // Si una pieza está en otro sitio en la fase siguiente, se ve moverse.
       for (const m of fase.material ?? []) this.pintarMaterial(tr, materialEn(jugada, this.indice, m, this.t, lineal), o, estaElegido(this.seleccion, "material", m.id));
@@ -357,6 +360,39 @@ export class Tablero2D implements Motor {
       for (const a of medidas) if (a.tipo === "medida") this.conAlfa(() => this.pintarMedida(tr, a, fase, this.trazoDe(a.color || o.colorAnotacion, o), o, this.esElegida(a.id), "rotulo"));
       if (this.borrador?.tipo === "bloque") this.pintarElegidosDeBloque(tr, this.borrador.fichas, fase, o, lineal);
       for (const a of de("texto", "etiqueta")) pintar(a);
+    }
+    ctx.restore();
+  }
+
+  /** La cuña de visión: dorada, que se apaga con la distancia, con sus dos bordes marcados. */
+  private pintarMirada(tr: Transformacion, jugada: Jugada, fase: Fase, fichaId: string, lineal: boolean) {
+    const m = miradaDe(jugada, fase, fichaId, this.t, lineal);
+    if (!m) return;
+    const ctx = this.ctx, mitad = (APERTURA / 2) * (Math.PI / 180);
+    const c = tr.aPantalla(m.desde);
+    const borde = (k: number) => {
+      const a = m.angulo - mitad + 2 * mitad * k;
+      return tr.aPantalla({ x: m.desde.x + Math.cos(a) * ALCANCE, z: m.desde.z + Math.sin(a) * ALCANCE });
+    };
+    ctx.save();
+    const relleno = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, ALCANCE * tr.escala);
+    relleno.addColorStop(0, "rgba(243,182,76,0.42)");
+    relleno.addColorStop(1, "rgba(243,182,76,0)");
+    ctx.fillStyle = relleno;
+    ctx.beginPath();
+    ctx.moveTo(c.x, c.y);
+    for (let i = 0; i <= 24; i += 1) { const q = borde(i / 24); ctx.lineTo(q.x, q.y); }
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "rgba(243,182,76,0.75)";
+    ctx.lineWidth = Math.max(1, 0.12 * tr.escala);
+    ctx.setLineDash([Math.max(3, 0.6 * tr.escala), Math.max(3, 0.5 * tr.escala)]);
+    for (const k of [0, 1]) {
+      const q = borde(k);
+      ctx.beginPath();
+      ctx.moveTo(c.x, c.y);
+      ctx.lineTo(c.x + (q.x - c.x) * 0.6, c.y + (q.y - c.y) * 0.6);
+      ctx.stroke();
     }
     ctx.restore();
   }
