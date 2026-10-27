@@ -2785,6 +2785,15 @@ const EN: Record<string, string> = {
   "Como el sistema ({encuadre})": "As the system ({encuadre})",
   "La del sistema": "The system's",
   "Al llegar a esta fase, la cámara viaja a este encuadre: al reproducir, en el vídeo y en el enlace.": "On reaching this phase, the camera travels to this framing: when playing, in the video and in the link.",
+  // ---- Pizarra: cambiar de dibujo ----
+  "Cambiar a…": "Change to…",
+  "El dibujo nuevo": "The new shape",
+  "Desde el principio": "From the start",
+  "En esta fase": "In this phase",
+  "Es el de salida, desde la primera fase": "It's the starting shape, from the first phase",
+  "El equipo se recoloca en esta fase, llegando desde la anterior": "The team rearranges in this phase, moving from the previous one",
+  "{equipo}, a {dibujo} desde la primera fase: los nombres, las carreras y las fases siguen.": "{equipo}, to {dibujo} from the first phase: names, runs and phases stay.",
+  "{equipo}, a {dibujo} en esta fase: llegan desde la anterior.": "{equipo}, to {dibujo} in this phase: they move there from the previous one.",
   // ---- Pizarra: explicar con voz y lápiz ----
   "Explicar": "Explain",
   "Explicar la jugada": "Explain the move",

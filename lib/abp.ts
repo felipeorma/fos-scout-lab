@@ -294,6 +294,7 @@ const EN_ABP: Record<string, string> = {
   "Rondo 10 × 10": "Rondo 10 × 10", "Rondo 20 × 20": "Rondo 20 × 20", "Posesión 30 × 20": "Possession 30 × 20", "Posesión 40 × 30": "Possession 40 × 30",
   "5 contra 5 · 40 × 25": "5 v 5 · 40 × 25", "7 contra 7 · 55 × 40": "7 v 7 · 55 × 40", "9 contra 9 · 70 × 50": "9 v 9 · 70 × 50",
   "Amarillo": "Yellow", "Naranja": "Orange", "Verde": "Green", "Azul": "Blue", "Rosa": "Pink", "Blanco": "White",
+  "4-3-3 falso 9": "4-3-3 false 9", "3-4-3 rombo": "3-4-3 diamond", "WM (3-2-2-3)": "WM (3-2-2-3)", "2-3-5 pirámide": "2-3-5 pyramid", "3-2-4-1 (caja)": "3-2-4-1 (box)",
 };
 
 /** Un nombre de serie en el idioma pedido; cualquier otro texto, sin tocar. */
@@ -1219,10 +1220,106 @@ export function plantilla(tipo: TipoABP): Jugada {
 
 // ---- Sistemas de partido: dos dibujos frente a frente ------------------------------------
 
-/** Los dibujos que se pueden poner, los de la pizarra del partido. */
-export const FORMACIONES = Object.keys(DIBUJOS);
-/** "4231" se lee "4-2-3-1". */
-export const nombreDeFormacion = (codigo: string) => codigo.split("").join("-");
+/**
+ * Los dibujos del estudio: los de la pizarra del partido (con código de
+ * StatsBomb) y unos cuantos más que no salen en los datos pero sí en una
+ * pizarra: el 4-2-4, la caja 3-2-4-1, el WM, la pirámide…
+ */
+export const DIBUJOS_DEL_ESTUDIO: Record<string, string[]> = {
+  ...DIBUJOS,
+  "433f": ["GK", "LB", "LCB", "RCB", "RB", "LCMF", "DMF", "RCMF", "LW", "SS", "RW"],
+  "424": ["GK", "LB", "LCB", "RCB", "RB", "LDMF", "RDMF", "LW", "LCF", "RCF", "RW"],
+  "4132": ["GK", "LB", "LCB", "RCB", "RB", "DMF", "LM", "CMF", "RM", "LCF", "RCF"],
+  "3241": ["GK", "LCB", "CB", "RCB", "LDMF", "RDMF", "LM", "LAMF", "RAMF", "RM", "CF"],
+  "343d": ["GK", "LCB", "CB", "RCB", "DMF", "LM", "RM", "AMF", "LW", "CF", "RW"],
+  "523": ["GK", "LWB", "LCB", "CB", "RCB", "RWB", "LCMF", "RCMF", "LW", "CF", "RW"],
+  "3223": ["GK", "LCB", "CB", "RCB", "LDMF", "RDMF", "LAMF", "RAMF", "LW", "CF", "RW"],
+  "235": ["GK", "LCB", "RCB", "LCMF", "CMF", "RCMF", "LW", "LCF", "CF", "RCF", "RW"],
+};
+/** Los dibujos que se pueden poner en el estudio. */
+export const FORMACIONES = Object.keys(DIBUJOS_DEL_ESTUDIO);
+/** Los que no se leen cifra a cifra. */
+const NOMBRE_DE_DIBUJO: Record<string, string> = {
+  "433f": "4-3-3 falso 9", "343d": "3-4-3 rombo", "3223": "WM (3-2-2-3)", "235": "2-3-5 pirámide", "3241": "3-2-4-1 (caja)",
+};
+/** "4231" se lee "4-2-3-1"; los especiales, con su nombre. */
+export const nombreDeFormacion = (codigo: string) => NOMBRE_DE_DIBUJO[codigo] ?? codigo.split("").join("-");
+
+/**
+ * Los once sitios de un dibujo para un equipo: el puesto, su rol en la ficha,
+ * su dorsal de siempre y dónde se pone. Nosotros atacamos hacia +x; ellos,
+ * hacia −x, girados media vuelta.
+ */
+export function sitiosDeDibujo(codigo: string, equipo: Equipo) {
+  return onceDe(DIBUJOS_DEL_ESTUDIO[codigo] ?? DIBUJOS["433"]).map(({ codigo: puesto, dorsal, rol }) => {
+    const [hondo, ancho] = SITIO[puesto] ?? [50, 40];
+    // Profundidad 0–100 a lo largo del campo; el portero, un metro y medio dentro de su línea.
+    const x = -MEDIO_LARGO + 1.5 + (hondo / 100) * (CAMPO.largo - 3);
+    const z = (ancho / 80) * CAMPO.ancho - CAMPO.ancho / 2;
+    return { puesto, dorsal, rol, p: equipo === "local" ? { x, z } : { x: -x, z: -z } };
+  });
+}
+
+/**
+ * Pasa a un equipo a otro dibujo sin perder el trabajo: los nombres, los
+ * dorsales, las carreras y las fases se quedan. Cada ficha va al sitio libre
+ * más cercano del dibujo nuevo (el portero, a la portería) y toma su rol.
+ * «principio»: el dibujo nuevo es el de salida, desde la primera fase.
+ * «fase»: el equipo se recoloca en la fase `indice`, llegando ahí desde la
+ * anterior. Si al equipo le faltan fichas para el once, se añaden.
+ */
+export function cambiarDibujo(jugada: Jugada, indice: number, equipo: Equipo, codigo: string, desde: "principio" | "fase"): Jugada {
+  const donde = desde === "principio" ? 0 : Math.max(0, Math.min(indice, jugada.fases.length - 1));
+  const fase = jugada.fases[donde];
+  const sitios = sitiosDeDibujo(codigo, equipo);
+  const suyas = jugada.fichas.filter((f) => f.equipo === equipo);
+  // Parejas ficha–sitio de menos a más distancia; el portero solo con la portería.
+  const parejas: Array<{ id: string; k: number; d: number }> = [];
+  for (const f of suyas) {
+    const p = fase.pos[f.id];
+    if (!p) continue;
+    sitios.forEach((s, k) => {
+      if ((s.puesto === "GK") !== esRolDePortero(f.rol)) return;
+      parejas.push({ id: f.id, k, d: Math.hypot(p.x - s.p.x, p.z - s.p.z) });
+    });
+  }
+  parejas.sort((a, b) => a.d - b.d);
+  const deFicha = new Map<string, number>(), ocupado = new Set<number>();
+  for (const { id, k } of parejas) {
+    if (deFicha.has(id) || ocupado.has(k)) continue;
+    deFicha.set(id, k);
+    ocupado.add(k);
+  }
+  // Un portero que no encontró sitio (o fichas sin rol de portero) ocupan los sitios que queden, por cercanía.
+  for (const f of suyas) {
+    if (deFicha.has(f.id) || !fase.pos[f.id]) continue;
+    const p = fase.pos[f.id];
+    const libre = sitios.map((s, k) => ({ k, d: Math.hypot(p.x - s.p.x, p.z - s.p.z) })).filter((x) => !ocupado.has(x.k)).sort((a, b) => a.d - b.d)[0];
+    if (!libre) continue;
+    deFicha.set(f.id, libre.k);
+    ocupado.add(libre.k);
+  }
+  let j: Jugada = { ...jugada, fichas: jugada.fichas.map((f) => (deFicha.has(f.id) ? { ...f, rol: sitios[deFicha.get(f.id)!].rol } : f)) };
+  for (const [id, k] of deFicha) {
+    j = desde === "principio" || donde === 0 ? moverFicha(j, 0, id, sitios[k].p) : posar(j, donde, id, sitios[k].p);
+  }
+  // Los sitios que quedan libres: fichas nuevas, ahí en todas las fases.
+  const usados = new Set(j.fichas.filter((f) => f.equipo === equipo).map((f) => f.dorsal));
+  const nuevas: Ficha[] = [];
+  sitios.forEach((s, k) => {
+    if (ocupado.has(k)) return;
+    let dorsal = s.dorsal;
+    if (usados.has(dorsal)) { let n = 2; while (usados.has(String(n))) n += 1; dorsal = String(n); }
+    usados.add(dorsal);
+    const prefijo = equipo === "local" ? "L" : "R";
+    const id = j.fichas.some((f) => f.id === `${prefijo}${dorsal}`) ? nuevoId(prefijo) : `${prefijo}${dorsal}`;
+    nuevas.push({ id, equipo, dorsal, rol: s.rol });
+    j = { ...j, fases: j.fases.map((f) => ({ ...f, pos: { ...f.pos, [id]: { ...s.p } } })) };
+  });
+  return nuevas.length ? { ...j, fichas: [...j.fichas, ...nuevas] } : j;
+}
+
+const esRolDePortero = (rol: string) => /^(portero|por|gk|goalkeeper)$/i.test(rol.trim());
 
 /** El rótulo corto de cada puesto, en español; el inglés sale de `deSerie`. */
 const PUESTO: Record<string, string> = {
@@ -1255,16 +1352,8 @@ function onceDe(puestos: string[]) {
  * como en un partido: sus puntas caen sobre nuestros centrales.
  */
 export function sistemaDePartido(propia: string, rival: string, balon: "nuestro" | "suyo", categoria: Categoria): Jugada {
-  const ponerLado = (codigo: string, equipo: Equipo) => {
-    const once = onceDe(DIBUJOS[codigo] ?? DIBUJOS["433"]);
-    return once.map(({ codigo: puesto, dorsal, rol }) => {
-      const [hondo, ancho] = SITIO[puesto] ?? [50, 40];
-      // Profundidad 0–100 a lo largo del campo; el portero, un metro y medio dentro de su línea.
-      const x = -MEDIO_LARGO + 1.5 + (hondo / 100) * (CAMPO.largo - 3);
-      const z = (ancho / 80) * CAMPO.ancho - CAMPO.ancho / 2;
-      return { id: `${equipo === "local" ? "L" : "R"}${dorsal}`, equipo, dorsal, rol, sitio: equipo === "local" ? { x, z } : { x: -x, z: -z } };
-    });
-  };
+  const ponerLado = (codigo: string, equipo: Equipo) =>
+    sitiosDeDibujo(codigo, equipo).map(({ dorsal, rol, p }) => ({ id: `${equipo === "local" ? "L" : "R"}${dorsal}`, equipo, dorsal, rol, sitio: p }));
   const todos = [...ponerLado(propia, "local"), ...ponerLado(rival, "rival")];
   const pos = Object.fromEntries(todos.map((f) => [f.id, f.sitio]));
   const portero = todos.find((f) => f.equipo === (balon === "nuestro" ? "local" : "rival") && f.rol === "POR");
