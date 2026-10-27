@@ -119,10 +119,10 @@ export function Portal({ jugadas, miniaturas, idioma, onAbrir, onCrear, onDuplic
       </div>
       {nuevo === "partido" && <div className="tactico-formulario">
         <label><span>{t("Nuestro dibujo")}</span>
-          <select value={propia} onChange={(e) => setPropia(e.target.value)}>{FORMACIONES.map((f) => <option key={f} value={f}>{nombreDeFormacion(f)}</option>)}</select>
+          <select value={propia} onChange={(e) => setPropia(e.target.value)}>{FORMACIONES.map((f) => <option key={f} value={f}>{deSerieEn(nombreDeFormacion(f))}</option>)}</select>
         </label>
         <label><span>{t("Su dibujo")}</span>
-          <select value={rival} onChange={(e) => setRival(e.target.value)}>{FORMACIONES.map((f) => <option key={f} value={f}>{nombreDeFormacion(f)}</option>)}</select>
+          <select value={rival} onChange={(e) => setRival(e.target.value)}>{FORMACIONES.map((f) => <option key={f} value={f}>{deSerieEn(nombreDeFormacion(f))}</option>)}</select>
         </label>
         <div><span>{t("Balón")}</span>
           <div className="inspector-segmentos">
@@ -135,7 +135,7 @@ export function Portal({ jugadas, miniaturas, idioma, onAbrir, onCrear, onDuplic
             {CATEGORIAS.filter((c) => ["salida", "presion", "ataque", "defensa"].includes(c.id)).map((c) => <option key={c.id} value={c.id}>{deSerieEn(c.nombre)}</option>)}
           </select>
         </label>
-        <button type="button" className="button primary compact" onClick={crearPartido}>{tf("Crear {a} contra {b}", { a: nombreDeFormacion(propia), b: nombreDeFormacion(rival) })}</button>
+        <button type="button" className="button primary compact" onClick={crearPartido}>{tf("Crear {a} contra {b}", { a: deSerieEn(nombreDeFormacion(propia)), b: deSerieEn(nombreDeFormacion(rival)) })}</button>
       </div>}
       {nuevo === "abp" && <div className="tactico-plantillas">
         {TIPOS_ABP.filter((x) => ["corner_der", "corner_izq", "falta_frontal", "falta_lateral", "banda"].includes(x.id)).map((x) =>

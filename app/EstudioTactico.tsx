@@ -8,6 +8,7 @@ import {
   filaDeMaterial, materialCerca, moverMaterial, quitarMaterial, EQUIPACION_LISA, copiaDeAnotacion, extremosDe, normalizarCuaderno,
   antesDelPaso, balonAntesDelPaso, balonFinal, capaDe, carrerasDe, pasesDe, pasoDe, pasosDe, posFinal, MAX_PASOS, fasesEnlazadas, separarDeLasDemas, nuevoId, quitarAnotacion, quitarCarrera, quitarFase, quitarFicha, quitarPase,
   renombrarFase, tipoDePase, deSerie, CATEGORIAS, ENCUADRES, SUPERFICIES, ZONAS, CAJA_DE_ENCUADRE, ESCALA_MATERIAL, cambiarCamara,
+  FORMACIONES, cambiarDibujo, nombreDeFormacion,
   type Ambiente, type Anotacion, type Capa, type CamaraDeFase, type Categoria, type Cuaderno, type Encuadre, type Equipacion, type Equipo, type EstiloFlecha, type EstiloZona, type Extremo,
   type Fase, type Grosor, type Jugada, type Material, type Pase, type Punto, type RellenoBloque, type TipoMaterial,
 } from "@/lib/abp";
@@ -148,6 +149,8 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
   const [rellenoBloque, setRellenoBloque] = useState<RellenoBloque>("atras");
   const [atajos, setAtajos] = useState(false);
   const [planAbierto, setPlanAbierto] = useState(false);
+  // Al cambiar de dibujo: el nuevo es el de salida o el equipo se recoloca en la fase actual.
+  const [dibujoDesde, setDibujoDesde] = useState<"principio" | "fase">("principio");
   // Explicar: grabar el tablero con la voz y un lápiz encima.
   const [explicando, setExplicando] = useState(false);
   const [paletaAbierta, setPaletaAbierta] = useState(false);
@@ -1526,6 +1529,28 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
                   </div>
                 </div>
                 <div className="inspector-fila"><span>{t("Nombres de los roles")}</span><Interruptor activo={nombres} onCambio={setNombres} titulo={t("Nombres de los roles")} /></div>
+              </div>
+              <div className="inspector-tarjeta abp-cambio-de-dibujo">
+                {(["local", "rival"] as const).map((equipo) => <label key={equipo} className="inspector-fila"><span>{equipo === "local" ? t("Nuestro dibujo") : t("Su dibujo")}</span>
+                  <select className="inspector-selector" value="" aria-label={equipo === "local" ? t("Nuestro dibujo") : t("Su dibujo")}
+                    onChange={(e) => {
+                      const codigo = e.target.value;
+                      if (!codigo) return;
+                      guardar(cambiarDibujo(jugada, indice, equipo, codigo, dibujoDesde));
+                      setAviso(tf(dibujoDesde === "principio" ? "{equipo}, a {dibujo} desde la primera fase: los nombres, las carreras y las fases siguen." : "{equipo}, a {dibujo} en esta fase: llegan desde la anterior.", {
+                        equipo: equipo === "local" ? t("Nosotros") : t("Ellos"), dibujo: deSerieEn(nombreDeFormacion(codigo)),
+                      }));
+                    }}>
+                    <option value="">{t("Cambiar a…")}</option>
+                    {FORMACIONES.map((f) => <option key={f} value={f}>{deSerieEn(nombreDeFormacion(f))}</option>)}
+                  </select>
+                </label>)}
+                <div className="inspector-fila"><span>{t("El dibujo nuevo")}</span>
+                  <div className="inspector-segmentos">
+                    <button type="button" className={dibujoDesde === "principio" ? "activa" : ""} onClick={() => setDibujoDesde("principio")} title={t("Es el de salida, desde la primera fase")}>{t("Desde el principio")}</button>
+                    <button type="button" className={dibujoDesde === "fase" ? "activa" : ""} onClick={() => setDibujoDesde("fase")} title={t("El equipo se recoloca en esta fase, llegando desde la anterior")}>{t("En esta fase")}</button>
+                  </div>
+                </div>
               </div>
             </section>
 
