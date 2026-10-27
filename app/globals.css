@@ -7578,6 +7578,44 @@ body.print-layout-check .app-shell[data-tema] .pizarra-duelos > ol { grid-templa
 .app-shell[data-tema] .pintado-puntos > button.activa { box-shadow: inset 0 0 0 1.5px var(--acento); background: var(--acento-suave); }
 .pintado-calibrar { margin: 0; padding: 8px 10px 0; }
 .pintado-jugadores { margin-top: 8px; }
+/* Codificar el partido: los códigos, las marcas en la línea de tiempo y la lista de momentos. */
+.pintado-codigos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px; margin-bottom: 8px; }
+.app-shell[data-tema] .pintado-codigos > button {
+  min-width: 0; min-height: 32px; padding: 0 8px; display: flex; align-items: center; gap: 6px;
+  border: 0; border-radius: 8px; background: color-mix(in srgb, var(--ink) 5%, transparent); box-shadow: none;
+  color: var(--ink); font-size: 11.5px; text-align: left; cursor: pointer;
+}
+.app-shell[data-tema] .pintado-codigos > button:hover { background: var(--acento-suave); }
+.app-shell[data-tema] .pintado-codigos > button:active { transform: scale(.98); }
+.pintado-codigos > button > i, .pintado-filtros > button > i, .pintado-momento-ir > i { flex: none; width: 9px; height: 9px; border-radius: 50%; box-shadow: 0 0 0 1px rgba(0,0,0,.35); }
+.pintado-codigos > button > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-shell[data-tema] .pintado-codigos kbd { flex: none; min-width: 16px; padding: 0 4px; border-radius: 4px; background: color-mix(in srgb, var(--ink) 10%, transparent); font: 600 10px/16px ui-monospace, monospace; text-align: center; }
+.app-shell[data-tema] .pintado-codigos > button > b { flex: none; color: var(--acento-claro); font-size: 10.5px; }
+.pintado-codigo-editable { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; padding: 2px 4px; }
+.app-shell[data-tema] .pintado-codigo-editable > input.abp-campo { flex: 1; max-width: none; text-align: left; }
+.pintado-segundos { display: flex; align-items: center; gap: 4px; }
+.app-shell[data-tema] .pintado-segundos small { color: var(--muted); font-size: 11px; white-space: nowrap; }
+.app-shell[data-tema] .pintado-segundos input.abp-campo.corto { width: 40px; }
+.pintado-marcas { position: relative; height: 10px; margin: 2px 0 0; border-radius: 3px; background: color-mix(in srgb, var(--ink, #f5f5f7) 6%, transparent); }
+.pintado-marcas > button { position: absolute; top: 0; width: 3px; height: 10px; margin-left: -1.5px; padding: 0; border: 0; border-radius: 1px; cursor: pointer; }
+.pintado-marcas > button:hover { width: 5px; margin-left: -2.5px; }
+.pintado-momentos { margin-top: 10px; display: grid; gap: 6px; }
+.pintado-filtros { display: flex; flex-wrap: wrap; gap: 4px; }
+.app-shell[data-tema] .pintado-filtros > button {
+  min-height: 26px; padding: 0 9px; display: inline-flex; align-items: center; gap: 5px;
+  border: 0; border-radius: 999px; background: color-mix(in srgb, var(--ink) 5%, transparent); box-shadow: none; color: var(--ink); font-size: 11.5px; cursor: pointer;
+}
+.app-shell[data-tema] .pintado-filtros > button.activa { background: var(--acento-suave); box-shadow: inset 0 0 0 1px var(--acento-borde); }
+.app-shell[data-tema] .pintado-filtros > button > b { color: var(--muted); font-size: 10.5px; }
+.pintado-momentos > ol { list-style: none; margin: 0; padding: 0; max-height: 260px; overflow: auto; display: grid; gap: 3px; }
+.app-shell[data-tema] .pintado-momentos li { display: flex; align-items: center; gap: 6px; padding: 3px 6px; border-radius: 8px; background: color-mix(in srgb, var(--ink) 3%, transparent); }
+.app-shell[data-tema] .pintado-momentos li.ahora { box-shadow: inset 0 0 0 1px var(--acento-borde); background: var(--acento-suave); }
+.app-shell[data-tema] .pintado-momento-ir { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 26px; padding: 0 6px; border: 0; border-radius: 6px; background: none; box-shadow: none; color: var(--ink); font-size: 11.5px; cursor: pointer; }
+.app-shell[data-tema] .pintado-momento-ir:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.app-shell[data-tema] .pintado-momento-ir > span { color: var(--muted); font-variant-numeric: tabular-nums; }
+.app-shell[data-tema] .pintado-momentos li > input.abp-campo { flex: 1; max-width: none; text-align: left; font-size: 12px; }
+.app-shell[data-tema] .pintado-momentos li > button:not(.pintado-momento-ir) { flex: none; min-height: 24px; padding: 0 6px; border: 0; border-radius: 6px; background: none; box-shadow: none; color: var(--muted); font-size: 11px; cursor: pointer; }
+.app-shell[data-tema] .pintado-momentos li > button:not(.pintado-momento-ir):hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 7%, transparent); }
 /* Las secuencias guardadas: el tramo de fases y la lista para soltarlas. */
 .abp-secuencia-tramo { display: flex; align-items: center; gap: 4px; min-width: 0; max-width: 70%; }
 .abp-secuencia-tramo > select { min-width: 0; flex: 1; }
