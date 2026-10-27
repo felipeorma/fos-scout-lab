@@ -7,8 +7,8 @@ import {
   moverFase, posar, posarBalon, cambiarPausa, AMBIENTE_POR_DEFECTO, agregarMaterial, cambiarEquipacion, cambiarMaterial, datosDeMaterial, equipacionDe,
   filaDeMaterial, materialCerca, moverMaterial, quitarMaterial, EQUIPACION_LISA, copiaDeAnotacion, extremosDe, normalizarCuaderno,
   antesDelPaso, balonAntesDelPaso, balonFinal, capaDe, carrerasDe, pasesDe, pasoDe, pasosDe, posFinal, MAX_PASOS, fasesEnlazadas, separarDeLasDemas, nuevoId, quitarAnotacion, quitarCarrera, quitarFase, quitarFicha, quitarPase,
-  renombrarFase, tipoDePase, deSerie, CATEGORIAS, ENCUADRES, SUPERFICIES, ZONAS, CAJA_DE_ENCUADRE, ESCALA_MATERIAL,
-  type Ambiente, type Anotacion, type Capa, type Categoria, type Cuaderno, type Equipacion, type Equipo, type EstiloFlecha, type EstiloZona, type Extremo,
+  renombrarFase, tipoDePase, deSerie, CATEGORIAS, ENCUADRES, SUPERFICIES, ZONAS, CAJA_DE_ENCUADRE, ESCALA_MATERIAL, cambiarCamara,
+  type Ambiente, type Anotacion, type Capa, type CamaraDeFase, type Categoria, type Cuaderno, type Encuadre, type Equipacion, type Equipo, type EstiloFlecha, type EstiloZona, type Extremo,
   type Fase, type Grosor, type Jugada, type Material, type Pase, type Punto, type RellenoBloque, type TipoMaterial,
 } from "@/lib/abp";
 import { simplificar } from "@/lib/geometria";
@@ -309,7 +309,7 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
         colorLocal: j.colores.local ?? acento, colorRival: j.colores.rival, colorAnotacion: j.colores.anotacion,
         equipaciones: { local: equipacionDe(j, "local"), rival: equipacionDe(j, "rival") },
       }, null, null);
-      fotografo.vista("tactica", j.ambiente.encuadre, null, true);
+      camaraDeFase(fotografo, j.fases[i], j.ambiente.encuadre, "tactica", false, true);
       return fotografo.capturar("image/jpeg", 0.86);
     } finally {
       fotografo.destruir();
@@ -331,7 +331,14 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
   const encuadre = ambiente?.encuadre ?? "campo";
   const jugadaId = jugada?.id;
   const orientacion = ambiente?.orientacion ?? "horizontal";
-  useEffect(() => { escenaRef.current?.vista(vista, encuadre, fase ? centroDe(fase) : null); }, [vista, lista, encuadre, jugadaId, modo, motorVersion, orientacion, ojosVivos]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Y al llegar a una fase con su propia cámara (o al salir de ella), viaja allí: también al reproducir.
+  const claveCamara = claveDeCamara(fase, indice);
+  useEffect(() => {
+    const escena = escenaRef.current;
+    if (!escena) return;
+    if (fase) camaraDeFase(escena, fase, encuadre, vista, dimension === "3d", false);
+    else escena.vista(vista, encuadre, null);
+  }, [vista, lista, encuadre, jugadaId, modo, motorVersion, orientacion, ojosVivos, claveCamara]); // eslint-disable-line react-hooks/exhaustive-deps
   // Sin nadie en cuyos ojos ponerse (se quitó su ficha o se cambió de sistema), la cámara vuelve al 3D.
   useEffect(() => { if (vista === "jugador" && !ojosVivos) setVista("3d"); }, [vista, ojosVivos]); // eslint-disable-line react-hooks/set-state-in-effect
 
@@ -365,7 +372,7 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
       try {
         const fotos = jugada.fases.map((_, i) => {
           fotografo.montar(jugada, i, { ...opciones, nombres: false }, null, null);
-          fotografo.vista("tactica", encuadre, null, true);
+          camaraDeFase(fotografo, jugada.fases[i], encuadre, "tactica", false, true);
           return fotografo.capturar("image/jpeg", 0.7);
         });
         setFotosDeFases(fotos);
@@ -377,7 +384,7 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
   }, [modo, jugada, opciones, reproduciendo, grabando, encuadre, orientacion]);
 
   // El zoom vuelve a 100 % con cada encuadre nuevo.
-  useEffect(() => { setZoom(100); }, [encuadre, orientacion, jugadaId, dimension]); // eslint-disable-line react-hooks/set-state-in-effect
+  useEffect(() => { setZoom(100); }, [encuadre, orientacion, jugadaId, dimension, claveCamara]); // eslint-disable-line react-hooks/set-state-in-effect
 
   // ---- Reproducir ----
   useEffect(() => {
@@ -1160,6 +1167,9 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
       jugada.fases.forEach((f, i) => {
         if (i > 0) pdf.addPage();
         dibujarFase(i, 0);
+        // Cada página con la cámara de su fase.
+        camaraDeFase(escena, f, encuadre, vista, dimension === "3d", true);
+        escena.renderizarAhora();
         const imagen = escena.canvas.toDataURL("image/jpeg", 0.92);
         pdf.setFillColor(8, 8, 10);
         pdf.rect(0, 0, W, H, "F");
@@ -1194,6 +1204,8 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
       setAviso(t("No se pudo preparar el PDF. Prueba de nuevo."));
     } finally {
       ocupadaRef.current = false;
+      // La cámara vuelve a la de la fase que se estaba viendo.
+      if (jugada.fases[indice]) camaraDeFase(escena, jugada.fases[indice], encuadre, vista, dimension === "3d", true);
       setRemontar((n) => n + 1);
     }
   }
@@ -1223,11 +1235,19 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
     const pausa = 0.6;
     const inicio = performance.now();
     escena.seguirBalon = seguir;
+    // La cámara de la primera fase, ya puesta; las demás viajan al llegar a su fase, como al reproducir.
+    camaraDeFase(escena, jugada.fases[0], encuadre, vista, dimension === "3d", true);
+    let claveGrabada = claveDeCamara(jugada.fases[0], 0);
     await new Promise<void>((resolver) => {
       const cuadro = () => {
         const s = (performance.now() - inicio) / 1000 - pausa;
         const { fase: f, t: tt } = instanteEn(jugada, Math.max(0, s));
-        if (f !== montadaRef.current) { escena.montar(jugada, f, opciones, null, null); montadaRef.current = f; }
+        if (f !== montadaRef.current) {
+          escena.montar(jugada, f, opciones, null, null);
+          montadaRef.current = f;
+          const clave = claveDeCamara(jugada.fases[f], f);
+          if (clave !== claveGrabada) { camaraDeFase(escena, jugada.fases[f], encuadre, vista, dimension === "3d", false); claveGrabada = clave; }
+        }
         escena.instante(s < 0 ? 0 : tt);
         escena.renderizarAhora();
         lamina(lienzo, f);
@@ -1820,6 +1840,21 @@ export function EstudioTactico({ claseHoja, idioma, paleta, onVolver, entrante =
                   <textarea className="abp-nota" value={deSerieEn(fase.nota)} maxLength={160} rows={2} placeholder={t("Una línea que se lea de un vistazo")} onFocus={marcarHistorial}
                     onChange={(e) => sinHistorial({ ...jugada, fases: jugada.fases.map((f, i) => (i === indice ? { ...f, nota: e.target.value } : f)) })} />
                 </label>
+                <label className="inspector-fila"><span>{t("Cámara")}</span>
+                  <select className="inspector-selector" value={fase.camara?.encuadre ?? ""} title={t("Al llegar a esta fase, la cámara viaja a este encuadre: al reproducir, en el vídeo y en el enlace.")}
+                    onChange={(e) => guardar(cambiarCamara(jugada, indice, { encuadre: (e.target.value || undefined) as CamaraDeFase["encuadre"] }))}>
+                    <option value="">{tf("Como el sistema ({encuadre})", { encuadre: deSerieEn(ENCUADRES.find((x) => x.id === encuadre)?.nombre ?? "") })}</option>
+                    <option value="jugada">{t("Cerca de la jugada")}</option>
+                    {ENCUADRES.map((x) => <option key={x.id} value={x.id}>{deSerieEn(x.nombre)}</option>)}
+                  </select>
+                </label>
+                {dimension === "3d" && <div className="inspector-fila"><span>{t("Vista")}</span>
+                  <div className="inspector-segmentos">
+                    <button type="button" className={!fase.camara?.vista ? "activa" : ""} onClick={() => guardar(cambiarCamara(jugada, indice, { vista: undefined }))}>{t("La del sistema")}</button>
+                    {vistas.filter((v) => v.id !== "jugador").map((v) => <button key={v.id} type="button" className={fase.camara?.vista === v.id ? "activa" : ""}
+                      onClick={() => guardar(cambiarCamara(jugada, indice, { vista: v.id as CamaraDeFase["vista"] }))}>{v.nombre}</button>)}
+                  </div>
+                </div>}
               </div>
             </section>
 
@@ -2030,6 +2065,24 @@ function puntosDe(fase: Fase): Punto[] {
   }
   if (puntos.length < 3) puntos.push(...Object.values(fase.pos));
   return puntos;
+}
+
+/**
+ * Pone en un motor la cámara de una fase: la suya si la tiene (su encuadre,
+ * «la jugada» o, en 3D, su vista) y, si no, la del sistema. En los ojos de
+ * un jugador manda el jugador.
+ */
+function camaraDeFase(motor: Motor, f: Fase, encuadreDelSistema: Encuadre, vistaDelSistema: Vista, en3d: boolean, inmediato: boolean) {
+  const c = f.camara;
+  const v: Vista = vistaDelSistema === "jugador" ? "jugador" : (en3d && c?.vista) || vistaDelSistema;
+  motor.vista(v, c?.encuadre && c.encuadre !== "jugada" ? c.encuadre : encuadreDelSistema, centroDe(f), inmediato);
+  if (c?.encuadre === "jugada") motor.centrar(puntosDe(f), inmediato);
+}
+
+/** Qué cámara pide una fase, para viajar solo cuando cambia; «la jugada» cambia en cada fase. */
+function claveDeCamara(f: Fase | null | undefined, i: number) {
+  if (!f?.camara) return "";
+  return `${f.camara.vista ?? ""}|${f.camara.encuadre ?? ""}${f.camara.encuadre === "jugada" ? `|${i}` : ""}`;
 }
 
 function centroDe(fase: Fase): Punto {

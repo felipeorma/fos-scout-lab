@@ -75,7 +75,8 @@ export interface Motor {
   montar(jugada: Jugada, indice: number, opciones: Opciones, seleccion: Seleccion, borrador: Borrador): void;
   instante(t: number): void;
   vista(vista: Vista, encuadre: Encuadre, centro: Punto | null, inmediato?: boolean): void;
-  centrar(puntos: Punto[]): void;
+  /** Acerca la cámara a esos puntos; `inmediato`, sin viaje (para las fotos). */
+  centrar(puntos: Punto[], inmediato?: boolean): void;
   puntoDelCampo(clienteX: number, clienteY: number): Punto | null;
   renderizarAhora(): void;
   capturar(tipo?: "image/png" | "image/jpeg", calidad?: number): string;

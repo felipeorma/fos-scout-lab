@@ -317,16 +317,18 @@ export class EscenaABP implements Motor {
   }
 
   /** Acerca la cámara a lo que pasa en la fase: las fichas que se mueven, el balón y su destino. */
-  centrar(puntos: Punto[]) {
+  centrar(puntos: Punto[], inmediato = false) {
     if (this.vistaActual === "jugador") return;
-    if (!puntos.length) return this.vista(this.vistaActual, this.encuadreActual, null);
+    if (!puntos.length) return this.vista(this.vistaActual, this.encuadreActual, null, inmediato);
     const xs = puntos.map((p) => p.x), zs = puntos.map((p) => p.z);
     const c = { x: (Math.min(...xs) + Math.max(...xs)) / 2, z: (Math.min(...zs) + Math.max(...zs)) / 2 };
     const radio = Math.max(12, Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...zs) - Math.min(...zs)) / 2);
     const mira = new THREE.Vector3(c.x, 0, c.z);
     const dir = this.camera.position.clone().sub(this.controls.target).normalize();
     const lejos = radio / Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)) * 1.15;
-    this.viajar(mira.clone().addScaledVector(dir, lejos), mira);
+    const pos = mira.clone().addScaledVector(dir, lejos);
+    if (inmediato) { this.camera.position.copy(pos); this.controls.target.copy(mira); this.destino = null; }
+    else this.viajar(pos, mira);
     this.sucio = true;
   }
 
