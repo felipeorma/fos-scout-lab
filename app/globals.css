@@ -7816,3 +7816,7 @@ body.print-layout-check .app-shell[data-tema] .pizarra-duelos > ol { grid-templa
   .tactico-formulario { grid-template-columns: 1fr 1fr; }
   .abp-fase-titulo { max-width: calc(100% - 24px); top: auto; bottom: 12px; }
 }
+.medir-todas { display: flex; align-items: flex-start; gap: var(--sp-3, 12px); margin-bottom: var(--sp-2, 8px); }
+.medir-todas > span { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.medir-todas b { color: var(--ink); font-size: 12px; font-weight: 600; }
+.medir-todas small { color: var(--muted); font-size: 11px; line-height: 1.45; }

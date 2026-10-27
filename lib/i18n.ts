@@ -2926,4 +2926,8 @@ const EN: Record<string, string> = {
   "No se pudo copiar el enlace: este navegador no deja usar el portapapeles.": "The link couldn't be copied: this browser doesn't allow clipboard access.",
   "Preparado desde El partido: los dos onces, el bloque del rival y las medidas. Es tu copia: cámbiala a gusto.": "Prepared from The match: both elevens, the opponent's block and the measurements. It's your copy: change it as you like.",
   "Te lo han enviado con un enlace. Pulsa Reproducir para verlo; se guardó una copia en «Tus sistemas».": "Someone sent you this as a link. Press Play to watch it; a copy was saved in “Your systems”.",
+  "Medir contra todas las bases cargadas": "Measure against all loaded databases",
+  "Incluye bases de otras temporadas, como un 2026/2027 junto a un 2026. Mezcla temporadas distintas.": "Includes databases from other seasons, such as a 2026/2027 next to a 2026. It mixes different seasons.",
+  "Hoy se mide solo contra las bases de su misma temporada. Actívalo si tu jugador queda solo en su grupo.": "Right now they are measured only against databases from their own season. Turn it on if your player ends up alone in their group.",
+  "Hay bases de otras temporadas cargadas: activa «Medir contra todas las bases cargadas» en Cómo se mide.": "There are databases from other seasons loaded: turn on “Measure against all loaded databases” under How they are measured.",
 };

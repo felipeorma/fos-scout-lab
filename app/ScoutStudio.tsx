@@ -481,8 +481,10 @@ export default function ScoutStudio() {
     cambiarSeleccionDeTemporadas((claves) => [...new Set([...claves, clave])]);
   }
   const basesActivas = useMemo(() => sourceDatasets.filter((dataset) => !ligasApagadas.includes(dataset.fileName)), [sourceDatasets, ligasApagadas]);
-  const claveDelCruce = aniosDelInforme.length > 0 && basesActivas.some((dataset) => !aniosDelInforme.includes(dataset.season))
-    ? aniosDelInforme.join(",") : "";
+  // Excepción puntual, no se recuerda: mezcla temporadas (un 2026/2027 queda fuera de un 2026 por ser el año 2027).
+  const [medirTodasLasTemporadas, setMedirTodasLasTemporadas] = useState(false);
+  const hayOtrasTemporadas = aniosDelInforme.length > 0 && basesActivas.some((dataset) => !aniosDelInforme.includes(dataset.season));
+  const claveDelCruce = hayOtrasTemporadas && !medirTodasLasTemporadas ? aniosDelInforme.join(",") : "";
   const cruceDeTemporadas = useCruceDeAnios(basesActivas, claveDelCruce);
   const indiceEnElCruce = useMemo(() => {
     if (!cruceDeTemporadas || !filaElegida) return -1;
@@ -2570,6 +2572,15 @@ export default function ScoutStudio() {
                       ? t("Cada jugador se mide contra los de su puesto en su liga; el nivel de la liga va aparte, junto al índice.")
                       : t("Mezcla ligas de distinto nivel: el percentil cambia según qué más haya cargado.")}</small>
                   </label>}
+                  {(hayOtrasTemporadas || medirTodasLasTemporadas) && <div className="medir-todas">
+                    <span>
+                      <b>{t("Medir contra todas las bases cargadas")}</b>
+                      <small>{medirTodasLasTemporadas
+                        ? t("Incluye bases de otras temporadas, como un 2026/2027 junto a un 2026. Mezcla temporadas distintas.")
+                        : t("Hoy se mide solo contra las bases de su misma temporada. Actívalo si tu jugador queda solo en su grupo.")}</small>
+                    </span>
+                    <Interruptor activo={medirTodasLasTemporadas} onCambio={setMedirTodasLasTemporadas} titulo={t("Medir contra todas las bases cargadas")} />
+                  </div>}
                   {/* Todas las temporadas en que aparece el jugador en las bases
                       cargadas; la elegida manda sobre la última, y el filtro de
                       año del panel la elige también. */}
@@ -2592,7 +2603,7 @@ export default function ScoutStudio() {
                         onAlternar={(clave) => cambiarSeleccionDeTemporadas((claves) => claves.includes(clave) ? claves.filter((actual) => actual !== clave) : [...claves, clave])}
                         onQuitar={quitarTemporadaAMano} onSoloActual={() => { cambiarSeleccionDeTemporadas(() => []); setPreviaManual(null); }}
                         onAnadir={() => setPreviaManual({ jugador: claveDelJugador, elegida: "" })} />
-                      {soloTemporadaActual && <small className="temporada-previa-nota">{tf("El radar, el índice y la cohorte usan solo la temporada {s}.", { s: temporadaDeReferencia.etiqueta })}</small>}
+                      {soloTemporadaActual && !medirTodasLasTemporadas && <small className="temporada-previa-nota">{tf("El radar, el índice y la cohorte usan solo la temporada {s}.", { s: temporadaDeReferencia.etiqueta })}</small>}
                       {pedidaSinJugador && <small className="temporada-previa-nota aviso">{tf("No aparece en {liga} {s}: si jugó en otra liga, añádela manualmente.", { liga: pedidaSinJugador.name, s: pedidaSinJugador.season })}</small>}
                       {verManual && <div className="previa-manual">
                         {!hayOpciones && <small className="temporada-previa-nota">{t("No hay otra temporada de este jugador disponible. Añádela manualmente:")}</small>}
@@ -2645,6 +2656,7 @@ export default function ScoutStudio() {
                   {report?.cohorteDescartada && <div className="inline-error">{tf("La cohorte elegida ({c}) no tiene métricas para este jugador: se muestra con su cohorte automática.", { c: cohortLabel(report.cohorteDescartada) })}</div>}
                   {report?.seleccionDescartada && <div className="inline-error">{t("Las métricas elegidas a mano para este perfil no existen en la base cargada: se muestra el set del perfil.")}</div>}
                   {report && report.cohortSize < 5 && <div className="inline-error">{report.cohortSize === 0 ? t("No hay jugadores de esta posición con el mínimo de minutos: baja el mínimo o carga más datos.") : (report.cohortSize === 1 ? t("Cohorte de 1 jugador: percentiles poco fiables. Baja el mínimo de minutos o carga más datos.") : tf("Cohorte de {n} jugadores: percentiles poco fiables. Baja el mínimo de minutos o carga más datos.", { n: report.cohortSize }))}</div>}
+                  {report && report.cohortSize < 5 && hayOtrasTemporadas && !medirTodasLasTemporadas && <small className="temporada-previa-nota aviso">{t("Hay bases de otras temporadas cargadas: activa «Medir contra todas las bases cargadas» en Cómo se mide.")}</small>}
                   </div>
                   <div className="panel-seccion">
                     <span className="panel-seccion-titulo">{t("Informe")}</span>
