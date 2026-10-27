@@ -204,9 +204,9 @@ export class Tablero2D implements Motor {
   }
   private ultimaOrientacion = "horizontal";
 
-  centrar(puntos: Punto[]) {
-    if (!puntos.length) return this.viajar(this.camaraDeEncuadre());
-    this.viajar(camaraDeCaja(cajaDe(puntos), this.ancho, this.alto, this.orientacion));
+  centrar(puntos: Punto[], inmediato = false) {
+    if (!puntos.length) return this.viajar(this.camaraDeEncuadre(), inmediato);
+    this.viajar(camaraDeCaja(cajaDe(puntos), this.ancho, this.alto, this.orientacion), inmediato);
   }
 
   private alRodar = (evento: WheelEvent) => {

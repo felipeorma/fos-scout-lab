@@ -107,7 +107,16 @@ export type Fase = {
   duracion: number;
   /** Una línea que explica el momento: sale bajo el campo, en el PDF y en el vídeo. */
   nota: string;
+  /** Su propia cámara: al llegar a esta fase, la cámara viaja allí (al reproducir, en el vídeo y en el enlace). */
+  camara?: CamaraDeFase;
 };
+/**
+ * La cámara de una fase. `encuadre`: uno de los de siempre o «jugada», que se
+ * acerca a lo que pasa en ella (las fichas que se mueven, el balón y su
+ * destino). `vista`, solo en 3D: táctica, 3D o cenital. Lo que no se dice es
+ * lo del sistema.
+ */
+export type CamaraDeFase = { encuadre?: Encuadre | "jugada"; vista?: "tactica" | "3d" | "cenital" };
 export type TipoABP = "corner_der" | "corner_izq" | "falta_frontal" | "falta_lateral" | "banda" | "salida" | "rondo" | "partido" | "libre";
 export type Categoria = "salida" | "presion" | "ataque" | "defensa" | "abp" | "entrenamiento" | "libre";
 /** Papel imprime mejor; Retransmisión y Noche se leen como un partido en la tele; Tiza, como la pizarra del vestuario. */
@@ -436,6 +445,8 @@ export function faseSiguiente(fase: Fase, nombre: string): Fase {
     // Con el mismo id: es la misma marca, y lo que se le cambie en una fase llega a las siguientes.
     anotaciones: fase.anotaciones.filter(pasaDeFase).map((a) => structuredClone(a)),
     material: (fase.material ?? []).map((m) => ({ ...m, p: { ...m.p } })), pausa: fase.pausa, duracion: fase.duracion, nota: "",
+    // La cámara sigue como estaba: si esta fase se veía de cerca, la siguiente también.
+    ...(fase.camara ? { camara: { ...fase.camara } } : {}),
   };
 }
 
@@ -1306,6 +1317,26 @@ function equipacionValida(v: unknown): Equipacion {
   };
 }
 
+function camaraValida(v: unknown): { camara?: CamaraDeFase } {
+  const c = v as Record<string, unknown> | undefined;
+  if (!c || typeof c !== "object") return {};
+  const encuadre = c.encuadre === "jugada" || ENCUADRES.some((e) => e.id === c.encuadre) ? c.encuadre as CamaraDeFase["encuadre"] : undefined;
+  const vista = c.vista === "tactica" || c.vista === "3d" || c.vista === "cenital" ? c.vista : undefined;
+  return encuadre || vista ? { camara: { ...(encuadre ? { encuadre } : {}), ...(vista ? { vista } : {}) } } : {};
+}
+
+/** Cambia la cámara de una fase; lo que se pasa como undefined vuelve a ser lo del sistema. */
+export function cambiarCamara(jugada: Jugada, indice: number, cambios: CamaraDeFase): Jugada {
+  return conFase(jugada, indice, (f) => {
+    const camara = { ...f.camara, ...cambios };
+    if (!camara.encuadre) delete camara.encuadre;
+    if (!camara.vista) delete camara.vista;
+    const siguiente: Fase = { ...f };
+    delete siguiente.camara;
+    return camara.encuadre || camara.vista ? { ...siguiente, camara } : siguiente;
+  });
+}
+
 const ESTILOS_FLECHA: EstiloFlecha[] = ["continua", "discontinua", "punteada", "ondulada", "linea", "presion"];
 const EXTREMOS: Extremo[] = ["punta", "doble", "barra", "nada"];
 const GROSORES: Grosor[] = ["fino", "normal", "grueso"];
@@ -1391,6 +1422,7 @@ export function jugadaValida(v: unknown): Jugada | null {
       pausa: esNumero(bruta.pausa) ? Math.max(0, Math.min(6, bruta.pausa)) : PAUSA_POR_DEFECTO,
       duracion: esNumero(bruta.duracion) ? Math.max(0.2, Math.min(15, bruta.duracion)) : DURACION_POR_DEFECTO,
       nota: typeof bruta.nota === "string" ? bruta.nota.slice(0, 160) : "",
+      ...camaraValida(bruta.camara),
     });
   }
   const colores = (j.colores ?? {}) as Record<string, unknown>;

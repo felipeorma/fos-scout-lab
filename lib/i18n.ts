@@ -2779,6 +2779,12 @@ const EN: Record<string, string> = {
   "No hay fichas de ese equipo en este sistema para hacer la secuencia.": "There are no tokens from that team in this system to perform the sequence.",
   "«{nombre}»: {n} jugadores la hacen en {f} fases nuevas detrás de esta.": "“{nombre}”: {n} players perform it in {f} new phases after this one.",
   "Una secuencia es el movimiento sin los nombres: al soltarla, las fichas más cercanas de cada equipo hacen cada papel, en fases nuevas detrás de la actual. Con un grupo elegido, se guarda solo ese grupo.": "A sequence is the movement without the names: when you drop it, the nearest tokens of each team take each role, in new phases after the current one. With a group selected, only that group is saved.",
+  // ---- Pizarra: cámara por fase ----
+  "Cámara": "Camera",
+  "Cerca de la jugada": "Close to the action",
+  "Como el sistema ({encuadre})": "As the system ({encuadre})",
+  "La del sistema": "The system's",
+  "Al llegar a esta fase, la cámara viaja a este encuadre: al reproducir, en el vídeo y en el enlace.": "On reaching this phase, the camera travels to this framing: when playing, in the video and in the link.",
   // ---- Pizarra: explicar con voz y lápiz ----
   "Explicar": "Explain",
   "Explicar la jugada": "Explain the move",
