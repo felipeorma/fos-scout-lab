@@ -9,6 +9,10 @@ import { aplicar, errorMedio, homografia, invertir, type Matriz, type P } from "
 import { colorDeEquipo, detectarJugadores, jugadaDelFotograma, type JugadorDetectado } from "@/lib/deteccion";
 import { useAbrirEnPizarra } from "./abp/AbrirEnPizarra";
 import {
+  aCSV, aXML, cambiarMomento, claveDeVideo, codificacionValida, codificacionVacia, deCSV, deXML, marcar, quitarMomento, reloj, type Codificacion, type Momento,
+} from "@/lib/codificacion";
+import { MarcasEnLaLinea, MomentosDelPartido, PanelDeCodigos } from "./pintado/Codificacion";
+import {
   PUNTOS_DEL_CAMPO, cerrarPuntoAPunto, desplazarMarca, marcaDeArrastre, puntoDeCampo, siguientePunto,
   type GrupoDePuntos, type MarcaDeArrastre, type MarcaDeCampo, type MarcaPuntoAPunto,
 } from "@/lib/perspectiva";
@@ -39,7 +43,7 @@ const formatoDeMetros = () => new Intl.NumberFormat(numberLocale(), { minimumFra
 type Fuente =
   | { tipo: "ninguna" }
   | { tipo: "imagen"; url: string }
-  | { tipo: "video"; url: string; nombre: string }
+  | { tipo: "video"; url: string; nombre: string; tamano: number }
   | { tipo: "youtube"; id: string; inicio: number };
 
 const DORSALES = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"];
@@ -123,6 +127,16 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
   const [nuestro, setNuestro] = useState<0 | 1>(0);
   const [haciaLaDerecha, setHaciaLaDerecha] = useState(true);
   const abrirEnPizarra = useAbrirEnPizarra();
+  // La codificación del partido: los momentos marcados en el vídeo propio, guardados por vídeo.
+  const [codificacion, setCodificacion] = useState<Codificacion | null>(null);
+  const finDeClip = useRef<number | null>(null);
+  const claveCodificacion = fuente.tipo === "video" ? claveDeVideo(fuente.nombre, fuente.tamano) : null;
+  useEffect(() => {
+    if (!codificacion || !claveCodificacion) return;
+    try {
+      if (codificacion.momentos.length || window.localStorage.getItem(claveCodificacion)) window.localStorage.setItem(claveCodificacion, JSON.stringify(codificacion));
+    } catch { /* lleno o bloqueado: sigue en memoria */ }
+  }, [codificacion, claveCodificacion]);
   const jugadores = encontrados && encontrados.con === proyeccion ? encontrados.jugadores : [];
   const colores: [string, string] = [colorDeEquipo(jugadores, 0) ?? "#ff3b30", colorDeEquipo(jugadores, 1) ?? "#f5f5f7"];
 
@@ -266,6 +280,44 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
     abrirEnPizarra(jugadaDelFotograma(jugadores, { nuestro, haciaLaDerecha, nombre: tf("Fotograma del {fecha}", { fecha }) }), "fotograma");
   }
 
+  /** Marca el código en el segundo que se ve: un clip con unos segundos antes y después. */
+  function marcarCodigo(id: string) {
+    const v = videoRef.current;
+    if (!v || !codificacion) return;
+    const { codificacion: siguiente, momento } = marcar(codificacion, id, v.currentTime, Number.isFinite(v.duration) ? v.duration : Infinity);
+    setCodificacion(siguiente);
+    const nombre = siguiente.codigos.find((c) => c.id === id)?.nombre ?? "";
+    setAviso(tf("{codigo} en {t}: clip de {a} a {b}.", { codigo: nombre, t: reloj(momento.t), a: reloj(momento.inicio), b: reloj(momento.fin) }));
+  }
+  /** Ve el clip de un momento: desde su inicio y se para en su final. */
+  function verMomento(m: Momento) {
+    const v = videoRef.current;
+    if (!v) return;
+    setCongelado(null);
+    setDibujando(false);
+    v.currentTime = m.inicio;
+    finDeClip.current = m.fin;
+    void v.play();
+  }
+  function cambiarElMomento(id: string, cambios: { nota?: string } | null) {
+    if (!codificacion) return;
+    setCodificacion(cambios ? cambiarMomento(codificacion, id, cambios) : quitarMomento(codificacion, id));
+  }
+  function importarCodificacion(texto: string, nombre: string) {
+    if (!codificacion) return;
+    const leido = /\.xml$/i.test(nombre) || texto.trimStart().startsWith("<") ? deXML(codificacion, texto) : deCSV(codificacion, texto);
+    setCodificacion(leido.codificacion);
+    setAviso(leido.nuevos ? tf("{n} momentos importados de {archivo}.", { n: leido.nuevos, archivo: nombre }) : t("Ese archivo no trae momentos nuevos (o no se entiende)."));
+  }
+  function exportarCodificacion(formato: "csv" | "xml") {
+    if (!codificacion || fuente.tipo !== "video") return;
+    const texto = formato === "csv" ? aCSV(codificacion) : aXML(codificacion);
+    const base = fuente.nombre.replace(/\.[^.]+$/, "") || "partido";
+    const href = URL.createObjectURL(new Blob([formato === "csv" ? "\uFEFF" + texto : texto], { type: formato === "csv" ? "text/csv;charset=utf-8" : "application/xml" }));
+    descargar(href, `${base}-codificacion.${formato}`);
+    window.setTimeout(() => URL.revokeObjectURL(href), 3000);
+  }
+
   function borrarMarca() {
     if (marcaElegida) { guardarCampo(marcas.filter((m) => m.id !== marcaElegida)); setMarcaElegida(null); }
   }
@@ -302,6 +354,11 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
       else if (evento.key === "Enter" && borrador?.tipo === "conector") terminarConector();
       else if (evento.key === "Enter" && (borradorCampo?.tipo === "area" || borradorCampo?.tipo === "huecos")) terminarPuntoAPunto();
       else if (evento.key === "Escape") { setBorrador(null); setSeleccion(null); setMarcaElegida(null); setBorradorCampo(null); }
+      else if (codificacion && fuente.tipo === "video" && !evento.ctrlKey && !evento.metaKey && !evento.altKey) {
+        // Las teclas de los códigos: marcan el momento que se está viendo.
+        const codigo = codificacion.codigos.find((c) => c.tecla && c.tecla === evento.key);
+        if (codigo) { evento.preventDefault(); marcarCodigo(codigo.id); }
+      }
     };
     const alPegar = (evento: ClipboardEvent) => {
       if (!visible()) return;
@@ -320,7 +377,16 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
     olvidarCalibracion();
     setCongelado(null);
     setAviso("");
-    if (archivo.type.startsWith("video/")) { setFuente({ tipo: "video", url, nombre: archivo.name }); setDibujando(false); }
+    if (archivo.type.startsWith("video/")) {
+      setFuente({ tipo: "video", url, nombre: archivo.name, tamano: archivo.size });
+      setDibujando(false);
+      // Lo marcado otro día en este mismo vídeo vuelve a estar.
+      // Los códigos de serie, en el idioma de la pantalla.
+      const vacia = codificacionVacia();
+      let guardada: Codificacion = { ...vacia, codigos: vacia.codigos.map((c) => ({ ...c, nombre: t(c.nombre) })) };
+      try { const crudo = window.localStorage.getItem(claveDeVideo(archivo.name, archivo.size)); if (crudo) guardada = codificacionValida(JSON.parse(crudo)); } catch { /* sin almacenamiento */ }
+      setCodificacion(guardada);
+    }
     else if (archivo.type.startsWith("image/")) setFuente({ tipo: "imagen", url });
     else setAviso(t("Ese archivo no es una imagen ni un vídeo."));
   }
@@ -682,6 +748,9 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
             </div>
           </section>
 
+          {fuente.tipo === "video" && codificacion && <PanelDeCodigos codificacion={codificacion} onMarcar={marcarCodigo} onCambiar={setCodificacion}
+            onImportar={importarCodificacion} onExportar={exportarCodificacion} />}
+
           <section className="inspector-grupo">
             <h3 className="inspector-titulo">{t("Herramientas")}</h3>
             <div className="abp-herramientas" role="toolbar" aria-label={t("Herramientas")}>
@@ -824,7 +893,11 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
             {/* eslint-disable-next-line @next/next/no-img-element */}
             {fuente.tipo === "imagen" && <img ref={imagenRef} className="pintado-fondo" src={fuente.url} alt="" />}
             {fuente.tipo === "video" && <video ref={videoRef} className="pintado-fondo" src={fuente.url} playsInline controls={!lienzoActivo}
-              onTimeUpdate={(e) => setVideo((v) => ({ ...v, actual: e.currentTarget.currentTime }))}
+              onTimeUpdate={(e) => {
+                const v = e.currentTarget;
+                if (finDeClip.current !== null && v.currentTime >= finDeClip.current) { v.pause(); finDeClip.current = null; }
+                setVideo((x) => ({ ...x, actual: v.currentTime }));
+              }}
               onLoadedMetadata={(e) => setVideo({ actual: 0, total: e.currentTarget.duration, pausado: true })}
               onPlay={() => setVideo((v) => ({ ...v, pausado: false }))} onPause={() => setVideo((v) => ({ ...v, pausado: true }))} />}
             {fuente.tipo === "youtube" && <iframe ref={marcoRef} className="pintado-fondo" title={t("Vídeo de YouTube")}
@@ -858,7 +931,9 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
                 <button type="button" className="button primary compact" onClick={() => void exportar()}><ArrowDownToLine size={13} />{t("Exportar PNG")}</button>
               </span>
             </div>
+            {fuente.tipo === "video" && !congelado && codificacion && <MarcasEnLaLinea codificacion={codificacion} total={video.total} onIr={verMomento} />}
             <small className="pintado-cuenta">{tf(trazos.length === 1 ? "{n} trazo" : "{n} trazos", { n: trazos.length })}</small>
+            {fuente.tipo === "video" && codificacion && <MomentosDelPartido codificacion={codificacion} actual={video.actual} onIr={verMomento} onCambiar={cambiarElMomento} />}
           </div>
         </div>
       </div>
