@@ -7578,6 +7578,41 @@ body.print-layout-check .app-shell[data-tema] .pizarra-duelos > ol { grid-templa
 .app-shell[data-tema] .pintado-puntos > button.activa { box-shadow: inset 0 0 0 1.5px var(--acento); background: var(--acento-suave); }
 .pintado-calibrar { margin: 0; padding: 8px 10px 0; }
 .pintado-jugadores { margin-top: 8px; }
+/* La presentación: la lista en el inspector y el presentador a pantalla completa. */
+.pintado-presentacion-lista { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 4px; }
+.app-shell[data-tema] .pintado-presentacion-lista > li { display: grid; gap: 3px; padding: 6px 8px; border-radius: 10px; background: color-mix(in srgb, var(--ink) 4%, transparent); }
+.app-shell[data-tema] .pintado-presentacion-lista > li.falta { opacity: .55; }
+.pintado-presentacion-fila { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; }
+.app-shell[data-tema] .pintado-presentacion-fila > b { color: var(--acento-claro); font-variant-numeric: tabular-nums; }
+.pintado-presentacion-fila > span:not(.pintado-presentacion-mover) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pintado-presentacion-mover { display: flex; flex: none; gap: 1px; }
+.app-shell[data-tema] .pintado-presentacion-mover > button { width: 22px; height: 22px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 6px; background: none; box-shadow: none; color: var(--muted); cursor: pointer; }
+.app-shell[data-tema] .pintado-presentacion-mover > button:hover:not(:disabled) { color: var(--ink); background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.app-shell[data-tema] .pintado-presentacion-mover > button:disabled { opacity: .3; cursor: default; }
+.app-shell[data-tema] .pintado-presentacion-lista input.abp-campo { max-width: none; text-align: left; font-size: 12px; }
+.pintado-presentacion { position: fixed; inset: 0; z-index: 1000; display: flex; flex-direction: column; background: #050507; color: #f5f5f7; }
+.pintado-presentacion-escenario { position: relative; flex: 1; min-height: 0; display: grid; place-items: center; }
+.pintado-presentacion-escenario > video { width: 100%; height: 100%; object-fit: contain; background: #000; }
+.pintado-presentacion-tablero { position: absolute; inset: 0; }
+.pintado-presentacion-tablero > canvas { width: 100%; height: 100%; display: block; }
+.pintado-presentacion-falta { margin: 0; padding: 24px; color: rgba(245,245,247,.7); font-size: 18px; text-align: center; }
+.pintado-presentacion-lapiz { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; touch-action: none; }
+.pintado-presentacion-lapiz.activo { pointer-events: auto; cursor: crosshair; }
+.pintado-presentacion-pie { flex: none; display: flex; align-items: center; gap: 18px; padding: 14px 22px; background: rgba(14,14,18,.92); box-shadow: 0 -1px 0 rgba(255,255,255,.08); }
+.pintado-presentacion-cuenta { flex: none; color: rgba(245,245,247,.55); font-size: 14px; font-variant-numeric: tabular-nums; }
+.pintado-presentacion-texto { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.pintado-presentacion-texto > b { font-size: 18px; font-weight: 650; }
+.pintado-presentacion-texto > span { color: rgba(245,245,247,.85); font-size: 16px; }
+.pintado-presentacion-botones { flex: none; display: flex; align-items: center; gap: 4px; }
+.pintado-presentacion-botones > i { width: 1px; height: 22px; margin: 0 6px; background: rgba(255,255,255,.14); }
+.pintado-presentacion-botones > button { width: 40px; height: 40px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 10px; background: rgba(255,255,255,.06); color: #f5f5f7; cursor: pointer; }
+.pintado-presentacion-botones > button:hover:not(:disabled) { background: rgba(255,255,255,.14); }
+.pintado-presentacion-botones > button:disabled { opacity: .3; cursor: default; }
+.pintado-presentacion-botones > button.activa { background: #ffd23f; color: #0b0b0e; }
+@media (max-width: 720px) {
+  .pintado-presentacion-pie { flex-wrap: wrap; gap: 10px; padding: 10px 12px; }
+  .pintado-presentacion-texto { flex-basis: 100%; order: -1; }
+}
 /* Codificar el partido: los códigos, las marcas en la línea de tiempo y la lista de momentos. */
 .pintado-codigos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px; margin-bottom: 8px; }
 .app-shell[data-tema] .pintado-codigos > button {

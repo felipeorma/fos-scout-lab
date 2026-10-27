@@ -25,6 +25,7 @@ import { ESPACIOS, estirarZona, ponerEspacio, tamanoDeZona, type Espacio } from 
 import { PlanDeSesionPanel } from "./abp/PlanDeSesion";
 import { Explicacion } from "./abp/Explicacion";
 import { PanelDeSecuencias } from "./abp/PanelDeSecuencias";
+import { CLAVE_CUADERNO } from "@/lib/presentacion";
 import {
   ArrowDownToLine, Balon, Bloque, Carrera, ChevronLeft, ChevronRight, Conduccion, Cono, Cubo, Duplicar, Elipse, Etiqueta, Flecha, Linea, Mover, PantallaCompleta,
   Microfono, Ojo, Pase as PaseIcono, Pause, Pencil, Play, Plus, Presion, Rectangulo, Regla, RotateCcw, RotateCw, Teclado, TextIcon, Trash, Video,
@@ -38,7 +39,8 @@ import { useBaseActiva } from "./BaseActiva";
 import { quienVe } from "@/lib/mirada";
 
 // La clave no cambia al pasar de cuaderno a estudio: así se abre lo ya guardado.
-const CLAVE = "fos-scout-abp-v1";
+/** Donde se guarda el cuaderno: la misma clave que lee la presentación de Pintado de acciones. */
+const CLAVE = CLAVE_CUADERNO;
 const CLAVE_MINIATURAS = "fos-scout-abp-miniaturas-v1";
 
 type Herramienta = "mover" | "local" | "rival" | "balon" | "material" | "carrera" | "pase" | "flecha" | "texto" | "etiqueta" | "rect" | "zona"

@@ -12,6 +12,9 @@ import {
   aCSV, aXML, cambiarMomento, claveDeVideo, codificacionValida, codificacionVacia, deCSV, deXML, marcar, quitarMomento, reloj, type Codificacion, type Momento,
 } from "@/lib/codificacion";
 import { MarcasEnLaLinea, MomentosDelPartido, PanelDeCodigos } from "./pintado/Codificacion";
+import { Presentador, grabarPresentacion } from "./pintado/Presentacion";
+import { PanelDePresentacion, sistemasDelEstudio } from "./pintado/PanelDePresentacion";
+import { agregarMomento, claveDePresentacion, diapositivas, presentacionValida, presentacionVacia, type Presentacion } from "@/lib/presentacion";
 import {
   PUNTOS_DEL_CAMPO, cerrarPuntoAPunto, desplazarMarca, marcaDeArrastre, puntoDeCampo, siguientePunto,
   type GrupoDePuntos, type MarcaDeArrastre, type MarcaDeCampo, type MarcaPuntoAPunto,
@@ -131,6 +134,21 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
   const [codificacion, setCodificacion] = useState<Codificacion | null>(null);
   const finDeClip = useRef<number | null>(null);
   const claveCodificacion = fuente.tipo === "video" ? claveDeVideo(fuente.nombre, fuente.tamano) : null;
+  // La presentación va con el vídeo (sus clips son de él); sin vídeo, una general con sistemas.
+  const clavePresentacion = claveDePresentacion(claveCodificacion);
+  const [presentacionGuardada, setPresentacionGuardada] = useState<{ clave: string; p: Presentacion } | null>(null);
+  const presentacion = presentacionGuardada?.clave === clavePresentacion ? presentacionGuardada.p : presentacionVacia();
+  const [presentando, setPresentando] = useState(false);
+  const [grabandoPresentacion, setGrabandoPresentacion] = useState(false);
+  useEffect(() => {
+    let leida = presentacionVacia();
+    try { const crudo = window.localStorage.getItem(clavePresentacion); if (crudo) leida = presentacionValida(JSON.parse(crudo)); } catch { /* sin almacenamiento */ }
+    setPresentacionGuardada({ clave: clavePresentacion, p: leida }); // eslint-disable-line react-hooks/set-state-in-effect
+  }, [clavePresentacion]);
+  const cambiarPresentacion = (p: Presentacion) => {
+    setPresentacionGuardada({ clave: clavePresentacion, p });
+    try { window.localStorage.setItem(clavePresentacion, JSON.stringify(p)); } catch { /* lleno o bloqueado: sigue en memoria */ }
+  };
   useEffect(() => {
     if (!codificacion || !claveCodificacion) return;
     try {
@@ -318,6 +336,27 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
     window.setTimeout(() => URL.revokeObjectURL(href), 3000);
   }
 
+  /** La presentación entera, como un solo vídeo: se graba a tiempo real y se descarga. */
+  async function descargarPresentacion() {
+    const lista = diapositivas(presentacion, codificacion?.momentos ?? [], sistemasDelEstudio());
+    setGrabandoPresentacion(true);
+    try {
+      const hecho = await grabarPresentacion({
+        lista, codificacion, video: fuente.tipo === "video" ? fuente.url : null, acento, fuente: letra, titulo: presentacion.titulo, firma: firma.nombre,
+        onProgreso: (n, total) => setAviso(tf("Grabando la presentación: {n} de {total}…", { n, total })),
+      });
+      if (!hecho) { setAviso(t("Este navegador no puede grabar vídeo. Prueba con Chrome o Safari actualizados.")); return; }
+      const href = URL.createObjectURL(hecho.blob);
+      descargar(href, `${(presentacion.titulo.trim() || "presentacion").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\w-]+/g, "-").toLowerCase()}.${hecho.extension}`);
+      window.setTimeout(() => URL.revokeObjectURL(href), 4000);
+      setAviso(hecho.extension === "mp4" ? t("Presentación descargada.") : t("Presentación descargada en WebM: este navegador no graba MP4."));
+    } catch {
+      setAviso(t("No se pudo grabar la presentación. Prueba de nuevo."));
+    } finally {
+      setGrabandoPresentacion(false);
+    }
+  }
+
   function borrarMarca() {
     if (marcaElegida) { guardarCampo(marcas.filter((m) => m.id !== marcaElegida)); setMarcaElegida(null); }
   }
@@ -346,7 +385,7 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
   useEffect(() => {
     const visible = () => Boolean(raizRef.current?.offsetParent);
     const alPulsarTecla = (evento: KeyboardEvent) => {
-      if (!visible()) return;
+      if (!visible() || presentando) return;
       if ((evento.target as HTMLElement).closest("input, textarea, select, [contenteditable='true']")) return;
       if ((evento.key === "Delete" || evento.key === "Backspace") && marcaElegida) { evento.preventDefault(); borrarMarca(); }
       else if ((evento.key === "Delete" || evento.key === "Backspace") && seleccion) { evento.preventDefault(); borrar(); }
@@ -751,6 +790,9 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
           {fuente.tipo === "video" && codificacion && <PanelDeCodigos codificacion={codificacion} onMarcar={marcarCodigo} onCambiar={setCodificacion}
             onImportar={importarCodificacion} onExportar={exportarCodificacion} />}
 
+          <PanelDePresentacion presentacion={presentacion} codificacion={codificacion} hayVideo={fuente.tipo === "video"} grabando={grabandoPresentacion}
+            onCambiar={cambiarPresentacion} onPresentar={() => { videoRef.current?.pause(); setPresentando(true); }} onDescargar={() => void descargarPresentacion()} />
+
           <section className="inspector-grupo">
             <h3 className="inspector-titulo">{t("Herramientas")}</h3>
             <div className="abp-herramientas" role="toolbar" aria-label={t("Herramientas")}>
@@ -933,11 +975,18 @@ export function PintadoAcciones({ claseHoja, onVolver }: { claseHoja: string; on
             </div>
             {fuente.tipo === "video" && !congelado && codificacion && <MarcasEnLaLinea codificacion={codificacion} total={video.total} onIr={verMomento} />}
             <small className="pintado-cuenta">{tf(trazos.length === 1 ? "{n} trazo" : "{n} trazos", { n: trazos.length })}</small>
-            {fuente.tipo === "video" && codificacion && <MomentosDelPartido codificacion={codificacion} actual={video.actual} onIr={verMomento} onCambiar={cambiarElMomento} />}
+            {fuente.tipo === "video" && codificacion && <MomentosDelPartido codificacion={codificacion} actual={video.actual} onIr={verMomento} onCambiar={cambiarElMomento}
+              extra={(m) => {
+                const dentro = presentacion.elementos.some((e) => e.tipo === "momento" && e.momento === m.id);
+                return <button type="button" disabled={dentro} onClick={() => cambiarPresentacion(agregarMomento(presentacion, m.id))}
+                  title={dentro ? t("Ya está en la presentación") : t("Añadir a la presentación")} aria-label={dentro ? t("Ya está en la presentación") : t("Añadir a la presentación")}>{dentro ? "✓" : "+"}</button>;
+              }} />}
           </div>
         </div>
       </div>
     </section>
+    {presentando && <Presentador lista={diapositivas(presentacion, codificacion?.momentos ?? [], sistemasDelEstudio()).filter((d) => d.tipo !== "falta")}
+      codificacion={codificacion} video={fuente.tipo === "video" ? fuente.url : null} acento={acento} fuente={letra} onCerrar={() => setPresentando(false)} />}
   </div>;
 }
 
