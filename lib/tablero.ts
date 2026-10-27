@@ -10,7 +10,7 @@
  * salto. Vive aparte del dibujo para poder probarla sin lienzo.
  */
 
-import type { Punto } from "./abp.ts";
+import { CAMPO, type Punto } from "./abp.ts";
 
 export type Caja = { x0: number; x1: number; z0: number; z1: number };
 export type Orientacion = "horizontal" | "vertical";
@@ -23,12 +23,30 @@ export type Transformacion = {
   aCampo: (x: number, y: number) => Punto;
 };
 
-/** La cámara que encaja una caja entera en la pantalla, con `margen` metros de aire. */
+/** Un centro que no deja ver más allá de [lo, hi] si cabe dentro; si no cabe, el del medio. */
+function sinSalirse(centro: number, visible: number, lo: number, hi: number) {
+  if (visible >= hi - lo) return (lo + hi) / 2;
+  return Math.min(hi - visible / 2, Math.max(lo + visible / 2, centro));
+}
+
+/**
+ * La cámara que encaja una caja entera en la pantalla, con `margen` metros de
+ * aire. Si a la pantalla le sobra sitio a un lado (media cancha en una
+ * pantalla ancha), se corre hacia dentro y enseña más campo en vez de lo que
+ * hay detrás de la portería; la caja sigue entera a la vista.
+ */
 export function camaraDeCaja(caja: Caja, ancho: number, alto: number, orientacion: Orientacion, margen = 3): Camara {
   const dx = caja.x1 - caja.x0, dz = caja.z1 - caja.z0;
   const [anchoMundo, altoMundo] = orientacion === "vertical" ? [dz, dx] : [dx, dz];
   const w = Math.max(anchoMundo + margen * 2, (altoMundo + margen * 2) * (ancho / Math.max(alto, 1)));
-  return { x: (caja.x0 + caja.x1) / 2, z: (caja.z0 + caja.z1) / 2, w };
+  const h = w * (alto / Math.max(ancho, 1));
+  const [vistoEnX, vistoEnZ] = orientacion === "vertical" ? [h, w] : [w, h];
+  const medioL = CAMPO.largo / 2, medioA = CAMPO.ancho / 2;
+  return {
+    x: sinSalirse((caja.x0 + caja.x1) / 2, vistoEnX, Math.min(-medioL, caja.x0) - margen, Math.max(medioL, caja.x1) + margen),
+    z: sinSalirse((caja.z0 + caja.z1) / 2, vistoEnZ, Math.min(-medioA, caja.z0) - margen, Math.max(medioA, caja.z1) + margen),
+    w,
+  };
 }
 
 /**

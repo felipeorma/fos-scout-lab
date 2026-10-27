@@ -242,6 +242,23 @@ test("la cámara del 2D: encaja el encuadre, ida y vuelta de coordenadas y viaje
     // En vertical se ataca hacia arriba: su portería queda más arriba que la nuestra.
     if (orientacion === "vertical") assert.ok(tr.aPantalla({ x: 50, z: 0 }).y < tr.aPantalla({ x: -50, z: 0 }).y);
   }
+  // Media cancha en una pantalla ancha: la caja sigue entera, pero lo que sobra es campo y no lo de detrás de la portería.
+  const mitad = { x0: -52.5, x1: 0, z0: -34, z1: 34 };
+  for (const [ancho, alto, orientacion] of [[1440, 918, "horizontal"], [700, 1200, "vertical"]]) {
+    const tr = transformacion(camaraDeCaja(mitad, ancho, alto, orientacion), ancho, alto, orientacion);
+    for (const [x, z] of [[-52.5, -34], [0, 34]]) {
+      const p = tr.aPantalla({ x, z });
+      assert.ok(p.x >= 0 && p.x <= ancho && p.y >= 0 && p.y <= alto, `${orientacion} ${x},${z}`);
+    }
+    const linea = tr.aPantalla({ x: -52.5, z: 0 });
+    // Detrás de la línea de fondo, el margen o, si cabe el campo entero, la mitad de lo que sobra: nunca la media cancha vacía de antes.
+    const detras = (orientacion === "vertical" ? alto - linea.y : linea.x) / tr.escala;
+    const visto = (orientacion === "vertical" ? alto : ancho) / tr.escala;
+    assert.ok(detras <= Math.max(3, (visto - 105) / 2) + 1e-6, `${orientacion}: ${detras.toFixed(1)} m detrás de la portería`);
+  }
+  // Si la caja ya llena la pantalla, la cámara no se mueve.
+  const estrecha = camaraDeCaja(mitad, 600, 900, "horizontal");
+  assert.ok(Math.abs(estrecha.x + 26.25) < 1e-9 && Math.abs(estrecha.z) < 1e-9);
   const a = { x: -40, z: 0, w: 30 }, b = { x: 40, z: 0, w: 30 };
   const inicio = interpolarCamara(a, b, 0);
   assert.ok(Math.abs(inicio.x - a.x) < 1e-9 && Math.abs(inicio.w - a.w) < 1e-9);
