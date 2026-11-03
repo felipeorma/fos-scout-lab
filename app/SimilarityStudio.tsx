@@ -4,7 +4,10 @@ import { Paso } from "./Paso";
 import { Desplegable } from "./BarraDeFiltros";
 import { MenuDeLigas } from "./MenuDesplegable";
 import { colorContrastante } from "@/lib/colores";
-import { PERFILES_FILTRO } from "@/lib/perfiles";
+import { PERFILES, PERFILES_FILTRO } from "@/lib/perfiles";
+
+/** El nombre de un grupo de métricas ("B2B" → "Interiores (box-to-box)"). */
+const nombreDeGrupo = (id: string) => PERFILES.find((perfil) => perfil.id === id)?.nombre ?? id;
 
 import { type CSSProperties, type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDownToLine, ChevronDown, Printer, RotateCcw, Search, Sparkles, Upload } from "./Icons";
@@ -18,7 +21,7 @@ import {
   type SimilarityMetricWeights,
   type SimilarityPlayer,
 } from "@/lib/similarity";
-import { type DataRow } from "@/lib/scouting";
+import { cohortOf, type CellValue, type DataRow } from "@/lib/scouting";
 import { formatPlayerPositions, selectedCohortPosition, type PlayerPosition } from "@/lib/positions";
 import { similarityMetricGroup } from "@/lib/similarityMetricGroups";
 import { createEmptyTransfermarktProfile, profileStorageKey, readStoredJson, type TransfermarktProfile } from "@/lib/transfermarkt";
@@ -363,6 +366,16 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
   // `lang` va a propósito: el cálculo devuelve las etiquetas ya traducidas.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const search = useMemo(() => buildSimilaritySearch(rows, selectedIndex, filters, metricWeights, rolMetricas || reportCohort, metricLabels, porLiga), [filters, metricWeights, rows, selectedIndex, lang, rolMetricas, reportCohort, metricLabels, porLiga]);
+  /** El jugador objetivo para la barra de arriba, haya o no resultados: sin él no se puede cambiar de grupo de métricas. */
+  const objetivo = useMemo(() => {
+    if (search) return { player: search.target.player, team: search.target.team, position: search.target.position, cohort: search.target.cohort, age: search.target.age };
+    const fila = rows[selectedIndex];
+    if (!fila) return null;
+    return {
+      player: String(fila.Player ?? ""), team: String(fila.Team ?? ""), position: String(fila.Position ?? ""),
+      cohort: cohortOf(fila.Position as CellValue), age: fila.Age === undefined || fila.Age === null || fila.Age === "" ? "—" : String(fila.Age),
+    };
+  }, [search, rows, selectedIndex]);
   /*
    * Los candidatos se acotan DESPUÉS del motor. La liga es una decisión de
    * mercado —"de aquí no vamos a fichar"— y no puede cambiar el percentil de
@@ -863,24 +876,10 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
 
 
   return <div className="page-content similarity-page similarity-report-theme" data-oscuro={theme.oscuro ? "" : undefined} style={reportThemeStyle(theme)}>
-    {rows.length > 0 && !search && porLiga ? <section className="dataset-onboarding similarity-empty">
-      <span className="dataset-step">{t("SIN COHORTE EN SU LIGA")}</span>
-      <span className="dataset-icon"><Search size={30} /></span>
-      <h2>{t("Su liga no tiene suficientes jugadores de este puesto")}</h2>
-      <p>{t("Para medir por liga hacen falta al menos diez del mismo puesto en esa competición; con menos, cada uno queda a diez puntos de percentil del siguiente por aritmética y el número no significa nada. Vuelve a medir contra todas las ligas juntas, o elige un jugador de una competición con más muestra.")}</p>
-      <button className="button primary" onClick={() => setBaseDePercentiles("combinado")}>{t("Medir contra todas las ligas")}</button>
-    </section> : rows.length > 0 && !search ? <section className="dataset-onboarding similarity-empty">
-      {/* La base está cargada: lo que falla es este jugador concreto. Decir
-          "primero carga una base de datos" con siete mil filas dentro manda a
-          buscar un problema que no existe. */}
-      <span className="dataset-step">{t("SIN COMPARACIÓN POSIBLE")}</span>
-      <span className="dataset-icon"><Search size={30} /></span>
-      <h2>{t("Este jugador no se puede comparar")}</h2>
-      <p>{t("No llega al mínimo de minutos, o su base no trae suficientes métricas de su puesto. Baja el mínimo de minutos o elige a otro jugador.")}</p>
-    </section> : !rows.length || !search ? <section className="dataset-onboarding similarity-empty"><span className="dataset-step">{t("SECCIÓN DE SIMILITUD")}</span><span className="dataset-icon"><Search size={30} /></span><h2>{t("Primero carga una base de datos")}</h2><p>{t("La comparación usa la base activa, ya sea una liga, temporada o combinación.")}</p><button className="button primary" onClick={onOpenReports}>{t("Ir a cargar datos")}</button></section> : <>
+    {!rows.length || !objetivo ? <section className="dataset-onboarding similarity-empty"><span className="dataset-step">{t("SECCIÓN DE SIMILITUD")}</span><span className="dataset-icon"><Search size={30} /></span><h2>{t("Primero carga una base de datos")}</h2><p>{t("La comparación usa la base activa, ya sea una liga, temporada o combinación.")}</p><button className="button primary" onClick={onOpenReports}>{t("Ir a cargar datos")}</button></section> : <>
       <Paso numero={1}>A quién te quieres parecer</Paso>
       <section className="similarity-target-bar">
-        <div className="similarity-target-copy"><span>{t("JUGADOR OBJETIVO")}</span><b>{search.target.player}</b><small>{tf("{team} · {pos} · {age} años", { team: search.target.team, pos: posicionMostrada(search.target.position, search.target.cohort), age: search.target.age })}</small></div>
+        <div className="similarity-target-copy"><span>{t("JUGADOR OBJETIVO")}</span><b>{objetivo.player}</b><small>{tf("{team} · {pos} · {age} años", { team: objetivo.team, pos: posicionMostrada(objetivo.position, objetivo.cohort), age: objetivo.age })}</small></div>
         <div className="similarity-target-selectors">
           {ligasDelFondo.length > 1 && <div className="similarity-target-campo"><span>{pasoObjetivo.liga} · {t("Liga")}</span>
             <MenuDeLigas ligas={ligasDelFondo} elegida={ligaObjetivo} variante="campo"
@@ -930,6 +929,38 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
             para un dato que se lee una vez: ahora es una línea de pie. */}
         <p className="similarity-modelo"><Sparkles size={13} /><b>{porLiga ? t("Parecido de rol") : t("Baseline estadístico")}</b><span>{porLiga ? t("Cada uno contra su liga") : t("Percentiles + contexto de edad y rol")}</span></p>
       </section>
+
+      {/* Sin resultados, la barra de arriba se queda: antes la página entera
+          se cambiaba por el aviso y con ella desaparecía el selector de
+          "Métricas de", así que no había forma de deshacer la elección. */}
+      {!search ? <section className="dataset-onboarding similarity-empty similarity-empty-inline">
+        <span className="dataset-step">{porLiga ? t("SIN COHORTE EN SU LIGA") : t("SIN COMPARACIÓN POSIBLE")}</span>
+        <span className="dataset-icon"><Search size={30} /></span>
+        <h2>{porLiga ? t("Su liga no tiene suficientes jugadores de este puesto") : t("Este jugador no se puede comparar")}</h2>
+        <p>{porLiga
+          ? t("Ni sumando los puestos vecinos llega a diez en su liga con estos minutos, y con menos el percentil no significa nada. Baja el mínimo de minutos, mide contra todas las ligas juntas o elige otro grupo de métricas arriba.")
+          : t("No llega al mínimo de minutos, o su base no trae suficientes métricas de este grupo. Baja el mínimo de minutos, elige otro grupo de métricas arriba o a otro jugador.")}</p>
+        <div className="similarity-empty-acciones">
+          {/* Los minutos, aquí también: su control vive en el ranking, que no
+              sale sin resultados, y subirlos de más dejaba la página atascada. */}
+          <label className="filtro-chip numero">
+            <span>{t("Mín. minutos")}</span>
+            <input type="number" min="0" step="100" inputMode="numeric" value={minimumMinutes} onChange={(event) => cambiarMinutos(event.target.value)} aria-label={t("Mínimo de minutos")} />
+          </label>
+          {Number(minimumMinutes) > 500 && <button className="button secondary" onClick={() => cambiarMinutos("500")}>{t("Volver a 500′")}</button>}
+          {porLiga && <button className="button primary" onClick={() => setBaseDePercentiles("combinado")}>{t("Medir contra todas las ligas")}</button>}
+          {rolMetricas && <button className="button secondary" onClick={() => setRolMetricas("")}>{t("Volver a su propio puesto")}</button>}
+        </div>
+      </section> : <>
+
+      {/* Pocos de ese grupo en su liga: se dice contra quién se midió. */}
+      {search.ampliado && <p className="similarity-ampliado">{tf("En su liga solo hay {n} {grupo} con {m}′: los percentiles se calculan con ellos y con {vecinos} de su liga, {total} en total.", {
+        n: search.ampliado.enElGrupo,
+        grupo: t(nombreDeGrupo(search.ampliado.grupo)).toLowerCase(),
+        m: minimumMinutes,
+        vecinos: search.ampliado.vecinos.map((g) => t(nombreDeGrupo(g)).toLowerCase()).join(t(" y ")),
+        total: search.ampliado.tamano,
+      })}</p>}
 
       {/* Un solo aviso: lo que cambia al medir contra su liga arriba, y el
           porqué —largo— plegado debajo, para quien lo quiera leer. */}
@@ -1128,6 +1159,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
           </>}
         </main>
       </div>
+      </>}
     </>}
   </div>;
 }

@@ -3975,7 +3975,7 @@ button.menu-fila:active { transform: scale(.985); }
 }
 .filtros-chips { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip {
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip, .similarity-empty-acciones) .filtro-chip {
   position: relative;
   min-width: 0; min-height: 30px;
   padding: 0 10px 0 12px;
@@ -3989,28 +3989,28 @@ button.menu-fila:active { transform: scale(.985); }
   cursor: pointer;
   transition: background .12s ease, border-color .12s ease, transform .1s ease;
 }
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip:hover { background: color-mix(in srgb, var(--ink) 10%, transparent); }
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip:active { transform: scale(.97); }
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip:focus-within { border-color: var(--acento-borde); }
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip > span { color: var(--muted); font-weight: 500; }
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip > b {
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip, .similarity-empty-acciones) .filtro-chip:hover { background: color-mix(in srgb, var(--ink) 10%, transparent); }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip, .similarity-empty-acciones) .filtro-chip:active { transform: scale(.97); }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip, .similarity-empty-acciones) .filtro-chip:focus-within { border-color: var(--acento-borde); }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip, .similarity-empty-acciones) .filtro-chip > span { color: var(--muted); font-weight: 500; }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip, .similarity-empty-acciones) .filtro-chip > b {
   max-width: 16ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   color: inherit; font-weight: 600;
 }
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip > .ui-icon { flex: none; color: var(--muted); }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip, .similarity-empty-acciones) .filtro-chip > .ui-icon { flex: none; color: var(--muted); }
 
 /* La ficha que está filtrando se tiñe: se ve QUÉ acota la lista sin leer. */
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip.activo {
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip, .similarity-empty-acciones) .filtro-chip.activo {
   border-color: var(--acento-borde);
   color: var(--acento-claro);
   background: var(--acento-suave);
 }
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip.activo > .ui-icon { color: inherit; }
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip.apagado { cursor: not-allowed; opacity: .55; }
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip.apagado:active { transform: none; }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip, .similarity-empty-acciones) .filtro-chip.activo > .ui-icon { color: inherit; }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip, .similarity-empty-acciones) .filtro-chip.apagado { cursor: not-allowed; opacity: .55; }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip, .similarity-empty-acciones) .filtro-chip.apagado:active { transform: none; }
 
 /* El select de verdad, encima e invisible. */
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip > select {
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip, .similarity-empty-acciones) .filtro-chip > select {
   position: absolute; inset: 0;
   width: 100%; height: 100%; min-height: 0;
   margin: 0; padding: 0;
@@ -4021,8 +4021,8 @@ button.menu-fila:active { transform: scale(.985); }
   cursor: inherit;
 }
 
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip.numero { padding-right: 5px; cursor: text; }
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip > input {
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip, .similarity-empty-acciones) .filtro-chip.numero { padding-right: 5px; cursor: text; }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip, .similarity-empty-acciones) .filtro-chip > input {
   width: 5.4ch; height: 22px; min-height: 0;
   margin: 0; padding: 0 6px;
   border: 0; border-radius: 999px; outline: 0;
@@ -4031,9 +4031,9 @@ button.menu-fila:active { transform: scale(.985); }
   font: inherit; font-weight: 600; font-variant-numeric: tabular-nums; text-align: center;
   -moz-appearance: textfield; appearance: textfield;
 }
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip > input::-webkit-outer-spin-button,
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip > input::-webkit-inner-spin-button { margin: 0; -webkit-appearance: none; }
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip > input::placeholder { color: var(--muted); }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip, .similarity-empty-acciones) .filtro-chip > input::-webkit-outer-spin-button,
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip, .similarity-empty-acciones) .filtro-chip > input::-webkit-inner-spin-button { margin: 0; -webkit-appearance: none; }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip, .similarity-empty-acciones) .filtro-chip > input::placeholder { color: var(--muted); }
 
 .app-shell[data-tema] .filtros-barra-cola { margin-left: auto; padding: 0; display: flex; align-items: center; gap: 12px; }
 .app-shell[data-tema] .filtros-barra-cola > b { color: var(--muted); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -4047,7 +4047,7 @@ button.menu-fila:active { transform: scale(.985); }
 .app-shell[data-tema] .filtros-barra-cola > button:hover { opacity: .75; transform: none; }
 
 @media (prefers-reduced-motion: reduce) {
-  .app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip:active { transform: none; }
+  .app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip, .similarity-empty-acciones) .filtro-chip:active { transform: none; }
 }
 
 /* =====================================================================
@@ -4056,7 +4056,7 @@ button.menu-fila:active { transform: scale(.985); }
 /* Una sola columna: la lista va detrás del jugador objetivo, con sus
    filtros encima. El select de una ficha no puede heredar el tope de ancho
    de los controles antiguos, o dejaría parte de la ficha sin respuesta. */
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip > select { max-width: none; }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip, .similarity-empty-acciones) .filtro-chip > select { max-width: none; }
 .app-shell[data-tema] .similarity-workspace { display: block; margin-top: 12px; }
 .app-shell[data-tema] .similarity-results { gap: 18px; }
 
@@ -4174,8 +4174,8 @@ button.menu-fila:active { transform: scale(.985); }
    apiladas en vertical —la barra medía 306 px— desde que pasaron a fichas.
    Se fija para toda la plataforma, no solo aquí, porque cualquier página con
    una regla genérica sobre "label" haría lo mismo. */
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip { flex-direction: row; }
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip > span { font-size: inherit; letter-spacing: normal; text-transform: none; }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip, .similarity-empty-acciones) .filtro-chip { flex-direction: row; }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip, .similarity-empty-acciones) .filtro-chip > span { font-size: inherit; letter-spacing: normal; text-transform: none; }
 .app-shell[data-tema] .campo-busqueda { flex-direction: row; }
 .app-shell[data-tema] .campo-busqueda > input { width: auto; }
 
@@ -5250,9 +5250,9 @@ body.print-layout-check .app-shell[data-tema]:not([data-informe="oscuro"]) :is(.
    suspensivos. Además había una docena de reglas que cortan
    nombres con "…" y que hoy no se notan solo porque los nombres de la CPL son
    cortos. Un nombre a medias no se puede leer; en dos líneas, sí. */
-.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip > b { max-width: 34ch; }
+.app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip, .similarity-empty-acciones) .filtro-chip > b { max-width: 34ch; }
 @media screen and (max-width: 640px) {
-  body:not(.print-layout-check) .app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip) .filtro-chip > b { max-width: none; white-space: normal; overflow-wrap: break-word; }
+  body:not(.print-layout-check) .app-shell[data-tema] :is(.filtros-barra, .estilo-top-titulo, .snap-top, .snap-con-chip, .similarity-empty-acciones) .filtro-chip > b { max-width: none; white-space: normal; overflow-wrap: break-word; }
 }
 .app-shell[data-tema] :is(.pool-cuerpo > b, .pool-cuerpo > small, .rank-cuerpo .rank-nombre, .datos-competicion > b, .board-archivo > b, .run-mix-row > span, .once-cand > b, .once-cand > em, .board-variacion-cols p em) {
   overflow: visible;
@@ -7820,3 +7820,9 @@ body.print-layout-check .app-shell[data-tema] .pizarra-duelos > ol { grid-templa
 .medir-todas > span { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .medir-todas b { color: var(--ink); font-size: 12px; font-weight: 600; }
 .medir-todas small { color: var(--muted); font-size: 11px; line-height: 1.45; }
+
+/* Similitud sin resultados: el aviso va debajo de la barra del objetivo, que se queda. */
+.app-shell .similarity-empty.similarity-empty-inline { min-height: 0; margin-top: 14px; padding: 28px 20px; }
+.app-shell .similarity-empty-acciones { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.app-shell[data-tema] .similarity-ampliado { margin: 12px 0 0; padding: 8px 12px; border-radius: 8px; background: color-mix(in srgb, var(--acento-claro) 9%, transparent); box-shadow: inset 3px 0 0 var(--acento-claro); color: var(--ink); font-size: 12.5px; line-height: 1.5; }
+@media print { .similarity-ampliado { display: none !important; } }

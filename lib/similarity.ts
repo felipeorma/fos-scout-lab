@@ -71,6 +71,31 @@ export type SimilarityPlayer = {
 export type SimilaritySearchResult = {
   target: PlayerReport;
   candidates: SimilarityPlayer[];
+  /**
+   * Si su liga tenía menos de diez del grupo de métricas elegido y se midió
+   * sumando los puestos vecinos: cuáles y cuántos quedaron en el grupo.
+   */
+  ampliado?: { grupo: string; vecinos: string[]; enElGrupo: number; tamano: number } | null;
+};
+
+/**
+ * Los puestos vecinos de cada grupo de métricas, de más a menos parecidos.
+ *
+ * En la CPL 2026 hay seis interiores y siete mediapuntas con 500′: medido
+ * "cada uno contra su liga", el grupo no llegaba a diez y Similitud se
+ * quedaba vacía al elegir "Métricas de: Interiores". Con los vecinos —los
+ * interiores con los pivotes y los mediapuntas— el percentil vuelve a decir
+ * algo y la página dice contra quién se midió.
+ */
+export const VECINOS_DE_GRUPO: Record<string, string[]> = {
+  GK: [],
+  CB: ["FB"],
+  FB: ["CB", "WING"],
+  DMF: ["B2B"],
+  B2B: ["DMF", "AM"],
+  AM: ["B2B", "WING"],
+  WING: ["AM", "FB"],
+  CF: ["AM", "WING"],
 };
 
 export type SimilarityOptions = {
@@ -278,9 +303,14 @@ export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filt
   // saber de qué fila viene cada par para consultar su procedencia, y
   // buscarla después con indexOf convertiría el filtro en cuadrático.
   const indicesDeCohorte: number[] = [];
+  // Los de cada puesto, para ampliar el grupo de una liga con sus vecinos (VECINOS_DE_GRUPO).
+  const indicesPorGrupo = new Map<string, number[]>();
+  const grupoObjetivo = peerCohort(target.cohort);
   rows.forEach((row, indice) => {
-    if (cohortOf(positionColumn ? row[positionColumn] : "") !== peerCohort(target.cohort)) return;
     if (filters.minimumMinutes > 0 && numeric(row[core.minutes]) < filters.minimumMinutes) return;
+    const grupo = cohortOf(positionColumn ? row[positionColumn] : "");
+    indicesPorGrupo.set(grupo, [...(indicesPorGrupo.get(grupo) ?? []), indice]);
+    if (grupo !== grupoObjetivo) return;
     indicesDeCohorte.push(indice);
   });
   const cohortPeers = indicesDeCohorte.map((indice) => rows[indice]);
@@ -321,19 +351,32 @@ export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filt
    * por fila multiplicaría el coste por mil.
    */
   const minimoCohorte = porLiga?.minimoCohorte ?? MINIMO_COHORTE_POR_LIGA;
-  const cachePorLiga = new Map<string, { poblaciones: Map<string, number[]>; tamano: number } | null>();
-  const paresDeSuLiga = (indice: number) => {
+  type BaseDeLiga = { poblaciones: Map<string, number[]>; tamano: number; enElGrupo: number; vecinos: string[] };
+  const cachePorLiga = new Map<string, BaseDeLiga | null>();
+  const paresDeSuLiga = (indice: number): BaseDeLiga | null => {
     if (!porLiga) return null;
     const ligas = porLiga.ligasPorFila[indice] ?? [];
     if (!ligas.length) return null;
     const clave = [...ligas].sort().join("|");
     if (cachePorLiga.has(clave)) return cachePorLiga.get(clave) ?? null;
-    const suyos = indicesDeCohorte
-      .filter((i) => (porLiga.ligasPorFila[i] ?? []).some((liga) => ligas.includes(liga)))
-      .map((i) => rows[i]);
-    const resultado = suyos.length >= minimoCohorte
-      ? { poblaciones: poblacionesDe(suyos), tamano: suyos.length }
+    const deSuLiga = (indices: number[]) => indices.filter((i) => (porLiga.ligasPorFila[i] ?? []).some((liga) => ligas.includes(liga)));
+    const suyos = deSuLiga(indicesDeCohorte);
+    let resultado: BaseDeLiga | null = suyos.length >= minimoCohorte
+      ? { poblaciones: poblacionesDe(suyos.map((i) => rows[i])), tamano: suyos.length, enElGrupo: suyos.length, vecinos: [] }
       : null;
+    // Pocos del grupo en su liga: se suman sus puestos vecinos, de uno en uno, hasta llegar al mínimo.
+    if (!resultado) {
+      const vecinos: string[] = [];
+      let ampliados = suyos;
+      for (const vecino of VECINOS_DE_GRUPO[grupoObjetivo] ?? []) {
+        vecinos.push(vecino);
+        ampliados = [...ampliados, ...deSuLiga(indicesPorGrupo.get(vecino) ?? [])];
+        if (ampliados.length >= minimoCohorte) break;
+      }
+      if (ampliados.length >= minimoCohorte) {
+        resultado = { poblaciones: poblacionesDe(ampliados.map((i) => rows[i])), tamano: ampliados.length, enElGrupo: suyos.length, vecinos };
+      }
+    }
     cachePorLiga.set(clave, resultado);
     return resultado;
   };
@@ -476,5 +519,8 @@ export function buildSimilaritySearch(rows: DataRow[], targetIndex: number, filt
     } satisfies SimilarityPlayer];
   }).sort((a, b) => b.similarity - a.similarity || b.coverage - a.coverage || collator.compare(a.name, b.name));
 
-  return { target, candidates };
+  const ampliado = baseObjetivo && baseObjetivo.vecinos.length
+    ? { grupo: grupoObjetivo, vecinos: baseObjetivo.vecinos, enElGrupo: baseObjetivo.enElGrupo, tamano: baseObjetivo.tamano }
+    : null;
+  return { target, candidates, ampliado };
 }

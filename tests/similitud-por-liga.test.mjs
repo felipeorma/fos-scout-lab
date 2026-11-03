@@ -110,3 +110,20 @@ test("quien jugó en dos ligas se compara contra las dos juntas", () => {
 test("el mínimo por defecto son diez jugadores", () => {
   assert.equal(MINIMO_COHORTE_POR_LIGA, 10);
 });
+
+test("con pocos del grupo elegido en su liga, se suman sus puestos vecinos en vez de quedarse vacía", () => {
+  // Seis centrales en la liga pequeña y diez laterales; doce centrales en la grande.
+  const conPuesto = (fila, puesto) => ({ ...fila, Position: puesto });
+  const filas = [
+    ...Array.from({ length: 6 }, (_, i) => central(`Chica ${i}`, "Chica FC", 1 + i)),
+    ...Array.from({ length: 10 }, (_, i) => conPuesto(central(`Lateral ${i}`, "Chica FC", 2 + i), "LB")),
+    ...Array.from({ length: 12 }, (_, i) => central(`Grande ${i}`, "Grande FC", 5 + i)),
+  ];
+  const ligasPorFila = filas.map((f) => [f.Team === "Chica FC" ? "Liga Chica 2026" : "Liga Grande 2026"]);
+  const resultado = buildSimilaritySearch(filas, 0, SIN_FILTROS, {}, "CB", null, { ligasPorFila });
+  assert.ok(resultado, "antes salía vacía: seis centrales no llegan a diez");
+  assert.deepEqual(resultado.ampliado, { grupo: "CB", vecinos: ["FB"], enElGrupo: 6, tamano: 16 });
+  // Con diez del grupo en su liga no se amplía nada.
+  const grande = buildSimilaritySearch(filas, 16, SIN_FILTROS, {}, "CB", null, { ligasPorFila });
+  assert.equal(grande.ampliado, null);
+});
