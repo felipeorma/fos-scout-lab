@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { colorContrastante } from "../lib/colores.ts";
+import { colorContrastante, colorSobreOscuro } from "../lib/colores.ts";
 
 /**
  * El color del candidato se elige contra el del objetivo.
@@ -73,4 +73,37 @@ test("el texto sobre el color de un jugador se lee: oscuro sobre claro, blanco s
   assert.equal(textoSobre("#ff3b30"), "#ffffff");
   assert.equal(textoSobre("#1f5fd6"), "#ffffff");
   assert.equal(textoSobre("rojo"), "#ffffff");
+});
+
+/**
+ * El nombre de cada jugador en el encabezado lleva su color, y el encabezado
+ * es siempre una franja oscura. El blanco del objetivo y el rojo del
+ * comparable se respetan tal cual; lo que no se leería se aclara.
+ */
+const luz = (hex) => {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+    .map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+
+test("sobre la franja oscura, el blanco y el rojo se quedan como son", () => {
+  assert.equal(colorSobreOscuro("#f5f5f7"), "#f5f5f7", "el blanco del objetivo en Night");
+  assert.equal(colorSobreOscuro("#ff3b30"), "#ff3b30", "el rojo del acento");
+  assert.equal(colorSobreOscuro("#ff0000"), "#ff0000", "el rojo puro del comparable");
+});
+
+test("el negro del objetivo en los looks claros pasa a blanco, no a gris", () => {
+  assert.equal(colorSobreOscuro("#111111"), "#ffffff");
+});
+
+test("un color oscuro con tono se aclara sin cambiar de tono", () => {
+  const azul = colorSobreOscuro("#1f5fd6");
+  assert.notEqual(azul, "#1f5fd6");
+  assert.ok(luz(azul) >= 0.18, `${azul} seguiría sin leerse`);
+  assert.ok(separacion("#1f5fd6", azul) < 20, `el tono se movió ${separacion("#1f5fd6", azul).toFixed(0)} grados`);
+});
+
+test("un color que no es hexadecimal cae a blanco", () => {
+  assert.equal(colorSobreOscuro("red"), "#ffffff");
+  assert.equal(colorSobreOscuro(""), "#ffffff");
 });

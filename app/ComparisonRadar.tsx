@@ -96,8 +96,8 @@ export function ComparisonRadar({ metrics, metricCohort, targetName, candidateNa
   return <div className="comparison-radar-wrap" style={{ "--comparison-target": targetColor, "--comparison-candidate": candidateColor, "--comparison-target-label": targetLabelColor, "--comparison-candidate-label": candidateLabelColor, "--comparison-target-label-opacity": targetLabelOpacity, "--comparison-candidate-label-opacity": candidateLabelOpacity } as CSSProperties}>
     {/* La leyenda dice cómo se lee, no solo quién es quién. */}
     <div className="comparison-radar-legend" aria-hidden="true">
-      <span className="candidate"><i />{tf("{p} · la cuña", { p: candidate })}</span>
-      <span className="target"><i />{tf("{p} · la línea", { p: target })}</span>
+      <span className="target" style={{ color: targetColor }}><i />{tf("{p} · la línea", { p: target })}</span>
+      <span className="candidate" style={{ color: candidateColor }}><i />{tf("{p} · la cuña", { p: candidate })}</span>
     </div>
     <svg className="comparison-radar comparison-pizza" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-labelledby={`comparison-radar-title-${sufijo} comparison-radar-description-${sufijo}`}>
       {/* Se lee como las barras de "Dónde coinciden": en cada métrica, la cuña
@@ -158,13 +158,13 @@ export function ComparisonRadar({ metrics, metricCohort, targetName, candidateNa
             ))}
           </text>
           <g className="comparison-radar-percentile" aria-label={tf("{name}: percentil {a}; {other}: percentil {b}", { name: targetName, a: metric.targetPercentile, other: candidateName, b: metric.candidatePercentile })}>
-            <g className="candidate">
-              <rect x={badgesX} y={badgesY} width={badgeWidth} height="18" rx="3" />
-              <text x={badgesX + badgeWidth / 2} y={badgesY + 12.5} textAnchor="middle">P{metric.candidatePercentile}</text>
-            </g>
             <g className="target">
-              <rect x={badgesX + badgeWidth + badgeGap} y={badgesY} width={badgeWidth} height="18" rx="9" />
-              <text x={badgesX + badgeWidth + badgeGap + badgeWidth / 2} y={badgesY + 12.5} textAnchor="middle">P{metric.targetPercentile}</text>
+              <rect x={badgesX} y={badgesY} width={badgeWidth} height="18" rx="9" />
+              <text x={badgesX + badgeWidth / 2} y={badgesY + 12.5} textAnchor="middle">P{metric.targetPercentile}</text>
+            </g>
+            <g className="candidate">
+              <rect x={badgesX + badgeWidth + badgeGap} y={badgesY} width={badgeWidth} height="18" rx="3" />
+              <text x={badgesX + badgeWidth + badgeGap + badgeWidth / 2} y={badgesY + 12.5} textAnchor="middle">P{metric.candidatePercentile}</text>
             </g>
           </g>
         </g>;

@@ -1842,7 +1842,7 @@ const EN: Record<string, string> = {
   "Dónde se separan": "Where they differ",
   "Claves": "Key points",
   "Otros parecidos": "Other similar players",
-  "Barra = {b} · marca = {a}": "Bar = {b} · tick = {a}",
+  "Marca = {a} · barra = {b}": "Tick = {a} · bar = {b}",
   "Chip = diferencia de {b} en puntos de percentil": "Chip = {b}'s difference in percentile points",
   "y": "and",
   "{m} (P{x} frente a P{y})": "{m} (P{x} vs P{y})",

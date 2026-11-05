@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import { textoSobre } from "@/lib/colores";
+import { colorSobreOscuro, textoSobre } from "@/lib/colores";
 import { type CSSProperties, useEffect, useId, useRef, useState } from "react";
 import { ComparisonRadar } from "./ComparisonRadar";
 import { Search } from "./Icons";
@@ -218,7 +218,7 @@ function HeaderPlayer({ player, label, side }: { player: SimilarityReportPlayer;
     </div>
     <div className="duel-header-copy">
       <span className="duel-header-role">{label}</span>
-      <b>{name}</b>
+      <b style={{ color: colorSobreOscuro(color) }}>{name}</b>
       {!profile.clubLogo && <em className="duel-header-club"><span>{profile.club || team}</span></em>}
       {/* La posición calculada manda sobre la del perfil de Transfermarkt.
           Iba al revés, y por eso al elegir "Métricas de: Delanteros" el
@@ -230,6 +230,14 @@ function HeaderPlayer({ player, label, side }: { player: SimilarityReportPlayer;
       {profile.marketValue && <strong className="duel-header-value">{profile.marketValue}<ReportImage src={TRANSFERMARKT_LOGO} alt="Transfermarkt" className="duel-header-tm" /></strong>}
     </div>
   </div>;
+}
+
+/** Una frase con plantilla ("{a} · {b}") donde cada nombre se escribe con el color de su jugador. */
+function fraseConColores(plantilla: string, nombres: Record<string, { texto: string; color: string }>) {
+  return plantilla.split(/(\{[a-z]\})/).map((trozo, indice) => {
+    const dato = nombres[trozo.match(/^\{([a-z])\}$/)?.[1] ?? ""];
+    return dato ? <b key={indice} style={{ color: dato.color }}>{dato.texto}</b> : trozo;
+  });
 }
 
 function MetricGroupLegend({ metrics, cohort }: { metrics: SimilarityMetricComparison[]; cohort: string }) {
@@ -302,12 +310,12 @@ export function SimilarityReportMain({ payload }: { payload: SimilarityReportPay
         {extra && <div className="sim-lado">
           <section className="sim-tarjeta">
             <h4>{t("Dónde coinciden")}</h4>
-            <p>{tf("Barra = {b} · marca = {a}", { a: apellido(target.name), b: apellido(candidate.name) })}</p>
+            <p>{fraseConColores(t("Marca = {a} · barra = {b}"), { a: { texto: apellido(target.name), color: target.color }, b: { texto: apellido(candidate.name), color: candidate.color } })}</p>
             {extra.coinciden.map((clave) => porClave.get(clave)).filter((m): m is SimilarityMetricComparison => Boolean(m)).map((metric) => <FilaComparada key={metric.key} metric={metric} cohort={payload.metricCohort} />)}
           </section>
           <section className="sim-tarjeta">
             <h4>{t("Dónde se separan")}</h4>
-            <p>{tf("Chip = diferencia de {b} en puntos de percentil", { b: apellido(candidate.name) })}</p>
+            <p>{fraseConColores(t("Chip = diferencia de {b} en puntos de percentil"), { b: { texto: apellido(candidate.name), color: candidate.color } })}</p>
             {extra.separan.map((clave) => porClave.get(clave)).filter((m): m is SimilarityMetricComparison => Boolean(m)).map((metric) => <FilaComparada key={metric.key} metric={metric} cohort={payload.metricCohort} />)}
           </section>
         </div>}
