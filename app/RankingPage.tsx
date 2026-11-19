@@ -385,7 +385,7 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
             <span className="rank-cuerpo">
               <span className="rank-nombre">
                 {fila.jugador}
-                <small><Escudo equipo={fila.equipo} liga={procedencia?.[fila.indice]?.ligas[0] ?? ""} tamano={13} />{fila.equipo}{Number.isFinite(fila.edad) ? ` · ${fila.edad}` : ""}{fila.minutos ? <span className={fila.minutos < MINUTOS_FIABLES ? "rank-pocos-minutos" : undefined} title={fila.minutos < MINUTOS_FIABLES ? (margenDelIndice(fila.minutos) !== null ? tf("Pocos minutos: su número puede moverse ±{n} de una temporada a otra.", { n: margenDelIndice(fila.minutos) ?? "" }) : t("Muy pocos minutos para un número fiable.")) : undefined}>{` · ${Math.round(fila.minutos)}′`}</span> : ""}
+                <small><Escudo equipo={fila.equipo} liga={procedencia?.[fila.indice]?.ligas.join("|") ?? ""} tamano={13} />{fila.equipo}{Number.isFinite(fila.edad) ? ` · ${fila.edad}` : ""}{fila.minutos ? <span className={fila.minutos < MINUTOS_FIABLES ? "rank-pocos-minutos" : undefined} title={fila.minutos < MINUTOS_FIABLES ? (margenDelIndice(fila.minutos) !== null ? tf("Pocos minutos: su número puede moverse ±{n} de una temporada a otra.", { n: margenDelIndice(fila.minutos) ?? "" }) : t("Muy pocos minutos para un número fiable.")) : undefined}>{` · ${Math.round(fila.minutos)}′`}</span> : ""}
                   {suMercado && <span className="rank-mercado-dato" title={suMercado.club ? tf("Transfermarkt · club actual: {club}", { club: suMercado.club }) : t("Transfermarkt")}>
                     {suMercado.valor != null ? ` · ${valorCorto(suMercado.valor, numberLocale())}` : ""}
                     {suMercado.contrato ? ` · ${tf("contrato {fecha}", { fecha: contratoCorto(suMercado.contrato) })}` : ""}
@@ -437,7 +437,7 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
           <span className="rank-cuerpo">
             <span className="rank-nombre">
               {fila.jugador}{frente.has(fila) && !soloPareto && <i className="rank-pareto-marca" title={t("Nadie le supera a la vez en rendimiento, encaje, puesto y edad")}>◆</i>}
-              <small><Escudo equipo={fila.equipo} liga={procedencia?.[fila.indice]?.ligas[0] ?? ""} tamano={13} />{fila.equipo}{procedencia?.[fila.indice]?.ligas[0] ? ` · ${procedencia[fila.indice].ligas[0]}` : ""}{Number.isFinite(fila.edad) ? ` · ${fila.edad}` : ""}{` · ${Math.round(fila.minutos)}′`}</small>
+              <small><Escudo equipo={fila.equipo} liga={procedencia?.[fila.indice]?.ligas.join("|") ?? ""} tamano={13} />{fila.equipo}{procedencia?.[fila.indice]?.ligas[0] ? ` · ${procedencia[fila.indice].ligas[0]}` : ""}{Number.isFinite(fila.edad) ? ` · ${fila.edad}` : ""}{` · ${Math.round(fila.minutos)}′`}</small>
             </span>
             {fila.destacadas.length > 0 && <span className="rank-flags">
               {fila.destacadas.map((metrica) => <em key={metrica.label}>{t(metrica.label)} <u>P{metrica.percentile}</u></em>)}

@@ -3353,6 +3353,10 @@ def _af_clave():
     return _keychain_secret("api-football") or None
 
 
+# Sube cuando cambia la regla de casar nombres: lo guardado con la anterior se revisa.
+_LOGOS_REGLA = 2
+
+
 def _logos_leer():
     import json as _json
     try:
@@ -3362,6 +3366,15 @@ def _logos_leer():
     datos.setdefault("equipos", {})
     datos.setdefault("ligas", {})
     datos.setdefault("cuota", {"dia": "", "usadas": 0})
+    if datos.get("regla", 1) < _LOGOS_REGLA:
+        # Fuera lo que la regla nueva no daría por bueno: se volverá a pedir.
+        # La clave ya son nuestras palabras; el nombre guardado, las suyas.
+        for clave, guardado in list(datos["equipos"].items()):
+            nombre = (guardado or {}).get("nombre")
+            nuestras = _tokens_equipo(_AF_RENOMBRADOS[clave]) if clave in _AF_RENOMBRADOS else frozenset(clave.split())
+            if nombre and _parecido_tokens(nuestras, _tokens_equipo(nombre)) < 0.5:
+                del datos["equipos"][clave]
+        datos["regla"] = _LOGOS_REGLA
     return datos
 
 
@@ -3427,22 +3440,31 @@ def _tokens_equipo(nombre: str):
     return frozenset(romanos.get(t, t[:-1] if len(t) > 4 and t.endswith("s") else t) for t in significativas)
 
 
-def _parecido_equipo(a: str, b: str, estricto: bool = False) -> float:
-    """Parecido entre dos nombres de club por palabras significativas.
-
-    Que uno contenga al otro ("FC Supra" en "Supra du Québec") basta dentro de
-    una liga, donde no hay dos equipos así. En una búsqueda abierta no: "Inter
-    Toronto" contiene "Toronto" y es otro club. Ahí (`estricto`) la contención
-    solo cuenta si el nombre corto tiene al menos dos palabras.
-    """
-    ta, tb = _tokens_equipo(a), _tokens_equipo(b)
+def _parecido_tokens(ta, tb, estricto: bool = False) -> float:
+    """El parecido de `_parecido_equipo` con las palabras ya sacadas: `ta` las nuestras, `tb` las del candidato."""
     if not ta or not tb:
         return 0.0
     base = len(ta & tb) / len(ta | tb)
-    contiene = ta <= tb or tb <= ta
-    if contiene and (not estricto or min(len(ta), len(tb)) >= 2 or ta == tb):
+    # La contención solo vale en un sentido: que NUESTRO nombre esté dentro del
+    # suyo ("FC Supra" en "Supra du Québec"). Al revés no: si el nuestro tiene
+    # palabras propias que el suyo no ("Vancouver Whitecaps II" frente a
+    # "Vancouver FC"), es otro club. Pedido con la liga equivocada —la primera
+    # de un jugador que pasó por la CPL—, el filial de los Whitecaps se quedaba
+    # con el escudo de Vancouver FC, y para siempre, porque se guarda.
+    if ta <= tb and (not estricto or len(ta) >= 2 or ta == tb):
         return max(base, 0.8)
     return base
+
+
+def _parecido_equipo(a: str, b: str, estricto: bool = False) -> float:
+    """Parecido entre dos nombres de club por palabras significativas: `a` el nuestro, `b` el candidato.
+
+    Que el nuestro esté dentro del suyo basta dentro de una liga, donde no hay
+    dos equipos así. En una búsqueda abierta no: "Toronto" está dentro de
+    "Inter Toronto" y es otro club. Ahí (`estricto`) la contención solo cuenta
+    si el nuestro tiene al menos dos palabras.
+    """
+    return _parecido_tokens(_tokens_equipo(a), _tokens_equipo(b), estricto)
 
 
 def _equipos_de_liga(liga: str, datos):
@@ -3485,7 +3507,16 @@ def logos_equipo(equipo: str, liga: str = ""):
             return Response('{"logo": null, "estado": "sin-clave"}', media_type="application/json", headers=cors_headers())
         equipo = _AF_RENOMBRADOS.get(clave_equipo, equipo)
         mejor, puntos = None, 0.0
-        de_liga, fallo = _equipos_de_liga(liga, datos)
+        # Un jugador que pasó por dos ligas llega con las dos ("Canadian Premier
+        # League|MLS Next Pro"): no sabemos en cuál juega su equipo, así que se
+        # mira en todas y gana el nombre que mejor case.
+        de_liga, fallo = [], None
+        for una in [l for l in (liga or "").split("|") if l.strip()]:
+            equipos_de_una, fallo_de_una = _equipos_de_liga(una, datos)
+            de_liga += equipos_de_una or []
+            fallo = fallo or fallo_de_una
+            if fallo_de_una in ("clave", "cuota", "ritmo"):
+                break
         if fallo == "clave":
             _logos_guardar(datos)
             return Response('{"logo": null, "estado": "clave-invalida"}', media_type="application/json", headers=cors_headers())
