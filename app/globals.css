@@ -7826,3 +7826,28 @@ body.print-layout-check .app-shell[data-tema] .pizarra-duelos > ol { grid-templa
 .app-shell .similarity-empty-acciones { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 .app-shell[data-tema] .similarity-ampliado { margin: 12px 0 0; padding: 8px 12px; border-radius: 8px; background: color-mix(in srgb, var(--acento-claro) 9%, transparent); box-shadow: inset 3px 0 0 var(--acento-claro); color: var(--ink); font-size: 12.5px; line-height: 1.5; }
 @media print { .similarity-ampliado { display: none !important; } }
+
+/* ---- Similitud: radar superpuesto (Cuñas | Radar) ----
+   Los dos jugadores como polígonos traslúcidos sobre bandas alternas de 20 en
+   20, al estilo de los radares de mplsoccer, con los colores de cada jugador
+   y las mismas píldoras que las cuñas. El objetivo va debajo y su contorno se
+   repite encima, para que el comparable no lo tape. */
+.comparison-radar-banda { fill: color-mix(in srgb, var(--report-ink) 2.5%, transparent); stroke: color-mix(in srgb, var(--report-ink) 11%, transparent); stroke-width: 1; }
+.comparison-radar-banda.alterna { fill: color-mix(in srgb, var(--report-ink) 6.5%, transparent); }
+.comparison-superpuesto .comparison-radar-axis { stroke: color-mix(in srgb, var(--report-ink) 9%, transparent); }
+.comparison-superpuesto .comparison-radar-area { stroke-linejoin: round; stroke-width: 2.5; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+.comparison-superpuesto .comparison-radar-area.target { fill: color-mix(in srgb, var(--comparison-target) 24%, transparent); stroke: var(--comparison-target); }
+.comparison-superpuesto .comparison-radar-area.candidate { fill: color-mix(in srgb, var(--comparison-candidate) 42%, transparent); stroke: var(--comparison-candidate); }
+.comparison-radar-contorno.target { fill: none; stroke: var(--comparison-target); stroke-width: 2.5; stroke-linejoin: round; stroke-dasharray: 7 5; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+.comparison-superpuesto .comparison-radar-dot { stroke: #0b0b0e; stroke-width: 2; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+.similarity-report-theme:not([data-oscuro]) .comparison-superpuesto .comparison-radar-dot { stroke: #fff; }
+.comparison-radar-escala { fill: color-mix(in srgb, var(--report-ink) 50%, transparent); font-family: var(--font-space-grotesk), sans-serif; font-size: 9.5px; font-weight: 700; paint-order: stroke; stroke: #0b0b0e; stroke-width: 3px; }
+.similarity-report-theme:not([data-oscuro]) .comparison-radar-escala { stroke: #fff; }
+.comparison-radar-wrap.estilo-radar .comparison-radar-legend :is(.target, .candidate) i { width: 12px; height: 12px; border-radius: 3px; border: 1.5px solid currentColor; background: color-mix(in srgb, currentColor 40%, transparent); }
+.comparison-radar-wrap.estilo-radar .comparison-radar-legend .target i { background: color-mix(in srgb, currentColor 22%, transparent); border-style: dashed; }
+.app-shell .comparison-superpuesto :is(.comparison-radar-area, .comparison-radar-contorno, .comparison-radar-dot) { transform-origin: 400px 350px; animation: radar-crece .5s var(--curva) both; }
+.app-shell .comparison-superpuesto .comparison-radar-area.candidate, .app-shell .comparison-superpuesto .comparison-radar-dot.candidate { animation-delay: .08s; }
+@media (prefers-reduced-motion: reduce) {
+  .app-shell .comparison-superpuesto :is(.comparison-radar-area, .comparison-radar-contorno, .comparison-radar-dot) { animation: none; }
+}
+.app-shell .similarity-estilo-radar { flex: none; }

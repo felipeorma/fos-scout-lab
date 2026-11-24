@@ -63,7 +63,16 @@ function radarLabelLines(label: string) {
   return [words.slice(0, splitIndex).join(" "), words.slice(splitIndex).join(" ")];
 }
 
-export function ComparisonRadar({ metrics, metricCohort, targetName, candidateName, targetColor, candidateColor, targetLabelColor, candidateLabelColor, targetLabelTransparency, candidateLabelTransparency, similarity }: { metrics: SimilarityMetricComparison[]; metricCohort: string; targetName: string; candidateName: string; targetColor: string; candidateColor: string; targetLabelColor: string; candidateLabelColor: string; targetLabelTransparency: number; candidateLabelTransparency: number; similarity?: number }) {
+/** Cómo se dibuja la comparación: cuñas con la línea del objetivo, o dos radares superpuestos. */
+export type EstiloRadarComparativo = "cunas" | "radar";
+
+/** En el radar superpuesto no hay agujero: el centro es el percentil 0. */
+const radioSuperpuesto = (percentile: number) => RADIUS * Math.max(0, Math.min(100, percentile)) / 100;
+
+/** Un círculo como trazado, para hacer anillos con `evenodd`. */
+const circulo = (r: number) => `M${(CENTER_X - r).toFixed(2)} ${CENTER_Y}a${r.toFixed(2)} ${r.toFixed(2)} 0 1 0 ${(2 * r).toFixed(2)} 0a${r.toFixed(2)} ${r.toFixed(2)} 0 1 0 ${(-2 * r).toFixed(2)} 0Z`;
+
+export function ComparisonRadar({ metrics, metricCohort, targetName, candidateName, targetColor, candidateColor, targetLabelColor, candidateLabelColor, targetLabelTransparency, candidateLabelTransparency, similarity, estilo = "cunas" }: { metrics: SimilarityMetricComparison[]; metricCohort: string; targetName: string; candidateName: string; targetColor: string; candidateColor: string; targetLabelColor: string; candidateLabelColor: string; targetLabelTransparency: number; candidateLabelTransparency: number; similarity?: number; estilo?: EstiloRadarComparativo }) {
   if (metrics.length < 3) return null;
   /*
    * Un sufijo estable por pareja de jugadores. Los <defs> del SVG viven en un
@@ -93,13 +102,29 @@ export function ComparisonRadar({ metrics, metricCohort, targetName, candidateNa
     inicio = i;
   }
 
-  return <div className="comparison-radar-wrap" style={{ "--comparison-target": targetColor, "--comparison-candidate": candidateColor, "--comparison-target-label": targetLabelColor, "--comparison-candidate-label": candidateLabelColor, "--comparison-target-label-opacity": targetLabelOpacity, "--comparison-candidate-label-opacity": candidateLabelOpacity } as CSSProperties}>
+  const superpuesto = estilo === "radar";
+  /*
+   * El radar superpuesto, al estilo de los de mplsoccer (draw_radar_compare):
+   * los dos jugadores como polígonos traslúcidos, uno encima del otro, sobre
+   * anillos de 20 en 20 con bandas alternas, y un punto en cada vértice. Se
+   * lee por la forma: dónde uno sobresale del otro. Mismos colores, mismas
+   * métricas en el mismo sitio y las mismas píldoras que las cuñas, para que
+   * cambiar de vista no obligue a volver a aprender la hoja. La escala va en
+   * el hueco de arriba, que siempre queda libre porque cada métrica se centra
+   * en su porción.
+   */
+  const verticesDe = (cual: "targetPercentile" | "candidatePercentile") => metrics.map((metric, index) => point(index, metrics.length, radioSuperpuesto(metric[cual])));
+  const poligono = (puntos: Array<{ x: number; y: number }>) => `${puntos.map((p, i) => `${i ? "L" : "M"}${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join("")}Z`;
+  const verticesObjetivo = superpuesto ? verticesDe("targetPercentile") : [];
+  const verticesComparable = superpuesto ? verticesDe("candidatePercentile") : [];
+
+  return <div className={superpuesto ? "comparison-radar-wrap estilo-radar" : "comparison-radar-wrap"} style={{ "--comparison-target": targetColor, "--comparison-candidate": candidateColor, "--comparison-target-label": targetLabelColor, "--comparison-candidate-label": candidateLabelColor, "--comparison-target-label-opacity": targetLabelOpacity, "--comparison-candidate-label-opacity": candidateLabelOpacity } as CSSProperties}>
     {/* La leyenda dice cómo se lee, no solo quién es quién. */}
     <div className="comparison-radar-legend" aria-hidden="true">
-      <span className="target" style={{ color: targetColor }}><i />{tf("{p} · la línea", { p: target })}</span>
-      <span className="candidate" style={{ color: candidateColor }}><i />{tf("{p} · la cuña", { p: candidate })}</span>
+      <span className="target" style={{ color: targetColor }}><i />{superpuesto ? target : tf("{p} · la línea", { p: target })}</span>
+      <span className="candidate" style={{ color: candidateColor }}><i />{superpuesto ? candidate : tf("{p} · la cuña", { p: candidate })}</span>
     </div>
-    <svg className="comparison-radar comparison-pizza" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-labelledby={`comparison-radar-title-${sufijo} comparison-radar-description-${sufijo}`}>
+    <svg className={superpuesto ? "comparison-radar comparison-pizza comparison-superpuesto" : "comparison-radar comparison-pizza"} viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-labelledby={`comparison-radar-title-${sufijo} comparison-radar-description-${sufijo}`}>
       {/* Se lee como las barras de "Dónde coinciden": en cada métrica, la cuña
           es el comparable y la línea, el objetivo. Si la cuña llega a la
           línea, se parecen; lo que sobra o falta es la diferencia, y se ve
@@ -115,8 +140,29 @@ export function ComparisonRadar({ metrics, metricCohort, targetName, candidateNa
         </radialGradient>
       </defs>
       <title id={`comparison-radar-title-${sufijo}`}>{tf("Radar comparativo de {a} y {b}", { a: targetName, b: candidateName })}</title>
-      <desc id={`comparison-radar-description-${sufijo}`}>{tf("Percentiles P0 a P100. En cada métrica, la cuña es {b} y la línea, {a}.", { a: targetName, b: candidateName })}</desc>
+      <desc id={`comparison-radar-description-${sufijo}`}>{superpuesto
+        ? tf("Percentiles P0 a P100, del centro hacia fuera. {a} y {b}, superpuestos.", { a: targetName, b: candidateName })
+        : tf("Percentiles P0 a P100. En cada métrica, la cuña es {b} y la línea, {a}.", { a: targetName, b: candidateName })}</desc>
 
+      {superpuesto ? <>
+        {/* Bandas alternas de 20 en 20, la mediana punteada y los radios. */}
+        {[20, 40, 60, 80, 100].map((nivel, i) => <path key={nivel} className={i % 2 ? "comparison-radar-banda" : "comparison-radar-banda alterna"} fillRule="evenodd" d={`${circulo(radioSuperpuesto(nivel))}${nivel > 20 ? circulo(radioSuperpuesto(nivel - 20)) : ""}`} />)}
+        <circle className="comparison-radar-anillo mediana" cx={CENTER_X} cy={CENTER_Y} r={radioSuperpuesto(50)} />
+        {metrics.map((metric, index) => {
+          const borde = point(index, metrics.length, RADIUS);
+          return <line key={`eje-${metric.key}`} className="comparison-radar-axis" x1={CENTER_X} y1={CENTER_Y} x2={borde.x.toFixed(2)} y2={borde.y.toFixed(2)} />;
+        })}
+        <circle className="comparison-radar-anillo-base" cx={CENTER_X} cy={CENTER_Y} r={RING} />
+        {arcos.map((a, i) => <path key={i} d={arcPath(a.desde, a.hasta, RING)} fill="none" stroke={a.color} className="comparison-radar-group" />)}
+        {/* El objetivo debajo; el comparable encima, y el contorno del objetivo
+            otra vez por encima de todo para que su forma no se pierda. */}
+        <path className="comparison-radar-area target" d={poligono(verticesObjetivo)} />
+        <path className="comparison-radar-area candidate" d={poligono(verticesComparable)} />
+        <path className="comparison-radar-contorno target" d={poligono(verticesObjetivo)} />
+        {verticesComparable.map((v, i) => <circle key={`c-${metrics[i].key}`} className="comparison-radar-dot candidate" cx={v.x.toFixed(2)} cy={v.y.toFixed(2)} r="5" />)}
+        {verticesObjetivo.map((v, i) => <circle key={`t-${metrics[i].key}`} className="comparison-radar-dot target" cx={v.x.toFixed(2)} cy={v.y.toFixed(2)} r="5" />)}
+        {[20, 40, 60, 80].map((nivel) => <text key={`escala-${nivel}`} className="comparison-radar-escala" x={CENTER_X} y={CENTER_Y - radioSuperpuesto(nivel) - 3} textAnchor="middle">{nivel}</text>)}
+      </> : <>
       {[25, 50, 75, 100].map((level) => <circle key={level} className={level === 50 ? "comparison-radar-anillo mediana" : "comparison-radar-anillo"} cx={CENTER_X} cy={CENTER_Y} r={radioDe(level)} />)}
       <circle className="comparison-radar-anillo-base" cx={CENTER_X} cy={CENTER_Y} r={RING} />
       {arcos.map((a, i) => <path key={i} d={arcPath(a.desde, a.hasta, RING)} fill="none" stroke={a.color} className="comparison-radar-group" />)}
@@ -140,6 +186,7 @@ export function ComparisonRadar({ metrics, metricCohort, targetName, candidateNa
       {similarity !== undefined && Number.isFinite(similarity) && <>
         <text className="comparison-pizza-parecido" x={CENTER_X} y={CENTER_Y - 3} textAnchor="middle" dominantBaseline="central">{`${Math.round(similarity)}%`}</text>
         <text className="comparison-pizza-parecido-label" x={CENTER_X} y={CENTER_Y + 19} textAnchor="middle" dominantBaseline="central">{t("PARECIDO")}</text>
+      </>}
       </>}
 
       {metrics.map((metric, index) => {

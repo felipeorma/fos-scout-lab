@@ -3,7 +3,7 @@
 import { motion, useReducedMotion } from "framer-motion";
 import { colorSobreOscuro, textoSobre } from "@/lib/colores";
 import { type CSSProperties, useEffect, useId, useRef, useState } from "react";
-import { ComparisonRadar } from "./ComparisonRadar";
+import { ComparisonRadar, type EstiloRadarComparativo } from "./ComparisonRadar";
 import { Search } from "./Icons";
 import { formatPlayerPositions } from "@/lib/positions";
 import { framePhotoTransform, opaqueBounds } from "@/lib/photoFraming";
@@ -49,6 +49,8 @@ export type SimilarityReportPayload = {
   metrics: SimilarityMetricComparison[];
   /** Duelos, coincidencias, claves y otros parecidos. Las hojas guardadas antes no lo traen. */
   extra?: ExtraDeSimilitud;
+  /** Cuñas (por defecto) o los dos radares superpuestos. */
+  estiloRadar?: EstiloRadarComparativo;
 };
 
 export function isSimilarityReportPayload(value: unknown): value is SimilarityReportPayload {
@@ -304,7 +306,7 @@ export function SimilarityReportMain({ payload }: { payload: SimilarityReportPay
     <div className="similarity-report-body">
       <div className={extra ? "similarity-showdown con-lado" : "similarity-showdown radar-only"}>
         <div className="similarity-radar-column">
-          <ComparisonRadar metrics={metrics} metricCohort={payload.metricCohort} targetName={target.name} candidateName={candidate.name} targetColor={target.color} candidateColor={candidate.color} targetLabelColor={target.labelColor} candidateLabelColor={candidate.labelColor} targetLabelTransparency={target.labelTransparency} candidateLabelTransparency={candidate.labelTransparency} similarity={payload.similarity} />
+          <ComparisonRadar metrics={metrics} metricCohort={payload.metricCohort} targetName={target.name} candidateName={candidate.name} targetColor={target.color} candidateColor={candidate.color} targetLabelColor={target.labelColor} candidateLabelColor={candidate.labelColor} targetLabelTransparency={target.labelTransparency} candidateLabelTransparency={candidate.labelTransparency} similarity={payload.similarity} estilo={payload.estiloRadar} />
           <MetricGroupLegend metrics={metrics} cohort={payload.metricCohort} />
         </div>
         {extra && <div className="sim-lado">

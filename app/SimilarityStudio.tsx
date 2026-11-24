@@ -13,6 +13,7 @@ import { type CSSProperties, type FormEvent, useCallback, useEffect, useMemo, us
 import { ArrowDownToLine, ChevronDown, Printer, RotateCcw, Search, Sparkles, Upload } from "./Icons";
 import { reportThemeStyle, type ReportTheme } from "./reportTheme";
 import { SimilarityReportMain, type SimilarityReportPayload } from "./SimilarityReport";
+import type { EstiloRadarComparativo } from "./ComparisonRadar";
 import {
   buildSimilaritySearch,
   secondaryRoleOptions,
@@ -83,6 +84,7 @@ type SimilarityStudioProps = {
   onOpenReports: () => void;
 };
 
+const CLAVE_ESTILO_RADAR = "fos-similitud-estilo-radar-v1";
 const PLAYER_PALETTE = ["#1f5fd6", "#e95b3f", "#43a8a0", "#9e07ae", "#d7a62c", "#16a34a", "#0f172a", "#f97316"];
 
 const alphabeticCollator = new Intl.Collator("es", { sensitivity: "base", numeric: true });
@@ -255,6 +257,18 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
   const [profileStatus, setProfileStatus] = useState<Record<ProfileSide, string>>({ target: "", candidate: "" });
   const [targetColorChoice, setTargetColorChoice] = useState("");
   const [candidateColorChoice, setCandidateColorChoice] = useState("#ff0000");
+  /* Cuñas o radar superpuesto: se recuerda en este navegador, que es una
+     preferencia de lectura y no parte de la comparación. */
+  const [estiloRadar, setEstiloRadar] = useState<EstiloRadarComparativo>("cunas");
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(CLAVE_ESTILO_RADAR) === "radar") setEstiloRadar("radar");
+    } catch { /* sin almacenamiento: se queda en cuñas */ }
+  }, []);
+  const elegirEstiloRadar = (estilo: EstiloRadarComparativo) => {
+    setEstiloRadar(estilo);
+    try { window.localStorage.setItem(CLAVE_ESTILO_RADAR, estilo); } catch { /* no pasa nada */ }
+  };
   const [targetLabelColorChoice, setTargetLabelColorChoice] = useState("");
   const [candidateLabelColorChoice, setCandidateLabelColorChoice] = useState("");
   const [targetLabelTransparency, setTargetLabelTransparency] = useState(82);
@@ -512,6 +526,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
         photoFit: candidatePhotoFit,
       },
       metrics: selectedCandidate.metrics,
+      estiloRadar,
       extra: (() => {
         // Duelos, coincidencias, claves y otros parecidos: se calculan aquí y
         // viajan con la hoja, así que una comparación guardada se lee igual.
@@ -542,6 +557,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     procedenciaPorFila,
     selectedIndex,
     lang,
+    estiloRadar,
     candidateColor,
     candidateLabelColor,
     candidateLabelTransparency,
@@ -1104,6 +1120,10 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
             <div ref={barraDeLaHojaRef} className="similarity-hoja-barra">
               <p><span>{t("Comparando")}</span><b>{search.target.player}</b><i aria-hidden="true">↔</i><b>{selectedCandidate.name}</b><em title={t("Parecido corregido por cobertura; debajo, el bruto y la cobertura")}>{`${selectedCandidate.ajustado}%`}</em><small>{tf("bruto {n}% · cobertura {c}%", { n: selectedCandidate.similarity, c: selectedCandidate.coverage })}</small></p>
               <button type="button" className="similarity-volver" onClick={() => irA(rankingRef.current)}>{t("↑ Volver al ranking")}</button>
+              <div className="rank-tabs similarity-estilo-radar" role="group" aria-label={t("Estilo del radar")}>
+                <button type="button" className={estiloRadar === "cunas" ? "on" : undefined} aria-pressed={estiloRadar === "cunas"} onClick={() => elegirEstiloRadar("cunas")}>{t("Cuñas")}</button>
+                <button type="button" className={estiloRadar === "radar" ? "on" : undefined} aria-pressed={estiloRadar === "radar"} onClick={() => elegirEstiloRadar("radar")}>{t("Radar")}</button>
+              </div>
               <div className="comparison-actions"><button className="button secondary" onClick={() => void downloadComparison()} disabled={exportBusy}><ArrowDownToLine size={16} /> {exportBusy ? t("Preparando…") : t("Descargar PNG")}</button><button className="button secondary" onClick={() => void downloadComparisonPdf()} disabled={exportBusy}><Printer size={16} /> {exportBusy ? t("Preparando…") : t("Descargar PDF")}</button></div>
             </div>
             {/* La hoja de similitud en el mismo marco de impresión que Ficha y
