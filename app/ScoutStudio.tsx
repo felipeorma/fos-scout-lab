@@ -1403,13 +1403,37 @@ export default function ScoutStudio() {
   }
 
   /** Rehace el cruce con las bases encendidas, sin tocar el inventario. */
+  /**
+   * Dónde queda el jugador que se está mirando en unas filas nuevas: por
+   * nombre y nacimiento; si no, por nombre; -1 si ya no está. Se captura
+   * ANTES de rehacer el cruce, porque después el índice es de otro.
+   */
+  function buscadorDelJugadorActual() {
+    const actual = reportRows[selectedPlayer];
+    const nombre = String(actual?.Player ?? "");
+    const nacimiento = String(actual?.["Birth date"] ?? "");
+    return (filas: DataRow[]) => {
+      if (!nombre) return -1;
+      const exacto = filas.findIndex((fila) => String(fila.Player ?? "") === nombre
+        && (!nacimiento || !fila["Birth date"] || String(fila["Birth date"]) === nacimiento));
+      return exacto >= 0 ? exacto : filas.findIndex((fila) => String(fila.Player ?? "") === nombre);
+    };
+  }
+
+  /*
+   * Apagar o encender una liga ya no devuelve la ficha al primer jugador de
+   * la lista: se sigue en el mismo, si sigue en la base. Solo si era de la
+   * liga que se apagó se pasa al primero.
+   */
   async function aplicarActivos(activos: SourceDataset[]) {
+    const buscar = buscadorDelJugadorActual();
     const turno = ++turnoDelCruce.current;
     const result = await cruzarEnSegundoPlano(activos);
     if (turno !== turnoDelCruce.current) return;
     setReportRows(result.rows);
     setReportSourceCount(activos.length);
-    const seleccion = firstPlayerSelection(result.rows);
+    const mismo = buscar(result.rows);
+    const seleccion = mismo >= 0 ? { index: mismo, team: String(result.rows[mismo].Team ?? "") } : firstPlayerSelection(result.rows);
     setSelectedTeam(seleccion.team);
     setSelectedPlayer(seleccion.index);
   }
@@ -1428,7 +1452,8 @@ export default function ScoutStudio() {
     const quedan = sourceDatasets.filter((dataset) => !archivos.includes(dataset.fileName));
     if (!quedan.length) { resetReport(); return; }
     setLigasApagadas((apagadas) => apagadas.filter((archivo) => !archivos.includes(archivo)));
-    void applyDatasets(quedan).catch((error) => setReportError(error instanceof Error ? error.message : String(error)));
+    const buscar = buscadorDelJugadorActual();
+    void applyDatasets(quedan, (filas) => buscar(filas)).catch((error) => setReportError(error instanceof Error ? error.message : String(error)));
   }
 
   /**
