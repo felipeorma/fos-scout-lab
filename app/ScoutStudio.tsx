@@ -518,26 +518,9 @@ export default function ScoutStudio() {
       activa: seleccionDeTemporadas.seleccion.includes(clave), aMano: Boolean(temporada.aMano),
     })),
   ] : [];
+  /** "2025 + 2026": con qué temporadas se mide, para decirlo en la ficha ampliada. */
+  const temporadasDelPeriodo = chipsDelObjetivo.filter((chip) => chip.activa && !chip.aMano).map((chip) => chip.etiqueta).sort().join(" + ");
   const indiceDelInforme = cruceDeTemporadas && indiceEnElCruce >= 0 ? indiceEnElCruce : selectedPlayer;
-  /*
-   * La ficha ampliada enseña UNA temporada —la de
-   * referencia, por defecto la última—, no la suma: sus mapas son de los
-   * partidos de esa temporada, y con la fila fusionada los minutos y las
-   * familias mezclaban dos clubes y dos ligas. Solo se calcula si alguna de
-   * esas páginas está abierta.
-   */
-  const aniosAbiertos = paginasAbiertas.join(",");
-  const anioDeReferencia = temporadaDeReferencia?.anio ?? null;
-  const conVariasTemporadas = temporadasDeLaFila.length > 1;
-  const conPiezas = aniosAbiertos.split(",").map(Number).includes(SNAPSHOT_PAGE);
-  const cruceDeLaTemporada = useCruceDeAnios(basesActivas, conPiezas && anioDeReferencia !== null && conVariasTemporadas ? String(anioDeReferencia) : "");
-  const indiceEnLaTemporada = useMemo(() => {
-    if (!cruceDeLaTemporada || !filaElegida) return -1;
-    const nombre = String(filaElegida.Player ?? "");
-    const nacimiento = String(filaElegida["Birth date"] ?? "");
-    return cruceDeLaTemporada.findIndex((fila) => String(fila.Player ?? "") === nombre
-      && (!nacimiento || !fila["Birth date"] || String(fila["Birth date"]) === nacimiento));
-  }, [cruceDeLaTemporada, filaElegida]);
   /** Si SkillCorner no publica su liga en la temporada que se mira, o solo sus físicos: la ficha lo dice. */
   const avisoSc = useMemo(() => {
     if (!temporadaDeReferencia) return "";
@@ -546,8 +529,15 @@ export default function ScoutStudio() {
     // lang: el texto cambia de idioma.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [temporadaDeReferencia, basesActivas, filasDelInforme, indiceDelInforme, lang]);
-  const filasDeLasPiezas = cruceDeLaTemporada && indiceEnLaTemporada >= 0 ? cruceDeLaTemporada : reportRows;
-  const indiceDeLasPiezas = cruceDeLaTemporada && indiceEnLaTemporada >= 0 ? indiceEnLaTemporada : selectedPlayer;
+  /*
+   * La ficha ampliada mide al jugador con las MISMAS temporadas que la ficha
+   * y que Similitud: familias, Top 10 y parecidos salen de ese período, cada
+   * uno con la media de esas temporadas. Los mapas siguen siendo de los
+   * partidos de la temporada de referencia —son eventos de esos partidos—, y
+   * la hoja lo dice.
+   */
+  const filasDeLasPiezas = filasDelInforme;
+  const indiceDeLasPiezas = indiceDelInforme;
   /** Un jugador de las filas de las piezas, en la base entera (para abrir su ficha). */
   const enLaBase = (indice: number) => {
     if (filasDeLasPiezas === reportRows) return indice;
@@ -682,6 +672,9 @@ export default function ScoutStudio() {
         && !sourceDatasets.some((dataset) => dataset.fileName === `StatsBomb · ${competicion.name} ${competicion.season}`))
       .sort((a, b) => String(b.season).localeCompare(String(a.season), "en", { numeric: true }));
   }, [catalogoSb, temporadaDeReferencia, inicioDeReferencia, sourceDatasets]);
+  /** Lo que se puede cargar de StatsBomb y aún no está: Similitud lo ofrece para el comparable. */
+  const catalogoSinCargar = useMemo(() => catalogoSb.filter((competicion) => competicion.hasMatches !== false
+    && !sourceDatasets.some((dataset) => dataset.fileName === `StatsBomb · ${competicion.name} ${competicion.season}`)), [catalogoSb, sourceDatasets]);
   const [previaManual, setPreviaManual] = useState<{ jugador: string; elegida: string } | null>(null);
   const [pedidaAlCatalogo, setPedidaAlCatalogo] = useState<{ jugador: string; competicion: ApiCompetition } | null>(null);
   const manualAbierto = previaManual?.jugador === claveDelJugador;
@@ -2795,13 +2788,16 @@ export default function ScoutStudio() {
                   onOpenReports={() => setReportPage(CARD_PAGE)}
                   periodo={periodoDeSimilitud}
                   periodoPendiente={Boolean(claveDelCruce) && !cruceDeTemporadas}
-                  aniosDelPeriodo={periodoDeSimilitud ? aniosDelInforme : null}
+                  aniosDelPeriodo={claveDelCruce ? aniosDelInforme : null}
                   temporadasDelObjetivo={chipsDelObjetivo.length ? {
                     chips: chipsDelObjetivo,
                     onAlternar: (clave) => cambiarSeleccionDeTemporadas((claves) => claves.includes(clave) ? claves.filter((actual) => actual !== clave) : [...claves, clave]),
                   } : null}
                   basesActivas={basesActivas}
                   procedencias={procedencias}
+                  catalogoParaCargar={catalogoSinCargar}
+                  cargando={reportLoading}
+                  onCargarCompeticion={(competicion) => sumarTemporada(competicion)}
                 />
               </div>
 
@@ -2811,7 +2807,7 @@ export default function ScoutStudio() {
                   diálogo la pusiera tercera. Lo vigila
                   tests/orden-del-pdf.test.mjs. */}
               {espacio === "cavalry" && report && paginaMontada(SNAPSHOT_PAGE) && (
-                <SnapshotPage rows={filasDeLasPiezas} indice={indiceDeLasPiezas} informe={report} perfilTm={profile} minutosMin={minimumMinutes} claseHoja={claseHoja(SNAPSHOT_PAGE)} temporada={temporadaDeReferencia?.etiqueta}
+                <SnapshotPage rows={filasDeLasPiezas} indice={indiceDeLasPiezas} informe={report} perfilTm={profile} minutosMin={minimumMinutes} claseHoja={claseHoja(SNAPSHOT_PAGE)} temporada={temporadaDeReferencia?.etiqueta} temporadasDelPeriodo={temporadasDelPeriodo}
                   clavesPorFila={ligasDeLasPiezas} ligasDeFila={ligasDeLasPiezas} feedOpta={feedOpta} avisoSkillcorner={avisoSc}
                   destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} onAbrirJugador={(indice) => { const enBase = enLaBase(indice); if (enBase >= 0) selectPlayer(enBase); }} />
               )}

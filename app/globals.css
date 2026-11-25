@@ -7877,3 +7877,10 @@ body.print-layout-check .app-shell[data-tema] .pizarra-duelos > ol { grid-templa
 .app-shell .similarity-hoja-barra .similarity-temporadas-comparable { flex: 1 1 100%; display: grid; gap: 4px; padding-top: 8px; border-top: 1px solid var(--line); }
 .duel-header-temporadas { opacity: .8; }
 @media (prefers-reduced-motion: reduce) { .temporada-chip { transition: none; } }
+.temporadas-cargables { display: grid; gap: 6px; margin-top: 4px; }
+.temporada-chip.cargable { border-style: dashed; }
+.temporada-chip.cargable i { position: relative; }
+.temporada-chip.cargable i::before, .temporada-chip.cargable i::after { content: ""; position: absolute; inset: 50% 3px auto; height: 1.5px; margin-top: -.75px; background: currentColor; }
+.temporada-chip.cargable i::after { transform: rotate(90deg); }
+.temporadas-otra-liga { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.app-shell[data-tema] p.snap-aviso-temporadas { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }

@@ -23,7 +23,7 @@ import type { TransfermarktProfile } from "@/lib/transfermarkt";
  *
  * Cada gráfico es una pieza de PiezasFicha.
  */
-export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, destinatario = "", logoDestinatario = "", onAbrirJugador, claseHoja = "legal-page-shell", temporada, clavesPorFila = null, feedOpta = null, ligasDeFila = null, avisoSkillcorner = "" }: {
+export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, destinatario = "", logoDestinatario = "", onAbrirJugador, claseHoja = "legal-page-shell", temporada, temporadasDelPeriodo = "", clavesPorFila = null, feedOpta = null, ligasDeFila = null, avisoSkillcorner = "" }: {
   /** Si SkillCorner no publica su liga en esta temporada (o solo los físicos): una línea bajo el título. */
   avisoSkillcorner?: string;
   /** Las claves "liga año" de cada fila cuando se mide contra su liga. */
@@ -33,6 +33,8 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
   feedOpta?: EntradaOpta[] | null;
   /** La temporada que se mira en la ficha; sin ella, la más reciente del jugador. */
   temporada?: string;
+  /** Con qué temporadas se mide ("2025 + 2026"): las mismas de la ficha y de Similitud. */
+  temporadasDelPeriodo?: string;
   rows: DataRow[];
   indice: number;
   informe: PlayerReport;
@@ -54,7 +56,7 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
     [ligasDeFila, indice],
   );
   // Siempre contra su liga y su cohorte, se mida como se mida la ficha: aquí se mira a un jugador en su sitio.
-  const contexto: ContextoFicha = { rows, indice, informe, perfilTm, minutosMin, onAbrirJugador, temporada, clavesPorFila, feedOpta, ligasDeFila, ligasExtra, siempreSuLiga: true };
+  const contexto: ContextoFicha = { rows, indice, informe, perfilTm, minutosMin, onAbrirJugador, temporada, temporadasDelPeriodo, clavesPorFila, feedOpta, ligasDeFila, ligasExtra, siempreSuLiga: true };
   const datos = useDatosFicha(contexto, true, true);
   const [familiaTop, setFamiliaTop] = useState("progresion");
   // El mapa de recepciones y su reparto se agrupan igual: cambiar uno cambia los dos.
@@ -70,6 +72,7 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
         : datos.marco
           ? tf("Familias contra {n} {grupo} de la base cargada, con al menos {m} minutos: su liga ({marco}) solo tiene {k} de su puesto, pocos para un grupo propio.", { n: datos.grupo.indices.length, grupo: datos.nombreGrupo.toLowerCase(), m: minutosMin, marco: datos.marco.texto, k: datos.marco.enSuLiga })
           : tf("Familias contra {n} {grupo} de la base cargada, con al menos {m} minutos.", { n: datos.grupo.indices.length, grupo: datos.nombreGrupo.toLowerCase(), m: minutosMin })}</p>
+      {temporadasDelPeriodo.includes("+") && <p className="snap-aviso-temporadas">{tf("Con la media de {t}, ponderada por minutos, como en la ficha y en Similitud. Los mapas son de los partidos de {r}.", { t: temporadasDelPeriodo, r: datos.fuente?.temporada ?? temporada ?? "" })}</p>}
       {avisoSkillcorner && <p className="snap-aviso-sc">{avisoSkillcorner}</p>}
       {susLigas.length > 0 && otrasLigas.length > 0 && <div className="snap-ligas" role="group" aria-label={t("Ligas del Top 10 y de los parecidos")}>
         <span>{t("Top 10 y parecidos")}</span>

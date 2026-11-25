@@ -64,6 +64,8 @@ export type ContextoFicha = {
   onAbrirJugador?: (indice: number) => void;
   /** La temporada que se mira en la ficha ("2026", "2025/2026"); sin ella, la más reciente del jugador. */
   temporada?: string;
+  /** Con qué temporadas se mide ("2025 + 2026"); los mapas siguen siendo de `temporada`. */
+  temporadasDelPeriodo?: string;
   /** Las claves "liga año" de cada fila cuando se mide contra su liga; sin ellas, contra todas. */
   clavesPorFila?: string[][] | null;
   /** Los Opta Power Rankings, para decir el nivel de su liga junto al grupo. */
@@ -605,7 +607,7 @@ export function PiezaFicha({ pieza, datos, opcion, onOpcion }: {
             <div><dt>{t("Pie")}</dt><dd>{dato(perfilTm?.foot || informe.foot)}</dd></div>
             <div><dt>{t("Contrato")}</dt><dd>{dato(perfilTm?.contract || informe.contract)}</dd></div>
             <div><dt>{t("Valor")}</dt><dd>{dato(perfilTm?.marketValue)}</dd></div>
-            <div><dt>{t("Temporada")}</dt><dd>{dato(fuente?.temporada)}</dd></div>
+            <div><dt>{contexto.temporadasDelPeriodo?.includes("+") ? t("Temporadas") : t("Temporada")}</dt><dd>{dato(contexto.temporadasDelPeriodo || fuente?.temporada)}</dd></div>
           </dl>
         </div>
         <div className="snap-retrato-franja">

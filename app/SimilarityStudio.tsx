@@ -18,6 +18,8 @@ import { TemporadasEnChips, chipsDeTemporadas, type ChipDeTemporada } from "./Te
 import { useCruceDeAnios } from "./estudio/useCruceDeAnios";
 import { compararConSusTemporadas } from "@/lib/similitudPorPeriodo";
 import { origenPorFila, type Procedencia } from "@/lib/procedencia";
+import { MenuDeCompeticiones } from "./estudio/piezas";
+import type { ApiCompetition } from "@/lib/remoteData";
 import {
   buildSimilaritySearch,
   secondaryRoleOptions,
@@ -26,7 +28,7 @@ import {
   type SimilarityMetricWeights,
   type SimilarityPlayer,
 } from "@/lib/similarity";
-import { cohortOf, temporadasDeFila, type CellValue, type DataRow, type SourceDataset } from "@/lib/scouting";
+import { cohortOf, extractSeason, temporadasDeFila, type CellValue, type DataRow, type SourceDataset } from "@/lib/scouting";
 import { formatPlayerPositions, selectedCohortPosition, type PlayerPosition } from "@/lib/positions";
 import { similarityMetricGroup } from "@/lib/similarityMetricGroups";
 import { createEmptyTransfermarktProfile, profileStorageKey, readStoredJson, type TransfermarktProfile } from "@/lib/transfermarkt";
@@ -101,6 +103,10 @@ type SimilarityStudioProps = {
   /** Para rehacer al comparable con otras temporadas suyas. */
   basesActivas?: SourceDataset[];
   procedencias?: Procedencia[];
+  /** Lo que se puede cargar de StatsBomb y aún no está: para sumarle temporadas al comparable. */
+  catalogoParaCargar?: ApiCompetition[];
+  cargando?: boolean;
+  onCargarCompeticion?: (competicion: ApiCompetition) => Promise<void> | void;
 };
 
 const CLAVE_ESTILO_RADAR = "fos-similitud-estilo-radar-v1";
@@ -161,16 +167,27 @@ function blobToDataUrl(blob: Blob) {
   });
 }
 
-export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es", aiControlsHidden = false, metricLabels = null, minimumMinutes: minutosBase, onMinimumMinutes, reportCohort = "AUTO", procedenciaPorFila = null, feedOpta = null, conEncaje = false, medirEnSuLiga = false, targets, theme, targetProfile, recipientName, recipientLogoUrl, onSelectTarget, onTargetProfileChange, onRecipientNameChange, onRecipientLogoChange, onOpenReports, periodo = null, periodoPendiente = false, aniosDelPeriodo = null, temporadasDelObjetivo = null, basesActivas = SIN_BASES, procedencias = [] }: SimilarityStudioProps) {
+export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es", aiControlsHidden = false, metricLabels = null, minimumMinutes: minutosBase, onMinimumMinutes, reportCohort = "AUTO", procedenciaPorFila = null, feedOpta = null, conEncaje = false, medirEnSuLiga = false, targets, theme, targetProfile, recipientName, recipientLogoUrl, onSelectTarget, onTargetProfileChange, onRecipientNameChange, onRecipientLogoChange, onOpenReports, periodo = null, periodoPendiente = false, aniosDelPeriodo = null, temporadasDelObjetivo = null, basesActivas = SIN_BASES, procedencias = [], catalogoParaCargar = [], cargando = false, onCargarCompeticion }: SimilarityStudioProps) {
   /*
    * Con qué filas se busca. El objetivo se elige en la base entera (`rows`),
    * pero el ranking se hace en su período: si se le mira con 2025 + 2026,
    * todos entran con su 2025 + 2026. Los índices de los candidatos son los de
    * estas filas, y su liga y su año, los de esta procedencia.
    */
-  const filasDeBusqueda = periodo?.filas ?? rows;
-  const indiceDeBusqueda = periodo ? periodo.indice : selectedIndex;
-  const procedenciaDeBusqueda = periodo ? periodo.procedencia : procedenciaPorFila;
+  /*
+   * Mientras el período se rehace (unos segundos al cargar otra base o
+   * cambiar sus temporadas) se sigue con el anterior, si es del mismo
+   * jugador. Sin esto, la lista volvía un momento a "todo lo cargado" —con
+   * temporadas que no se eligieron— y los parecidos bailaban.
+   */
+  const [periodoAnterior, setPeriodoAnterior] = useState(periodo);
+  if (periodo && periodo !== periodoAnterior) setPeriodoAnterior(periodo);
+  const objetivoDeLaBase = rows[selectedIndex];
+  const periodoVigente = periodo ?? (periodoPendiente && periodoAnterior && objetivoDeLaBase
+    && mismoJugador(periodoAnterior.filas[periodoAnterior.indice], objetivoDeLaBase) ? periodoAnterior : null);
+  const filasDeBusqueda = periodoVigente?.filas ?? rows;
+  const indiceDeBusqueda = periodoVigente ? periodoVigente.indice : selectedIndex;
+  const procedenciaDeBusqueda = periodoVigente ? periodoVigente.procedencia : procedenciaPorFila;
   const [query, setQuery] = useState("");
   const [ageMin, setAgeMin] = useState("");
   const [ageMax, setAgeMax] = useState("");
@@ -530,6 +547,35 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     return ajustado ? { ...ajustado, index: candidatoDelRanking.index } : null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [comparableConOtrasTemporadas, cruceDelComparable, candidatoDelRanking, search, filaDelComparable, procedencias, filasDeBusqueda, indiceDeBusqueda, ligasPorFila, porLiga, filters, metricWeights, rolMetricas, reportCohort, metricLabels, lang]);
+  /*
+   * Temporadas suyas que aún no están cargadas. Primero, las de las ligas en
+   * las que ya aparece (las más recientes); para cualquier otra, el catálogo
+   * entero. Al cargar una, se enciende sola si él aparece en ella; si no
+   * aparece, se dice.
+   */
+  const ligasDelComparable = useMemo(() => [...new Set(temporadasDelComparable.flatMap((temporada) => temporada.ligas))], [temporadasDelComparable]);
+  const sugeridasDelComparable = useMemo(() => catalogoParaCargar
+    .filter((competicion) => ligasDelComparable.includes(competicion.name))
+    .sort((a, b) => String(b.season).localeCompare(String(a.season), "en", { numeric: true }))
+    .slice(0, 4), [catalogoParaCargar, ligasDelComparable]);
+  const [otraLigaDelComparable, setOtraLigaDelComparable] = useState("");
+  const [pedidaDelComparable, setPedidaDelComparable] = useState<{ clave: string; competicion: ApiCompetition } | null>(null);
+  async function cargarParaElComparable(competicion: ApiCompetition) {
+    if (!onCargarCompeticion) return;
+    const anio = extractSeason(String(competicion.season));
+    const clave = claveDelComparable;
+    setAniosElegidosDelComparable((antes) => {
+      const actuales = antes[clave] ?? aniosPorDefecto;
+      return actuales.includes(anio) ? antes : { ...antes, [clave]: [...actuales, anio] };
+    });
+    setPedidaDelComparable({ clave, competicion });
+    setOtraLigaDelComparable("");
+    await onCargarCompeticion(competicion);
+  }
+  const pedida = pedidaDelComparable?.clave === claveDelComparable ? pedidaDelComparable.competicion : null;
+  const pedidaSinElComparable = pedida && !cargando && !catalogoParaCargar.includes(pedida)
+    && !temporadasDelComparable.some((temporada) => temporada.anio === extractSeason(String(pedida.season)) && temporada.ligas.includes(pedida.name))
+    ? pedida : null;
   /** Si se pidieron otras temporadas y todavía no están, o con ellas no llega (minutos, métricas). */
   const estadoDelComparable = !comparableConOtrasTemporadas ? "" : !cruceDelComparable ? "calculando" : comparableEnSuPeriodo ? "" : "no-llega";
   const selectedCandidate = comparableEnSuPeriodo ?? candidatoDelRanking;
@@ -1244,6 +1290,22 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
                 <TemporadasEnChips titulo={tf("Temporadas de {p}", { p: selectedCandidate.name })} chips={chipsDeTemporadas(temporadasDelComparable, aniosDelComparable)} onAlternar={alternarTemporadaDelComparable} />
                 {estadoDelComparable === "calculando" && <small className="temporadas-chips-nota" aria-live="polite">{t("Rehaciéndolo con esas temporadas…")}</small>}
                 {estadoDelComparable === "no-llega" && <small className="temporadas-chips-nota aviso" aria-live="polite">{t("Con esas temporadas no llega a los minutos mínimos o le faltan métricas: la hoja sigue con las del ranking.")}</small>}
+                {onCargarCompeticion && catalogoParaCargar.length > 0 && <div className="temporadas-cargables" role="group" aria-label={tf("Cargar más temporadas de {p}", { p: selectedCandidate.name })}>
+                  <span className="temporadas-chips-titulo">{t("Cargar más temporadas")}</span>
+                  <div className="temporadas-chips-lista">
+                    {sugeridasDelComparable.map((competicion) => <button key={`${competicion.name}-${competicion.season}`} type="button" className="temporada-chip cargable" disabled={cargando}
+                      title={tf("Cargar {liga} {s} de StatsBomb", { liga: competicion.name, s: competicion.season })} onClick={() => void cargarParaElComparable(competicion)}>
+                      <i aria-hidden="true" /><b>{competicion.season}</b><small>{competicion.name}</small>
+                    </button>)}
+                    <span className="temporadas-otra-liga">
+                      <MenuDeCompeticiones lista={catalogoParaCargar} elegida={otraLigaDelComparable} onElegir={setOtraLigaDelComparable} />
+                      <button type="button" className="button secondary compact" disabled={cargando || !otraLigaDelComparable}
+                        onClick={() => { const competicion = catalogoParaCargar[Number(otraLigaDelComparable)]; if (competicion) void cargarParaElComparable(competicion); }}>{t("Cargar")}</button>
+                    </span>
+                  </div>
+                  {cargando && pedida && <small className="temporadas-chips-nota" aria-live="polite">{tf("Cargando {liga} {s}…", { liga: pedida.name, s: pedida.season })}</small>}
+                  {pedidaSinElComparable && <small className="temporadas-chips-nota aviso" aria-live="polite">{tf("No aparece en {liga} {s}: prueba con otra liga.", { liga: pedidaSinElComparable.name, s: pedidaSinElComparable.season })}</small>}
+                </div>}
               </div>}
               <div className="rank-tabs similarity-estilo-radar" role="group" aria-label={t("Estilo del radar")}>
                 <button type="button" className={estiloRadar === "cunas" ? "on" : undefined} aria-pressed={estiloRadar === "cunas"} onClick={() => elegirEstiloRadar("cunas")}>{t("Cuñas")}</button>
