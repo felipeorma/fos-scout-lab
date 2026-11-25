@@ -7851,3 +7851,29 @@ body.print-layout-check .app-shell[data-tema] .pizarra-duelos > ol { grid-templa
   .app-shell .comparison-superpuesto :is(.comparison-radar-area, .comparison-radar-contorno, .comparison-radar-dot) { animation: none; }
 }
 .app-shell .similarity-estilo-radar { flex: none; }
+
+/* ---- Temporadas como fichas (Similitud: objetivo y comparable) ----
+   Qué temporadas de cada jugador entran en el radar. Encendida: el color de
+   acento con un check; la de referencia, fija; las añadidas a mano, en gris y
+   sin poder encenderse. */
+.temporadas-chips { display: grid; gap: 6px; min-width: 0; }
+.temporadas-chips-titulo { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.temporadas-chips-lista { display: flex; flex-wrap: wrap; gap: 6px; }
+.temporada-chip { display: inline-flex; align-items: center; gap: 7px; min-height: 30px; padding: 4px 11px 4px 8px; border: 1px solid color-mix(in srgb, var(--ink) 14%, transparent); border-radius: 999px; background: color-mix(in srgb, var(--ink) 3%, transparent); color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; transition: background var(--transicion, .15s), border-color var(--transicion, .15s), color var(--transicion, .15s); }
+.temporada-chip b { color: var(--ink); font-family: var(--font-space-grotesk), sans-serif; font-size: 12.5px; font-weight: 700; }
+.temporada-chip small { font-size: 11px; }
+.temporada-chip i { width: 14px; height: 14px; flex: none; display: grid; place-items: center; border: 1.5px solid color-mix(in srgb, var(--ink) 30%, transparent); border-radius: 50%; }
+.temporada-chip.on { border-color: color-mix(in srgb, var(--acento, #4f7cff) 55%, transparent); background: color-mix(in srgb, var(--acento, #4f7cff) 13%, transparent); color: var(--ink); }
+.temporada-chip.on i { border-color: var(--acento, #4f7cff); background: var(--acento, #4f7cff); }
+.temporada-chip.on i::after { content: ""; width: 6px; height: 3.5px; margin-top: -2px; border: solid #fff; border-width: 0 0 1.6px 1.6px; transform: rotate(-45deg); }
+.temporada-chip:disabled { cursor: default; }
+.temporada-chip:not(:disabled):hover { border-color: color-mix(in srgb, var(--ink) 30%, transparent); }
+.temporada-chip:focus-visible { outline: 2px solid var(--acento, #4f7cff); outline-offset: 2px; }
+.temporada-chip.a-mano { cursor: help; opacity: .62; border-style: dashed; }
+.temporada-chip.a-mano em { font-size: 10.5px; font-style: normal; letter-spacing: .02em; }
+.temporadas-chips-nota { color: var(--muted); font-size: 11.5px; }
+.temporadas-chips-nota.aviso { color: #f5a524; }
+.similarity-temporadas-objetivo { grid-column: 1 / -1; display: grid; gap: 4px; }
+.app-shell .similarity-hoja-barra .similarity-temporadas-comparable { flex: 1 1 100%; display: grid; gap: 4px; padding-top: 8px; border-top: 1px solid var(--line); }
+.duel-header-temporadas { opacity: .8; }
+@media (prefers-reduced-motion: reduce) { .temporada-chip { transition: none; } }

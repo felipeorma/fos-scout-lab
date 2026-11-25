@@ -20,6 +20,7 @@ import { EditorDeNombreDeBase } from "./EditorDeNombreDeBase";
 import { AnadirTemporadaWyscout } from "./AnadirTemporadaWyscout";
 import { LigaDelMismoAnio } from "./LigaDelMismoAnio";
 import { SelectorTemporadas } from "./SelectorTemporadas";
+import type { ChipDeTemporada } from "./TemporadasEnChips";
 import { TemporadaDesdeWyscout, TemporadaEscrita } from "./TemporadaAMano";
 import { CLAVE_TEMPORADAS_A_MANO, delMismoAnioAMano, nuevaTemporadaAMano, type DatosDeTemporada, type TemporadaAMano } from "@/lib/temporadasAMano";
 import { temporadasDeFicha, type TemporadaEnFicha } from "@/lib/temporadasDeFicha";
@@ -494,6 +495,29 @@ export default function ScoutStudio() {
       && (!nacimiento || !fila["Birth date"] || String(fila["Birth date"]) === nacimiento));
   }, [cruceDeTemporadas, filaElegida]);
   const filasDelInforme = cruceDeTemporadas && indiceEnElCruce >= 0 ? cruceDeTemporadas : reportRows;
+  /*
+   * Similitud mide al objetivo con las mismas temporadas que la ficha: el
+   * ranking entero se rehace sobre ese período (todos con esas temporadas).
+   * Sus temporadas van como fichas; las añadidas a mano salen en gris.
+   */
+  const origenesDelCruce = useMemo(
+    () => (cruceDeTemporadas && procedencias.length > 1 ? origenPorFila(cruceDeTemporadas, procedencias) : null),
+    [cruceDeTemporadas, procedencias],
+  );
+  const periodoDeSimilitud = cruceDeTemporadas && indiceEnElCruce >= 0
+    ? { filas: cruceDeTemporadas, indice: indiceEnElCruce, procedencia: origenesDelCruce }
+    : null;
+  const detalleDeTemporada = (temporada: { equipo: string; ligas: string[] }) => [temporada.equipo, temporada.ligas.join(", ")].filter(Boolean).join(" · ");
+  const chipsDelObjetivo: ChipDeTemporada[] = temporadaDeReferencia && !medirTodasLasTemporadas ? [
+    { clave: "referencia", etiqueta: temporadaDeReferencia.etiqueta, detalle: detalleDeTemporada(temporadaDeReferencia), minutos: temporadaDeReferencia.minutos, activa: true, fija: true },
+    ...seleccionDeTemporadas.otrasLigasActuales.map((temporada, i) => ({
+      clave: `actual:${i}`, etiqueta: temporada.etiqueta, detalle: detalleDeTemporada(temporada), minutos: temporada.minutos, activa: true, fija: true, aMano: Boolean(temporada.aMano),
+    })),
+    ...seleccionDeTemporadas.opciones.map(({ clave, temporada }) => ({
+      clave, etiqueta: temporada.etiqueta, detalle: detalleDeTemporada(temporada), minutos: temporada.minutos,
+      activa: seleccionDeTemporadas.seleccion.includes(clave), aMano: Boolean(temporada.aMano),
+    })),
+  ] : [];
   const indiceDelInforme = cruceDeTemporadas && indiceEnElCruce >= 0 ? indiceEnElCruce : selectedPlayer;
   /*
    * La ficha ampliada enseña UNA temporada —la de
@@ -2769,6 +2793,15 @@ export default function ScoutStudio() {
                   onRecipientNameChange={setReportRecipientName}
                   onRecipientLogoChange={setReportRecipientLogoUrl}
                   onOpenReports={() => setReportPage(CARD_PAGE)}
+                  periodo={periodoDeSimilitud}
+                  periodoPendiente={Boolean(claveDelCruce) && !cruceDeTemporadas}
+                  aniosDelPeriodo={periodoDeSimilitud ? aniosDelInforme : null}
+                  temporadasDelObjetivo={chipsDelObjetivo.length ? {
+                    chips: chipsDelObjetivo,
+                    onAlternar: (clave) => cambiarSeleccionDeTemporadas((claves) => claves.includes(clave) ? claves.filter((actual) => actual !== clave) : [...claves, clave]),
+                  } : null}
+                  basesActivas={basesActivas}
+                  procedencias={procedencias}
                 />
               </div>
 

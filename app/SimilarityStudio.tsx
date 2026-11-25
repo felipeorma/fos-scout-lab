@@ -14,6 +14,10 @@ import { ArrowDownToLine, ChevronDown, Printer, RotateCcw, Search, Sparkles, Upl
 import { reportThemeStyle, type ReportTheme } from "./reportTheme";
 import { SimilarityReportMain, type SimilarityReportPayload } from "./SimilarityReport";
 import type { EstiloRadarComparativo } from "./ComparisonRadar";
+import { TemporadasEnChips, chipsDeTemporadas, type ChipDeTemporada } from "./TemporadasEnChips";
+import { useCruceDeAnios } from "./estudio/useCruceDeAnios";
+import { compararConSusTemporadas } from "@/lib/similitudPorPeriodo";
+import { origenPorFila, type Procedencia } from "@/lib/procedencia";
 import {
   buildSimilaritySearch,
   secondaryRoleOptions,
@@ -22,7 +26,7 @@ import {
   type SimilarityMetricWeights,
   type SimilarityPlayer,
 } from "@/lib/similarity";
-import { cohortOf, type CellValue, type DataRow } from "@/lib/scouting";
+import { cohortOf, temporadasDeFila, type CellValue, type DataRow, type SourceDataset } from "@/lib/scouting";
 import { formatPlayerPositions, selectedCohortPosition, type PlayerPosition } from "@/lib/positions";
 import { similarityMetricGroup } from "@/lib/similarityMetricGroups";
 import { createEmptyTransfermarktProfile, profileStorageKey, readStoredJson, type TransfermarktProfile } from "@/lib/transfermarkt";
@@ -82,9 +86,32 @@ type SimilarityStudioProps = {
   onRecipientNameChange: (value: string) => void;
   onRecipientLogoChange: (value: string) => void;
   onOpenReports: () => void;
+  /**
+   * Las filas del período del objetivo —las temporadas suyas que se eligieron,
+   * con todos los demás en esas mismas temporadas— y dónde está él. Null:
+   * todo lo cargado, que es lo que traen `rows`.
+   */
+  periodo?: { filas: DataRow[]; indice: number; procedencia: Origen[] | null } | null;
+  /** El período del objetivo se está calculando todavía. */
+  periodoPendiente?: boolean;
+  /** Los años de ese período; null si son todos los cargados. */
+  aniosDelPeriodo?: number[] | null;
+  /** Las temporadas del objetivo como fichas: las mismas que se eligen en la ficha. */
+  temporadasDelObjetivo?: { chips: ChipDeTemporada[]; onAlternar: (clave: string) => void } | null;
+  /** Para rehacer al comparable con otras temporadas suyas. */
+  basesActivas?: SourceDataset[];
+  procedencias?: Procedencia[];
 };
 
 const CLAVE_ESTILO_RADAR = "fos-similitud-estilo-radar-v1";
+const SIN_BASES: SourceDataset[] = [];
+type Origen = { ligas: string[]; anios: number[]; claves?: string[] };
+/** El mismo jugador en otras filas: por nombre y, si las dos lo traen, por nacimiento. */
+const mismoJugador = (a: DataRow | undefined, b: DataRow) => {
+  if (!a) return false;
+  const nacimientoA = String(a["Birth date"] ?? ""), nacimientoB = String(b["Birth date"] ?? "");
+  return String(a.Player ?? "") === String(b.Player ?? "") && (!nacimientoA || !nacimientoB || nacimientoA === nacimientoB);
+};
 const PLAYER_PALETTE = ["#1f5fd6", "#e95b3f", "#43a8a0", "#9e07ae", "#d7a62c", "#16a34a", "#0f172a", "#f97316"];
 
 const alphabeticCollator = new Intl.Collator("es", { sensitivity: "base", numeric: true });
@@ -134,7 +161,16 @@ function blobToDataUrl(blob: Blob) {
   });
 }
 
-export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es", aiControlsHidden = false, metricLabels = null, minimumMinutes: minutosBase, onMinimumMinutes, reportCohort = "AUTO", procedenciaPorFila = null, feedOpta = null, conEncaje = false, medirEnSuLiga = false, targets, theme, targetProfile, recipientName, recipientLogoUrl, onSelectTarget, onTargetProfileChange, onRecipientNameChange, onRecipientLogoChange, onOpenReports }: SimilarityStudioProps) {
+export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es", aiControlsHidden = false, metricLabels = null, minimumMinutes: minutosBase, onMinimumMinutes, reportCohort = "AUTO", procedenciaPorFila = null, feedOpta = null, conEncaje = false, medirEnSuLiga = false, targets, theme, targetProfile, recipientName, recipientLogoUrl, onSelectTarget, onTargetProfileChange, onRecipientNameChange, onRecipientLogoChange, onOpenReports, periodo = null, periodoPendiente = false, aniosDelPeriodo = null, temporadasDelObjetivo = null, basesActivas = SIN_BASES, procedencias = [] }: SimilarityStudioProps) {
+  /*
+   * Con qué filas se busca. El objetivo se elige en la base entera (`rows`),
+   * pero el ranking se hace en su período: si se le mira con 2025 + 2026,
+   * todos entran con su 2025 + 2026. Los índices de los candidatos son los de
+   * estas filas, y su liga y su año, los de esta procedencia.
+   */
+  const filasDeBusqueda = periodo?.filas ?? rows;
+  const indiceDeBusqueda = periodo ? periodo.indice : selectedIndex;
+  const procedenciaDeBusqueda = periodo ? periodo.procedencia : procedenciaPorFila;
   const [query, setQuery] = useState("");
   const [ageMin, setAgeMin] = useState("");
   const [ageMax, setAgeMax] = useState("");
@@ -183,8 +219,8 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
      contra la mezcla. Los FILTROS siguen usando liga y año por separado,
      porque ahí sí se pregunta por una cosa o por la otra. */
   const ligasPorFila = useMemo(
-    () => (procedenciaPorFila ? procedenciaPorFila.map((x) => x.claves ?? x.ligas) : null),
-    [procedenciaPorFila],
+    () => (procedenciaDeBusqueda ? procedenciaDeBusqueda.map((x) => x.claves ?? x.ligas) : null),
+    [procedenciaDeBusqueda],
   );
   /** ¿Hay contra qué comparar? Con una sola competición, medir "contra su
    *  liga" y "contra todo" es exactamente lo mismo. */
@@ -247,8 +283,18 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     if (anio && !origen.anios.includes(anio)) return false;
     return true;
   }, [procedenciaPorFila]);
+  /** Lo mismo para los candidatos, que viven en las filas del período. */
+  const encajaCandidato = useCallback((indice: number, liga: string, anio: number) => {
+    if (liga === "TODAS" && !anio) return true;
+    const origen = procedenciaDeBusqueda?.[indice];
+    if (!origen) return false;
+    if (liga !== "TODAS" && !origen.ligas.includes(liga)) return false;
+    if (anio && !origen.anios.includes(anio)) return false;
+    return true;
+  }, [procedenciaDeBusqueda]);
 
   const [selectedCandidateIndex, setSelectedCandidateIndex] = useState<number | null>(null);
+  const [nombreDelElegido, setNombreDelElegido] = useState("");
   const [candidateProfileState, setCandidateProfileState] = useState<TransfermarktProfile>(() => createEmptyTransfermarktProfile());
   const [candidateProfileKey, setCandidateProfileKey] = useState("");
   const [profileBusy, setProfileBusy] = useState<ProfileSide | null>(null);
@@ -347,8 +393,8 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
    */
   const comparativaDeModo = useMemo(() => {
     if (!porLiga || !ligasPorFila?.length) return null;
-    const otra = buildSimilaritySearch(rows, selectedIndex, filters, metricWeights, rolMetricas || reportCohort, metricLabels, null);
-    const esta = buildSimilaritySearch(rows, selectedIndex, filters, metricWeights, rolMetricas || reportCohort, metricLabels, porLiga);
+    const otra = buildSimilaritySearch(filasDeBusqueda, indiceDeBusqueda, filters, metricWeights, rolMetricas || reportCohort, metricLabels, null);
+    const esta = buildSimilaritySearch(filasDeBusqueda, indiceDeBusqueda, filters, metricWeights, rolMetricas || reportCohort, metricLabels, porLiga);
     if (!otra?.candidates.length || !esta?.candidates.length) return null;
     const perfilA = new Map(otra.candidates[0].metrics.map((m) => [m.key, m.targetPercentile]));
     const perfilB = new Map(esta.candidates[0].metrics.map((m) => [m.key, m.targetPercentile]));
@@ -361,7 +407,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
       maximo: Math.max(...difs),
       nuevos: ahora.filter((n) => !antes.includes(n)).length,
     };
-  }, [porLiga, ligasPorFila, rows, selectedIndex, filters, metricWeights, rolMetricas, reportCohort, metricLabels]);
+  }, [porLiga, ligasPorFila, filasDeBusqueda, indiceDeBusqueda, filters, metricWeights, rolMetricas, reportCohort, metricLabels]);
 
   /*
    * La posición que se enseña bajo el nombre.
@@ -379,7 +425,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
 
   // `lang` va a propósito: el cálculo devuelve las etiquetas ya traducidas.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const search = useMemo(() => buildSimilaritySearch(rows, selectedIndex, filters, metricWeights, rolMetricas || reportCohort, metricLabels, porLiga), [filters, metricWeights, rows, selectedIndex, lang, rolMetricas, reportCohort, metricLabels, porLiga]);
+  const search = useMemo(() => buildSimilaritySearch(filasDeBusqueda, indiceDeBusqueda, filters, metricWeights, rolMetricas || reportCohort, metricLabels, porLiga), [filters, metricWeights, filasDeBusqueda, indiceDeBusqueda, lang, rolMetricas, reportCohort, metricLabels, porLiga]);
   /** El jugador objetivo para la barra de arriba, haya o no resultados: sin él no se puede cambiar de grupo de métricas. */
   const objetivo = useMemo(() => {
     if (search) return { player: search.target.player, team: search.target.team, position: search.target.position, cohort: search.target.cohort, age: search.target.age };
@@ -407,13 +453,13 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
    * Se corrige sobre todos y después se filtra (ver lib/cobertura).
    */
   const coberturaDe = useMemo(
-    () => (search && ligasPorFila?.length ? coberturaDeLigas(rows, ligasPorFila, search.target.metrics.map((metric) => metric.key)) : null),
-    [search, rows, ligasPorFila],
+    () => (search && ligasPorFila?.length ? coberturaDeLigas(filasDeBusqueda, ligasPorFila, search.target.metrics.map((metric) => metric.key)) : null),
+    [search, filasDeBusqueda, ligasPorFila],
   );
   const candidates = useMemo(
     () => (search ? ordenarPorCobertura(search.candidates, search.target.metrics.length, coberturaDe ? (candidate) => coberturaDe(candidate.index) : undefined) : [])
-      .filter((candidate) => encaja(candidate.index, ligaCandidato, anioCandidato)),
-    [search, encaja, ligaCandidato, anioCandidato, coberturaDe],
+      .filter((candidate) => encajaCandidato(candidate.index, ligaCandidato, anioCandidato)),
+    [search, encajaCandidato, ligaCandidato, anioCandidato, coberturaDe],
   );
   // Lo que traía Entre ligas: el encaje de estilo del club de cada candidato
   // con el nuestro y, si se elige, el encaje con un equipo concreto.
@@ -421,14 +467,76 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
   const encaje = useMemo(() => crearEncaje(estilos.filas ? perfilesDeEstilo(estilos.filas) : [], EQUIPO_PROPIO), [estilos.filas]);
   const [equipoEncaje, setEquipoEncaje] = useState("");
   const equiposEncaje = useMemo(() => (conEncaje ? equiposParaEncaje(rows) : []), [conEncaje, rows]);
-  const encajeEquipo = useEncajeDeLista(rows, Number(minimumMinutes) || 0, conEncaje ? equipoEncaje : "");
-  const ligasDeFila = (indice: number) => procedenciaPorFila?.[indice]?.ligas ?? [];
+  const encajeEquipo = useEncajeDeLista(filasDeBusqueda, Number(minimumMinutes) || 0, conEncaje ? equipoEncaje : "");
+  const ligasDeFila = (indice: number) => procedenciaDeBusqueda?.[indice]?.ligas ?? [];
   const opta = (liga: string) => {
     const nivel = nivelDeLiga(feedOpta, liga);
     return nivel ? nivel.rating.toLocaleString(numberLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : null;
   };
   const activeMetricWeights = search?.target.metrics.filter((metric) => (metricWeights[metric.key] ?? 1) !== 1).length ?? 0;
-  const selectedCandidate = candidates.find((candidate) => candidate.index === selectedCandidateIndex) ?? candidates[0] ?? null;
+  /*
+   * El elegido se busca también por nombre: al cambiar las temporadas del
+   * objetivo cambian las filas, y el mismo índice pasa a ser otro jugador.
+   */
+  const candidatoDelRanking = candidates.find((candidate) => candidate.index === selectedCandidateIndex && (!nombreDelElegido || candidate.name === nombreDelElegido))
+    ?? (nombreDelElegido ? candidates.find((candidate) => candidate.name === nombreDelElegido) : undefined)
+    ?? candidates[0] ?? null;
+
+  /*
+   * Las temporadas del comparable. Por defecto, las suyas dentro del período
+   * del objetivo —con las que entró en el ranking—. Se pueden quitar o sumar
+   * otras que estén cargadas; entonces se le rehace con esas, medido contra
+   * los de ese mismo período (lib/similitudPorPeriodo), y la hoja lo dice.
+   */
+  const filaDelComparable = candidatoDelRanking ? filasDeBusqueda[candidatoDelRanking.index] : undefined;
+  const filaBaseDelComparable = useMemo(
+    () => (filaDelComparable ? rows.find((fila) => mismoJugador(filaDelComparable, fila)) ?? null : null),
+    [filaDelComparable, rows],
+  );
+  const temporadasDelComparable = useMemo(() => temporadasDeFila(filaBaseDelComparable ?? undefined), [filaBaseDelComparable]);
+  const aniosPorDefecto = useMemo(
+    () => temporadasDelComparable.map((temporada) => temporada.anio).filter((anio) => aniosDelPeriodo === null || aniosDelPeriodo.includes(anio)),
+    [temporadasDelComparable, aniosDelPeriodo],
+  );
+  const claveDelComparable = filaDelComparable ? `${String(filaDelComparable.Player ?? "")}|${String(filaDelComparable["Birth date"] ?? "")}` : "";
+  const [aniosElegidosDelComparable, setAniosElegidosDelComparable] = useState<Record<string, number[]>>({});
+  const aniosDelComparable = (aniosElegidosDelComparable[claveDelComparable] ?? aniosPorDefecto).filter((anio) => temporadasDelComparable.some((temporada) => temporada.anio === anio));
+  const comparableConOtrasTemporadas = aniosDelComparable.length > 0
+    && (aniosDelComparable.length !== aniosPorDefecto.length || aniosDelComparable.some((anio) => !aniosPorDefecto.includes(anio)));
+  const cruceDelComparable = useCruceDeAnios(basesActivas, comparableConOtrasTemporadas ? [...aniosDelComparable].sort((a, b) => b - a).join(",") : "");
+  function alternarTemporadaDelComparable(clave: string) {
+    const anio = Number(clave);
+    setAniosElegidosDelComparable((antes) => {
+      const actuales = antes[claveDelComparable] ?? aniosPorDefecto;
+      const siguientes = actuales.includes(anio) ? actuales.filter((otro) => otro !== anio) : [...actuales, anio];
+      return siguientes.length ? { ...antes, [claveDelComparable]: siguientes } : antes;
+    });
+  }
+  const comparableEnSuPeriodo = useMemo(() => {
+    if (!comparableConOtrasTemporadas || !cruceDelComparable || !candidatoDelRanking || !search || !filaDelComparable) return null;
+    const indice = cruceDelComparable.findIndex((fila) => mismoJugador(filaDelComparable, fila));
+    if (indice < 0) return null;
+    const claves = procedencias.length > 1 ? origenPorFila(cruceDelComparable, procedencias).map((origen) => origen.claves) : null;
+    const resultado = compararConSusTemporadas({
+      objetivo: { filas: filasDeBusqueda, indice: indiceDeBusqueda, claves: ligasPorFila },
+      comparable: { filas: cruceDelComparable, indice, claves },
+      porLiga: Boolean(porLiga),
+      filters, metricWeights, reportCohort: rolMetricas || reportCohort, metricLabels,
+    });
+    if (!resultado) return null;
+    const cobertura = claves?.length ? coberturaDeLigas(cruceDelComparable, claves, search.target.metrics.map((metric) => metric.key)) : null;
+    const [ajustado] = ordenarPorCobertura([resultado], search.target.metrics.length, cobertura ? () => cobertura(indice) : undefined);
+    // Sigue siendo la fila del ranking que se eligió: el índice es el de allí.
+    return ajustado ? { ...ajustado, index: candidatoDelRanking.index } : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [comparableConOtrasTemporadas, cruceDelComparable, candidatoDelRanking, search, filaDelComparable, procedencias, filasDeBusqueda, indiceDeBusqueda, ligasPorFila, porLiga, filters, metricWeights, rolMetricas, reportCohort, metricLabels, lang]);
+  /** Si se pidieron otras temporadas y todavía no están, o con ellas no llega (minutos, métricas). */
+  const estadoDelComparable = !comparableConOtrasTemporadas ? "" : !cruceDelComparable ? "calculando" : comparableEnSuPeriodo ? "" : "no-llega";
+  const selectedCandidate = comparableEnSuPeriodo ?? candidatoDelRanking;
+  const etiquetasDe = (temporadas: Array<{ etiqueta: string; anio: number }>, anios: number[]) =>
+    temporadas.filter((temporada) => anios.includes(temporada.anio)).map((temporada) => temporada.etiqueta).sort().join(" + ");
+  const temporadasDelComparableEnLaHoja = comparableEnSuPeriodo ? etiquetasDe(temporadasDelComparable, aniosDelComparable) : etiquetasDe(temporadasDelComparable, aniosPorDefecto);
+  const temporadasDelObjetivoEnLaHoja = (temporadasDelObjetivo?.chips ?? []).filter((chip) => chip.activa && !chip.aMano).map((chip) => chip.etiqueta).sort().join(" + ");
 
   // La opinión sobre la comparación se escribe en el mismo campo editable que
   // ya viaja a la hoja, así que se puede corregir antes de exportar.
@@ -502,6 +610,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
         // una y la ficha otra, quien lo lee no sabe con qué se le midió.
         position: posicionMostrada(search.target.position, search.target.cohort),
         age: search.target.age,
+        temporadas: temporadasDelObjetivoEnLaHoja || undefined,
         passport: search.target.passport,
         color: targetColor,
         labelColor: targetLabelColor,
@@ -518,6 +627,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
         // los percentiles que hay debajo son los de ese puesto.
         position: posicionMostrada(selectedCandidate.position, selectedCandidate.cohort),
         age: selectedCandidate.age === null ? "—" : String(selectedCandidate.age),
+        temporadas: temporadasDelComparableEnLaHoja || undefined,
         passport: selectedCandidate.passport,
         color: candidateColor,
         labelColor: candidateLabelColor,
@@ -530,7 +640,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
       extra: (() => {
         // Duelos, coincidencias, claves y otros parecidos: se calculan aquí y
         // viajan con la hoja, así que una comparación guardada se lee igual.
-        const ligaDe = (indice: number) => procedenciaPorFila?.[indice]?.ligas?.[0] ?? null;
+        const ligaDe = (indice: number) => procedenciaDeBusqueda?.[indice]?.ligas?.[0] ?? null;
         const edadObjetivo = Number(search.target.age);
         const metricas = selectedCandidate.metrics;
         const otros = search.candidates.filter((c) => c.index !== selectedCandidate.index).slice(0, 5).map((c) => ({
@@ -544,7 +654,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
           ...coincidenciasYDiferencias(metricas),
           claves: clavesDeSimilitud({
             metricas,
-            objetivo: { nombre: search.target.player, minutos: search.target.minutes, liga: ligaDe(selectedIndex) },
+            objetivo: { nombre: search.target.player, minutos: search.target.minutes, liga: ligaDe(indiceDeBusqueda) },
             comparable: { nombre: selectedCandidate.name, minutos: selectedCandidate.minutes, liga: ligaDe(selectedCandidate.index) },
           }),
           otros,
@@ -554,10 +664,12 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     // `lang` va a propósito: las claves se escriben ya traducidas al calcularlas.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    procedenciaPorFila,
-    selectedIndex,
+    procedenciaDeBusqueda,
+    indiceDeBusqueda,
     lang,
     estiloRadar,
+    temporadasDelObjetivoEnLaHoja,
+    temporadasDelComparableEnLaHoja,
     candidateColor,
     candidateLabelColor,
     candidateLabelTransparency,
@@ -578,6 +690,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
 
   function chooseCandidate(candidate: SimilarityPlayer, irALaHoja = false) {
     setSelectedCandidateIndex(candidate.index);
+    setNombreDelElegido(candidate.name);
     setCandidateProfileState(loadStoredProfile(candidate));
     setCandidateProfileKey(profileStorageKey(candidate.name, candidate.team));
     setProfileStatus((current) => ({ ...current, candidate: "" }));
@@ -594,6 +707,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
 
   function chooseTarget(index: number) {
     setSelectedCandidateIndex(null);
+    setNombreDelElegido("");
     setCandidateProfileKey("");
     setMetricWeights({});
     onSelectTarget(index);
@@ -910,6 +1024,12 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
           <label><span>{pasoObjetivo.club} · {t("Club")}</span><select value={selectedTargetTeam} onChange={(event) => chooseTargetTeam(event.target.value)}>{targetTeams.map((team) => <option key={team || "__sin_equipo__"} value={team}>{team || t("Equipo no disponible")}</option>)}</select></label>
           <label><span>{pasoObjetivo.jugador} · {t("Jugador")}</span><select value={selectedIndex} onChange={(event) => chooseTarget(Number(event.target.value))}>{targetPlayers.map((target) => <option key={`${target.index}-${target.player}`} value={target.index}>{target.player}</option>)}</select></label>
         </div>
+        {/* Sus temporadas, las mismas que se eligen en la ficha: el ranking
+            entero se hace con ese período. */}
+        {temporadasDelObjetivo && temporadasDelObjetivo.chips.length > 0 && <div className="similarity-temporadas-objetivo">
+          <TemporadasEnChips titulo={t("Sus temporadas")} chips={temporadasDelObjetivo.chips} onAlternar={temporadasDelObjetivo.onAlternar} />
+          {periodoPendiente && <small className="temporadas-chips-nota" aria-live="polite">{t("Rehaciendo el ranking con esas temporadas…")}</small>}
+        </div>}
         {/* Con más de una liga o año cargados hay dos preguntas posibles y
             conviene cambiar entre ellas de un golpe: "quién produce lo mismo"
             (todo junto) y "quién hace el mismo papel en su contexto" (cada uno
@@ -1017,7 +1137,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
                   posicion + 1, candidato.name, candidato.team,
                   ligasDeFila(candidato.index).join(" · "),
                   ligasDeFila(candidato.index).map(opta).filter(Boolean).join(" · ") || null,
-                  (procedenciaPorFila?.[candidato.index]?.anios ?? []).join(" · "),
+                  (procedenciaDeBusqueda?.[candidato.index]?.anios ?? []).join(" · "),
                   candidato.age ?? null, Math.round(candidato.minutes), candidato.passport,
                   candidato.ajustado, candidato.similarity, candidato.coverage,
                   ...(conEncaje ? [encaje(candidato.team)?.valor ?? null] : []),
@@ -1120,6 +1240,11 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
             <div ref={barraDeLaHojaRef} className="similarity-hoja-barra">
               <p><span>{t("Comparando")}</span><b>{search.target.player}</b><i aria-hidden="true">↔</i><b>{selectedCandidate.name}</b><em title={t("Parecido corregido por cobertura; debajo, el bruto y la cobertura")}>{`${selectedCandidate.ajustado}%`}</em><small>{tf("bruto {n}% · cobertura {c}%", { n: selectedCandidate.similarity, c: selectedCandidate.coverage })}</small></p>
               <button type="button" className="similarity-volver" onClick={() => irA(rankingRef.current)}>{t("↑ Volver al ranking")}</button>
+              {temporadasDelComparable.length > 0 && <div className="similarity-temporadas-comparable">
+                <TemporadasEnChips titulo={tf("Temporadas de {p}", { p: selectedCandidate.name })} chips={chipsDeTemporadas(temporadasDelComparable, aniosDelComparable)} onAlternar={alternarTemporadaDelComparable} />
+                {estadoDelComparable === "calculando" && <small className="temporadas-chips-nota" aria-live="polite">{t("Rehaciéndolo con esas temporadas…")}</small>}
+                {estadoDelComparable === "no-llega" && <small className="temporadas-chips-nota aviso" aria-live="polite">{t("Con esas temporadas no llega a los minutos mínimos o le faltan métricas: la hoja sigue con las del ranking.")}</small>}
+              </div>}
               <div className="rank-tabs similarity-estilo-radar" role="group" aria-label={t("Estilo del radar")}>
                 <button type="button" className={estiloRadar === "cunas" ? "on" : undefined} aria-pressed={estiloRadar === "cunas"} onClick={() => elegirEstiloRadar("cunas")}>{t("Cuñas")}</button>
                 <button type="button" className={estiloRadar === "radar" ? "on" : undefined} aria-pressed={estiloRadar === "radar"} onClick={() => elegirEstiloRadar("radar")}>{t("Radar")}</button>

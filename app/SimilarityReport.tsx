@@ -37,6 +37,8 @@ export type SimilarityReportPlayer = {
   photoScale: number;
   /** cómo encaja la foto en su marco: completa, recortada o encuadre automático */
   photoFit?: "auto" | "contain" | "cover";
+  /** Las temporadas con las que entra ("2025 + 2026"). Las hojas guardadas antes no lo traen. */
+  temporadas?: string;
 };
 
 export type SimilarityReportPayload = {
@@ -229,6 +231,9 @@ function HeaderPlayer({ player, label, side }: { player: SimilarityReportPlayer;
           calculado. */}
       <small>{formatPlayerPositions(position || profile.position)}</small>
       <small>{tf("{age} años · {passport}", { age: profile.age || age, passport: profile.citizenship || passport })}</small>
+      {player.temporadas && <small className="duel-header-temporadas">{player.temporadas.includes("+")
+        ? tf("Temporadas {t} · media por minutos", { t: player.temporadas })
+        : tf("Temporada {t}", { t: player.temporadas })}</small>}
       {profile.marketValue && <strong className="duel-header-value">{profile.marketValue}<ReportImage src={TRANSFERMARKT_LOGO} alt="Transfermarkt" className="duel-header-tm" /></strong>}
     </div>
   </div>;

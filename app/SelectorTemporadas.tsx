@@ -27,7 +27,7 @@ export function SelectorTemporadas({ opciones, seleccion, deshabilitado, onAlter
           <input type="checkbox" checked={elegidas.has(clave)} onChange={() => onAlternar(clave)} />
           <span>
             {`${temporada.etiqueta} · ${temporada.ligas.join(", ")} · ${temporada.equipo} · ${temporada.minutos.toLocaleString(numberLocale())}′`}
-            {temporada.aMano && <small className="temporadas-incluidas-manual">{t("añadida a mano")}</small>}
+            {temporada.aMano && <small className="temporadas-incluidas-manual" title={t("Añadida a mano: sin métricas, no entra en el radar.")}>{t("a mano · fuera del radar")}</small>}
           </span>
         </label>
         {temporada.aMano && <button type="button" className="temporadas-incluidas-quitar" title={t("Quitar esta temporada")} aria-label={t("Quitar esta temporada")}
