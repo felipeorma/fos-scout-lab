@@ -9,12 +9,12 @@ import { PERFILES, PERFILES_FILTRO } from "@/lib/perfiles";
 /** El nombre de un grupo de métricas ("B2B" → "Interiores (box-to-box)"). */
 const nombreDeGrupo = (id: string) => PERFILES.find((perfil) => perfil.id === id)?.nombre ?? id;
 
-import { type CSSProperties, type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDownToLine, ChevronDown, Printer, RotateCcw, Search, Sparkles, Upload } from "./Icons";
 import { reportThemeStyle, type ReportTheme } from "./reportTheme";
 import { SimilarityReportMain, type SimilarityReportPayload } from "./SimilarityReport";
 import type { EstiloRadarComparativo } from "./ComparisonRadar";
-import { TemporadasEnChips, chipsDeTemporadas, type ChipDeTemporada } from "./TemporadasEnChips";
+import { PeriodoDelJugador, type Periodo, type TemporadaDelPeriodo } from "./PeriodoDelJugador";
 import { useCruceDeAnios } from "./estudio/useCruceDeAnios";
 import { compararConSusTemporadas } from "@/lib/similitudPorPeriodo";
 import { origenPorFila, type Procedencia } from "@/lib/procedencia";
@@ -99,7 +99,10 @@ type SimilarityStudioProps = {
   /** Los años de ese período; null si son todos los cargados. */
   aniosDelPeriodo?: number[] | null;
   /** Las temporadas del objetivo como fichas: las mismas que se eligen en la ficha. */
-  temporadasDelObjetivo?: { chips: ChipDeTemporada[]; onAlternar: (clave: string) => void } | null;
+  /** La pregunta de temporadas del objetivo: la misma de la ficha (se contesta una vez para las tres páginas). */
+  preguntaDelObjetivo?: ReactNode;
+  /** Con qué temporadas entra el objetivo ("2025 + 2026"), para la hoja. */
+  temporadasDelObjetivoEnLaHoja?: string;
   /** Para rehacer al comparable con otras temporadas suyas. */
   basesActivas?: SourceDataset[];
   procedencias?: Procedencia[];
@@ -167,7 +170,7 @@ function blobToDataUrl(blob: Blob) {
   });
 }
 
-export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es", aiControlsHidden = false, metricLabels = null, minimumMinutes: minutosBase, onMinimumMinutes, reportCohort = "AUTO", procedenciaPorFila = null, feedOpta = null, conEncaje = false, medirEnSuLiga = false, targets, theme, targetProfile, recipientName, recipientLogoUrl, onSelectTarget, onTargetProfileChange, onRecipientNameChange, onRecipientLogoChange, onOpenReports, periodo = null, periodoPendiente = false, aniosDelPeriodo = null, temporadasDelObjetivo = null, basesActivas = SIN_BASES, procedencias = [], catalogoParaCargar = [], cargando = false, onCargarCompeticion }: SimilarityStudioProps) {
+export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es", aiControlsHidden = false, metricLabels = null, minimumMinutes: minutosBase, onMinimumMinutes, reportCohort = "AUTO", procedenciaPorFila = null, feedOpta = null, conEncaje = false, medirEnSuLiga = false, targets, theme, targetProfile, recipientName, recipientLogoUrl, onSelectTarget, onTargetProfileChange, onRecipientNameChange, onRecipientLogoChange, onOpenReports, periodo = null, periodoPendiente = false, aniosDelPeriodo = null, preguntaDelObjetivo = null, temporadasDelObjetivoEnLaHoja = "", basesActivas = SIN_BASES, procedencias = [], catalogoParaCargar = [], cargando = false, onCargarCompeticion }: SimilarityStudioProps) {
   /*
    * Con qué filas se busca. El objetivo se elige en la base entera (`rows`),
    * pero el ranking se hace en su período: si se le mira con 2025 + 2026,
@@ -516,18 +519,21 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     [temporadasDelComparable, aniosDelPeriodo],
   );
   const claveDelComparable = filaDelComparable ? `${String(filaDelComparable.Player ?? "")}|${String(filaDelComparable["Birth date"] ?? "")}` : "";
-  const [aniosElegidosDelComparable, setAniosElegidosDelComparable] = useState<Record<string, number[]>>({});
-  const aniosDelComparable = (aniosElegidosDelComparable[claveDelComparable] ?? aniosPorDefecto).filter((anio) => temporadasDelComparable.some((temporada) => temporada.anio === anio));
+  /* Su período, como el del objetivo: una temporada o la media de varias.
+     Sin contestar, las suyas dentro del período del objetivo. */
+  const [periodosDelComparable, setPeriodosDelComparable] = useState<Record<string, Periodo>>({});
+  const periodoElegidoDelComparable = periodosDelComparable[claveDelComparable];
+  const aniosDelComparable = (periodoElegidoDelComparable?.anios ?? aniosPorDefecto).filter((anio) => temporadasDelComparable.some((temporada) => temporada.anio === anio));
+  const periodoDelComparable: Periodo = { modo: periodoElegidoDelComparable?.modo ?? (aniosPorDefecto.length > 1 ? "media" : "una"), anios: aniosDelComparable };
+  const temporadasDelComparableParaElegir: TemporadaDelPeriodo[] = [...temporadasDelComparable].sort((a, b) => b.anio - a.anio).map((temporada) => ({
+    clave: String(temporada.anio), anio: temporada.anio, etiqueta: temporada.etiqueta, minutos: temporada.minutos,
+    detalle: [temporada.equipo, temporada.ligas.join(", ")].filter(Boolean).join(" · "),
+  }));
   const comparableConOtrasTemporadas = aniosDelComparable.length > 0
     && (aniosDelComparable.length !== aniosPorDefecto.length || aniosDelComparable.some((anio) => !aniosPorDefecto.includes(anio)));
   const cruceDelComparable = useCruceDeAnios(basesActivas, comparableConOtrasTemporadas ? [...aniosDelComparable].sort((a, b) => b - a).join(",") : "");
-  function alternarTemporadaDelComparable(clave: string) {
-    const anio = Number(clave);
-    setAniosElegidosDelComparable((antes) => {
-      const actuales = antes[claveDelComparable] ?? aniosPorDefecto;
-      const siguientes = actuales.includes(anio) ? actuales.filter((otro) => otro !== anio) : [...actuales, anio];
-      return siguientes.length ? { ...antes, [claveDelComparable]: siguientes } : antes;
-    });
+  function cambiarPeriodoDelComparable(periodo: Periodo) {
+    setPeriodosDelComparable((antes) => ({ ...antes, [claveDelComparable]: periodo }));
   }
   const comparableEnSuPeriodo = useMemo(() => {
     if (!comparableConOtrasTemporadas || !cruceDelComparable || !candidatoDelRanking || !search || !filaDelComparable) return null;
@@ -564,9 +570,9 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     if (!onCargarCompeticion) return;
     const anio = extractSeason(String(competicion.season));
     const clave = claveDelComparable;
-    setAniosElegidosDelComparable((antes) => {
-      const actuales = antes[clave] ?? aniosPorDefecto;
-      return actuales.includes(anio) ? antes : { ...antes, [clave]: [...actuales, anio] };
+    setPeriodosDelComparable((antes) => {
+      const actuales = antes[clave]?.anios ?? aniosPorDefecto;
+      return { ...antes, [clave]: { modo: "media", anios: [...new Set([...actuales, anio])] } };
     });
     setPedidaDelComparable({ clave, competicion });
     setOtraLigaDelComparable("");
@@ -582,7 +588,6 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
   const etiquetasDe = (temporadas: Array<{ etiqueta: string; anio: number }>, anios: number[]) =>
     temporadas.filter((temporada) => anios.includes(temporada.anio)).map((temporada) => temporada.etiqueta).sort().join(" + ");
   const temporadasDelComparableEnLaHoja = comparableEnSuPeriodo ? etiquetasDe(temporadasDelComparable, aniosDelComparable) : etiquetasDe(temporadasDelComparable, aniosPorDefecto);
-  const temporadasDelObjetivoEnLaHoja = (temporadasDelObjetivo?.chips ?? []).filter((chip) => chip.activa && !chip.aMano).map((chip) => chip.etiqueta).sort().join(" + ");
 
   // La opinión sobre la comparación se escribe en el mismo campo editable que
   // ya viaja a la hoja, así que se puede corregir antes de exportar.
@@ -1072,8 +1077,8 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
         </div>
         {/* Sus temporadas, las mismas que se eligen en la ficha: el ranking
             entero se hace con ese período. */}
-        {temporadasDelObjetivo && temporadasDelObjetivo.chips.length > 0 && <div className="similarity-temporadas-objetivo">
-          <TemporadasEnChips titulo={t("Sus temporadas")} chips={temporadasDelObjetivo.chips} onAlternar={temporadasDelObjetivo.onAlternar} />
+        {preguntaDelObjetivo && <div className="similarity-temporadas-objetivo">
+          {preguntaDelObjetivo}
           {periodoPendiente && <small className="temporadas-chips-nota" aria-live="polite">{t("Rehaciendo el ranking con esas temporadas…")}</small>}
         </div>}
         {/* Con más de una liga o año cargados hay dos preguntas posibles y
@@ -1287,7 +1292,8 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
               <p><span>{t("Comparando")}</span><b>{search.target.player}</b><i aria-hidden="true">↔</i><b>{selectedCandidate.name}</b><em title={t("Parecido corregido por cobertura; debajo, el bruto y la cobertura")}>{`${selectedCandidate.ajustado}%`}</em><small>{tf("bruto {n}% · cobertura {c}%", { n: selectedCandidate.similarity, c: selectedCandidate.coverage })}</small></p>
               <button type="button" className="similarity-volver" onClick={() => irA(rankingRef.current)}>{t("↑ Volver al ranking")}</button>
               {temporadasDelComparable.length > 0 && <div className="similarity-temporadas-comparable">
-                <TemporadasEnChips titulo={tf("Temporadas de {p}", { p: selectedCandidate.name })} chips={chipsDeTemporadas(temporadasDelComparable, aniosDelComparable)} onAlternar={alternarTemporadaDelComparable} />
+                <PeriodoDelJugador jugador={selectedCandidate.name} temporadas={temporadasDelComparableParaElegir} periodo={periodoDelComparable}
+                  respondido={Boolean(periodoElegidoDelComparable)} onCambiar={cambiarPeriodoDelComparable} donde={t("la comparación")} deshabilitado={cargando} />
                 {estadoDelComparable === "calculando" && <small className="temporadas-chips-nota" aria-live="polite">{t("Rehaciéndolo con esas temporadas…")}</small>}
                 {estadoDelComparable === "no-llega" && <small className="temporadas-chips-nota aviso" aria-live="polite">{t("Con esas temporadas no llega a los minutos mínimos o le faltan métricas: la hoja sigue con las del ranking.")}</small>}
                 {onCargarCompeticion && catalogoParaCargar.length > 0 && <div className="temporadas-cargables" role="group" aria-label={tf("Cargar más temporadas de {p}", { p: selectedCandidate.name })}>

@@ -20,7 +20,9 @@ import { EditorDeNombreDeBase } from "./EditorDeNombreDeBase";
 import { AnadirTemporadaWyscout } from "./AnadirTemporadaWyscout";
 import { LigaDelMismoAnio } from "./LigaDelMismoAnio";
 import { SelectorTemporadas } from "./SelectorTemporadas";
-import type { ChipDeTemporada } from "./TemporadasEnChips";
+import { PeriodoDelJugador, textoDelPeriodo, type Periodo, type TemporadaDelPeriodo } from "./PeriodoDelJugador";
+import { BarraDelJugador } from "./BarraDelJugador";
+import { useHistorialDeNavegacion } from "./useHistorialDeNavegacion";
 import { TemporadaDesdeWyscout, TemporadaEscrita } from "./TemporadaAMano";
 import { CLAVE_TEMPORADAS_A_MANO, delMismoAnioAMano, nuevaTemporadaAMano, type DatosDeTemporada, type TemporadaAMano } from "@/lib/temporadasAMano";
 import { temporadasDeFicha, type TemporadaEnFicha } from "@/lib/temporadasDeFicha";
@@ -72,6 +74,8 @@ import { ContextoAbrirEnPizarra, type Entrante } from "./abp/AbrirEnPizarra";
 // Página 1 = ficha del jugador · Página 2 = comparación de similitud.
 type ReportPage = number;
 const CARD_PAGE = 1;
+/** El período elegido para cada jugador (una temporada o la media de varias). */
+const CLAVE_PERIODOS = "fos-scout-periodos-v1";
 const SIMILARITY_PAGE = 2;
 // Del 3 al 89 eran las páginas libres de "Visuales" y el 90 era "Contexto":
 // se quitaron del informe. Los números no se reutilizan.
@@ -433,13 +437,72 @@ export default function ScoutStudio() {
    * Si lo pedido coincide con todo lo cargado, sirve la fila fusionada y no
    * se recalcula nada.
    */
-  /** La temporada elegida a mano y con qué filtro de año se eligió: si el filtro cambia, manda el filtro. */
-  const [temporadaElegida, setTemporadaElegida] = useState<{ anio: number; conFiltro: string } | null>(null);
   const filaElegida = reportRows[selectedPlayer];
   const temporadasDeLaFila = temporadasDeFila(filaElegida);
+  const claveDelJugador = `${String(filaElegida?.Player ?? "")}|${String(filaElegida?.["Birth date"] ?? "")}`;
+  /*
+   * El período de cada jugador: una temporada o la media de varias. Lo
+   * contesta el scout donde se dibuja —ficha, comparación, ficha ampliada—
+   * y se recuerda por jugador en este navegador. Las tres páginas leen el
+   * mismo. Sin contestar, se mide con la última (o la del filtro de año).
+   */
+  const [periodos, setPeriodos] = useState<Record<string, Periodo>>({});
+  useEffect(() => {
+    try {
+      const leido: unknown = JSON.parse(window.localStorage.getItem(CLAVE_PERIODOS) ?? "null");
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (leido && typeof leido === "object" && !Array.isArray(leido)) setPeriodos(leido as Record<string, Periodo>);
+    } catch { /* sin nada guardado */ }
+  }, []);
+  function cambiarPeriodo(clave: string, periodo: Periodo) {
+    setPeriodos((antes) => {
+      const siguiente = { ...antes, [clave]: periodo };
+      try { window.localStorage.setItem(CLAVE_PERIODOS, JSON.stringify(siguiente)); } catch { /* sigue en esta sesión */ }
+      return siguiente;
+    });
+  }
+  /*
+   * Atrás y adelante (los del navegador y los de la barra) recorren páginas
+   * y jugadores sin salir de la plataforma. Y los últimos vistos.
+   */
+  const indicePorClave = useMemo(() => {
+    const mapa = new Map<string, number>();
+    reportRows.forEach((fila, indice) => {
+      const clave = `${String(fila.Player ?? "")}|${String(fila["Birth date"] ?? "")}`;
+      if (!mapa.has(clave)) mapa.set(clave, indice);
+    });
+    return mapa;
+  }, [reportRows]);
+  const historial = useHistorialDeNavegacion(reportPage, claveDelJugador, (pagina, jugador) => {
+    setReportPage(pagina as ReportPage);
+    const indice = indicePorClave.get(jugador);
+    if (indice !== undefined && indice !== selectedPlayer) selectPlayer(indice);
+  });
+  // La lista de jugadores va en orden alfabético: se busca por índice, no por posición.
+  const jugadorPorIndice = useMemo(() => new Map(players.map((jugador) => [jugador.index, jugador])), [players]);
+  const [recientes, setRecientes] = useState<string[]>([]);
+  useEffect(() => {
+    if (!filaElegida?.Player) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setRecientes((antes) => [claveDelJugador, ...antes.filter((clave) => clave !== claveDelJugador)].slice(0, 8));
+  }, [claveDelJugador, filaElegida?.Player]);
+  // Con datos cargados, salir o recargar avisa antes: se perdería lo cargado.
+  useEffect(() => {
+    if (!reportRows.length) return;
+    const avisar = (evento: BeforeUnloadEvent) => { evento.preventDefault(); evento.returnValue = ""; };
+    window.addEventListener("beforeunload", avisar);
+    return () => window.removeEventListener("beforeunload", avisar);
+  }, [reportRows.length]);
+  const periodoGuardado = periodos[claveDelJugador];
+  const aniosConMetricas = temporadasDeLaFila.map((temporada) => temporada.anio);
+  const periodoValido = periodoGuardado && periodoGuardado.anios.some((anio) => aniosConMetricas.includes(anio))
+    ? { modo: periodoGuardado.modo, anios: periodoGuardado.anios.filter((anio) => aniosConMetricas.includes(anio)) }
+    : null;
   const indiceDeReferencia = (() => {
-    if (temporadaElegida && temporadaElegida.conFiltro === `${base.filtros.liga}|${base.filtros.anio}`) {
-      const elegida = temporadasDeLaFila.findIndex((temporada) => temporada.anio === temporadaElegida.anio);
+    // La más reciente de las elegidas manda: las demás entran como anteriores.
+    if (periodoValido) {
+      const masReciente = Math.max(...periodoValido.anios);
+      const elegida = temporadasDeLaFila.findIndex((temporada) => temporada.anio === masReciente);
       if (elegida >= 0) return elegida;
     }
     const { anio, liga } = base.filtros;
@@ -452,11 +515,9 @@ export default function ScoutStudio() {
   })();
   const temporadaDeReferencia = temporadasDeLaFila[indiceDeReferencia] ?? null;
   /*
-   * Se pueden elegir varias anteriores. Por defecto entra la más reciente de
-   * la base, y las nuevas se suman sin sustituirla. La selección se recuerda
-   * por jugador y año de referencia en este navegador.
+   * Las anteriores que entran salen del período; aquí solo se recuerdan las
+   * añadidas a mano que se quieren ver en la ficha (no entran en el radar).
    */
-  const claveDelJugador = `${String(filaElegida?.Player ?? "")}|${String(filaElegida?.["Birth date"] ?? "")}`;
   const [seleccionesPrevias, setSeleccionesPrevias] = useState<Record<string, string[]>>({});
   const contextoDeTemporadas = `${claveDelJugador}|${temporadaDeReferencia ? inicioDe(temporadaDeReferencia) : 0}`;
   const inicioDeReferencia = temporadaDeReferencia ? inicioDe(temporadaDeReferencia) : 0;
@@ -465,9 +526,25 @@ export default function ScoutStudio() {
    * la ficha las enseña; los años que alimentan el radar salen de las bases.
    */
   const [temporadasAMano, setTemporadasAMano] = useState<Record<string, TemporadaAMano[]>>({});
+  const manualesElegidas = (seleccionesPrevias[contextoDeTemporadas] ?? []).filter((clave) => clave.startsWith("mano:"));
   const seleccionDeTemporadas = temporadasDeFicha(temporadaDeReferencia, temporadasDeLaFila,
-    temporadasAMano[claveDelJugador] ?? [], seleccionesPrevias[contextoDeTemporadas]);
-  const soloTemporadaActual = seleccionDeTemporadas.anteriores.length === 0;
+    temporadasAMano[claveDelJugador] ?? [], [
+      ...(periodoValido?.modo === "media" ? periodoValido.anios.filter((anio) => anio !== temporadaDeReferencia?.anio).map((anio) => `base:${anio}`) : []),
+      ...manualesElegidas,
+    ]);
+  /** Las temporadas del jugador para la pregunta: con métricas (de la más reciente) y las añadidas a mano. */
+  const temporadasDelPeriodo: TemporadaDelPeriodo[] = [
+    ...[...temporadasDeLaFila].sort((a, b) => b.anio - a.anio).map((temporada) => ({
+      clave: `base:${temporada.anio}`, anio: temporada.anio, etiqueta: temporada.etiqueta, minutos: temporada.minutos,
+      detalle: [temporada.equipo, temporada.ligas.join(", ")].filter(Boolean).join(" · "),
+    })),
+    ...(temporadasAMano[claveDelJugador] ?? []).map((temporada) => ({
+      clave: `mano:${temporada.id}`, anio: 0, etiqueta: temporada.etiqueta, minutos: temporada.minutos, aMano: true,
+      detalle: [temporada.equipo, temporada.liga].filter(Boolean).join(" · "),
+    })),
+  ];
+  const periodoDelJugador: Periodo = periodoValido ?? { modo: "una", anios: temporadaDeReferencia ? [temporadaDeReferencia.anio] : [] };
+  const periodoContestado = Boolean(periodoValido);
   // Las barras conservan una sola marca: la anterior con métricas más reciente de las elegidas.
   const temporadaPrevia = seleccionDeTemporadas.anteriores.find((temporada) => !temporada.aMano) ?? null;
   const aniosDelInforme = seleccionDeTemporadas.anios;
@@ -507,19 +584,13 @@ export default function ScoutStudio() {
   const periodoDeSimilitud = cruceDeTemporadas && indiceEnElCruce >= 0
     ? { filas: cruceDeTemporadas, indice: indiceEnElCruce, procedencia: origenesDelCruce }
     : null;
-  const detalleDeTemporada = (temporada: { equipo: string; ligas: string[] }) => [temporada.equipo, temporada.ligas.join(", ")].filter(Boolean).join(" · ");
-  const chipsDelObjetivo: ChipDeTemporada[] = temporadaDeReferencia && !medirTodasLasTemporadas ? [
-    { clave: "referencia", etiqueta: temporadaDeReferencia.etiqueta, detalle: detalleDeTemporada(temporadaDeReferencia), minutos: temporadaDeReferencia.minutos, activa: true, fija: true },
-    ...seleccionDeTemporadas.otrasLigasActuales.map((temporada, i) => ({
-      clave: `actual:${i}`, etiqueta: temporada.etiqueta, detalle: detalleDeTemporada(temporada), minutos: temporada.minutos, activa: true, fija: true, aMano: Boolean(temporada.aMano),
-    })),
-    ...seleccionDeTemporadas.opciones.map(({ clave, temporada }) => ({
-      clave, etiqueta: temporada.etiqueta, detalle: detalleDeTemporada(temporada), minutos: temporada.minutos,
-      activa: seleccionDeTemporadas.seleccion.includes(clave), aMano: Boolean(temporada.aMano),
-    })),
-  ] : [];
-  /** "2025 + 2026": con qué temporadas se mide, para decirlo en la ficha ampliada. */
-  const temporadasDelPeriodo = chipsDelObjetivo.filter((chip) => chip.activa && !chip.aMano).map((chip) => chip.etiqueta).sort().join(" + ");
+  /** "2025 + 2026": con qué temporadas se mide, para la ficha ampliada y Similitud. */
+  const textoDelPeriodoDelJugador = medirTodasLasTemporadas ? "" : textoDelPeriodo(temporadasDelPeriodo, periodoDelJugador);
+  /** La pregunta de temporadas del jugador principal: la misma en ficha, comparación y ficha ampliada. */
+  const preguntaDePeriodo = (donde: string) => temporadaDeReferencia && !medirTodasLasTemporadas
+    ? <PeriodoDelJugador jugador={String(filaElegida?.Player ?? "")} temporadas={temporadasDelPeriodo} periodo={periodoDelJugador}
+      respondido={periodoContestado} onCambiar={(periodo) => cambiarPeriodo(claveDelJugador, periodo)} donde={donde} deshabilitado={reportLoading} />
+    : null;
   const indiceDelInforme = cruceDeTemporadas && indiceEnElCruce >= 0 ? indiceEnElCruce : selectedPlayer;
   /** Si SkillCorner no publica su liga en la temporada que se mira, o solo sus físicos: la ficha lo dice. */
   const avisoSc = useMemo(() => {
@@ -687,7 +758,7 @@ export default function ScoutStudio() {
 
   /** Añade una temporada de StatsBomb sin reemplazar las que ya estaban elegidas. */
   async function cargarTemporadaAnterior(competicion: ApiCompetition) {
-    incluirTemporada(`base:${extractSeason(String(competicion.season))}`);
+    cambiarPeriodo(claveDelJugador, { modo: "media", anios: [...new Set([...periodoDelJugador.anios, extractSeason(String(competicion.season))])] });
     setPedidaAlCatalogo({ jugador: claveDelJugador, competicion });
     setPreviaManual(null);
     await sumarTemporada(competicion);
@@ -1394,7 +1465,7 @@ export default function ScoutStudio() {
           && (!nacimiento || !fila["Birth date"] || String(fila["Birth date"]) === nacimiento));
         return indice >= 0 ? indice : 0;
       });
-      if (anioDeInicio(anterior.temporada) < inicioDeReferencia) incluirTemporada(`base:${nueva.season}`);
+      if (anioDeInicio(anterior.temporada) < inicioDeReferencia) cambiarPeriodo(claveDelJugador, { modo: "media", anios: [...new Set([...periodoDelJugador.anios, nueva.season])] });
     } catch (error) {
       setReportError(error instanceof Error ? error.message : String(error));
     } finally {
@@ -2294,6 +2365,15 @@ export default function ScoutStudio() {
           <span>{avisoDeGuardado}</span>
           <button type="button" onClick={() => setAvisoDeGuardado("")} aria-label={t("Ocultar aviso")}>×</button>
         </div>}
+        {dataReady && !esPizarra(reportPage) && reportPage !== DATA_PAGE && <BarraDelJugador
+          jugadores={players}
+          elegido={jugadorPorIndice.get(selectedPlayer) ?? null}
+          club={temporadaDeReferencia?.equipo ?? jugadorPorIndice.get(selectedPlayer)?.team ?? ""}
+          periodo={medirTodasLasTemporadas ? t("Todas las temporadas cargadas") : periodoDelJugador.anios.length > 1
+            ? tf("Media de {t}", { t: textoDelPeriodoDelJugador }) : textoDelPeriodoDelJugador ? tf("Temporada {t}", { t: textoDelPeriodoDelJugador }) : ""}
+          recientes={recientes.slice(1).map((clave) => indicePorClave.get(clave)).filter((indice): indice is number => indice !== undefined).map((indice) => jugadorPorIndice.get(indice)).filter((jugador): jugador is (typeof players)[number] => Boolean(jugador))}
+          onElegir={selectPlayer}
+          historial={historial} />}
 
         {/* El asistente de tres pasos vivía en la barra, donde estorbaba lo que
             se usa a diario. Baja al contenido y solo mientras hace falta: en
@@ -2623,29 +2703,18 @@ export default function ScoutStudio() {
                     </span>
                     <Interruptor activo={medirTodasLasTemporadas} onCambio={setMedirTodasLasTemporadas} titulo={t("Medir contra todas las bases cargadas")} />
                   </div>}
-                  {/* Todas las temporadas en que aparece el jugador en las bases
-                      cargadas; la elegida manda sobre la última, y el filtro de
-                      año del panel la elige también. */}
-                  {report && temporadaDeReferencia && temporadasDeLaFila.length > 1 && <label className="field-group temporada-previa">
-                    <FieldLabel>{t("Temporada")}</FieldLabel>
-                    <span className="select-wrap simple"><select value={temporadaDeReferencia.anio} onChange={(event) => setTemporadaElegida({ anio: Number(event.target.value), conFiltro: `${base.filtros.liga}|${base.filtros.anio}` })}>
-                      {temporadasDeLaFila.map((temporada) => <option key={temporada.anio} value={temporada.anio}>{tf("{s} · {liga} · {equipo} · {m}′", {
-                        s: temporada.etiqueta, liga: temporada.ligas.join(" + "), equipo: temporada.equipo, m: numberFormat(temporada.minutos),
-                      })}</option>)}
-                    </select><ChevronDown size={16} /></span>
-                    <small className="temporada-previa-nota">{tf("Aparece en {n} temporadas de las bases cargadas.", { n: temporadasDeLaFila.length })}</small>
-                  </label>}
+                  {/* Qué temporadas entran se contesta junto a la ficha (y en
+                      Similitud y la ficha ampliada). Aquí, solo añadir otras. */}
                   {report && temporadaDeReferencia && (() => {
                     const deArchivo = basesDeArchivoDe(temporadaDeReferencia);
                     const hayOpciones = seleccionDeTemporadas.opciones.length > 0 || catalogoAnterior.length > 0;
                     const temporadaPropuesta = temporadaAnteriorDe(seleccionDeTemporadas.anteriores.at(-1)?.etiqueta ?? temporadaDeReferencia.etiqueta);
                     const verManual = manualAbierto || !hayOpciones;
                     return <div className="field-group temporada-previa">
-                      <SelectorTemporadas opciones={seleccionDeTemporadas.opciones} seleccion={seleccionDeTemporadas.seleccion} deshabilitado={reportLoading}
+                      <SelectorTemporadas opciones={seleccionDeTemporadas.opciones.filter((opcion) => opcion.temporada.aMano)} seleccion={seleccionDeTemporadas.seleccion} deshabilitado={reportLoading}
                         onAlternar={(clave) => cambiarSeleccionDeTemporadas((claves) => claves.includes(clave) ? claves.filter((actual) => actual !== clave) : [...claves, clave])}
-                        onQuitar={quitarTemporadaAMano} onSoloActual={() => { cambiarSeleccionDeTemporadas(() => []); setPreviaManual(null); }}
+                        onQuitar={quitarTemporadaAMano}
                         onAnadir={() => setPreviaManual({ jugador: claveDelJugador, elegida: "" })} />
-                      {soloTemporadaActual && !medirTodasLasTemporadas && <small className="temporada-previa-nota">{tf("El radar, el índice y la cohorte usan solo la temporada {s}.", { s: temporadaDeReferencia.etiqueta })}</small>}
                       {pedidaSinJugador && <small className="temporada-previa-nota aviso">{tf("No aparece en {liga} {s}: si jugó en otra liga, añádela manualmente.", { liga: pedidaSinJugador.name, s: pedidaSinJugador.season })}</small>}
                       {verManual && <div className="previa-manual">
                         {!hayOpciones && <small className="temporada-previa-nota">{t("No hay otra temporada de este jugador disponible. Añádela manualmente:")}</small>}
@@ -2778,6 +2847,7 @@ export default function ScoutStudio() {
 
                 <section className="report-preview-wrap">
                   <div className="preview-toolbar"><div><span className="live-dot" /> {t("Página 01 · Ficha de scouting")}</div><span>{t("Haz clic en los textos del informe para editarlos")}</span></div>
+                  {reportArticleNode && preguntaDePeriodo(t("el radar y la ficha"))}
                   {reportArticleNode ? <div className="legal-page-shell">{reportArticleNode}</div> : <div className="empty-preview">{t("Selecciona un jugador para generar el informe.")}</div>}
                 </section>
               </div> : null}
@@ -2814,10 +2884,8 @@ export default function ScoutStudio() {
                   periodo={periodoDeSimilitud}
                   periodoPendiente={Boolean(claveDelCruce) && !cruceDeTemporadas}
                   aniosDelPeriodo={claveDelCruce ? aniosDelInforme : null}
-                  temporadasDelObjetivo={chipsDelObjetivo.length ? {
-                    chips: chipsDelObjetivo,
-                    onAlternar: (clave) => cambiarSeleccionDeTemporadas((claves) => claves.includes(clave) ? claves.filter((actual) => actual !== clave) : [...claves, clave]),
-                  } : null}
+                  preguntaDelObjetivo={preguntaDePeriodo(t("la comparación"))}
+                  temporadasDelObjetivoEnLaHoja={textoDelPeriodoDelJugador}
                   basesActivas={basesActivas}
                   procedencias={procedencias}
                   catalogoParaCargar={catalogoSinCargar}
@@ -2831,8 +2899,9 @@ export default function ScoutStudio() {
                   lista, y antes la Ficha ampliada salía al final aunque el
                   diálogo la pusiera tercera. Lo vigila
                   tests/orden-del-pdf.test.mjs. */}
+              {espacio === "cavalry" && report && reportPage === SNAPSHOT_PAGE && !printRun && <div className="periodo-host">{preguntaDePeriodo(t("la ficha ampliada"))}</div>}
               {espacio === "cavalry" && report && paginaMontada(SNAPSHOT_PAGE) && (
-                <SnapshotPage rows={filasDeLasPiezas} indice={indiceDeLasPiezas} informe={report} perfilTm={profile} minutosMin={minimumMinutes} claseHoja={claseHoja(SNAPSHOT_PAGE)} temporada={temporadaDeReferencia?.etiqueta} temporadasDelPeriodo={temporadasDelPeriodo}
+                <SnapshotPage rows={filasDeLasPiezas} indice={indiceDeLasPiezas} informe={report} perfilTm={profile} minutosMin={minimumMinutes} claseHoja={claseHoja(SNAPSHOT_PAGE)} temporada={temporadaDeReferencia?.etiqueta} temporadasDelPeriodo={textoDelPeriodoDelJugador}
                   clavesPorFila={ligasDeLasPiezas} ligasDeFila={ligasDeLasPiezas} feedOpta={feedOpta} avisoSkillcorner={avisoSc}
                   destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} onAbrirJugador={(indice) => { const enBase = enLaBase(indice); if (enBase >= 0) selectPlayer(enBase); }} />
               )}

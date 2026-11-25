@@ -7884,3 +7884,59 @@ body.print-layout-check .app-shell[data-tema] .pizarra-duelos > ol { grid-templa
 .temporada-chip.cargable i::after { transform: rotate(90deg); }
 .temporadas-otra-liga { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .app-shell[data-tema] p.snap-aviso-temporadas { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+
+/* ---- Barra del jugador principal (todas las pestañas) ----
+   Atrás/adelante, a quién se mira y con qué temporadas, y los últimos vistos.
+   Fija arriba al desplazarse, como la de la plataforma. */
+.app-shell .barra-jugador { position: sticky; top: 0; z-index: 40; display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; padding: 8px 26px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--paper) 86%, transparent); backdrop-filter: blur(16px) saturate(140%); }
+.barra-jugador-historial { display: inline-flex; gap: 4px; }
+.barra-jugador-flecha { width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 9px; background: color-mix(in srgb, var(--ink) 4%, transparent); color: var(--ink); cursor: pointer; transition: background var(--transicion, .15s), opacity var(--transicion, .15s); }
+.barra-jugador-flecha:not(:disabled):hover { background: color-mix(in srgb, var(--ink) 9%, transparent); }
+.barra-jugador-flecha:active:not(:disabled) { transform: scale(.96); }
+.barra-jugador-flecha:disabled { opacity: .35; cursor: default; }
+.barra-jugador-buscador { position: relative; min-width: 0; }
+.barra-jugador-actual { display: inline-flex; align-items: baseline; gap: 8px; max-width: min(520px, 70vw); min-height: 34px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--ink) 4%, transparent); color: var(--ink); font: inherit; cursor: pointer; }
+.barra-jugador-actual:hover { border-color: color-mix(in srgb, var(--ink) 24%, transparent); }
+.barra-jugador-actual b { overflow: hidden; font-size: 14px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.barra-jugador-actual small { overflow: hidden; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.barra-jugador-actual svg { align-self: center; flex: none; color: var(--muted); }
+.barra-jugador-etiqueta { color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.barra-jugador-panel { position: absolute; top: calc(100% + 6px); left: 0; z-index: 50; width: min(420px, 88vw); padding: 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); box-shadow: 0 18px 48px -18px rgba(0,0,0,.6); }
+.barra-jugador-campo { display: flex; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); }
+.barra-jugador-campo input { flex: 1; min-width: 0; height: 36px; border: 0; outline: 0; background: transparent; color: var(--ink); font: inherit; font-size: 14px; }
+.barra-jugador-campo:focus-within { border-color: var(--acento, #4f7cff); }
+.barra-jugador-grupo { display: block; margin: 10px 8px 4px; color: var(--muted); font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.barra-jugador-panel ul { max-height: min(52vh, 380px); margin: 6px 0 0; padding: 0; overflow: auto; list-style: none; overscroll-behavior: contain; }
+.barra-jugador-panel li { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 8px 10px; border-radius: 8px; cursor: pointer; }
+.barra-jugador-panel li.activa { background: color-mix(in srgb, var(--acento, #4f7cff) 14%, transparent); }
+.barra-jugador-panel li b { overflow: hidden; color: var(--ink); font-size: 13.5px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.barra-jugador-panel li small { flex: none; color: var(--muted); font-size: 12px; }
+.barra-jugador-vacio { margin: 10px 8px 4px; color: var(--muted); font-size: 12.5px; }
+.barra-jugador-periodo { padding: 5px 10px; border-radius: 999px; background: color-mix(in srgb, var(--acento, #4f7cff) 13%, transparent); color: var(--ink); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.barra-jugador-recientes { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.barra-jugador-recientes button { padding: 5px 10px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; }
+.barra-jugador-recientes button:hover { color: var(--ink); border-color: color-mix(in srgb, var(--ink) 24%, transparent); }
+@media (max-width: 760px) {
+  .app-shell .barra-jugador { padding: 8px 14px; }
+  .barra-jugador-recientes { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .barra-jugador-flecha { transition: none; } }
+
+/* ---- Con qué temporadas se mide (ficha, comparación, ficha ampliada) ----
+   Sin contestar: la pregunta, destacada. Contestada: un selector discreto. */
+.periodo { display: grid; gap: 10px; margin: 0 0 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in srgb, var(--ink) 3%, transparent); }
+.periodo.pregunta { border-color: color-mix(in srgb, var(--acento, #4f7cff) 45%, transparent); background: color-mix(in srgb, var(--acento, #4f7cff) 8%, transparent); }
+.periodo-pregunta { display: grid; gap: 8px; }
+.periodo-pregunta p { margin: 0; color: var(--ink); font-size: 14px; line-height: 1.45; }
+.periodo-respuestas { display: flex; flex-wrap: wrap; gap: 8px; }
+.periodo-respuestas .button { height: auto; min-height: 40px; padding: 7px 14px; flex-direction: column; align-items: flex-start; gap: 1px; }
+.periodo-respuestas .button small { font-size: 10.5px; font-weight: 500; opacity: .75; }
+.periodo-control { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.periodo-titulo { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.periodo-fichas { display: flex; flex-wrap: wrap; gap: 6px; }
+.periodo-nota { flex-basis: 100%; color: var(--muted); font-size: 11.5px; }
+.periodo-unica { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.temporada-chip.fija { cursor: default; }
+.temporada-chip.on i.radio::after { width: 6px; height: 6px; margin: 0; border: 0; border-radius: 50%; background: #fff; transform: none; }
+.periodo-host { max-width: 1180px; margin: 12px auto 0; padding: 0 16px; }
+.similarity-target-bar .periodo, .similarity-hoja-barra .periodo { margin: 0; background: transparent; }
