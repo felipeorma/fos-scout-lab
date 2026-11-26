@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { ChevronDown, ChevronLeft, ChevronRight, Search } from "./Icons";
+import { ChevronDown, ChevronLeft, ChevronRight, Estrella, EstrellaLlena, Search } from "./Icons";
 import { t, tf } from "@/lib/i18n";
 
 export type JugadorDeLaBarra = { index: number; player: string; team: string };
@@ -24,7 +24,7 @@ const MAXIMO_RESULTADOS = 40;
  *
  * Elegir aquí cambia el jugador en todas las pestañas y no cambia de página.
  */
-export function BarraDelJugador({ jugadores, elegido, club, periodo, recientes, onElegir, historial }: {
+export function BarraDelJugador({ jugadores, elegido, club, periodo, recientes, onElegir, historial, siguiendo = false, onSeguir }: {
   jugadores: JugadorDeLaBarra[];
   elegido: JugadorDeLaBarra | null;
   club: string;
@@ -34,6 +34,9 @@ export function BarraDelJugador({ jugadores, elegido, club, periodo, recientes, 
   recientes: JugadorDeLaBarra[];
   onElegir: (indice: number) => void;
   historial: { puedeVolver: boolean; puedeAvanzar: boolean; volver: () => void; avanzar: () => void };
+  /** Si el jugador está en alguna lista de seguimiento, y cómo cambiarlo. */
+  siguiendo?: boolean;
+  onSeguir?: () => void;
 }) {
   const [abierto, setAbierto] = useState(false);
   const [texto, setTexto] = useState("");
@@ -100,6 +103,10 @@ export function BarraDelJugador({ jugadores, elegido, club, periodo, recientes, 
         {!texto.trim() && !recientes.length && <p className="barra-jugador-vacio">{t("Escribe un nombre o un club.")}</p>}
       </div>}
     </div>
+    {elegido && onSeguir && <button type="button" className={siguiendo ? "barra-jugador-seguir on" : "barra-jugador-seguir"} aria-pressed={siguiendo} onClick={onSeguir}
+      title={siguiendo ? t("Quitar de tus listas de seguimiento") : t("Añadir a tu lista de seguimiento")}>
+      {siguiendo ? <EstrellaLlena size={15} /> : <Estrella size={15} />}<span>{siguiendo ? t("Siguiendo") : t("Seguir")}</span>
+    </button>}
     {periodo && <span className="barra-jugador-periodo">{periodo}</span>}
     {recientes.length > 0 && <div className="barra-jugador-recientes" aria-label={t("Vistos hace poco")}>
       {recientes.slice(0, 4).map((jugador) => <button key={jugador.index} type="button" onClick={() => onElegir(jugador.index)} title={jugador.team}>

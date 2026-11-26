@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { candidatosParaEquipo, frenteDePareto, nivelDeFila, rankingDeCohorte, type Candidato, type OpcionesDeRanking } from "@/lib/ranking";
 import { PUNTOS_POR_RATING_INDICE, nivelDeLiga, type EntradaOpta } from "@/lib/nivelDeLiga";
 import { MINUTOS_FIABLES, margenDelIndice } from "@/lib/fiabilidad";
@@ -9,10 +9,14 @@ import { useBaseActiva } from "./BaseActiva";
 import { PieDeReporte } from "./PieDeReporte";
 import { BarraDeFiltros, Desplegable } from "./BarraDeFiltros";
 import { PeriodoDeLista, TextoDelPeriodoDeLista } from "./PeriodoDeLista";
-import { ChevronDown, ChevronRight } from "./Icons";
+import { ChevronDown, ChevronRight, Estrella, EstrellaLlena } from "./Icons";
+import { cambiarSeguimiento, useSeguimiento } from "./useSeguimiento";
+import { dejarDeSeguir, seguir, sigue } from "@/lib/seguimiento";
 import { BotonExportar } from "./BotonExportar";
 import { numberLocale, t, tf } from "@/lib/i18n";
-import { headersOf } from "@/lib/scouting";
+import { headersOf, temporadasDeFila } from "@/lib/scouting";
+import { conSigno as firmado, fuerzaDelJugador, type FuerzaDelJugador } from "@/lib/fuerzaDelClub";
+import type { BuscadorDeFuerza } from "./useFuerzaDeClubes";
 import { contratoCorto, cortesDeContrato, pasaMercado, valorCorto, type FiltroDeMercado } from "@/lib/mercado";
 import { useMercado, type FilaDeMercado } from "./useMercado";
 import { rankingPorArquetipo } from "@/lib/arquetipos";
@@ -57,11 +61,15 @@ const COHORTE_FIABLE = 10;
 const COHORTE_MINIMA = 5;
 
 // Los topes de valor que se ofrecen, en euros: del juvenil de la CPL al titular de la MLS.
+const CLAVE_AJUSTE_CLUB = "fos-ranking-ajuste-club-v1";
 const TOPES_DE_VALOR = [50_000, 100_000, 250_000, 500_000, 1_000_000, 2_500_000, 5_000_000];
 
 
-export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatario = "", medirEnSuLiga = true, nivel = null }: {
+export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatario = "", medirEnSuLiga = true, nivel = null, fuerzaDe = null, cargandoFuerza = false }: {
   onSelectPlayer?: (indice: number) => void;
+  /** La fuerza del club de cada liga y temporada cargada, para ajustar el índice. */
+  fuerzaDe?: BuscadorDeFuerza | null;
+  cargandoFuerza?: boolean;
   /** Medir a cada uno contra su liga y temporada (la preferencia de "Comparar con" de la ficha). */
   medirEnSuLiga?: boolean;
   /** Llevar los índices a una liga de referencia con el nivel de Opta; null en Maldonado. */
@@ -107,9 +115,43 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
   const referencia = opcionesDeRanking.nivel ? nivelDeLiga(opcionesDeRanking.nivel.feed, opcionesDeRanking.nivel.referencia) : null;
   const ordenaANivel = Boolean(referencia) && todos.some((fila) => fila.aNivel !== null);
 
+  /*
+   * Ajuste por la fuerza del club (lib/fuerzaDelClub): un jugador de un
+   * equipo que domina sale algo mejor de lo que es, y uno de un equipo que
+   * sufre, peor. Medido con los que cambiaron de club: 3,6 puntos de índice
+   * por cada +1 de xGD por partido de su equipo. Es opcional y se dice; se
+   * recuerda en este navegador.
+   */
+  const [ajustarPorClub, setAjustarPorClub] = useState(false);
+  useEffect(() => {
+    try { if (window.localStorage.getItem(CLAVE_AJUSTE_CLUB) === "si") setAjustarPorClub(true); } catch { /* preferencia opcional */ }
+  }, []);
+  const cambiarAjusteDeClub = (activo: boolean) => {
+    setAjustarPorClub(activo);
+    try { window.localStorage.setItem(CLAVE_AJUSTE_CLUB, activo ? "si" : "no"); } catch { /* preferencia opcional */ }
+  };
+  const fuerzas = useMemo(() => {
+    const mapa = new Map<number, FuerzaDelJugador>();
+    if (!fuerzaDe) return mapa;
+    for (const fila of todos) {
+      const fuerza = fuerzaDelJugador(temporadasDeFila(rows[fila.indice]), fuerzaDe);
+      if (fuerza) mapa.set(fila.indice, fuerza);
+    }
+    return mapa;
+  }, [todos, rows, fuerzaDe]);
+  const todosConClub = useMemo(() => {
+    if (!ajustarPorClub || !fuerzas.size) return todos;
+    return todos
+      .map((fila) => {
+        const fuerza = fuerzas.get(fila.indice);
+        return fuerza ? { ...fila, puntuacion: Math.round(fila.puntuacion + fuerza.ajuste) } : fila;
+      })
+      .sort((a, b) => b.puntuacion - a.puntuacion || b.metricas - a.metricas);
+  }, [todos, fuerzas, ajustarPorClub]);
+
   const visibles = useMemo(
-    () => todos.filter((fila) => pasaFiltros(fila.indice)),
-    [todos, pasaFiltros],
+    () => todosConClub.filter((fila) => pasaFiltros(fila.indice)),
+    [todosConClub, pasaFiltros],
   );
 
   /*
@@ -226,6 +268,16 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
   }, [todos]);
 
   const nombreDelPerfil = t(PERFILES.find((x) => x.id === perfil)?.nombre ?? perfil);
+  // La estrella de cada fila: seguirle sin salir de la lista.
+  const seguimiento = useSeguimiento();
+  const claveDe = (indice: number) => `${String(rows[indice]?.Player ?? "")}|${String(rows[indice]?.["Birth date"] ?? "")}`;
+  const alternarSeguimiento = (fila: (typeof todos)[number]) => {
+    const clave = claveDe(fila.indice);
+    cambiarSeguimiento((actual) => sigue(actual, clave) ? dejarDeSeguir(actual, clave) : seguir(actual, {
+      clave, nombre: fila.jugador, equipo: fila.equipo, posicion: nombreDelPerfil, edad: Number.isFinite(fila.edad) ? String(fila.edad) : "",
+      ligas: procedencia?.[fila.indice]?.ligas ?? [], periodo: periodoDeLaLista.texto, indice: fila.puntuacion,
+    }));
+  };
   const abrirConTeclado = (evento: KeyboardEvent, indice: number) => {
     if (!onSelectPlayer || (evento.key !== "Enter" && evento.key !== " ")) return;
     evento.preventDefault();
@@ -266,6 +318,13 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
     <div className="filtros-barra rank-herramientas" role="group" aria-label={t("Qué puesto miras")}>
       <div className="filtros-chips">
         <PeriodoDeLista />
+        <Desplegable etiqueta={t("Club")} valor={ajustarPorClub ? t("Ajustado por fuerza") : t("Sin ajustar")} activo={ajustarPorClub}
+          apagado={!fuerzaDe} aviso={!fuerzaDe ? (cargandoFuerza ? t("Cargando la fuerza de los clubes…") : t("Sin estadísticas de equipo de StatsBomb para estas ligas.")) : undefined}>
+          <select aria-label={t("Ajustar el índice por la fuerza del club")} value={ajustarPorClub ? "si" : "no"} disabled={!fuerzaDe} onChange={(evento) => cambiarAjusteDeClub(evento.target.value === "si")}>
+            <option value="no">{t("Sin ajustar")}</option>
+            <option value="si">{t("Ajustado por fuerza del club")}</option>
+          </select>
+        </Desplegable>
         <Desplegable etiqueta={t("Posición")} valor={nombreDelPerfil} activo={false}>
           <select aria-label={t("Posición")} value={perfil} onChange={(event) => setPerfil(event.target.value)}>
             {PERFILES.map((item) => <option key={item.id} value={item.id}>{t(item.nombre)}</option>)}
@@ -394,7 +453,17 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
             <span className="rank-cuerpo">
               <span className="rank-nombre">
                 {fila.jugador}
+                {(() => {
+                  const siguiendo = sigue(seguimiento, claveDe(fila.indice));
+                  return <button type="button" className={siguiendo ? "rank-seguir on" : "rank-seguir"} aria-pressed={siguiendo}
+                    aria-label={siguiendo ? tf("Dejar de seguir a {p}", { p: fila.jugador }) : tf("Seguir a {p}", { p: fila.jugador })}
+                    onClick={(evento) => { evento.stopPropagation(); alternarSeguimiento(fila); }}
+                    onKeyDown={(evento) => evento.stopPropagation()}>{siguiendo ? <EstrellaLlena size={13} /> : <Estrella size={13} />}</button>;
+                })()}
                 <small><Escudo equipo={fila.equipo} liga={procedencia?.[fila.indice]?.ligas.join("|") ?? ""} tamano={13} />{fila.equipo}{Number.isFinite(fila.edad) ? ` · ${fila.edad}` : ""}{fila.minutos ? <span className={fila.minutos < MINUTOS_FIABLES ? "rank-pocos-minutos" : undefined} title={fila.minutos < MINUTOS_FIABLES ? (margenDelIndice(fila.minutos) !== null ? tf("Pocos minutos: su número puede moverse ±{n} de una temporada a otra.", { n: margenDelIndice(fila.minutos) ?? "" }) : t("Muy pocos minutos para un número fiable.")) : undefined}>{` · ${Math.round(fila.minutos)}′`}</span> : ""}
+                  {ajustarPorClub && fuerzas.get(fila.indice) && <span className="rank-club" title={tf("Su club: {x} de xG por partido, {p}º de {n} en su liga. Ajuste del índice: {a}.", {
+                    x: firmado(fuerzas.get(fila.indice)!.xgd), p: fuerzas.get(fila.indice)!.clubes[0]?.puesto ?? "—", n: fuerzas.get(fila.indice)!.clubes[0]?.equipos ?? "—", a: firmado(fuerzas.get(fila.indice)!.ajuste, 1),
+                  })}>{` · ${tf("club {x}", { x: firmado(fuerzas.get(fila.indice)!.xgd) })}`}</span>}
                   {suMercado && <span className="rank-mercado-dato" title={suMercado.club ? tf("Transfermarkt · club actual: {club}", { club: suMercado.club }) : t("Transfermarkt")}>
                     {suMercado.valor != null ? ` · ${valorCorto(suMercado.valor, numberLocale())}` : ""}
                     {suMercado.contrato ? ` · ${tf("contrato {fecha}", { fecha: contratoCorto(suMercado.contrato) })}` : ""}

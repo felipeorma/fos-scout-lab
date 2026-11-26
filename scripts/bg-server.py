@@ -2191,6 +2191,128 @@ def statsbomb_possession_flow(competition_id: int, season_id: int, avance: int =
                     status_code=202, media_type="application/json", headers=cors_headers())
 
 
+@app.get("/api/statsbomb/player-match-stats")
+def statsbomb_player_match_stats(match_id: int):
+    """Las estadísticas de cada jugador en un partido (StatsBomb v4), en bruto."""
+    import json as _json
+    auth = _statsbomb_auth()
+    if not auth:
+        return Response('{"error": "sin credenciales"}', status_code=503, media_type="application/json", headers=cors_headers())
+    try:
+        data = _cached_get(f"sb:pms4:{int(match_id)}", f"https://data.statsbomb.com/api/v4/matches/{int(match_id)}/player-stats", auth, ttl_seconds=86400)
+    except Exception as error:
+        return Response(_json.dumps({"error": str(error)[:300]}), status_code=502, media_type="application/json", headers=cors_headers())
+    return Response(_json.dumps(data), media_type="application/json", headers=cors_headers())
+
+
+def _sb_jugadores_partido(match_id: int, auth):
+    """Las estadísticas de los jugadores de un partido (v4), del disco si ya se bajaron."""
+    import json as _json
+    ruta = _SB_EVENTS_CACHE_DIR / f"pms-{int(match_id)}.json"
+    if ruta.exists():
+        try:
+            return _json.loads(ruta.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    r = _requests.get(f"https://data.statsbomb.com/api/v4/matches/{int(match_id)}/player-stats", auth=auth, timeout=60)
+    r.raise_for_status()
+    datos = r.json()
+    _escribir_atomico(ruta, _json.dumps(datos))
+    return datos
+
+
+# Las razones de la temporada que se rehacen sumando sus partes partido a
+# partido (y no promediando la razón de cada partido, que pesaría igual un
+# partido de 10 minutos que uno de 90).
+_SB_RAZONES = {
+    "player_season_passing_ratio": ("player_match_successful_passes", "player_match_passes"),
+    "player_season_aerial_ratio": ("player_match_successful_aerials", "player_match_aerials"),
+    "player_season_crossing_ratio": ("player_match_successful_crosses", "player_match_crosses"),
+    "player_season_long_ball_ratio": ("player_match_successful_long_balls", "player_match_long_balls"),
+    "player_season_np_xg_per_shot": ("player_match_np_xg", "player_match_np_shots"),
+    "player_season_conversion_ratio": ("player_match_np_goals", "player_match_np_shots"),
+}
+# Lo que en la temporada es por 90 y en el partido se escribe distinto.
+_SB_SUMAS = {
+    "player_season_tackles_and_interceptions_90": ("player_match_tackles", "player_match_interceptions"),
+}
+
+
+def _sb_forma_fila(partidos):
+    """Las columnas de la base (las de _SB_METRICS) con lo de unos partidos.
+
+    Por 90: suma de los partidos / minutos * 90. Razones: suma de partes. Lo
+    que no tiene equivalente por partido (los ajustados por posesión, algunas
+    proporciones) se queda fuera: mejor un hueco que un número inventado.
+    """
+    minutos = sum(float(p.get("player_match_minutes") or 0) for p in partidos)
+    if minutos <= 0:
+        return {}, 0
+    suma = lambda campo: sum(float(p.get(campo) or 0) for p in partidos)
+    tiene = lambda campo: any(campo in p for p in partidos)
+    fila = {}
+    for columna, (campo, factor) in _SB_METRICS.items():
+        valor = None
+        if campo in _SB_RAZONES:
+            arriba, abajo = _SB_RAZONES[campo]
+            if tiene(arriba) and tiene(abajo) and suma(abajo) > 0:
+                valor = suma(arriba) / suma(abajo)
+        elif campo in _SB_SUMAS:
+            partes = _SB_SUMAS[campo]
+            if all(tiene(parte) for parte in partes):
+                valor = sum(suma(parte) for parte in partes) / minutos * 90
+        elif campo.endswith("_90"):
+            del_partido = "player_match_" + campo[len("player_season_"):-3]
+            if tiene(del_partido):
+                valor = suma(del_partido) / minutos * 90
+        if valor is not None:
+            fila[columna] = round(valor * factor, 4)
+    return fila, minutos
+
+
+@app.get("/api/statsbomb/forma")
+def statsbomb_forma(competition_id: int, season_id: int, equipo: str, jugador: str, n: int = 5):
+    """La forma de un jugador: sus últimos `n` partidos jugados con su club.
+
+    Recorre los partidos de su equipo del más reciente hacia atrás, y se
+    queda con los `n` en que jugó. Devuelve esos partidos y su fila con las
+    columnas de la base, para medirla contra su cohorte de la temporada.
+    """
+    import json as _json
+    auth = _statsbomb_auth()
+    if not auth:
+        return Response('{"error": "sin credenciales"}', status_code=503, media_type="application/json", headers=cors_headers())
+    n = max(1, min(int(n), 15))
+    norm = lambda texto: _sin_tildes(str(texto or "")).lower().strip()
+    partidos = _cached_get(f"sb:matches6:{competition_id}:{season_id}",
+                           f"https://data.statsbomb.com/api/v6/competitions/{competition_id}/seasons/{season_id}/matches", auth, ttl_seconds=1800)
+    suyos = []
+    for p in partidos:
+        if p.get("home_score") is None or p.get("away_score") is None:
+            continue
+        local = (p.get("home_team") or {}).get("home_team_name")
+        visita = (p.get("away_team") or {}).get("away_team_name")
+        if norm(equipo) in (norm(local), norm(visita)):
+            suyos.append((str(p.get("match_date") or ""), p, local if norm(visita) == norm(equipo) else visita))
+    suyos.sort(key=lambda x: x[0], reverse=True)
+    jugados, lista = [], []
+    for fecha, p, rival in suyos:
+        try:
+            filas = _sb_jugadores_partido(p["match_id"], auth)
+        except Exception:
+            continue
+        suya = next((f for f in filas if norm(f.get("player_name")) == norm(jugador) and float(f.get("player_match_minutes") or 0) > 0), None)
+        if not suya:
+            continue
+        jugados.append(suya)
+        lista.append({"partido": p["match_id"], "fecha": fecha, "rival": rival, "minutos": round(float(suya.get("player_match_minutes") or 0))})
+        if len(jugados) >= n:
+            break
+    fila, minutos = _sb_forma_fila(jugados)
+    return Response(_json.dumps({"partidos": lista, "minutos": round(minutos), "fila": fila, "del_equipo": len(suyos)}),
+                    media_type="application/json", headers=cors_headers())
+
+
 @app.get("/api/statsbomb/player-stats")
 def statsbomb_player_stats(competition_id: int, season_id: int):
     import json as _json

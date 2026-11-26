@@ -264,6 +264,22 @@ export async function fetchStatsbombDataset(competition: ApiCompetition): Promis
  * Estadísticas de temporada de cada equipo de una competición (StatsBomb).
  * Crudas: el estilo se calcula en lib/estiloEquipo.ts.
  */
+/** Los últimos `n` partidos de un jugador con su club y su fila con las columnas de la base (StatsBomb, por partido). */
+export type FormaReciente = {
+  partidos: Array<{ partido: number; fecha: string; rival: string; minutos: number }>;
+  minutos: number;
+  fila: Record<string, number>;
+  /** Cuántos partidos jugó su equipo en la temporada. */
+  del_equipo: number;
+};
+
+export async function fetchForma(competition: ApiCompetition, equipo: string, jugador: string, n: number): Promise<FormaReciente> {
+  const consulta = new URLSearchParams({
+    competition_id: String(competition.competition_id), season_id: String(competition.season_id), equipo, jugador, n: String(n),
+  });
+  return bridgeJson<FormaReciente>(`/api/statsbomb/forma?${consulta.toString()}`, 300_000);
+}
+
 export async function fetchStatsbombTeamStats(competition: ApiCompetition): Promise<FilaEquipo[]> {
   const payload = await bridgeJson<{ rows: FilaEquipo[] }>(
     `/api/statsbomb/team-stats?competition_id=${competition.competition_id}&season_id=${competition.season_id}`,

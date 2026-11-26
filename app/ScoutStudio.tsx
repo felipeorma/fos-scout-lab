@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BarChart3, Cancha, Check, Pincel, ChevronDown, ChevronRight, Database, FileSpreadsheet, ImageIcon, LockKeyhole, Menu, MoreHorizontal, Plus, Printer, RadarChart, RotateCcw, Route, Search, Sparkles, Trophy, Upload, X, ShieldCheck, LayoutDashboard, Wind } from "./Icons";
+import { BarChart3, Cancha, Check, Pincel, ChevronDown, ChevronRight, Database, FileSpreadsheet, ImageIcon, LockKeyhole, Menu, MoreHorizontal, Plus, Printer, RadarChart, RotateCcw, Route, Search, Sparkles, Trophy, Upload, X, ShieldCheck, LayoutDashboard, Wind, Estrella } from "./Icons";
 import { PizzaRadar } from "./PizzaRadar";
 import { ScoutingBoard } from "./ScoutingBoard";
 import { RunsPage } from "./RunsPage";
@@ -23,6 +23,12 @@ import { SelectorTemporadas } from "./SelectorTemporadas";
 import { PeriodoDelJugador, textoDelPeriodo, type Periodo, type TemporadaDelPeriodo } from "./PeriodoDelJugador";
 import { BarraDelJugador } from "./BarraDelJugador";
 import { useHistorialDeNavegacion } from "./useHistorialDeNavegacion";
+import { useFuerzaDeClubes } from "./useFuerzaDeClubes";
+import { conSigno, fuerzaDelJugador } from "@/lib/fuerzaDelClub";
+import { SeguimientoPage } from "./SeguimientoPage";
+import { FormaReciente } from "./FormaReciente";
+import { cambiarSeguimiento, useSeguimiento } from "./useSeguimiento";
+import { dejarDeSeguir, seguir, sigue } from "@/lib/seguimiento";
 import { TemporadaDesdeWyscout, TemporadaEscrita } from "./TemporadaAMano";
 import { CLAVE_TEMPORADAS_A_MANO, delMismoAnioAMano, nuevaTemporadaAMano, type DatosDeTemporada, type TemporadaAMano } from "@/lib/temporadasAMano";
 import { temporadasDeFicha, type TemporadaEnFicha } from "@/lib/temporadasDeFicha";
@@ -105,6 +111,8 @@ const BLUEPRINTS_PAGE = 99;
 const ABP_PAGE = 100;
 // El pintado de acciones: dibujar sobre una imagen o un vídeo. Tampoco necesita base.
 const PINTADO_PAGE = 101;
+// Listas de seguimiento: a quién se sigue y por qué. Página de trabajo, no hoja del informe.
+const SEGUIMIENTO_PAGE = 102;
 /** Las hojas de la pizarra: se abren sin datos y no son páginas del informe. */
 const esPizarra = (pagina: number) => pagina === ABP_PAGE || pagina === PINTADO_PAGE;
 
@@ -127,6 +135,7 @@ const NOMBRE_DE_SECCION: Record<number, string> = {
   [SNAPSHOT_PAGE]: "Ficha ampliada",
   [ABP_PAGE]: "Estudio táctico",
   [PINTADO_PAGE]: "Pintado de acciones",
+  [SEGUIMIENTO_PAGE]: "Seguimiento",
 };
 
 /**
@@ -477,6 +486,8 @@ export default function ScoutStudio() {
     });
     return mapa;
   }, [reportRows]);
+  // La fuerza de los clubes de cada base cargada (lib/fuerzaDelClub): para el Ranking y la ficha.
+  const fuerzaDeClubes = useFuerzaDeClubes(basesActivas, catalogoSb, paginaMontada(RANK_PAGE) || paginaMontada(CARD_PAGE));
   const historial = useHistorialDeNavegacion(reportPage, claveDelJugador, (pagina, jugador) => {
     setReportPage(pagina as ReportPage);
     const indice = indicePorClave.get(jugador);
@@ -484,6 +495,7 @@ export default function ScoutStudio() {
   });
   // La lista de jugadores va en orden alfabético: se busca por índice, no por posición.
   const jugadorPorIndice = useMemo(() => new Map(players.map((jugador) => [jugador.index, jugador])), [players]);
+  const seguimiento = useSeguimiento();
   const [recientes, setRecientes] = useState<string[]>([]);
   useEffect(() => {
     if (!filaElegida?.Player) return;
@@ -558,6 +570,20 @@ export default function ScoutStudio() {
   ];
   const periodoDelJugador: Periodo = periodoEfectivo ?? { modo: "una", anios: temporadaDeReferencia ? [temporadaDeReferencia.anio] : [] };
   const periodoContestado = Boolean(periodoValido);
+  /*
+   * De dónde sacar la forma reciente: su liga y temporada de referencia en el
+   * catálogo de StatsBomb, su club y su nombre. Solo si esa temporada viene de
+   * StatsBomb (un Excel de Wyscout no tiene partidos que pedir).
+   */
+  const fuenteDeForma = useMemo(() => {
+    const liga = temporadaDeReferencia?.ligas[0];
+    if (!temporadaDeReferencia || !liga || !filaElegida) return null;
+    if (!String(filaElegida["Data sources"] ?? "").includes(`StatsBomb · ${liga}`)) return null;
+    const sinEspacios = (texto: string) => texto.replace(/\s+/g, "");
+    const competicion = catalogoSb.find((c) => c.name === liga && sinEspacios(String(c.season ?? "")) === sinEspacios(temporadaDeReferencia.etiqueta));
+    if (!competicion?.competition_id || !competicion.season_id) return null;
+    return { competicion, equipo: temporadaDeReferencia.equipoPorLiga[liga] || temporadaDeReferencia.equipo, jugador: String(filaElegida.Player ?? "") };
+  }, [temporadaDeReferencia, filaElegida, catalogoSb]);
   // Las barras conservan una sola marca: la anterior con métricas más reciente de las elegidas.
   const temporadaPrevia = seleccionDeTemporadas.anteriores.find((temporada) => !temporada.aMano) ?? null;
   const aniosDelInforme = seleccionDeTemporadas.anios;
@@ -2170,6 +2196,15 @@ export default function ScoutStudio() {
         <div className="score-ring" style={{ "--score": `${report.score * 3.6}deg` } as React.CSSProperties}><b>{report.score}</b><span>{t("Índice")}</span></div>
       </section>
       {avisoSc && <p className="dossier-aviso-sc">{avisoSc}</p>}
+      {/* La fuerza de su club (o clubes, con varias temporadas), y el índice
+          ajustado por ella: lib/fuerzaDelClub, medido con jugadores que
+          cambiaron de club. El índice del anillo sigue siendo el de siempre. */}
+      {(() => {
+        const fuerza = fuerzaDeClubes.fuerzaDe ? fuerzaDelJugador(temporadasDelJugador, fuerzaDeClubes.fuerzaDe) : null;
+        if (!fuerza) return null;
+        const clubes = fuerza.clubes.map((club) => tf("{e} {x} xG/partido ({p}º de {n})", { e: club.equipo, x: conSigno(club.xgd), p: club.puesto, n: club.equipos })).join(" · ");
+        return <p className="dossier-club">{tf("Fuerza del club: {c}. Índice ajustado por club: {i} ({a}).", { c: clubes, i: Math.round(report.score + fuerza.ajuste), a: conSigno(fuerza.ajuste, 1) })}</p>;
+      })()}
       {temporadasAdicionalesDeLaFicha.map((temporada: TemporadaDeJugador & { aMano?: TemporadaAMano }, posicion, anteriores) => (
         <section className="dossier-season-strip dossier-season-previa" key={temporada.aMano?.id ?? temporada.etiqueta}>
           <div className="season-source">
@@ -2385,7 +2420,16 @@ export default function ScoutStudio() {
             ? tf("Media de {t}", { t: textoDelPeriodoDelJugador }) : textoDelPeriodoDelJugador ? tf("Temporada {t}", { t: textoDelPeriodoDelJugador }) : ""}
           recientes={recientes.slice(1).map((clave) => indicePorClave.get(clave)).filter((indice): indice is number => indice !== undefined).map((indice) => jugadorPorIndice.get(indice)).filter((jugador): jugador is (typeof players)[number] => Boolean(jugador))}
           onElegir={selectPlayer}
-          historial={historial} />}
+          historial={historial}
+          siguiendo={sigue(seguimiento, claveDelJugador)}
+          onSeguir={() => cambiarSeguimiento((actual) => sigue(actual, claveDelJugador)
+            ? dejarDeSeguir(actual, claveDelJugador)
+            : seguir(actual, {
+              clave: claveDelJugador, nombre: String(filaElegida?.Player ?? ""), equipo: temporadaDeReferencia?.equipo ?? String(filaElegida?.Team ?? ""),
+              posicion: report?.position ?? "", edad: report?.age ? String(report.age) : "", ligas: temporadaDeReferencia?.ligas ?? [],
+              periodo: medirTodasLasTemporadas ? t("Todas las temporadas cargadas") : periodoDelJugador.anios.length > 1 ? tf("Media de {t}", { t: textoDelPeriodoDelJugador }) : tf("Temporada {t}", { t: textoDelPeriodoDelJugador }),
+              indice: report?.score ?? null,
+            }))} />}
 
         {/* El asistente de tres pasos vivía en la barra, donde estorbaba lo que
             se usa a diario. Baja al contenido y solo mientras hace falta: en
@@ -2594,6 +2638,11 @@ export default function ScoutStudio() {
                   <div className="seccion-lista">
                     <FilaSeccion activa={reportPage === RANK_PAGE} onClick={() => setReportPage(RANK_PAGE)}
                       icono={<Trophy size={16} />} titulo={t("Ranking")} detalle={t("Los mejores por puesto")} />
+                    <FilaSeccion activa={reportPage === SEGUIMIENTO_PAGE} onClick={() => setReportPage(SEGUIMIENTO_PAGE)}
+                      icono={<Estrella size={16} />} titulo={t("Seguimiento")} detalle={(() => {
+                        const cuantos = new Set(seguimiento.entradas.map((e) => e.clave)).size;
+                        return cuantos === 0 ? t("Tus listas de jugadores") : cuantos === 1 ? t("1 jugador en tus listas") : tf("{n} jugadores en tus listas", { n: cuantos });
+                      })()} />
                     <FilaSeccion activa={reportPage === STYLE_PAGE} onClick={() => setReportPage(STYLE_PAGE)}
                       icono={<ShieldCheck size={16} />} titulo={t("Estilo de juego")} detalle={t("Cómo juega, el partido y el flujo")} api />
                     <FilaSeccion activa={reportPage === BLUEPRINTS_PAGE} onClick={() => setReportPage(BLUEPRINTS_PAGE)}
@@ -2861,6 +2910,9 @@ export default function ScoutStudio() {
                   <div className="preview-toolbar"><div><span className="live-dot" /> {t("Página 01 · Ficha de scouting")}</div><span>{t("Haz clic en los textos del informe para editarlos")}</span></div>
                   {reportArticleNode && preguntaDePeriodo(t("el radar y la ficha"))}
                   {reportArticleNode ? <div className="legal-page-shell">{reportArticleNode}</div> : <div className="empty-preview">{t("Selecciona un jugador para generar el informe.")}</div>}
+                  {/* La forma reciente: fuera de la hoja (no se imprime), debajo. */}
+                  {report && fuenteDeForma && reportPage === CARD_PAGE && <FormaReciente informe={report} filas={filasDelInforme} indice={indiceDelInforme}
+                    minutosMin={minimumMinutes} elegidas={metricPicks[report.cohort]} porLiga={porLiga} fuente={fuenteDeForma} conMedia={periodoDelJugador.anios.length > 1} />}
                 </section>
               </div> : null}
               {/* La similitud vive montada siempre: filtros, pesos y candidato
@@ -2925,7 +2977,7 @@ export default function ScoutStudio() {
                   se montan aunque la página quede recordada o llegue por un
                   enlace. Allí se trabaja con la mesa y nada más. */}
               {espacio === "cavalry" && report && paginaMontada(RANK_PAGE) && (
-                <div className={claseHoja(RANK_PAGE)}><RankingPage onSelectPlayer={(indice) => { const enBase = base.vista.alBase(indice); if (enBase >= 0) { selectPlayer(enBase); setReportPage(CARD_PAGE); } }} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl}
+                <div className={claseHoja(RANK_PAGE)}><RankingPage onSelectPlayer={(indice) => { const enBase = base.vista.alBase(indice); if (enBase >= 0) { selectPlayer(enBase); setReportPage(CARD_PAGE); } }} fuerzaDe={fuerzaDeClubes.fuerzaDe} cargandoFuerza={fuerzaDeClubes.cargando} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl}
                   medirEnSuLiga={medirContra === "liga"} nivel={nivelDelRanking} /></div>
               )}
               {espacio === "cavalry" && paginaMontada(STYLE_PAGE) && (
@@ -2936,6 +2988,12 @@ export default function ScoutStudio() {
               )}
               {report && paginaMontada(BOARD_PAGE) && (
                 <div className={claseHoja(BOARD_PAGE)}><ScoutingBoard rows={base.vista.rows} minimumMinutes={minimumMinutes} onSelectPlayer={(indice) => { const enBase = base.vista.alBase(indice); if (enBase >= 0) { selectPlayer(enBase); setBoardPreviewOpen(true); } }} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
+              )}
+              {paginaMontada(SEGUIMIENTO_PAGE) && !printRun && (
+                <div className={claseHoja(SEGUIMIENTO_PAGE)}><SeguimientoPage
+                  estaEnLaBase={(clave) => indicePorClave.has(clave)}
+                  onAbrir={(clave) => { const indice = indicePorClave.get(clave); if (indice !== undefined) { selectPlayer(indice); setReportPage(CARD_PAGE); } }}
+                  onComparar={(clave) => { const indice = indicePorClave.get(clave); if (indice !== undefined) { selectPlayer(indice); setReportPage(SIMILARITY_PAGE); } }} /></div>
               )}
               {paginaMontada(DATA_PAGE) && (
                 <div className={claseHoja(DATA_PAGE)}><DatosPage

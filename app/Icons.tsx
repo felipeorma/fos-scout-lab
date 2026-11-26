@@ -111,3 +111,6 @@ export const Bloque = icono(<><path d="M3 8.5 9 10l6-1.5 6 1.5" /><path d="M3 8.
 export const Teclado = icono(<><rect x="2.5" y="6" width="19" height="12" rx="2" /><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7.5 14h9" /></>);
 export const Ojo = icono(<><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><circle cx="12" cy="12" r="3" /></>);
 export const Microfono = icono(<><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7" /></>);
+/** Seguir a un jugador: la estrella vacía; la llena (`EstrellaLlena`) es que ya se le sigue. */
+export const Estrella = icono(<path d="m12 3.6 2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8L12 3.6Z" />);
+export const EstrellaLlena = icono(<path d="m12 3.6 2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8L12 3.6Z" />, true);

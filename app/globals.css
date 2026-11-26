@@ -7945,3 +7945,52 @@ body.print-layout-check .app-shell[data-tema] .pizarra-duelos > ol { grid-templa
 .periodo-de-lista-linea { margin: 4px 0 0; }
 .periodo-de-lista { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; background: color-mix(in srgb, var(--acento, #4f7cff) 13%, transparent); color: var(--ink); font-size: 12px; font-weight: 600; }
 .periodo-de-lista em { color: var(--muted); font-style: normal; font-weight: 500; }
+
+/* Fuerza del club: en la ficha, bajo la franja de la temporada; en el ranking, junto al club. */
+.dossier-club { margin: 6px 0 0; color: var(--report-muted, var(--muted)); font-size: 11.5px; line-height: 1.45; }
+.rank-club { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* ---- Seguimiento ---- */
+.barra-jugador-seguir { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; background: transparent; color: var(--muted); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.barra-jugador-seguir:hover { color: var(--ink); border-color: color-mix(in srgb, var(--ink) 24%, transparent); }
+.barra-jugador-seguir.on { color: #f5b301; border-color: color-mix(in srgb, #f5b301 45%, transparent); background: color-mix(in srgb, #f5b301 10%, transparent); }
+.rank-seguir { display: inline-grid; place-items: center; width: 22px; height: 22px; margin-left: 6px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--muted); vertical-align: -3px; cursor: pointer; opacity: .55; }
+.rank-seguir:hover, .rank-seguir:focus-visible { opacity: 1; color: var(--ink); background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.rank-seguir.on { opacity: 1; color: #f5b301; }
+@media print { .rank-seguir:not(.on) { display: none; } }
+.seguimiento-page { display: grid; gap: 16px; }
+.seguimiento-page header span { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .1em; }
+.seguimiento-page header h2 { margin: 4px 0; }
+.seguimiento-page header p { margin: 0; max-width: 70ch; color: var(--muted); }
+.seguimiento-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.seguimiento-listas button small { margin-left: 6px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.seguimiento-nueva { display: inline-flex; gap: 6px; align-items: center; }
+.seguimiento-nueva input { height: 30px; min-width: 160px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--ink); font: inherit; font-size: 13px; }
+.seguimiento-acciones { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.seguimiento-aviso { flex-basis: 100%; margin: 0; color: var(--muted); font-size: 12.5px; }
+.seguimiento-lista { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; border-radius: 12px; background: color-mix(in srgb, var(--ink) 3%, transparent); overflow: hidden; }
+.seguimiento-lista li { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(240px, 1.4fr) auto; gap: 12px 16px; align-items: start; padding: 14px 16px; border-top: 1px solid var(--line); }
+.seguimiento-lista li:first-child { border-top: 0; }
+.seguimiento-quien { display: grid; gap: 3px; min-width: 0; }
+.seguimiento-quien b { color: var(--ink); font-size: 14.5px; }
+.seguimiento-quien small { color: var(--muted); font-size: 12px; }
+.seguimiento-lista textarea { width: 100%; min-height: 54px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--ink); font: inherit; font-size: 13px; resize: vertical; }
+.seguimiento-lista textarea:focus { outline: 2px solid var(--acento, #4f7cff); outline-offset: 1px; }
+.seguimiento-fila-acciones { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; align-items: center; }
+.seguimiento-fila-acciones select { height: 30px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--ink); font: inherit; font-size: 12.5px; }
+.seguimiento-quitar { width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; }
+.seguimiento-quitar:hover { color: var(--ink); }
+.seguimiento-vacia { margin: 0; padding: 28px; border: 1px dashed var(--line); border-radius: 12px; color: var(--muted); text-align: center; }
+@media (max-width: 860px) { .seguimiento-lista li { grid-template-columns: 1fr; } .seguimiento-fila-acciones { justify-content: flex-start; } .seguimiento-acciones { margin-left: 0; } }
+
+/* ---- Forma reciente (Ficha, debajo de la hoja; no se imprime) ---- */
+.forma-reciente { display: grid; gap: 10px; margin: 16px auto 0; max-width: 980px; padding: 16px 18px; border: 1px solid var(--line); border-radius: 14px; background: color-mix(in srgb, var(--ink) 3%, transparent); }
+.forma-reciente header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px; }
+.forma-reciente header span { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .1em; }
+.forma-reciente header h3 { margin: 3px 0 0; color: var(--ink); font-size: 17px; }
+.forma-partidos { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; }
+.forma-partidos span { padding: 3px 9px; border-radius: 999px; background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--muted); font-size: 11.5px; }
+.forma-nota { margin: 0; color: var(--muted); font-size: 12.5px; line-height: 1.45; }
+.forma-nota.aviso { color: #f5a524; }
+.forma-filas { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 4px 22px; }
+@media print { .forma-reciente { display: none; } }
