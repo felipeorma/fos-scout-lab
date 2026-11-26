@@ -1590,6 +1590,8 @@ const EN: Record<string, string> = {
   "Temporadas {t} · media por minutos": "Seasons {t} · minute-weighted average",
   "Temporada {t}": "Season {t}",
   "Temporadas": "Seasons",
+  "Con qué temporadas se mide la lista": "Which seasons the list is measured with",
+  "rehaciendo la lista…": "rebuilding the list…",
   "Jugador principal y navegación": "Main player and navigation",
   "Adelante": "Forward",
   "Elige un jugador": "Choose a player",

@@ -8,6 +8,7 @@ import { PERFILES } from "@/lib/perfiles";
 import { useBaseActiva } from "./BaseActiva";
 import { PieDeReporte } from "./PieDeReporte";
 import { BarraDeFiltros, Desplegable } from "./BarraDeFiltros";
+import { PeriodoDeLista, TextoDelPeriodoDeLista } from "./PeriodoDeLista";
 import { ChevronDown, ChevronRight } from "./Icons";
 import { BotonExportar } from "./BotonExportar";
 import { numberLocale, t, tf } from "@/lib/i18n";
@@ -78,7 +79,13 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
    * sigue puesto al cambiar de pestaña. El puesto se queda local porque en
    * esta pantalla no acota: decide QUÉ ranking se calcula.
    */
-  const { rows, filtros, pasaFiltros, procedencia, competiciones } = useBaseActiva();
+  /*
+   * Las filas son las del período elegido (una temporada o la media de
+   * varias), no la base entera: allí cada jugador junta todas sus temporadas
+   * cargadas, y el filtro de año solo decidía quién aparecía.
+   */
+  const { vista: periodoDeLaLista, filtros, competiciones } = useBaseActiva();
+  const { rows, pasaFiltros, procedencia } = periodoDeLaLista;
   const minutosMin = filtros.minutosMin;
 
   // El informe completo es caro: se calcula una vez por perfil y minutos, y
@@ -234,6 +241,7 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
       <div>
         <span>{t("RANKING DE LA BASE")}</span>
         <h2>{t("Los mejores de cada puesto")}</h2>
+        <p className="periodo-de-lista-linea"><TextoDelPeriodoDeLista /></p>
         <p>{t("Quién encabeza cada posición en lo que tienes cargado. Toca a cualquiera para abrir su informe.")}</p>
         <details className="como-se-calcula">
           <summary><ChevronDown size={13} />{t("Cómo se calcula el índice")}</summary>
@@ -257,6 +265,7 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
         de siete píxeles. */}
     <div className="filtros-barra rank-herramientas" role="group" aria-label={t("Qué puesto miras")}>
       <div className="filtros-chips">
+        <PeriodoDeLista />
         <Desplegable etiqueta={t("Posición")} valor={nombreDelPerfil} activo={false}>
           <select aria-label={t("Posición")} value={perfil} onChange={(event) => setPerfil(event.target.value)}>
             {PERFILES.map((item) => <option key={item.id} value={item.id}>{t(item.nombre)}</option>)}
@@ -279,7 +288,7 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
     {/* Exportar va al final de la fila de filtros, junto al recuento: se lee
         como "baja estos N". La lista de pantalla se corta en cuarenta; el CSV
         lleva todas las que pasan los filtros, con sus métricas destacadas. */}
-    <BarraDeFiltros campos={["liga", "anio", "equipo", "pasaporte", "minutos", "edad"]} resultado={listados.length} extra={<>
+    <BarraDeFiltros campos={["liga", "equipo", "pasaporte", "minutos", "edad"]} resultado={listados.length} extra={<>
       <Desplegable etiqueta={t("Valor máx.")} activo={Number(valorElegido) > 0}
         valor={valorElegido === "" ? t("Cualquiera") : valorElegido === "ver" ? t("Sin tope") : valorCorto(Number(valorElegido), numberLocale())}>
         <select aria-label={t("Valor de mercado máximo (Transfermarkt)")} value={valorElegido} onChange={(event) => setValorElegido(event.target.value)}>
@@ -297,7 +306,7 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
       </Desplegable>
     </>} accesorio={
       <BotonExportar
-        nombre={[t("ranking"), nombreDelPerfil, filtros.liga !== "TODAS" ? filtros.liga : null, filtros.anio || null]}
+        nombre={[t("ranking"), nombreDelPerfil, filtros.liga !== "TODAS" ? filtros.liga : null, periodoDeLaLista.clave || null]}
         columnas={[t("#"), t("Jugador"), t("Equipo"), t("Liga"), t("Año"), t("Edad"), t("Min"), t("Índice"), t("Índice sin corregir"), t("Métricas"), tf("Encaje de estilo con {equipo}", { equipo: EQUIPO_PROPIO }),
           ...(equipoEncaje ? [tf("Encaje con {equipo}: puesto", { equipo: equipoEncaje }), tf("Encaje con {equipo}: lugar en la plantilla", { equipo: equipoEncaje }), tf("Encaje con {equipo}: % de partidos con su puesto", { equipo: equipoEncaje })] : []),
           ...(mercadoActivo ? [t("Valor de mercado (€, Transfermarkt)"), t("Contrato hasta (Transfermarkt)"), t("Club actual (Transfermarkt)")] : []),

@@ -1,10 +1,12 @@
 "use client";
 
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import { useCruceDeAnios } from "./estudio/useCruceDeAnios";
 import { type DataRow, type SourceDataset } from "@/lib/scouting";
 import { FILTROS_VACIOS, cuantosFiltrosActivos, cuantosFiltrosDeJugador, pasaLosFiltros, pasaLosFiltrosDeJugador, resumirFilas, type FiltrosGlobales } from "@/lib/filtros";
 import { playerPassports } from "@/lib/similarity";
 import { ligasDeBases, origenPorFila, type Procedencia } from "@/lib/procedencia";
+import { opcionesDePeriodo, type OpcionDePeriodo, type PeriodoDeLista } from "@/lib/periodoDeLista";
 import { tf } from "@/lib/i18n";
 
 /**
@@ -40,6 +42,36 @@ export type OpcionesDeFiltro = {
   anios: number[];
   equipos: string[];
   pasaportes: string[];
+};
+
+type Origen = { ligas: string[]; anios: number[]; claves: string[] };
+
+export type { PeriodoDeLista, OpcionDePeriodo };
+
+/**
+ * La base vista con un período: lo que usan las listas (Ranking, Pizarra).
+ *
+ * Las filas de la base juntan TODAS las temporadas cargadas de cada jugador,
+ * y el filtro de año solo decide quién aparece, no con qué se le mide: con
+ * 2025 y 2026 cargados, "Año 2026" enseñaba la mezcla de los dos años de
+ * quien jugó ambos. Aquí la lista se rehace con las temporadas elegidas —una,
+ * o la media explícita de varias— y nada más; los demás jugadores, también.
+ */
+export type VistaDelPeriodo = {
+  periodo: PeriodoDeLista;
+  clave: string;
+  /** "Temporada 2026" o "Media de 2025 + 2026": lo que dice cada hoja. */
+  texto: string;
+  opciones: OpcionDePeriodo[];
+  elegir: (clave: string) => void;
+  rows: DataRow[];
+  procedencia: Origen[] | null;
+  /** Los filtros globales sobre estas filas (el de año no: lo decide el período). */
+  pasaFiltros: (indice: number) => boolean;
+  /** El mismo jugador en las filas de la base, para abrir su ficha (-1 si no está). */
+  alBase: (indice: number) => number;
+  /** El período se está calculando: mientras, se sigue con el anterior. */
+  pendiente: boolean;
 };
 
 export type BaseActiva = {
@@ -82,6 +114,8 @@ export type BaseActiva = {
   filtrosDeJugador: number;
   /** Los índices que pasan, calculados una vez. */
   indicesVisibles: number[];
+  /** La base con un período elegido, para las listas. */
+  vista: VistaDelPeriodo;
 };
 
 const Contexto = createContext<BaseActiva | null>(null);
@@ -107,7 +141,14 @@ const VACIA: BaseActiva = {
   pasaFiltrosDeJugador: () => true,
   filtrosDeJugador: 0,
   indicesVisibles: [],
+  vista: {
+    periodo: { modo: "una", anios: [] }, clave: "", texto: "", opciones: [], elegir: () => {},
+    rows: [], procedencia: null, pasaFiltros: () => true, alBase: (indice) => indice, pendiente: false,
+  },
 };
+
+const claveDeFila = (fila: DataRow | undefined) => `${String(fila?.Player ?? "")}|${String(fila?.["Birth date"] ?? "")}`;
+
 
 export function useBaseActiva() {
   return useContext(Contexto) ?? VACIA;
@@ -128,9 +169,15 @@ export function useEstadoDeBase({
   nombre,
   minutosMin,
   onMinutosMin,
+  activas,
+  conVista = false,
 }: {
   rows: DataRow[];
   datasets: SourceDataset[];
+  /** Las bases encendidas (sin las apagadas): con ellas se rehace el período. */
+  activas?: SourceDataset[];
+  /** Si alguna lista está abierta: el período solo se cruza entonces (es un cruce entero). */
+  conVista?: boolean;
   nombre: string;
   /** El mínimo de minutos vive fuera porque la ficha ya lo tenía y varias
    *  pantallas lo escriben; aquí solo se refleja. */
@@ -213,6 +260,60 @@ export function useEstadoDeBase({
     return [cuantas, temporada].filter(Boolean).join(" · ");
   }, [competiciones, nombre]);
 
+  // ---- La vista por período, para las listas ----
+  const encendidas = activas ?? datasets;
+  /*
+   * Las temporadas se cuentan por el año con que se cruzan las bases: el
+   * final (una 2025/2026 es 2026, como una 2026). El chip dice cómo las
+   * escribe cada archivo. Por defecto, el año con más competiciones: con
+   * todas las ligas cargadas, el de la temporada en curso.
+   */
+  const deLasTemporadas = useMemo(() => opcionesDePeriodo(encendidas), [encendidas]);
+  const [claveDePeriodo, setClaveDePeriodo] = useState("");
+  const opcionElegida = deLasTemporadas.opciones.find((opcion) => opcion.clave === claveDePeriodo)
+    ?? deLasTemporadas.opciones.find((opcion) => opcion.clave === deLasTemporadas.porDefecto)
+    ?? deLasTemporadas.opciones[0] ?? null;
+  // Si el período cubre todo lo cargado, sirven las filas de la base; si no, se cruza.
+  const cubreTodo = !opcionElegida || deLasTemporadas.anios.every((anio) => opcionElegida.periodo.anios.includes(anio));
+  const claveDelCruce = conVista && opcionElegida && !cubreTodo ? [...opcionElegida.periodo.anios].sort((a, b) => b - a).join(",") : "";
+  const cruce = useCruceDeAnios(encendidas, claveDelCruce);
+  const filasNuevas = cubreTodo ? rows : cruce;
+  // Mientras se rehace, se sigue con el último período listo: volver un
+  // momento a "todo junto" haría bailar la lista.
+  const [anterior, setAnterior] = useState<DataRow[] | null>(null);
+  if (filasNuevas && filasNuevas !== anterior) setAnterior(filasNuevas);
+  const filasDeVista = filasNuevas ?? anterior ?? rows;
+  const procedenciaDeVista = useMemo(
+    () => (filasDeVista === rows ? procedencia : competiciones.length ? origenPorFila(filasDeVista, competiciones) : null),
+    [filasDeVista, rows, procedencia, competiciones],
+  );
+  const resumenDeVista = useMemo(() => (filasDeVista === rows ? resumen : resumirFilas(filasDeVista)), [filasDeVista, rows, resumen]);
+  const pasaFiltrosDeVista = useCallback(
+    (indice: number) => pasaLosFiltros(resumenDeVista[indice], procedenciaDeVista?.[indice], { ...filtros, anio: 0, minutosMin }),
+    [resumenDeVista, procedenciaDeVista, filtros, minutosMin],
+  );
+  const indicePorClave = useMemo(() => {
+    const mapa = new Map<string, number>();
+    rows.forEach((fila, indice) => { const clave = claveDeFila(fila); if (!mapa.has(clave)) mapa.set(clave, indice); });
+    return mapa;
+  }, [rows]);
+  const alBase = useCallback(
+    (indice: number) => (filasDeVista === rows ? indice : indicePorClave.get(claveDeFila(filasDeVista[indice])) ?? -1),
+    [filasDeVista, rows, indicePorClave],
+  );
+  const vista = useMemo<VistaDelPeriodo>(() => ({
+    periodo: opcionElegida?.periodo ?? { modo: "una", anios: [] },
+    clave: opcionElegida?.clave ?? "",
+    texto: opcionElegida?.texto ?? "",
+    opciones: deLasTemporadas.opciones,
+    elegir: setClaveDePeriodo,
+    rows: filasDeVista,
+    procedencia: procedenciaDeVista,
+    pasaFiltros: pasaFiltrosDeVista,
+    alBase,
+    pendiente: Boolean(claveDelCruce) && !cruce,
+  }), [opcionElegida, deLasTemporadas.opciones, filasDeVista, procedenciaDeVista, pasaFiltrosDeVista, alBase, claveDelCruce, cruce]);
+
   return useMemo<BaseActiva>(() => ({
     rows,
     datasets,
@@ -230,7 +331,8 @@ export function useEstadoDeBase({
     pasaFiltrosDeJugador,
     filtrosDeJugador,
     indicesVisibles,
-  }), [rows, datasets, nombre, descripcion, cargadaEl, procedencia, competiciones, filtros, minutosMin, cambiarFiltros, limpiarFiltros, filtrosActivos, opciones, pasaFiltros, pasaFiltrosDeJugador, filtrosDeJugador, indicesVisibles]);
+    vista,
+  }), [rows, datasets, nombre, descripcion, cargadaEl, procedencia, competiciones, filtros, minutosMin, cambiarFiltros, limpiarFiltros, filtrosActivos, opciones, pasaFiltros, pasaFiltrosDeJugador, filtrosDeJugador, indicesVisibles, vista]);
 }
 
 /** Reparte a las pantallas el estado que ya calculó `useEstadoDeBase`. */

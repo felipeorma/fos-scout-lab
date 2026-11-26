@@ -332,9 +332,13 @@ export default function ScoutStudio() {
    * pantalla también los necesita —el selector de club y jugador se acota con
    * ellos— y no puede consumir el contexto que ella misma reparte.
    */
+  const basesActivas = useMemo(() => sourceDatasets.filter((dataset) => !ligasApagadas.includes(dataset.fileName)), [sourceDatasets, ligasApagadas]);
   const base = useEstadoDeBase({
     rows: reportRows,
     datasets: sourceDatasets,
+    activas: basesActivas,
+    // Las listas (Ranking, Pizarra) se miden con su período: solo se cruza si están abiertas.
+    conVista: paginaMontada(RANK_PAGE) || paginaMontada(BOARD_PAGE),
     nombre: reportFileName,
     minutosMin: minimumMinutes,
     onMinutosMin: setMinimumMinutes,
@@ -498,10 +502,19 @@ export default function ScoutStudio() {
   const periodoValido = periodoGuardado && periodoGuardado.anios.some((anio) => aniosConMetricas.includes(anio))
     ? { modo: periodoGuardado.modo, anios: periodoGuardado.anios.filter((anio) => aniosConMetricas.includes(anio)) }
     : null;
+  /*
+   * El período que se usa: lo contestado para este jugador; si no, el de las
+   * listas (abrirle desde el Ranking de 2025 enseña su 2025, y desde la
+   * media, su media) cuando tiene esas temporadas y no hay filtro de año
+   * puesto —entonces manda el filtro—; si no, la última.
+   */
+  const delPeriodoDeLasListas = base.filtros.anio ? [] : base.vista.periodo.anios.filter((anio) => aniosConMetricas.includes(anio));
+  const periodoEfectivo: Periodo | null = periodoValido
+    ?? (delPeriodoDeLasListas.length ? { modo: delPeriodoDeLasListas.length > 1 ? "media" : "una", anios: delPeriodoDeLasListas } : null);
   const indiceDeReferencia = (() => {
     // La más reciente de las elegidas manda: las demás entran como anteriores.
-    if (periodoValido) {
-      const masReciente = Math.max(...periodoValido.anios);
+    if (periodoEfectivo) {
+      const masReciente = Math.max(...periodoEfectivo.anios);
       const elegida = temporadasDeLaFila.findIndex((temporada) => temporada.anio === masReciente);
       if (elegida >= 0) return elegida;
     }
@@ -529,7 +542,7 @@ export default function ScoutStudio() {
   const manualesElegidas = (seleccionesPrevias[contextoDeTemporadas] ?? []).filter((clave) => clave.startsWith("mano:"));
   const seleccionDeTemporadas = temporadasDeFicha(temporadaDeReferencia, temporadasDeLaFila,
     temporadasAMano[claveDelJugador] ?? [], [
-      ...(periodoValido?.modo === "media" ? periodoValido.anios.filter((anio) => anio !== temporadaDeReferencia?.anio).map((anio) => `base:${anio}`) : []),
+      ...(periodoEfectivo?.modo === "media" ? periodoEfectivo.anios.filter((anio) => anio !== temporadaDeReferencia?.anio).map((anio) => `base:${anio}`) : []),
       ...manualesElegidas,
     ]);
   /** Las temporadas del jugador para la pregunta: con métricas (de la más reciente) y las añadidas a mano. */
@@ -543,7 +556,7 @@ export default function ScoutStudio() {
       detalle: [temporada.equipo, temporada.liga].filter(Boolean).join(" · "),
     })),
   ];
-  const periodoDelJugador: Periodo = periodoValido ?? { modo: "una", anios: temporadaDeReferencia ? [temporadaDeReferencia.anio] : [] };
+  const periodoDelJugador: Periodo = periodoEfectivo ?? { modo: "una", anios: temporadaDeReferencia ? [temporadaDeReferencia.anio] : [] };
   const periodoContestado = Boolean(periodoValido);
   // Las barras conservan una sola marca: la anterior con métricas más reciente de las elegidas.
   const temporadaPrevia = seleccionDeTemporadas.anteriores.find((temporada) => !temporada.aMano) ?? null;
@@ -558,7 +571,6 @@ export default function ScoutStudio() {
   function incluirTemporada(clave: string) {
     cambiarSeleccionDeTemporadas((claves) => [...new Set([...claves, clave])]);
   }
-  const basesActivas = useMemo(() => sourceDatasets.filter((dataset) => !ligasApagadas.includes(dataset.fileName)), [sourceDatasets, ligasApagadas]);
   // Excepción puntual, no se recuerda: mezcla temporadas (un 2026/2027 queda fuera de un 2026 por ser el año 2027).
   const [medirTodasLasTemporadas, setMedirTodasLasTemporadas] = useState(false);
   const hayOtrasTemporadas = aniosDelInforme.length > 0 && basesActivas.some((dataset) => !aniosDelInforme.includes(dataset.season));
@@ -2913,7 +2925,7 @@ export default function ScoutStudio() {
                   se montan aunque la página quede recordada o llegue por un
                   enlace. Allí se trabaja con la mesa y nada más. */}
               {espacio === "cavalry" && report && paginaMontada(RANK_PAGE) && (
-                <div className={claseHoja(RANK_PAGE)}><RankingPage onSelectPlayer={(indice) => { selectPlayer(indice); setReportPage(CARD_PAGE); }} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl}
+                <div className={claseHoja(RANK_PAGE)}><RankingPage onSelectPlayer={(indice) => { const enBase = base.vista.alBase(indice); if (enBase >= 0) { selectPlayer(enBase); setReportPage(CARD_PAGE); } }} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl}
                   medirEnSuLiga={medirContra === "liga"} nivel={nivelDelRanking} /></div>
               )}
               {espacio === "cavalry" && paginaMontada(STYLE_PAGE) && (
@@ -2923,7 +2935,7 @@ export default function ScoutStudio() {
                 <div className={claseHoja(BLUEPRINTS_PAGE)}><BlueprintsPage destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
               )}
               {report && paginaMontada(BOARD_PAGE) && (
-                <div className={claseHoja(BOARD_PAGE)}><ScoutingBoard rows={reportRows} minimumMinutes={minimumMinutes} onSelectPlayer={(indice) => { selectPlayer(indice); setBoardPreviewOpen(true); }} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
+                <div className={claseHoja(BOARD_PAGE)}><ScoutingBoard rows={base.vista.rows} minimumMinutes={minimumMinutes} onSelectPlayer={(indice) => { const enBase = base.vista.alBase(indice); if (enBase >= 0) { selectPlayer(enBase); setBoardPreviewOpen(true); } }} destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} /></div>
               )}
               {paginaMontada(DATA_PAGE) && (
                 <div className={claseHoja(DATA_PAGE)}><DatosPage

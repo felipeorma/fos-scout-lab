@@ -89,7 +89,7 @@ export function PeriodoDelJugador({ jugador, temporadas, periodo, respondido, on
           {tf("Media de {t}", { t: etiquetas(conMetricas) })}<small>{t("ponderada por minutos")}</small>
         </button>
       </div>
-      <small className="periodo-nota">{tf("Hasta que elijas, se mide con {t}. Lo que elijas se recuerda para este jugador.", { t: ultima.etiqueta })}</small>
+      <small className="periodo-nota">{tf("Hasta que elijas, se mide con {t}. Lo que elijas se recuerda para este jugador.", { t: encendidas.length ? etiquetas(encendidas) : ultima.etiqueta })}</small>
     </div>}
     <div className="periodo-control">
       <span className="periodo-titulo">{t("Temporadas")}</span>

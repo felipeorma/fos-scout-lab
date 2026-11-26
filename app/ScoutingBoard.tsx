@@ -5,6 +5,7 @@ import { buildPlayerReport, type DataRow, numeric, type CellValue } from "@/lib/
 import { t, tf, numberLocale } from "@/lib/i18n";
 import { OnceIdeal } from "./OnceIdeal";
 import { Desplegable } from "./BarraDeFiltros";
+import { PeriodoDeLista, TextoDelPeriodoDeLista } from "./PeriodoDeLista";
 import { ChevronRight } from "./Icons";
 import { Interruptor } from "./Interruptor";
 import { PieDeReporte } from "./PieDeReporte";
@@ -539,6 +540,7 @@ export function ScoutingBoard({ rows, minimumMinutes, onSelectPlayer, destinatar
       <div>
         <span>{t("MESA DE DETECCIÓN")}</span>
         <h2>{t("Perfiles que llaman la atención")}</h2>
+        <p className="periodo-de-lista-linea"><TextoDelPeriodoDeLista /></p>
         <p>{t("Recorre la base entera, ordena cada posición por índice global y marca en qué destaca cada jugador. El paso previo a identificación, no el informe.")}</p>
       </div>
       <b>{tf("{n} jugadores", { n: visibles.length })}</b>
@@ -546,6 +548,7 @@ export function ScoutingBoard({ rows, minimumMinutes, onSelectPlayer, destinatar
 
     <div className="filtros-barra board-filtros" role="group" aria-label={t("Filtros de la mesa")}>
       <div className="filtros-chips">
+        <PeriodoDeLista />
         <Desplegable etiqueta={t("Liga")} valor={ligaElegida} activo={ligaFiltro !== "TODAS"}>
           <select aria-label={t("Liga")} value={ligaFiltro} onChange={(event) => setLigaFiltro(event.target.value)}>
             <option value="TODAS">{t("Todas")}</option>
