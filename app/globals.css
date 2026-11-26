@@ -7998,3 +7998,16 @@ body.print-layout-check .app-shell[data-tema] .pizarra-duelos > ol { grid-templa
 /* Dónde aparece un jugador (Similitud: objetivo y comparable) */
 .donde-aparece { display: grid; gap: 6px; margin-top: 4px; }
 .donde-aparece .temporada-chip svg { color: var(--acento, #4f7cff); }
+
+.barra-jugador-modos { margin-bottom: 8px; }
+.barra-jugador-ruta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 4px 6px 6px; color: var(--muted); font-size: 12px; }
+.barra-jugador-ruta button { padding: 2px 4px; border: 0; background: none; color: var(--acento, #4f7cff); font: inherit; cursor: pointer; }
+.barra-jugador-ruta [aria-current] { color: var(--ink); font-weight: 600; }
+.barra-jugador-base { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; padding: 4px 10px; border: 1px solid var(--line); border-radius: 10px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; }
+.barra-jugador-base span { display: grid; text-align: left; line-height: 1.2; }
+.barra-jugador-base b { color: var(--ink); font-weight: 600; }
+.barra-jugador-logos { display: inline-flex; gap: 4px; align-items: center; }
+.barra-jugador-recientes { margin-left: 0; }
+.similarity-target-copy { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+.similarity-cambiar-objetivo { padding: 0; border: 0; background: none; color: var(--acento, #4f7cff); font: inherit; font-size: 13px; cursor: pointer; }
+@media (max-width: 760px) { .barra-jugador-base { margin-left: 0; } }

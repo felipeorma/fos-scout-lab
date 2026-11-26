@@ -495,6 +495,8 @@ export default function ScoutStudio() {
   });
   // La lista de jugadores va en orden alfabético: se busca por índice, no por posición.
   const jugadorPorIndice = useMemo(() => new Map(players.map((jugador) => [jugador.index, jugador])), [players]);
+  // Para "Explorar por liga" en la barra: la liga de cada jugador.
+  const jugadoresDeLaBarra = useMemo(() => players.map((jugador) => ({ ...jugador, ligas: base.procedencia?.[jugador.index]?.ligas ?? [] })), [players, base.procedencia]);
   const seguimiento = useSeguimiento();
   const [recientes, setRecientes] = useState<string[]>([]);
   useEffect(() => {
@@ -2413,8 +2415,14 @@ export default function ScoutStudio() {
           <button type="button" onClick={() => setAvisoDeGuardado("")} aria-label={t("Ocultar aviso")}>×</button>
         </div>}
         {dataReady && !esPizarra(reportPage) && reportPage !== DATA_PAGE && <BarraDelJugador
-          jugadores={players}
+          jugadores={jugadoresDeLaBarra}
           elegido={jugadorPorIndice.get(selectedPlayer) ?? null}
+          base={{
+            texto: base.descripcion || tDefault(reportFileName),
+            detalle: tf("{n} jugadores", { n: reportRows.length }),
+            logos: <span className="barra-jugador-logos">{(["wyscout", "statsbomb", "skillcorner"] as const).filter((plataforma) => plataformas.has(plataforma)).map((plataforma) => <LogoPlataforma key={plataforma} plataforma={plataforma} alto={12} conTexto={false} />)}</span>,
+            onCambiar: () => setReportPage(DATA_PAGE),
+          }}
           club={temporadaDeReferencia?.equipo ?? jugadorPorIndice.get(selectedPlayer)?.team ?? ""}
           periodo={medirTodasLasTemporadas ? t("Todas las temporadas cargadas") : periodoDelJugador.anios.length > 1
             ? tf("Media de {t}", { t: textoDelPeriodoDelJugador }) : textoDelPeriodoDelJugador ? tf("Temporada {t}", { t: textoDelPeriodoDelJugador }) : ""}
@@ -2596,16 +2604,7 @@ export default function ScoutStudio() {
                   enlazadas" y un botón—, y lo único que no decía era QUÉ base
                   es. Ahora dice la competición y la temporada, enseña solo las
                   plataformas cargadas, y "Cambiar" lleva a Base activa. */}
-              <div className="datos-barra">
-                {(["wyscout", "statsbomb", "skillcorner"] as const).filter((plataforma) => plataformas.has(plataforma)).map((plataforma) => (
-                  <span key={plataforma} className={`datos-chip on ${plataforma}`} title={METRIC_SOURCE_COLORS[plataforma].label}>
-                    <LogoPlataforma plataforma={plataforma} alto={14} conTexto={false} />
-                  </span>
-                ))}
-                <span className="datos-barra-base">{base.descripcion || tDefault(reportFileName)}</span>
-                <small className="datos-barra-cuenta">{tf(reportSourceCount === 1 ? "{n} jugadores · {b} base" : "{n} jugadores · {b} bases", { n: reportRows.length, b: reportSourceCount })}</small>
-                <button type="button" className="datos-conectar" onClick={() => setReportPage(DATA_PAGE)}>{t("Cambiar")}<ChevronRight size={13} /></button>
-              </div>
+
 
               {/* En Maldonado hay un solo destino: una barra con una pestaña
                   ya activa es ruido, así que la mesa ocupa la pantalla. */}
@@ -2935,12 +2934,10 @@ export default function ScoutStudio() {
                   sourceName={base.descripcion || reportFileName}
                   lang={lang}
                   reportCohort={cohort}
-                  targets={players}
                   theme={reportTheme}
                   targetProfile={profile}
                   recipientName={reportRecipientName}
                   recipientLogoUrl={reportRecipientLogoUrl}
-                  onSelectTarget={selectPlayer}
                   onTargetProfileChange={(nextProfile) => { setProfile(nextProfile); setTransfermarktUrl(nextProfile.sourceUrl); }}
                   onRecipientNameChange={setReportRecipientName}
                   onRecipientLogoChange={setReportRecipientLogoUrl}

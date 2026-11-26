@@ -20,6 +20,7 @@ import { compararConSusTemporadas } from "@/lib/similitudPorPeriodo";
 import { origenPorFila, type Procedencia } from "@/lib/procedencia";
 import { MenuDeCompeticiones } from "./estudio/piezas";
 import { DondeAparece } from "./DondeAparece";
+import { ABRIR_BUSCADOR } from "./BarraDelJugador";
 import type { ApiCompetition } from "@/lib/remoteData";
 import {
   buildSimilaritySearch,
@@ -49,7 +50,6 @@ import { CeldaEncaje } from "./CeldaEncaje";
 import { CeldaEncajeEquipo } from "./CeldaEncajeEquipo";
 import { BotonExportar } from "./BotonExportar";
 
-type TargetOption = { index: number; player: string; team: string };
 type ProfileSide = "target" | "candidate";
 
 type SimilarityStudioProps = {
@@ -79,12 +79,10 @@ type SimilarityStudioProps = {
   conEncaje?: boolean;
   /** Si la ficha mide contra su liga ("Comparar con"): entonces Similitud empieza en "Su liga y su año". */
   medirEnSuLiga?: boolean;
-  targets: TargetOption[];
   theme: ReportTheme;
   targetProfile: TransfermarktProfile;
   recipientName: string;
   recipientLogoUrl: string;
-  onSelectTarget: (index: number) => void;
   onTargetProfileChange: (profile: TransfermarktProfile) => void;
   onRecipientNameChange: (value: string) => void;
   onRecipientLogoChange: (value: string) => void;
@@ -173,7 +171,7 @@ function blobToDataUrl(blob: Blob) {
   });
 }
 
-export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es", aiControlsHidden = false, metricLabels = null, minimumMinutes: minutosBase, onMinimumMinutes, reportCohort = "AUTO", procedenciaPorFila = null, feedOpta = null, conEncaje = false, medirEnSuLiga = false, targets, theme, targetProfile, recipientName, recipientLogoUrl, onSelectTarget, onTargetProfileChange, onRecipientNameChange, onRecipientLogoChange, onOpenReports, periodo = null, periodoPendiente = false, aniosDelPeriodo = null, preguntaDelObjetivo = null, temporadasDelObjetivoEnLaHoja = "", basesActivas = SIN_BASES, procedencias = [], catalogoParaCargar = [], cargando = false, onCargarCompeticion, onCargarParaElObjetivo }: SimilarityStudioProps) {
+export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es", aiControlsHidden = false, metricLabels = null, minimumMinutes: minutosBase, onMinimumMinutes, reportCohort = "AUTO", procedenciaPorFila = null, feedOpta = null, conEncaje = false, medirEnSuLiga = false, theme, targetProfile, recipientName, recipientLogoUrl, onTargetProfileChange, onRecipientNameChange, onRecipientLogoChange, onOpenReports, periodo = null, periodoPendiente = false, aniosDelPeriodo = null, preguntaDelObjetivo = null, temporadasDelObjetivoEnLaHoja = "", basesActivas = SIN_BASES, procedencias = [], catalogoParaCargar = [], cargando = false, onCargarCompeticion, onCargarParaElObjetivo }: SimilarityStudioProps) {
   /** Si una competición del catálogo ya está cargada (no está entre las que faltan). */
   const estaCargada = (competicion: ApiCompetition) => !catalogoParaCargar.some((c) => c.competition_id === competicion.competition_id && c.season_id === competicion.season_id);
   /*
@@ -275,39 +273,9 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     () => [...new Set((procedenciaPorFila ?? []).flatMap((x) => x.anios))].filter(Boolean).sort(),
     [procedenciaPorFila],
   );
-  /**
-   * Los números de los rótulos del jugador objetivo.
-   *
-   * Estaban escritos a mano y daban por hecho que se dibujaban los cinco
-   * controles. No es así: los de liga y año solo aparecen si hay más de una,
-   * y entonces la cuenta se rompía. Con una sola competición cargada se
-   * saltaba del "2 · Jugador" al "5 · Medir contra"; con varias ligas de un
-   * único año, del "1 · Liga" al "3 · Club". Ahora se numeran por lo que de
-   * verdad se pinta, así que añadir o quitar un control no vuelve a
-   * descuadrarlo.
-   */
-  const pasoObjetivo = useMemo(() => {
-    const visibles = [
-      ...(ligasDelFondo.length > 1 ? ["liga"] : []),
-      ...(aniosDelFondo.length > 1 ? ["anio"] : []),
-      "club", "jugador", "medir",
-    ];
-    return Object.fromEntries(visibles.map((clave, i) => [clave, i + 1])) as Record<string, number>;
-  }, [ligasDelFondo.length, aniosDelFondo.length]);
-
-  const [ligaObjetivo, setLigaObjetivo] = useState("TODAS");
-  const [anioObjetivo, setAnioObjetivo] = useState(0);
   const [ligaCandidato, setLigaCandidato] = useState("TODAS");
   const [anioCandidato, setAnioCandidato] = useState(0);
 
-  const encaja = useCallback((indice: number, liga: string, anio: number) => {
-    if (liga === "TODAS" && !anio) return true;
-    const origen = procedenciaPorFila?.[indice];
-    if (!origen) return false;
-    if (liga !== "TODAS" && !origen.ligas.includes(liga)) return false;
-    if (anio && !origen.anios.includes(anio)) return false;
-    return true;
-  }, [procedenciaPorFila]);
   /** Lo mismo para los candidatos, que viven en las filas del período. */
   const encajaCandidato = useCallback((indice: number, liga: string, anio: number) => {
     if (liga === "TODAS" && !anio) return true;
@@ -388,14 +356,6 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
    * se muestra.
    */
   const hayRolesSecundarios = useMemo(() => secondaryRoleOptions(rows, "").length > 0, [rows]);
-  const objetivosVisibles = useMemo(
-    () => targets.filter((target) => encaja(target.index, ligaObjetivo, anioObjetivo)),
-    [targets, encaja, ligaObjetivo, anioObjetivo],
-  );
-  const targetTeams = useMemo(() => [...new Set(objetivosVisibles.map((target) => target.team))].sort(alphabeticCollator.compare), [objetivosVisibles]);
-  const selectedTarget = targets.find((target) => target.index === selectedIndex);
-  const selectedTargetTeam = selectedTarget?.team ?? targetTeams[0] ?? "";
-  const targetPlayers = useMemo(() => objetivosVisibles.filter((target) => target.team === selectedTargetTeam).sort((a, b) => alphabeticCollator.compare(a.player, b.player)), [selectedTargetTeam, objetivosVisibles]);
   const filters = useMemo<SimilarityFilters>(() => ({
     query,
     ageMin: optionalNumber(ageMin),
@@ -756,29 +716,19 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     elemento.scrollIntoView({ behavior: quieto ? "auto" : "smooth", block: "start" });
   }
 
-  function chooseTarget(index: number) {
+  /*
+   * El objetivo se elige en la barra del jugador (en todas las pestañas). Al
+   * cambiar, se empieza de cero con el comparable y los pesos, como cuando
+   * se elegía aquí.
+   */
+  const claveDelObjetivo = `${String(rows[selectedIndex]?.Player ?? "")}|${String(rows[selectedIndex]?.["Birth date"] ?? "")}`;
+  const [objetivoAnterior, setObjetivoAnterior] = useState(claveDelObjetivo);
+  if (claveDelObjetivo !== objetivoAnterior) {
+    setObjetivoAnterior(claveDelObjetivo);
     setSelectedCandidateIndex(null);
     setNombreDelElegido("");
     setCandidateProfileKey("");
     setMetricWeights({});
-    onSelectTarget(index);
-  }
-
-  function chooseTargetTeam(team: string) {
-    const firstPlayer = objetivosVisibles.filter((target) => target.team === team).sort((a, b) => alphabeticCollator.compare(a.player, b.player))[0];
-    if (firstPlayer) chooseTarget(firstPlayer.index);
-  }
-
-  /**
-   * Al acotar la competición del objetivo, el jugador elegido puede quedarse
-   * fuera; entonces se salta al primero que quede. Se recoloca aquí y no en un
-   * efecto porque hace falta la lista con los valores nuevos, y el useMemo aún
-   * no se ha recalculado cuando corre el manejador.
-   */
-  function reencuadrarObjetivo(liga: string, anio: number) {
-    const visibles = targets.filter((target) => encaja(target.index, liga, anio));
-    if (!visibles.length || visibles.some((target) => target.index === selectedIndex)) return;
-    chooseTarget(visibles[0].index);
   }
 
   function resetFilters() {
@@ -1058,22 +1008,16 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
 
   return <div className="page-content similarity-page similarity-report-theme" data-oscuro={theme.oscuro ? "" : undefined} style={reportThemeStyle(theme)}>
     {!rows.length || !objetivo ? <section className="dataset-onboarding similarity-empty"><span className="dataset-step">{t("SECCIÓN DE SIMILITUD")}</span><span className="dataset-icon"><Search size={30} /></span><h2>{t("Primero carga una base de datos")}</h2><p>{t("La comparación usa la base activa, ya sea una liga, temporada o combinación.")}</p><button className="button primary" onClick={onOpenReports}>{t("Ir a cargar datos")}</button></section> : <>
-      <Paso numero={1}>A quién te quieres parecer</Paso>
+      <Paso numero={1}>Cómo se mide al objetivo</Paso>
       <section className="similarity-target-bar">
-        <div className="similarity-target-copy"><span>{t("JUGADOR OBJETIVO")}</span><b>{objetivo.player}</b><small>{tf("{team} · {pos} · {age} años", { team: objetivo.team, pos: posicionMostrada(objetivo.position, objetivo.cohort), age: objetivo.age })}</small></div>
-        <div className="similarity-target-selectors">
-          {ligasDelFondo.length > 1 && <div className="similarity-target-campo"><span>{pasoObjetivo.liga} · {t("Liga")}</span>
-            <MenuDeLigas ligas={ligasDelFondo} elegida={ligaObjetivo} variante="campo"
-              onElegir={(liga) => { setLigaObjetivo(liga); reencuadrarObjetivo(liga, anioObjetivo); }} />
-          </div>}
-          {aniosDelFondo.length > 1 && <label><span>{pasoObjetivo.anio} · {t("Año")}</span>
-            <select value={anioObjetivo || ""} onChange={(event) => { const a = Number(event.target.value); setAnioObjetivo(a); reencuadrarObjetivo(ligaObjetivo, a); }}>
-              <option value="">{t("Todos")}</option>
-              {aniosDelFondo.map((anio) => <option key={anio} value={anio}>{anio}</option>)}
-            </select>
-          </label>}
-          <label><span>{pasoObjetivo.club} · {t("Club")}</span><select value={selectedTargetTeam} onChange={(event) => chooseTargetTeam(event.target.value)}>{targetTeams.map((team) => <option key={team || "__sin_equipo__"} value={team}>{team || t("Equipo no disponible")}</option>)}</select></label>
-          <label><span>{pasoObjetivo.jugador} · {t("Jugador")}</span><select value={selectedIndex} onChange={(event) => chooseTarget(Number(event.target.value))}>{targetPlayers.map((target) => <option key={`${target.index}-${target.player}`} value={target.index}>{target.player}</option>)}</select></label>
+        {/* El objetivo es el jugador de la barra de arriba, el mismo en todas
+            las pestañas: aquí se dice quién es y se cambia desde allí. Antes
+            había aquí cuatro selectores (liga, año, club, jugador) que
+            repetían lo que ya hace la barra. */}
+        <div className="similarity-target-copy">
+          <b>{objetivo.player}</b>
+          <small>{tf("{team} · {pos} · {age} años", { team: objetivo.team, pos: posicionMostrada(objetivo.position, objetivo.cohort), age: objetivo.age })}</small>
+          <button type="button" className="similarity-cambiar-objetivo" onClick={() => window.dispatchEvent(new Event(ABRIR_BUSCADOR))}>{t("Cambiar jugador")}</button>
         </div>
         {/* Sus temporadas, las mismas que se eligen en la ficha: el ranking
             entero se hace con ese período. */}
@@ -1100,7 +1044,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
             muestra siempre y el interruptor solo cuando hay contra qué
             comparar. */}
         <div className="similarity-base-modo">
-          <span>{pasoObjetivo.medir} · {t("Medir contra")}</span>
+          <span>{t("Medir contra")}</span>
           <label className="similarity-rol-metricas"><span>{t("Métricas de")}</span>
             <select value={rolMetricas} onChange={(event) => setRolMetricas(event.target.value)}>
               <option value="">{t("Su propio puesto")}</option>
