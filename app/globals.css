@@ -7994,3 +7994,7 @@ body.print-layout-check .app-shell[data-tema] .pizarra-duelos > ol { grid-templa
 .forma-nota.aviso { color: #f5a524; }
 .forma-filas { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 4px 22px; }
 @media print { .forma-reciente { display: none; } }
+
+/* Dónde aparece un jugador (Similitud: objetivo y comparable) */
+.donde-aparece { display: grid; gap: 6px; margin-top: 4px; }
+.donde-aparece .temporada-chip svg { color: var(--acento, #4f7cff); }

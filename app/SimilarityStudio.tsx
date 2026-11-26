@@ -19,6 +19,7 @@ import { useCruceDeAnios } from "./estudio/useCruceDeAnios";
 import { compararConSusTemporadas } from "@/lib/similitudPorPeriodo";
 import { origenPorFila, type Procedencia } from "@/lib/procedencia";
 import { MenuDeCompeticiones } from "./estudio/piezas";
+import { DondeAparece } from "./DondeAparece";
 import type { ApiCompetition } from "@/lib/remoteData";
 import {
   buildSimilaritySearch,
@@ -110,6 +111,8 @@ type SimilarityStudioProps = {
   catalogoParaCargar?: ApiCompetition[];
   cargando?: boolean;
   onCargarCompeticion?: (competicion: ApiCompetition) => Promise<void> | void;
+  /** Cargar una temporada suya para el objetivo (entra en su período, como en la ficha). */
+  onCargarParaElObjetivo?: (competicion: ApiCompetition) => void;
 };
 
 const CLAVE_ESTILO_RADAR = "fos-similitud-estilo-radar-v1";
@@ -170,7 +173,9 @@ function blobToDataUrl(blob: Blob) {
   });
 }
 
-export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es", aiControlsHidden = false, metricLabels = null, minimumMinutes: minutosBase, onMinimumMinutes, reportCohort = "AUTO", procedenciaPorFila = null, feedOpta = null, conEncaje = false, medirEnSuLiga = false, targets, theme, targetProfile, recipientName, recipientLogoUrl, onSelectTarget, onTargetProfileChange, onRecipientNameChange, onRecipientLogoChange, onOpenReports, periodo = null, periodoPendiente = false, aniosDelPeriodo = null, preguntaDelObjetivo = null, temporadasDelObjetivoEnLaHoja = "", basesActivas = SIN_BASES, procedencias = [], catalogoParaCargar = [], cargando = false, onCargarCompeticion }: SimilarityStudioProps) {
+export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es", aiControlsHidden = false, metricLabels = null, minimumMinutes: minutosBase, onMinimumMinutes, reportCohort = "AUTO", procedenciaPorFila = null, feedOpta = null, conEncaje = false, medirEnSuLiga = false, targets, theme, targetProfile, recipientName, recipientLogoUrl, onSelectTarget, onTargetProfileChange, onRecipientNameChange, onRecipientLogoChange, onOpenReports, periodo = null, periodoPendiente = false, aniosDelPeriodo = null, preguntaDelObjetivo = null, temporadasDelObjetivoEnLaHoja = "", basesActivas = SIN_BASES, procedencias = [], catalogoParaCargar = [], cargando = false, onCargarCompeticion, onCargarParaElObjetivo }: SimilarityStudioProps) {
+  /** Si una competición del catálogo ya está cargada (no está entre las que faltan). */
+  const estaCargada = (competicion: ApiCompetition) => !catalogoParaCargar.some((c) => c.competition_id === competicion.competition_id && c.season_id === competicion.season_id);
   /*
    * Con qué filas se busca. El objetivo se elige en la base entera (`rows`),
    * pero el ranking se hace en su período: si se le mira con 2025 + 2026,
@@ -559,11 +564,6 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
    * entero. Al cargar una, se enciende sola si él aparece en ella; si no
    * aparece, se dice.
    */
-  const ligasDelComparable = useMemo(() => [...new Set(temporadasDelComparable.flatMap((temporada) => temporada.ligas))], [temporadasDelComparable]);
-  const sugeridasDelComparable = useMemo(() => catalogoParaCargar
-    .filter((competicion) => ligasDelComparable.includes(competicion.name))
-    .sort((a, b) => String(b.season).localeCompare(String(a.season), "en", { numeric: true }))
-    .slice(0, 4), [catalogoParaCargar, ligasDelComparable]);
   const [otraLigaDelComparable, setOtraLigaDelComparable] = useState("");
   const [pedidaDelComparable, setPedidaDelComparable] = useState<{ clave: string; competicion: ApiCompetition } | null>(null);
   async function cargarParaElComparable(competicion: ApiCompetition) {
@@ -1077,10 +1077,13 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
         </div>
         {/* Sus temporadas, las mismas que se eligen en la ficha: el ranking
             entero se hace con ese período. */}
-        {preguntaDelObjetivo && <div className="similarity-temporadas-objetivo">
+        <div className="similarity-temporadas-objetivo">
           {preguntaDelObjetivo}
           {periodoPendiente && <small className="temporadas-chips-nota" aria-live="polite">{t("Rehaciendo el ranking con esas temporadas…")}</small>}
-        </div>}
+          {/* Dónde aparece en todo el catálogo: lo cargado y lo que falta, con un toque para sumarlo. */}
+          {rows[selectedIndex] && <DondeAparece jugador={String(rows[selectedIndex].Player ?? "")} nacimiento={String(rows[selectedIndex]["Birth date"] ?? "")}
+            estaCargada={estaCargada} onCargar={onCargarParaElObjetivo} cargando={cargando} />}
+        </div>
         {/* Con más de una liga o año cargados hay dos preguntas posibles y
             conviene cambiar entre ellas de un golpe: "quién produce lo mismo"
             (todo junto) y "quién hace el mismo papel en su contexto" (cada uno
@@ -1296,13 +1299,11 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
                   respondido={Boolean(periodoElegidoDelComparable)} onCambiar={cambiarPeriodoDelComparable} donde={t("la comparación")} deshabilitado={cargando} />
                 {estadoDelComparable === "calculando" && <small className="temporadas-chips-nota" aria-live="polite">{t("Rehaciéndolo con esas temporadas…")}</small>}
                 {estadoDelComparable === "no-llega" && <small className="temporadas-chips-nota aviso" aria-live="polite">{t("Con esas temporadas no llega a los minutos mínimos o le faltan métricas: la hoja sigue con las del ranking.")}</small>}
+                {filaDelComparable && <DondeAparece jugador={String(filaDelComparable.Player ?? "")} nacimiento={String(filaDelComparable["Birth date"] ?? "")}
+                  estaCargada={estaCargada} onCargar={onCargarCompeticion ? (competicion) => void cargarParaElComparable(competicion) : undefined} cargando={cargando} />}
                 {onCargarCompeticion && catalogoParaCargar.length > 0 && <div className="temporadas-cargables" role="group" aria-label={tf("Cargar más temporadas de {p}", { p: selectedCandidate.name })}>
-                  <span className="temporadas-chips-titulo">{t("Cargar más temporadas")}</span>
+                  <span className="temporadas-chips-titulo">{t("Otra competición")}</span>
                   <div className="temporadas-chips-lista">
-                    {sugeridasDelComparable.map((competicion) => <button key={`${competicion.name}-${competicion.season}`} type="button" className="temporada-chip cargable" disabled={cargando}
-                      title={tf("Cargar {liga} {s} de StatsBomb", { liga: competicion.name, s: competicion.season })} onClick={() => void cargarParaElComparable(competicion)}>
-                      <i aria-hidden="true" /><b>{competicion.season}</b><small>{competicion.name}</small>
-                    </button>)}
                     <span className="temporadas-otra-liga">
                       <MenuDeCompeticiones lista={catalogoParaCargar} elegida={otraLigaDelComparable} onElegir={setOtraLigaDelComparable} />
                       <button type="button" className="button secondary compact" disabled={cargando || !otraLigaDelComparable}

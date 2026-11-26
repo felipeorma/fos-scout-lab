@@ -2319,14 +2319,20 @@ def statsbomb_player_stats(competition_id: int, season_id: int):
     auth = _statsbomb_auth()
     if not auth:
         return Response('{"error": "sin credenciales"}', status_code=503, media_type="application/json", headers=cors_headers())
+    rows, del_disco = _sb_filas_de_jugadores(competition_id, season_id, auth)
+    cuerpo = {"rows": rows, "provider": "statsbomb", **({"cache": "disco"} if del_disco else {})}
+    return Response(_json.dumps(cuerpo), media_type="application/json", headers=cors_headers())
+
+
+def _sb_filas_de_jugadores(competition_id: int, season_id: int, auth):
+    """Las filas de jugadores de una liga y temporada, con las columnas de la base. Del disco si están."""
     clave_disco = f"sb3-{competition_id}-{season_id}"
     guardadas = _pool_cache_leer(
         clave_disco,
         _POOL_TTL_CERRADA if _temporada_cerrada_sb(competition_id, season_id, auth) else None,
     )
     if guardadas is not None:
-        return Response(_json.dumps({"rows": guardadas, "provider": "statsbomb", "cache": "disco"}),
-                        media_type="application/json", headers=cors_headers())
+        return guardadas, True
     url = f"https://data.statsbomb.com/api/v2/competitions/{competition_id}/seasons/{season_id}/player-stats"
     data = _cached_get(f"sb:{competition_id}:{season_id}", url, auth)
     # La nacionalidad llega como número; el nombre sale de los lineups.
@@ -2358,7 +2364,56 @@ def statsbomb_player_stats(competition_id: int, season_id: int):
             row[column] = round(value * factor, 4) if isinstance(value, (int, float)) else ""
         rows.append(row)
     _pool_cache_escribir(clave_disco, rows)
-    return Response(_json.dumps({"rows": rows, "provider": "statsbomb"}), media_type="application/json", headers=cors_headers())
+    return rows, False
+
+
+# Por competición y temporada: (nombre normalizado, nacimiento, club, minutos, partidos) de cada jugador.
+_DONDE_INDICE: dict = {}
+
+
+@app.get("/api/statsbomb/donde-aparece")
+def statsbomb_donde_aparece(jugador: str, nacimiento: str = ""):
+    """En qué competiciones y temporadas del catálogo aparece un jugador.
+
+    Mira TODO el catálogo de la suscripción, no solo lo cargado: así, al
+    elegir a alguien, se sabe qué ligas suyas faltan por cargar. La primera
+    vez baja las que no estén en disco (de cuatro en cuatro); después cada
+    liga queda en memoria y la respuesta es inmediata.
+    """
+    import json as _json
+    from concurrent.futures import ThreadPoolExecutor
+    auth = _statsbomb_auth()
+    if not auth:
+        return Response('{"error": "sin credenciales"}', status_code=503, media_type="application/json", headers=cors_headers())
+    norm = lambda texto: _sin_tildes(str(texto or "")).lower().strip()
+    catalogo = _cached_get("sb:comps", "https://data.statsbomb.com/api/v4/competitions", auth, ttl_seconds=3600)
+    comps = [c for c in catalogo if c.get("match_available") and not _es_femenina(c)]
+
+    def indice(c):
+        clave = f"{c.get('competition_id')}-{c.get('season_id')}"
+        if clave not in _DONDE_INDICE:
+            try:
+                filas, _ = _sb_filas_de_jugadores(int(c["competition_id"]), int(c["season_id"]), auth)
+            except Exception:
+                return c, []
+            _DONDE_INDICE[clave] = [(norm(f.get("Player")), str(f.get("Birth date") or ""), f.get("Team") or "", f.get("Minutes played") or 0, f.get("Matches played") or 0) for f in filas]
+        return c, _DONDE_INDICE[clave]
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        todas = list(pool.map(indice, comps))
+    buscado = norm(jugador)
+    salida = []
+    for c, filas in todas:
+        for nombre, nacido, equipo, minutos, partidos in filas:
+            if nombre != buscado or (nacimiento and nacido and nacido != nacimiento):
+                continue
+            salida.append({
+                "competition_id": c.get("competition_id"), "season_id": c.get("season_id"),
+                "name": c.get("competition_name"), "season": c.get("season_name"), "country": c.get("country_name"),
+                "equipo": equipo, "minutos": minutos, "partidos": partidos,
+            })
+    salida.sort(key=lambda x: (str(x["season"]), str(x["name"])), reverse=True)
+    return Response(_json.dumps({"apariciones": salida, "revisadas": len(comps)}), media_type="application/json", headers=cors_headers())
 
 
 # --- Perfiles SkillCorner (cheat sheet del director de scouting) ---

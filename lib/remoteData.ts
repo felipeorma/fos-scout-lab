@@ -264,6 +264,15 @@ export async function fetchStatsbombDataset(competition: ApiCompetition): Promis
  * Estadísticas de temporada de cada equipo de una competición (StatsBomb).
  * Crudas: el estilo se calcula en lib/estiloEquipo.ts.
  */
+/** Dónde aparece un jugador en todo el catálogo de StatsBomb de la suscripción (cargado o no). */
+export type AparicionDeJugador = ApiCompetition & { equipo: string; minutos: number; partidos: number };
+
+export async function fetchDondeAparece(jugador: string, nacimiento: string): Promise<{ apariciones: AparicionDeJugador[]; revisadas: number }> {
+  const consulta = new URLSearchParams({ jugador, nacimiento });
+  // La primera vez baja las ligas que no estén en disco: puede tardar un minuto.
+  return bridgeJson(`/api/statsbomb/donde-aparece?${consulta.toString()}`, 300_000);
+}
+
 /** Los últimos `n` partidos de un jugador con su club y su fila con las columnas de la base (StatsBomb, por partido). */
 export type FormaReciente = {
   partidos: Array<{ partido: number; fecha: string; rival: string; minutos: number }>;

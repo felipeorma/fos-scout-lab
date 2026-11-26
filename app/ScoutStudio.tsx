@@ -2955,6 +2955,10 @@ export default function ScoutStudio() {
                   catalogoParaCargar={catalogoSinCargar}
                   cargando={reportLoading}
                   onCargarCompeticion={(competicion) => sumarTemporada(competicion)}
+                  onCargarParaElObjetivo={(competicion) => {
+                    cambiarPeriodo(claveDelJugador, { modo: "media", anios: [...new Set([...periodoDelJugador.anios, extractSeason(String(competicion.season))])] });
+                    void sumarTemporada(competicion);
+                  }}
                 />
               </div>
 
