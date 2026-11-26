@@ -8011,3 +8011,32 @@ body.print-layout-check .app-shell[data-tema] .pizarra-duelos > ol { grid-templa
 .similarity-target-copy { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
 .similarity-cambiar-objetivo { padding: 0; border: 0; background: none; color: var(--acento, #4f7cff); font: inherit; font-size: 13px; cursor: pointer; }
 @media (max-width: 760px) { .barra-jugador-base { margin-left: 0; } }
+
+/* ---- Ficha: la hoja a todo el ancho, lo que mide encima, lo demás en "Personalizar" ----
+   La columna izquierda (2.170 px, 106 controles) pasa a ser un panel que se
+   abre desde la derecha. Sin velo: se mira la hoja mientras se toca. */
+.app-shell .report-workspace { display: block; }
+.app-shell .ajustes-ficha { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 12px; padding: 0; border: 0; background: none; }
+.app-shell .ajustes-ficha .filtros-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ajustes-ficha-cohorte { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.ajustes-ficha-personalizar { margin-left: auto; }
+.app-shell .control-panel.cajon-ajustes {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 70;
+  width: min(440px, 100vw); margin: 0; padding: 0 20px 28px;
+  overflow-y: auto; overscroll-behavior: contain;
+  border: 0; border-left: 1px solid var(--line); border-radius: 0;
+  background: var(--paper);
+  box-shadow: -28px 0 60px -32px rgba(0, 0, 0, .75);
+  transform: translateX(100%); visibility: hidden;
+  transition: transform 220ms cubic-bezier(.2, .8, .2, 1), visibility 0s linear 220ms;
+}
+.app-shell .control-panel.cajon-ajustes.abierto { transform: none; visibility: visible; transition: transform 220ms cubic-bezier(.2, .8, .2, 1); }
+.cajon-cabecera { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 -20px 14px; padding: 16px 20px; border-bottom: 1px solid var(--line); background: var(--paper); }
+.cajon-cabecera h2 { margin: 0; color: var(--ink); font-size: 16px; font-weight: 650; }
+.app-shell .cajon-ajustes .panel-seccion { scroll-margin-top: 70px; }
+@media (prefers-reduced-motion: reduce) { .app-shell .control-panel.cajon-ajustes { transition: none; } }
+@media print { .app-shell .control-panel.cajon-ajustes, .app-shell .ajustes-ficha { display: none !important; } }
+@media (max-width: 760px) { .ajustes-ficha-personalizar { margin-left: 0; } }
+@media (max-width: 760px) {
+  .app-shell .ajustes-ficha, .app-shell .report-preview-wrap > .periodo, .app-shell .report-preview-wrap > .inline-error { margin-inline: 14px; }
+}

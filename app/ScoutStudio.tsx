@@ -33,10 +33,8 @@ import { TemporadaDesdeWyscout, TemporadaEscrita } from "./TemporadaAMano";
 import { CLAVE_TEMPORADAS_A_MANO, delMismoAnioAMano, nuevaTemporadaAMano, type DatosDeTemporada, type TemporadaAMano } from "@/lib/temporadasAMano";
 import { temporadasDeFicha, type TemporadaEnFicha } from "@/lib/temporadasDeFicha";
 import { ProveedorDeBase, useEstadoDeBase } from "./BaseActiva";
-import { BarraDeFiltros } from "./BarraDeFiltros";
-import { MenuDeLigas, MenuDesplegable, type OpcionDeMenu } from "./MenuDesplegable";
+import { Desplegable } from "./BarraDeFiltros";
 import { contextoDeLectura } from "@/lib/lecturaIA";
-import { Escudo, LogoLiga } from "./Escudo";
 import { DatosPage } from "./DatosPage";
 import { Interruptor } from "./Interruptor";
 import { FilaDeMenu, GrupoDeMenu, MenuFlotante } from "./MenuFlotante";
@@ -69,7 +67,7 @@ import { AutorDelInforme, ContextoDeFirma, type FirmaDelInforme } from "./FirmaD
 import { FieldLabel, FilaSeccion, InlineText, MenuDeCompeticiones, ReportImage } from "./estudio/piezas";
 import { useCruceDeAnios } from "./estudio/useCruceDeAnios";
 import type { JugadorDelInforme } from "@/lib/carrerasDelInforme";
-import { alphabeticCollator, blobToDataUrl, cohortLabel, firstPlayerSelection, horaActual, inicioDe, numberFormat, playerOptionsFor, profileFromReport, readWorkbook } from "./estudio/datos";
+import { blobToDataUrl, cohortLabel, firstPlayerSelection, horaActual, inicioDe, numberFormat, playerOptionsFor, profileFromReport, readWorkbook } from "./estudio/datos";
 import { FECHA_NIVEL_RESPALDO, LIGA_DE_REFERENCIA, PUNTOS_POR_RATING, indiceANivel, nivelDeLiga, ratingDeTramos, type EntradaOpta, LIGAS_CON_NIVEL } from "@/lib/nivelDeLiga";
 import { METRIC_SOURCE_COLORS, SIMILARITY_METRIC_GROUPS, similarityMetricGroup } from "@/lib/similarityMetricGroups";
 import { setActiveLang, t, tDefault, tf, type Lang } from "@/lib/i18n";
@@ -80,6 +78,11 @@ import { ContextoAbrirEnPizarra, type Entrante } from "./abp/AbrirEnPizarra";
 // Página 1 = ficha del jugador · Página 2 = comparación de similitud.
 type ReportPage = number;
 const CARD_PAGE = 1;
+/** Las cohortes que se pueden forzar en la ficha. */
+const OPCIONES_DE_COHORTE: Array<[string, string]> = [
+  ["AUTO", "Automática"], ["GK", "Porteros"], ["CB", "Centrales"], ["FB", "Laterales"], ["DMF", "Pivotes / mediocentros"],
+  ["B2B", "Interiores (box-to-box)"], ["WING", "Extremos"], ["DWING", "Extremos directos"], ["AM", "Mediapuntas"], ["CF", "Delanteros"],
+];
 /** El período elegido para cada jugador (una temporada o la media de varias). */
 const CLAVE_PERIODOS = "fos-scout-periodos-v1";
 const SIMILARITY_PAGE = 2;
@@ -297,6 +300,18 @@ export default function ScoutStudio() {
    * devuelve el ancho al contenido, que es de quien era.
    */
   const [menuAbierto, setMenuAbierto] = useState(false);
+  // El panel "Personalizar" de la ficha (antes la columna izquierda).
+  const [ajustesAbiertos, setAjustesAbiertos] = useState(false);
+  function abrirAjustes(seccion?: string) {
+    setAjustesAbiertos(true);
+    if (seccion) requestAnimationFrame(() => document.getElementById(seccion)?.scrollIntoView({ block: "start" }));
+  }
+  useEffect(() => {
+    if (!ajustesAbiertos) return;
+    const alPulsar = (evento: KeyboardEvent) => { if (evento.key === "Escape") setAjustesAbiertos(false); };
+    window.addEventListener("keydown", alPulsar);
+    return () => window.removeEventListener("keydown", alPulsar);
+  }, [ajustesAbiertos]);
   useEffect(() => {
     try {
       const guardado = window.localStorage.getItem("fos-scout-tema");
@@ -311,7 +326,7 @@ export default function ScoutStudio() {
 
   const [reportTheme, setReportTheme] = useState<ReportTheme>(DEFAULT_REPORT_THEME);
   const [reportThemeLoaded, setReportThemeLoaded] = useState(false);
-  const [selectedTeam, setSelectedTeam] = useState("");
+  const [, setSelectedTeam] = useState("");
   const [selectedPlayer, setSelectedPlayer] = useState(0);
   const [minimumMinutes, setMinimumMinutes] = useState(500);
   const [cohort, setCohort] = useState("AUTO");
@@ -393,16 +408,6 @@ export default function ScoutStudio() {
     });
   }, [players, base, reportRows]);
 
-  const teams = useMemo(
-    () => [...new Set(jugadoresVisibles.map((player) => player.team))].sort(alphabeticCollator.compare),
-    [jugadoresVisibles],
-  );
-  /*
-   * El menú de clubes. Con todas las ligas eran 250 clubes en una lista:
-   * ahora van agrupados por liga, con su logo. Con una liga elegida quedan
-   * solo los suyos, cada uno con su escudo (con todas serían 250 escudos
-   * que pedir de golpe, y el plan gratis de API-Football no da para eso).
-   */
   // La liga con la que se agrupa a un jugador en el menú de clubes: la del
   // filtro si la tiene, la de ese año si hay año elegido, y si no la primera.
   const ligaDeFila = (indice: number) => {
@@ -414,28 +419,6 @@ export default function ScoutStudio() {
     }
     return ligas[0] ?? base.competiciones[0]?.liga ?? "";
   };
-  const ligaDeEquipo = useMemo(() => {
-    const mapa = new Map<string, string>();
-    for (const player of jugadoresVisibles) if (!mapa.has(player.team)) mapa.set(player.team, ligaDeFila(player.index));
-    return mapa;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jugadoresVisibles, base.procedencia, base.competiciones]);
-  const opcionesDeClub = useMemo((): OpcionDeMenu[] => {
-    const variasLigas = new Set(ligaDeEquipo.values()).size > 1;
-    return teams
-      .map((team) => ({ team, liga: ligaDeEquipo.get(team) ?? "" }))
-      .sort((a, b) => (variasLigas ? alphabeticCollator.compare(a.liga, b.liga) : 0) || alphabeticCollator.compare(a.team, b.team))
-      .map(({ team, liga }) => ({
-        valor: team,
-        texto: team || t("Equipo no disponible"),
-        grupo: variasLigas ? liga || t("Sin liga") : undefined,
-        icono: variasLigas ? undefined : <Escudo equipo={team} liga={liga} tamano={18} respaldo />,
-      }));
-  }, [teams, ligaDeEquipo]);
-  const teamPlayers = useMemo(
-    () => jugadoresVisibles.filter((player) => player.team === selectedTeam).sort((a, b) => alphabeticCollator.compare(a.player, b.player)),
-    [jugadoresVisibles, selectedTeam],
-  );
   /*
    * Qué temporada del jugador se mira, y cuáles anteriores se incluyen.
    *
@@ -882,33 +865,6 @@ export default function ScoutStudio() {
       setReportLoading(false);
     }
   }
-  /*
-   * Los años que se pueden pedir en el filtro sin tenerlos cargados: los del
-   * catálogo de StatsBomb para la liga elegida (o para todas, si no hay una).
-   * Antes el menú solo enseñaba lo cargado —dos años con "todas las ligas"—
-   * y para mirar una temporada más vieja había que ir a Base activa.
-   */
-  const ligaDelFiltro = base.filtros.liga !== "TODAS" ? base.filtros.liga : null;
-  const aniosDelCatalogo = useMemo(() => [...new Set(catalogoSb
-    .filter((competicion) => competicion.hasMatches !== false && (!ligaDelFiltro || competicion.name === ligaDelFiltro))
-    .map((competicion) => anioDeInicio(String(competicion.season))))]
-    .filter((anio) => anio > 0 && !base.opciones.anios.includes(anio))
-    .sort((a, b) => b - a), [catalogoSb, ligaDelFiltro, base.opciones.anios]);
-
-  /** Elige un año en el filtro; si no está cargado, lo carga antes (con su temporada anterior si hay liga elegida). */
-  async function elegirAnio(anio: number) {
-    if (!anio || base.opciones.anios.includes(anio)) { base.cambiarFiltros({ anio }); return; }
-    if (ligaDelFiltro) {
-      const competicion = catalogoSb.find((c) => c.name === ligaDelFiltro && c.hasMatches !== false && anioDeInicio(String(c.season)) === anio);
-      if (!competicion) return;
-      const previa = temporadaAnterior(catalogoSb, competicion);
-      await sumarTemporada(...[competicion, previa].filter((c): c is ApiCompetition => Boolean(c)));
-    } else {
-      await cargarTodasLasLigas(String(anio), true);
-    }
-    base.cambiarFiltros({ anio });
-  }
-
   // Bloques de métricas del desglose: solo las categorías con datos. El número
   // de columnas se ajusta al total para no dejar una categoría suelta al final
   // (5 bloques → 3 arriba y 2 centradas abajo, 6 → 3 y 3).
@@ -2007,31 +1963,6 @@ export default function ScoutStudio() {
     setAssetSourceStatus("");
   }
 
-  function selectTeam(team: string) {
-    setSelectedTeam(team);
-    const firstPlayer = jugadoresVisibles.find((player) => player.team === team)
-      ?? players.find((player) => player.team === team);
-    if (firstPlayer) selectPlayer(firstPlayer.index);
-  }
-
-  /**
-   * Al estrechar los filtros, el equipo elegido puede quedarse fuera; entonces
-   * se salta al primero que quede. Si sobrevive no se toca nada: acotar por
-   * año no debería sacarte del club que estabas mirando.
-   */
-  useEffect(() => {
-    if (!jugadoresVisibles.length) return;
-    if (jugadoresVisibles.some((player) => player.team === selectedTeam)) return;
-    // Reaccionar al filtro es justo lo que toca aquí: el cambio nace en otra
-    // pantalla —la barra es compartida— así que no hay manejador local donde
-    // recolocar la selección. La guarda de arriba corta la cadena en cuanto el
-    // club elegido vuelve a estar dentro.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSelectedTeam(jugadoresVisibles[0].team);
-    selectPlayer(jugadoresVisibles[0].index);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jugadoresVisibles]);
-
   function updateAnalysisSourceName(value: string) {
     setAnalysisSourceTitle(value);
     if (reportSourceCount > 1) {
@@ -2675,94 +2606,21 @@ export default function ScoutStudio() {
               </nav>}
 
               {(printRun ? printRun.includes(1) : reportPage === 1) ? <div className="report-workspace">
-                <section className="control-panel enrichment-controls">
-                  {/* La base activa ya tiene su etapa: aquí solo se recuerda
-                      qué hay puesto y se sale hacia allí. Antes se repetía el
-                      panel entero —nombre del archivo, subir, conectar API— y
-                      preguntaba dos veces por lo mismo en dos sitios. */}
-                  <button type="button" className="base-recordatorio" onClick={() => setReportPage(DATA_PAGE)}>
-                    <span><b>{base.descripcion || tDefault(reportFileName)}</b>
-                    <small>{tf(reportSourceCount === 1 ? "{n} jugadores · {b} base" : "{n} jugadores · {b} bases", { n: reportRows.length, b: reportSourceCount })}</small></span>
-                    <em>{t("Cambiar")}</em>
-                  </button>
-                  {reportError && <div className="inline-error">{reportError}</div>}
-                  {/* La columna en secciones con nombre, de lo general a lo
-                      concreto: a quién miras, qué jugador, cómo se le mide,
-                      cómo sale el informe y de dónde salen sus imágenes.
-
-                      El título "Equipo y jugador" estaba ENCIMA de los
-                      filtros, que no son ni equipo ni jugador, y el resumen de
-                      bases y cohorte colgaba suelto entre dos bloques sin
-                      decir a cuál pertenecía. */}
-                  <div className="panel-seccion">
-                    <span className="panel-seccion-titulo">{t("A quién miras")}</span>
-                    {/* La red de filtros compartida: acota entre quiénes
-                        eliges. El club y el jugador se quedan como selectores
-                        porque ahí no filtras, navegas. */}
-                    <BarraDeFiltros campos={["puesto", "pasaporte", "minutos", "edad"]} resultado={jugadoresVisibles.length} />
-                  </div>
-
-                  <div className="panel-seccion">
-                  <span className="panel-seccion-titulo">{t("Jugador")}</span>
-                  <div className="player-selector-flow">
-                    {/* Primero la liga y el año, después el club y el jugador:
-                        con todo cargado, el club solo ya no dice dónde buscar.
-                        Son los filtros globales de siempre, así que acotar
-                        aquí acota también Ranking y Entre ligas. */}
-                    {(base.opciones.ligas.length > 1 || base.opciones.anios.length > 1) && <>
-                      <div className="field-group selection-step"><span className="selection-step-title"><FieldLabel>{t("Liga y año")}</FieldLabel></span>
-                        <div className="seleccion-liga-anio">
-                          {base.opciones.ligas.length > 1 && <MenuDeLigas variante="campo" ligas={base.opciones.ligas} elegida={base.filtros.liga}
-                            onElegir={(liga) => base.cambiarFiltros({ liga })} />}
-                          {(base.opciones.anios.length > 1 || aniosDelCatalogo.length > 0) && <MenuDesplegable variante="campo" etiqueta={t("Año")}
-                            valor={base.filtros.anio ? String(base.filtros.anio) : t("Todos")}
-                            opciones={[
-                              { valor: "", texto: t("Todos") },
-                              ...[...base.opciones.anios].sort((a, b) => b - a).map((anio) => ({ valor: String(anio), texto: String(anio) })),
-                              ...aniosDelCatalogo.map((anio) => ({
-                                valor: String(anio),
-                                texto: ligaDelFiltro ? tf("{anio} · cargar", { anio }) : tf("{anio} · cargar todas las ligas", { anio }),
-                                grupo: t("Sin cargar"),
-                              })),
-                            ]}
-                            apagado={reportLoading}
-                            elegida={base.filtros.anio ? String(base.filtros.anio) : ""} onElegir={(anio) => void elegirAnio(Number(anio) || 0)} />}
-                        </div>
-                      </div>
-                      <span className="selection-flow-line" aria-hidden="true" />
-                    </>}
-                    <div className="field-group selection-step"><span className="selection-step-title"><FieldLabel>{t("Equipo")}</FieldLabel></span>
-                      <MenuDesplegable variante="campo" etiqueta={t("Equipo")} apagado={backgroundRemoving}
-                        valor={selectedTeam || t("Equipo no disponible")}
-                        icono={<Escudo equipo={selectedTeam} liga={ligaDeEquipo.get(selectedTeam) ?? ""} tamano={18} respaldo />}
-                        opciones={opcionesDeClub} iconoDeGrupo={(liga) => <LogoLiga liga={liga} tamano={20} hueco />}
-                        elegida={selectedTeam} onElegir={selectTeam} />
-                    </div>
-                    <span className="selection-flow-line" aria-hidden="true" />
-                    <label className="field-group selection-step"><span className="selection-step-title"><FieldLabel>{t("Jugador")}</FieldLabel></span><span className="select-wrap"><Search size={16} /><select value={selectedPlayer} disabled={backgroundRemoving || !teamPlayers.length} onChange={(event) => selectPlayer(Number(event.target.value))}>{teamPlayers.map((player) => <option key={`${player.player}-${player.index}`} value={player.index}>{player.player}</option>)}</select><ChevronDown size={16} /></span></label>
-                  </div>
-                  </div>
-                  <div className="panel-seccion">
-                    <span className="panel-seccion-titulo">{t("Cómo se mide")}</span>
-                    <label className="field-group"><FieldLabel>{t("Cohorte")}</FieldLabel><span className="select-wrap simple"><select value={cohort} onChange={(event) => setCohort(event.target.value)}><option value="AUTO">{t("Automática")}</option><option value="GK">{t("Porteros")}</option><option value="CB">{t("Centrales")}</option><option value="FB">{t("Laterales")}</option><option value="DMF">{t("Pivotes / mediocentros")}</option><option value="B2B">{t("Interiores (box-to-box)")}</option><option value="WING">{t("Extremos")}</option><option value="DWING">{t("Extremos directos")}</option><option value="AM">{t("Mediapuntas")}</option><option value="CF">{t("Delanteros")}</option></select><ChevronDown size={16} /></span></label>
-                  {clavesDelInforme && <label className="field-group"><FieldLabel>{t("Comparar con")}</FieldLabel>
-                    <span className="select-wrap simple"><select value={medirContra} onChange={(event) => cambiarMedirContra(event.target.value === "todas" ? "todas" : "liga")}>
-                      <option value="liga">{t("Su liga y temporada (recomendado)")}</option>
-                      <option value="todas">{t("Todas las ligas cargadas")}</option>
-                    </select><ChevronDown size={16} /></span>
-                    <small className="temporada-previa-nota">{medirContra === "liga"
-                      ? t("Cada jugador se mide contra los de su puesto en su liga; el nivel de la liga va aparte, junto al índice.")
-                      : t("Mezcla ligas de distinto nivel: el percentil cambia según qué más haya cargado.")}</small>
-                  </label>}
-                  {(hayOtrasTemporadas || medirTodasLasTemporadas) && <div className="medir-todas">
-                    <span>
-                      <b>{t("Medir contra todas las bases cargadas")}</b>
-                      <small>{medirTodasLasTemporadas
-                        ? t("Incluye bases de otras temporadas, como un 2026/2027 junto a un 2026. Mezcla temporadas distintas.")
-                        : t("Hoy se mide solo contra las bases de su misma temporada. Actívalo si tu jugador queda solo en su grupo.")}</small>
-                    </span>
-                    <Interruptor activo={medirTodasLasTemporadas} onCambio={setMedirTodasLasTemporadas} titulo={t("Medir contra todas las bases cargadas")} />
-                  </div>}
+                {/* Lo secundario de la ficha, en un panel que se abre desde la
+                    derecha: temporadas que no están en las bases, qué métricas
+                    entran, cómo sale el informe y de dónde salen sus imágenes.
+                    Era una columna fija de 2.170 px con 106 controles junto a la
+                    hoja; ahora la hoja ocupa todo el ancho, lo que decide la
+                    medición está en la barra de encima y esto se abre cuando
+                    hace falta. El jugador se elige en la barra de arriba. */}
+                <aside id="ajustes-de-la-ficha" className={ajustesAbiertos ? "control-panel enrichment-controls cajon-ajustes abierto" : "control-panel enrichment-controls cajon-ajustes"}
+                  aria-label={t("Personalizar la ficha")} aria-hidden={!ajustesAbiertos} inert={!ajustesAbiertos}>
+                  <header className="cajon-cabecera">
+                    <h2>{t("Personalizar la ficha")}</h2>
+                    <button type="button" className="menu-cerrar" aria-label={t("Cerrar")} onClick={() => setAjustesAbiertos(false)}><X size={15} /></button>
+                  </header>
+                  <div className="panel-seccion" id="ajustes-temporadas">
+                    <span className="panel-seccion-titulo">{t("Temporadas fuera de las bases")}</span>
                   {/* Qué temporadas entran se contesta junto a la ficha (y en
                       Similitud y la ficha ampliada). Aquí, solo añadir otras. */}
                   {report && temporadaDeReferencia && (() => {
@@ -2806,7 +2664,10 @@ export default function ScoutStudio() {
                       </div>}
                     </div>;
                   })()}
-                  {report && availableMetrics.length > 0 && <details className="profile-details metric-picker">
+                  </div>
+                  <div className="panel-seccion" id="ajustes-metricas">
+                    <span className="panel-seccion-titulo">{t("Métricas del radar")}</span>
+                  {report && availableMetrics.length > 0 && <details className="profile-details metric-picker" open>
                     <summary>{t("Añadir o quitar métricas")} <b>{report.metrics.length}</b></summary>
                     <p className="metric-picker-hint">{t("Marca las que quieres ver. El percentil siempre se calcula contra los jugadores de su posición.")}</p>
                     {SIMILARITY_METRIC_GROUPS.map((group) => {
@@ -2823,11 +2684,6 @@ export default function ScoutStudio() {
                     })}
                     {metricPicks[report.cohort] && <button type="button" className="button secondary compact" onClick={restoreCohortMetrics}>{t("Volver al set del perfil")}</button>}
                   </details>}
-                  <div className="data-summary"><div><span>{t("Bases")}</span><b>{reportSourceCount}</b></div><div><span>{t("Jugadores")}</span><b>{numberFormat(reportRows.length)}</b></div><div><span>{t("Cohorte")}</span><b>{report?.cohortSize ?? 0}</b></div></div>
-                  {report?.cohorteDescartada && <div className="inline-error">{tf("La cohorte elegida ({c}) no tiene métricas para este jugador: se muestra con su cohorte automática.", { c: cohortLabel(report.cohorteDescartada) })}</div>}
-                  {report?.seleccionDescartada && <div className="inline-error">{t("Las métricas elegidas a mano para este perfil no existen en la base cargada: se muestra el set del perfil.")}</div>}
-                  {report && report.cohortSize < 5 && <div className="inline-error">{report.cohortSize === 0 ? t("No hay jugadores de esta posición con el mínimo de minutos: baja el mínimo o carga más datos.") : (report.cohortSize === 1 ? t("Cohorte de 1 jugador: percentiles poco fiables. Baja el mínimo de minutos o carga más datos.") : tf("Cohorte de {n} jugadores: percentiles poco fiables. Baja el mínimo de minutos o carga más datos.", { n: report.cohortSize }))}</div>}
-                  {report && report.cohortSize < 5 && hayOtrasTemporadas && !medirTodasLasTemporadas && <small className="temporada-previa-nota aviso">{t("Hay bases de otras temporadas cargadas: activa «Medir contra todas las bases cargadas» en Cómo se mide.")}</small>}
                   </div>
                   <div className="panel-seccion">
                     <span className="panel-seccion-titulo">{t("Informe")}</span>
@@ -2903,10 +2759,50 @@ export default function ScoutStudio() {
                   </details>
                   </div>
 
-                </section>
+                </aside>
 
                 <section className="report-preview-wrap">
-                  <div className="preview-toolbar"><div><span className="live-dot" /> {t("Página 01 · Ficha de scouting")}</div><span>{t("Haz clic en los textos del informe para editarlos")}</span></div>
+                  {/* Lo que decide la medición, encima de la hoja y a la vista. */}
+                  <div className="filtros-barra ajustes-ficha" role="toolbar" aria-label={t("Cómo se mide la ficha")}>
+                    <div className="filtros-chips">
+                      <Desplegable etiqueta={t("Cohorte")} valor={t(OPCIONES_DE_COHORTE.find(([valor]) => valor === cohort)?.[1] ?? "Automática")} activo={cohort !== "AUTO"}>
+                        <select aria-label={t("Cohorte")} value={cohort} onChange={(evento) => setCohort(evento.target.value)}>
+                          {OPCIONES_DE_COHORTE.map(([valor, nombre]) => <option key={valor} value={valor}>{t(nombre)}</option>)}
+                        </select>
+                      </Desplegable>
+                      {clavesDelInforme && <Desplegable etiqueta={t("Comparar con")} valor={medirContra === "liga" ? t("Su liga y temporada") : t("Todas las ligas")} activo={medirContra !== "liga"}
+                        aviso={medirContra === "liga" ? t("Cada jugador se mide contra los de su puesto en su liga; el nivel de la liga va aparte, junto al índice.") : t("Mezcla ligas de distinto nivel: el percentil cambia según qué más haya cargado.")}>
+                        <select aria-label={t("Comparar con")} value={medirContra} onChange={(evento) => cambiarMedirContra(evento.target.value === "todas" ? "todas" : "liga")}>
+                          <option value="liga">{t("Su liga y temporada (recomendado)")}</option>
+                          <option value="todas">{t("Todas las ligas cargadas")}</option>
+                        </select>
+                      </Desplegable>}
+                      <Desplegable etiqueta={t("Mín. minutos")} valor={`${minimumMinutes}′`} activo={minimumMinutes !== 500}>
+                        <select aria-label={t("Mínimo de minutos")} value={minimumMinutes} onChange={(evento) => setMinimumMinutes(Number(evento.target.value))}>
+                          {[...new Set([0, 300, 450, 500, 600, 900, 1200, 1500, minimumMinutes])].sort((a, b) => a - b).map((minutos) => <option key={minutos} value={minutos}>{`${minutos}′`}</option>)}
+                        </select>
+                      </Desplegable>
+                      {(hayOtrasTemporadas || medirTodasLasTemporadas) && <Desplegable etiqueta={t("Bases")} valor={medirTodasLasTemporadas ? t("Todas las cargadas") : t("Su temporada")} activo={medirTodasLasTemporadas}
+                        aviso={medirTodasLasTemporadas ? t("Incluye bases de otras temporadas, como un 2026/2027 junto a un 2026. Mezcla temporadas distintas.") : t("Hoy se mide solo contra las bases de su misma temporada. Actívalo si tu jugador queda solo en su grupo.")}>
+                        <select aria-label={t("Medir contra todas las bases cargadas")} value={medirTodasLasTemporadas ? "todas" : "suya"} onChange={(evento) => setMedirTodasLasTemporadas(evento.target.value === "todas")}>
+                          <option value="suya">{t("Su temporada")}</option>
+                          <option value="todas">{t("Todas las cargadas")}</option>
+                        </select>
+                      </Desplegable>}
+                      {report && availableMetrics.length > 0 && <button type="button" className="filtro-chip" onClick={() => abrirAjustes("ajustes-metricas")} aria-controls="ajustes-de-la-ficha">
+                        <span>{t("Métricas")}</span><b>{report.metrics.length}</b>
+                      </button>}
+                    </div>
+                    {report && <small className="ajustes-ficha-cohorte">{tf("{n} en su grupo", { n: report.cohortSize })}</small>}
+                    <button type="button" className="button secondary compact ajustes-ficha-personalizar" onClick={() => abrirAjustes()} aria-controls="ajustes-de-la-ficha" aria-expanded={ajustesAbiertos}>
+                      <Sparkles size={14} />{t("Personalizar")}
+                    </button>
+                  </div>
+                  {reportError && <div className="inline-error">{reportError}</div>}
+                  {report?.cohorteDescartada && <div className="inline-error">{tf("La cohorte elegida ({c}) no tiene métricas para este jugador: se muestra con su cohorte automática.", { c: cohortLabel(report.cohorteDescartada) })}</div>}
+                  {report?.seleccionDescartada && <div className="inline-error">{t("Las métricas elegidas a mano para este perfil no existen en la base cargada: se muestra el set del perfil.")}</div>}
+                  {report && report.cohortSize < 5 && <div className="inline-error">{report.cohortSize === 0 ? t("No hay jugadores de esta posición con el mínimo de minutos: baja el mínimo o carga más datos.") : (report.cohortSize === 1 ? t("Cohorte de 1 jugador: percentiles poco fiables. Baja el mínimo de minutos o carga más datos.") : tf("Cohorte de {n} jugadores: percentiles poco fiables. Baja el mínimo de minutos o carga más datos.", { n: report.cohortSize }))}
+                    {hayOtrasTemporadas && !medirTodasLasTemporadas && ` ${t("Hay bases de otras temporadas cargadas: elige «Bases: Todas las cargadas».")}`}</div>}
                   {reportArticleNode && preguntaDePeriodo(t("el radar y la ficha"))}
                   {reportArticleNode ? <div className="legal-page-shell">{reportArticleNode}</div> : <div className="empty-preview">{t("Selecciona un jugador para generar el informe.")}</div>}
                   {/* La forma reciente: fuera de la hoja (no se imprime), debajo. */}
