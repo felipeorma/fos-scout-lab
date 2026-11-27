@@ -2238,6 +2238,75 @@ _SB_SUMAS = {
 }
 
 
+def _sb_tramos(posiciones):
+    """Los tramos de una alineación v4: [[código, desde, hasta|None], ...] en minutos de partido."""
+    tramos = []
+    for tramo in posiciones or []:
+        nombre = tramo.get("position")
+        if not nombre:
+            continue
+        desde = _reloj(tramo.get("from")) or 0.0
+        hasta = _reloj(tramo.get("to")) if tramo.get("to") else None
+        tramos.append([_SB_POS_ALINEACION.get(nombre, nombre), round(desde, 2), None if hasta is None else round(hasta, 2)])
+    return tramos
+
+
+def _sb_puestos_partido(match_id: int, auth):
+    """Los puestos de cada jugador en un partido: {nombre: tramos}, del disco si están.
+
+    Sale de las alineaciones v4. Si el partido ya se bajó para la Ficha
+    ampliada (m-{id}.json), se usa su alineación y no se pide nada.
+    """
+    import json as _json
+    ruta = _SB_EVENTS_CACHE_DIR / f"lp-{int(match_id)}.json"
+    if ruta.exists():
+        try:
+            return _json.loads(ruta.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    salida = {}
+    compacto = _SB_EVENTS_CACHE_DIR / f"m-{int(match_id)}.json"
+    if compacto.exists():
+        try:
+            alineacion = _json.loads(compacto.read_text(encoding="utf-8")).get("alineacion") or {}
+            salida = {nombre: _sb_tramos(j.get("pos")) for nombre, j in alineacion.items()}
+        except Exception:
+            salida = {}
+    if not salida:
+        r = _requests.get(f"https://data.statsbomb.com/api/v4/lineups/{int(match_id)}", auth=auth, timeout=60)
+        r.raise_for_status()
+        for equipo in r.json() if isinstance(r.json(), list) else []:
+            for j in equipo.get("lineup", []):
+                if j.get("positions"):
+                    salida[j.get("player_name")] = _sb_tramos(j.get("positions"))
+    try:
+        _SB_EVENTS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        _escribir_atomico(ruta, _json.dumps(salida))
+    except OSError:
+        pass
+    return salida
+
+
+def _sb_puestos_con_minutos(tramos, minutos: float):
+    """Cada puesto que ocupó en el partido, con sus minutos, de más a menos.
+
+    El último tramo no trae final: dura hasta completar sus minutos. Los
+    minutos de cada tramo se escalan a los de StatsBomb para que sumen igual.
+    """
+    if not tramos or minutos <= 0:
+        return []
+    inicio = min(t[1] for t in tramos)
+    por_puesto = {}
+    for codigo, desde, hasta in tramos:
+        final = hasta if hasta is not None else max(desde, inicio + minutos)
+        por_puesto[codigo] = por_puesto.get(codigo, 0.0) + max(0.0, final - desde)
+    total = sum(por_puesto.values())
+    if total <= 0:
+        return [{"puesto": tramos[0][0], "minutos": round(minutos)}]
+    lista = [{"puesto": codigo, "minutos": round(dur / total * minutos)} for codigo, dur in por_puesto.items()]
+    return sorted([p for p in lista if p["minutos"] > 0] or lista[:1], key=lambda p: -p["minutos"])
+
+
 def _sb_forma_fila(partidos):
     """Las columnas de la base (las de _SB_METRICS) con lo de unos partidos.
 
@@ -2305,7 +2374,15 @@ def statsbomb_forma(competition_id: int, season_id: int, equipo: str, jugador: s
         if not suya:
             continue
         jugados.append(suya)
-        lista.append({"partido": p["match_id"], "fecha": fecha, "rival": rival, "minutos": round(float(suya.get("player_match_minutes") or 0))})
+        minutos_partido = float(suya.get("player_match_minutes") or 0)
+        try:
+            puestos_partido = _sb_puestos_partido(p["match_id"], auth)
+            tramos = puestos_partido.get(suya.get("player_name")) or next(
+                (t for nombre, t in puestos_partido.items() if norm(nombre) == norm(jugador)), [])
+            puestos = _sb_puestos_con_minutos(tramos, minutos_partido)
+        except Exception:
+            puestos = []
+        lista.append({"partido": p["match_id"], "fecha": fecha, "rival": rival, "minutos": round(minutos_partido), "puestos": puestos})
         if len(jugados) >= n:
             break
     fila, minutos = _sb_forma_fila(jugados)

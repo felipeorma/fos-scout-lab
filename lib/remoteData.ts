@@ -275,7 +275,8 @@ export async function fetchDondeAparece(jugador: string, nacimiento: string): Pr
 
 /** Los últimos `n` partidos de un jugador con su club y su fila con las columnas de la base (StatsBomb, por partido). */
 export type FormaReciente = {
-  partidos: Array<{ partido: number; fecha: string; rival: string; minutos: number }>;
+  /** Cada partido con su puesto o puestos (de las alineaciones), de más a menos minutos. */
+  partidos: Array<{ partido: number; fecha: string; rival: string; minutos: number; puestos?: Array<{ puesto: string; minutos: number }> }>;
   minutos: number;
   fila: Record<string, number>;
   /** Cuántos partidos jugó su equipo en la temporada. */

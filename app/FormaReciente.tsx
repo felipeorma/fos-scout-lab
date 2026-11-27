@@ -2,13 +2,16 @@
 
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { numberLocale, t, tf } from "@/lib/i18n";
-import { buildPlayerReport, type DataRow, type PlayerReport } from "@/lib/scouting";
+import { buildPlayerReport, cohortOf, type DataRow, type PlayerReport } from "@/lib/scouting";
+import { cohortLabel } from "./estudio/datos";
 import { compararForma, filaConLaForma } from "@/lib/formaReciente";
 import { fetchForma, type ApiCompetition, type FormaReciente as DatosDeForma } from "@/lib/remoteData";
 import { similarityMetricGroup } from "@/lib/similarityMetricGroups";
 import { ChipDeCambio, FilaDeMetrica, FranjaDeCifras, tonosDeColor } from "./KitNight";
 
 const VENTANAS = [3, 5, 10] as const;
+/** Las cohortes que son variantes del mismo puesto (pivote / interior, extremo / extremo directo). */
+const familia = (cohorte: string) => ({ DMF: "MID", B2B: "MID", DWING: "WING" } as Record<string, string>)[cohorte] ?? cohorte;
 /** Por debajo, la forma es una señal y no un nivel: se avisa. */
 const MINUTOS_PARA_FIARSE = 450;
 
@@ -66,6 +69,23 @@ export function FormaReciente({ informe, filas, indice, minutosMin, elegidas, po
     return reciente ? compararForma(informe.metrics, reciente.metrics) : null;
   }, [forma, filas, indice, minutosMin, informe, elegidas, porLiga]);
 
+  // En qué puesto jugó: el de más minutos en la ventana, en cuántos partidos
+  // fue su puesto principal y si cae fuera del grupo con que se le mide.
+  const puesto = useMemo(() => {
+    const partidos = forma?.partidos ?? [];
+    const minutosPorPuesto = new Map<string, number>();
+    for (const partido of partidos) for (const p of partido.puestos ?? []) minutosPorPuesto.set(p.puesto, (minutosPorPuesto.get(p.puesto) ?? 0) + p.minutos);
+    const principal = [...minutosPorPuesto.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+    if (!principal) return null;
+    return {
+      principal,
+      partidos: partidos.filter((partido) => partido.puestos?.[0]?.puesto === principal).length,
+      fuera: familia(cohortOf(principal)) !== familia(informe.cohort),
+    };
+  }, [forma, informe.cohort]);
+  const textoDePuestos = (puestos: Array<{ puesto: string; minutos: number }> = []) =>
+    (puestos.length > 1 ? puestos.map((p) => `${p.puesto} ${p.minutos}′`).join(" · ") : puestos[0]?.puesto ?? "");
+
   const fecha = (texto: string) => (texto ? new Date(`${texto}T12:00:00`).toLocaleDateString(numberLocale(), { day: "numeric", month: "short" }) : "");
   const sube = comparacion?.cambios.filter((c) => c.cambio >= 10).length ?? 0;
   const baja = comparacion?.cambios.filter((c) => c.cambio <= -10).length ?? 0;
@@ -93,12 +113,15 @@ export function FormaReciente({ informe, filas, indice, minutosMin, elegidas, po
           <FranjaDeCifras className="forma-franja" celdas={[
             { etiqueta: t("Partidos"), valor: forma.partidos.length },
             { etiqueta: t("Minutos"), valor: `${forma.minutos.toLocaleString(numberLocale())}′` },
+            ...(puesto ? [{ etiqueta: t("Puesto"), valor: puesto.principal, bajada: tf("{n} de {t} partidos", { n: puesto.partidos, t: forma.partidos.length }) }] : []),
             { etiqueta: t("Suben 10+"), valor: comparacion ? sube : "—" },
             { etiqueta: t("Bajan 10+"), valor: comparacion ? baja : "—" },
           ]} />
           <ol className="forma-partidos">
-            {forma.partidos.map((p) => <li key={p.partido}><b>{fecha(p.fecha)}</b><span>{p.rival}</span><small>{`${p.minutos}′`}</small></li>)}
+            {forma.partidos.map((p) => <li key={p.partido}><b>{fecha(p.fecha)}</b><span>{p.rival}</span>
+              {p.puestos?.length ? <em title={t("Puesto en el partido")}>{textoDePuestos(p.puestos)}</em> : null}<small>{`${p.minutos}′`}</small></li>)}
           </ol>
+          {puesto?.fuera && <p className="forma-nota aviso">{tf("Jugó sobre todo de {p}, fuera de su grupo en la ficha: se le sigue midiendo contra los {c}.", { p: puesto.principal, c: cohortLabel(informe.cohort).toLocaleLowerCase(numberLocale()) })}</p>}
           {forma.minutos < MINUTOS_PARA_FIARSE && <p className="forma-nota aviso">{t("Pocos minutos: tómalo como una señal, no como su nivel.")}</p>}
           {comparacion && <div className="forma-filas">
             {comparacion.cambios.map((c) => {

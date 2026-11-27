@@ -8001,6 +8001,7 @@ body.print-layout-check .app-shell[data-tema] .pizarra-duelos > ol { grid-templa
 .forma-partidos li { display: flex; align-items: baseline; gap: 6px; padding: 4px 10px; border: 1px solid var(--report-line); border-radius: 999px; color: var(--report-muted); font-size: 11px; }
 .forma-partidos b { color: var(--report-ink); font-weight: 600; }
 .forma-partidos small { font-variant-numeric: tabular-nums; }
+.forma-partidos em { color: var(--report-ink); font-size: 10.5px; font-style: normal; font-weight: 700; letter-spacing: .03em; }
 .forma-nota { margin: 0; color: var(--report-muted); font-size: 12px; line-height: 1.45; }
 .forma-nota.aviso { color: #f5a524; }
 .forma-hoja:not([data-oscuro]) .forma-nota.aviso { color: #a15c00; }
