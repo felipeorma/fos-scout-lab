@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { PieDeReporte } from "./PieDeReporte";
 import { Antetitulo } from "./KitNight";
 import { PiezaFicha, useDatosFicha, type ContextoFicha, type IdPieza } from "./PiezasFicha";
@@ -23,9 +23,11 @@ import type { TransfermarktProfile } from "@/lib/transfermarkt";
  *
  * Cada gráfico es una pieza de PiezasFicha.
  */
-export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, destinatario = "", logoDestinatario = "", onAbrirJugador, claseHoja = "legal-page-shell", temporada, temporadasDelPeriodo = "", clavesPorFila = null, feedOpta = null, ligasDeFila = null, avisoSkillcorner = "" }: {
+export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, destinatario = "", logoDestinatario = "", onAbrirJugador, claseHoja = "legal-page-shell", temporada, temporadasDelPeriodo = "", periodo = null, clavesPorFila = null, feedOpta = null, ligasDeFila = null, avisoSkillcorner = "" }: {
   /** Si SkillCorner no publica su liga en esta temporada (o solo los físicos): una línea bajo el título. */
   avisoSkillcorner?: string;
+  /** La pregunta de temporadas del jugador (la misma de la ficha), encima de la hoja. */
+  periodo?: ReactNode;
   /** Las claves "liga año" de cada fila cuando se mide contra su liga. */
   clavesPorFila?: string[][] | null;
   /** Las claves "liga año" de cada fila, siempre: acotan el Top 10 y los parecidos. */
@@ -74,7 +76,17 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
           : tf("Familias contra {n} {grupo} de la base cargada, con al menos {m} minutos.", { n: datos.grupo.indices.length, grupo: datos.nombreGrupo.toLowerCase(), m: minutosMin })}</p>
       {temporadasDelPeriodo.includes("+") && <p className="snap-aviso-temporadas">{tf("Con la media de {t}, ponderada por minutos, como en la ficha y en Similitud. Los mapas son de los partidos de {r}.", { t: temporadasDelPeriodo, r: datos.fuente?.temporada ?? temporada ?? "" })}</p>}
       {avisoSkillcorner && <p className="snap-aviso-sc">{avisoSkillcorner}</p>}
-      {susLigas.length > 0 && otrasLigas.length > 0 && <div className="snap-ligas" role="group" aria-label={t("Ligas del Top 10 y de los parecidos")}>
+      {susLigas.length > 0 && <p className="snap-ligas-texto">{tf("Top 10 y parecidos: {ligas}", { ligas: [marcoConNivel(susLigas, feedOpta), ...ligasExtra.map((liga) => marcoConNivel([liga], feedOpta))].join(" · ") })}</p>}
+    </div>
+  </header>;
+  /*
+   * Lo que se toca, fuera de la hoja: qué ligas entran en el Top 10 y los
+   * parecidos. Antes los botones y el desplegable iban dentro de la cabecera
+   * impresa; ahora van en una barra encima, como los ajustes de la ficha, y
+   * la hoja solo dice cuáles entran.
+   */
+  const ajustes = susLigas.length > 0 && otrasLigas.length > 0 ? <div className="filtros-barra ajustes-ficha snap-ajustes" role="toolbar" aria-label={t("Ligas del Top 10 y de los parecidos")}>
+    <div className="snap-ligas">
         <span>{t("Top 10 y parecidos")}</span>
         <b className="snap-liga propia">{marcoConNivel(susLigas, feedOpta)}</b>
         {ligasExtra.map((liga) => <button key={liga} type="button" className="snap-liga" onClick={() => setLigasExtra((actuales) => actuales.filter((x) => x !== liga))}
@@ -84,13 +96,13 @@ export function SnapshotPage({ rows, indice, informe, perfilTm, minutosMin, dest
           {otrasLigas.filter((liga) => !ligasExtra.includes(liga)).map((liga) => <option key={liga} value={liga}>{marcoConNivel([liga], feedOpta)}</option>)}
         </select>
         {ligasExtra.length > 0 && <button type="button" className="snap-liga-limpiar" onClick={() => setLigasExtra([])}>{t("Solo su liga")}</button>}
-      </div>}
     </div>
-  </header>;
+  </div> : null;
   const pie = <PieDeReporte asunto={datos.jugador} destinatario={destinatario} logo={logoDestinatario} />;
 
 
   return <div className={claseHoja}>
+    {(ajustes || periodo) && <div className="snap-encima">{ajustes}{periodo}</div>}
     <section className="snap-page snap-hoja-unica">
       {cabecera}
       {datos.estado && <p className="snap-estado" role="status">{datos.estado}</p>}

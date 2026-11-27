@@ -9,7 +9,7 @@ import { useBaseActiva } from "./BaseActiva";
 import { PieDeReporte } from "./PieDeReporte";
 import { BarraDeFiltros, Desplegable } from "./BarraDeFiltros";
 import { PeriodoDeLista, TextoDelPeriodoDeLista } from "./PeriodoDeLista";
-import { ChevronDown, ChevronRight, Estrella, EstrellaLlena } from "./Icons";
+import { ChevronDown, ChevronRight, Estrella, EstrellaLlena, X } from "./Icons";
 import { cambiarSeguimiento, useSeguimiento } from "./useSeguimiento";
 import { dejarDeSeguir, seguir, sigue } from "@/lib/seguimiento";
 import { BotonExportar } from "./BotonExportar";
@@ -123,6 +123,14 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
    * recuerda en este navegador.
    */
   const [ajustarPorClub, setAjustarPorClub] = useState(false);
+  // El panel "Más filtros" (equipo, pasaporte, mercado, encaje).
+  const [masFiltrosAbierto, setMasFiltrosAbierto] = useState(false);
+  useEffect(() => {
+    if (!masFiltrosAbierto) return;
+    const alPulsar = (evento: globalThis.KeyboardEvent) => { if (evento.key === "Escape") setMasFiltrosAbierto(false); };
+    window.addEventListener("keydown", alPulsar);
+    return () => window.removeEventListener("keydown", alPulsar);
+  }, [masFiltrosAbierto]);
   useEffect(() => {
     try { if (window.localStorage.getItem(CLAVE_AJUSTE_CLUB) === "si") setAjustarPorClub(true); } catch { /* preferencia opcional */ }
   }, []);
@@ -285,16 +293,17 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
   };
 
   const sinNadaQueImprimir = vista === "indice" ? !listados.length : vista === "equipo" ? !candidatosVisibles.length : !arquetipos.length;
+  // Cuántos de los de "Más filtros" están puestos, para decirlo en el botón.
+  const masFiltrosActivos = [filtros.equipo !== "TODOS", filtros.pasaporte !== "TODOS", Number(valorElegido) > 0, Boolean(contratoHasta), Boolean(equipoEncaje)].filter(Boolean).length;
   return <section className="rank-page" data-hoja-vacia={sinNadaQueImprimir ? "" : undefined}>
     {/* La cabecera dice qué es la pantalla y nada más. La explicación del
         índice ocupaba tres líneas encima de todo, y se lee una vez: pasa a un
         desplegable, un nivel más abajo, igual que el aviso de cobertura. */}
     <header>
       <div>
-        <span>{t("RANKING DE LA BASE")}</span>
-        <h2>{t("Los mejores de cada puesto")}</h2>
+        {/* El título dice lo que se ve (y se imprime así): el puesto y su período. */}
+        <h2>{tf("Los mejores · {puesto}", { puesto: nombreDelPerfil })}</h2>
         <p className="periodo-de-lista-linea"><TextoDelPeriodoDeLista /></p>
-        <p>{t("Quién encabeza cada posición en lo que tienes cargado. Toca a cualquiera para abrir su informe.")}</p>
         <details className="como-se-calcula">
           <summary><ChevronDown size={13} />{t("Cómo se calcula el índice")}</summary>
           <p>{t("El índice parte del percentil medio contra los jugadores de su misma posición y lo acerca a sus tres mejores métricas: destacar en algo cuenta, y no solo ser correcto en todo.")}</p>
@@ -330,12 +339,6 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
             {PERFILES.map((item) => <option key={item.id} value={item.id}>{t(item.nombre)}</option>)}
           </select>
         </Desplegable>
-        <Desplegable etiqueta={t("Encaje con")} valor={equipoEncaje || t("No mostrar")} activo={Boolean(equipoEncaje)}>
-          <select aria-label={t("Encaje con un equipo")} value={equipoEncaje} onChange={(event) => setEquipoEncaje(event.target.value)}>
-            <option value="">{t("No mostrar")}</option>
-            {equiposEncaje.map((equipo) => <option key={equipo} value={equipo}>{equipo}</option>)}
-          </select>
-        </Desplegable>
       </div>
       <div className="rank-tabs" role="group" aria-label={t("Cómo ordenar")}>
         <button type="button" className={vista === "indice" ? "on" : ""} aria-pressed={vista === "indice"} onClick={() => elegirVista("indice")}>{t("Por índice")}</button>
@@ -344,26 +347,63 @@ export function RankingPage({ onSelectPlayer, destinatario = "", logoDestinatari
       </div>
     </div>
 
+    {/* Lo que estrecha la lista y se usa menos: equipo, pasaporte, mercado y
+        encaje con un equipo. En un panel que se abre desde la derecha, como
+        "Personalizar" en la ficha; la fila de arriba queda para lo de siempre. */}
+    <aside id="mas-filtros-del-ranking" className={masFiltrosAbierto ? "control-panel cajon-ajustes abierto" : "control-panel cajon-ajustes"}
+      aria-label={t("Más filtros")} aria-hidden={!masFiltrosAbierto} inert={!masFiltrosAbierto}>
+      <header className="cajon-cabecera">
+        <h2>{t("Más filtros")}</h2>
+        <button type="button" className="menu-cerrar" aria-label={t("Cerrar")} onClick={() => setMasFiltrosAbierto(false)}><X size={15} /></button>
+      </header>
+      <div className="panel-seccion">
+        <span className="panel-seccion-titulo">{t("Quiénes")}</span>
+        <BarraDeFiltros campos={["equipo", "pasaporte"]} />
+      </div>
+      <div className="panel-seccion">
+        <span className="panel-seccion-titulo">{t("Mercado (Transfermarkt)")}</span>
+        <div className="filtros-barra"><div className="filtros-chips">
+          <Desplegable etiqueta={t("Valor máx.")} activo={Number(valorElegido) > 0}
+            valor={valorElegido === "" ? t("Cualquiera") : valorElegido === "ver" ? t("Sin tope") : valorCorto(Number(valorElegido), numberLocale())}>
+            <select aria-label={t("Valor de mercado máximo (Transfermarkt)")} value={valorElegido} onChange={(event) => setValorElegido(event.target.value)}>
+              <option value="">{t("Cualquiera")}</option>
+              <option value="ver">{t("Sin tope · ver valores")}</option>
+              {TOPES_DE_VALOR.map((tope) => <option key={tope} value={tope}>{tf("Hasta {valor}", { valor: valorCorto(tope, numberLocale()) })}</option>)}
+            </select>
+          </Desplegable>
+          <Desplegable etiqueta={t("Contrato hasta")} activo={Boolean(contratoHasta)}
+            valor={contratoHasta ? contratoCorto(contratoHasta) : t("Cualquiera")}>
+            <select aria-label={t("Contrato que vence como muy tarde (Transfermarkt)")} value={contratoHasta} onChange={(event) => setContratoHasta(event.target.value)}>
+              <option value="">{t("Cualquiera")}</option>
+              {cortes.map((corte) => <option key={corte} value={corte}>{tf("Vence hasta {fecha}", { fecha: contratoCorto(corte) })}</option>)}
+            </select>
+          </Desplegable>
+        </div></div>
+        <small className="temporadas-chips-nota">{t("La primera vez, cada liga tarda un minuto en traer valores y contratos.")}</small>
+      </div>
+      <div className="panel-seccion">
+        <span className="panel-seccion-titulo">{t("Encaje con un equipo")}</span>
+        <div className="filtros-barra"><div className="filtros-chips">
+          <Desplegable etiqueta={t("Encaje con")} valor={equipoEncaje || t("No mostrar")} activo={Boolean(equipoEncaje)}>
+            <select aria-label={t("Encaje con un equipo")} value={equipoEncaje} onChange={(event) => setEquipoEncaje(event.target.value)}>
+              <option value="">{t("No mostrar")}</option>
+              {equiposEncaje.map((equipo) => <option key={equipo} value={equipo}>{equipo}</option>)}
+            </select>
+          </Desplegable>
+        </div></div>
+        <small className="temporadas-chips-nota">{t("Añade una columna con lo que ese equipo pide en el puesto y el lugar que ocuparía en su plantilla.")}</small>
+      </div>
+    </aside>
+
     {/* Exportar va al final de la fila de filtros, junto al recuento: se lee
         como "baja estos N". La lista de pantalla se corta en cuarenta; el CSV
         lleva todas las que pasan los filtros, con sus métricas destacadas. */}
-    <BarraDeFiltros campos={["liga", "equipo", "pasaporte", "minutos", "edad"]} resultado={listados.length} extra={<>
-      <Desplegable etiqueta={t("Valor máx.")} activo={Number(valorElegido) > 0}
-        valor={valorElegido === "" ? t("Cualquiera") : valorElegido === "ver" ? t("Sin tope") : valorCorto(Number(valorElegido), numberLocale())}>
-        <select aria-label={t("Valor de mercado máximo (Transfermarkt)")} value={valorElegido} onChange={(event) => setValorElegido(event.target.value)}>
-          <option value="">{t("Cualquiera")}</option>
-          <option value="ver">{t("Sin tope · ver valores")}</option>
-          {TOPES_DE_VALOR.map((tope) => <option key={tope} value={tope}>{tf("Hasta {valor}", { valor: valorCorto(tope, numberLocale()) })}</option>)}
-        </select>
-      </Desplegable>
-      <Desplegable etiqueta={t("Contrato hasta")} activo={Boolean(contratoHasta)}
-        valor={contratoHasta ? contratoCorto(contratoHasta) : t("Cualquiera")}>
-        <select aria-label={t("Contrato que vence como muy tarde (Transfermarkt)")} value={contratoHasta} onChange={(event) => setContratoHasta(event.target.value)}>
-          <option value="">{t("Cualquiera")}</option>
-          {cortes.map((corte) => <option key={corte} value={corte}>{tf("Vence hasta {fecha}", { fecha: contratoCorto(corte) })}</option>)}
-        </select>
-      </Desplegable>
-    </>} accesorio={
+    <BarraDeFiltros campos={["liga", "minutos", "edad"]} resultado={listados.length} extra={
+      <button type="button" className={masFiltrosActivos ? "filtro-chip activo rank-mas-filtros" : "filtro-chip rank-mas-filtros"}
+        onClick={() => setMasFiltrosAbierto(true)} aria-controls="mas-filtros-del-ranking" aria-expanded={masFiltrosAbierto}>
+        <span>{t("Más filtros")}</span>{masFiltrosActivos > 0 && <b>{masFiltrosActivos}</b>}
+      </button>
+    } accesorio={
       <BotonExportar
         nombre={[t("ranking"), nombreDelPerfil, filtros.liga !== "TODAS" ? filtros.liga : null, periodoDeLaLista.clave || null]}
         columnas={[t("#"), t("Jugador"), t("Equipo"), t("Liga"), t("Año"), t("Edad"), t("Min"), t("Índice"), t("Índice sin corregir"), t("Métricas"), tf("Encaje de estilo con {equipo}", { equipo: EQUIPO_PROPIO }),

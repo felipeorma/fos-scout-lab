@@ -7983,17 +7983,32 @@ body.print-layout-check .app-shell[data-tema] .pizarra-duelos > ol { grid-templa
 .seguimiento-vacia { margin: 0; padding: 28px; border: 1px dashed var(--line); border-radius: 12px; color: var(--muted); text-align: center; }
 @media (max-width: 860px) { .seguimiento-lista li { grid-template-columns: 1fr; } .seguimiento-fila-acciones { justify-content: flex-start; } .seguimiento-acciones { margin-left: 0; } }
 
-/* ---- Forma reciente (Ficha, debajo de la hoja; no se imprime) ---- */
-.forma-reciente { display: grid; gap: 10px; margin: 16px auto 0; max-width: 980px; padding: 16px 18px; border: 1px solid var(--line); border-radius: 14px; background: color-mix(in srgb, var(--ink) 3%, transparent); }
-.forma-reciente header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px; }
-.forma-reciente header span { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .1em; }
-.forma-reciente header h3 { margin: 3px 0 0; color: var(--ink); font-size: 17px; }
-.forma-partidos { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; }
-.forma-partidos span { padding: 3px 9px; border-radius: 999px; background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--muted); font-size: 11.5px; }
-.forma-nota { margin: 0; color: var(--muted); font-size: 12.5px; line-height: 1.45; }
+/* ---- Forma reciente: hoja del informe detrás de la ficha (mismo ancho,
+   mismo tema; en el PDF, su propia página Legal) ---- */
+.forma-hoja {
+  --ink: var(--report-ink); --muted: var(--report-muted); --faint: var(--report-faint); --line: var(--report-line); --paper: var(--report-paper);
+  --n-ink: var(--report-ink); --n-muted: var(--report-muted); --n-faint: var(--report-faint); --n-filete: var(--report-line); --n-pista: var(--report-track); --n-tarjeta: var(--report-paper);
+}
+.forma-hoja-cabecera { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px; padding: 26px 30px 18px; border-bottom: 1px solid var(--report-line); }
+.forma-hoja-cabecera span { color: var(--report-accent); font-size: 8px; font-weight: 700; letter-spacing: .1em; }
+.forma-hoja-cabecera h2 { margin: 4px 0 2px; color: var(--report-ink); font-size: 30px; font-weight: 800; letter-spacing: -.02em; line-height: 1.05; }
+.forma-hoja-cabecera p { margin: 0; color: var(--report-muted); font-size: 12px; }
+.forma-hoja-cuerpo { display: grid; gap: 14px; padding: 18px 30px 22px; }
+.forma-franja { border: 1px solid var(--report-line); border-radius: 12px; }
+.forma-partidos { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.forma-partidos li { display: flex; align-items: baseline; gap: 6px; padding: 4px 10px; border: 1px solid var(--report-line); border-radius: 999px; color: var(--report-muted); font-size: 11px; }
+.forma-partidos b { color: var(--report-ink); font-weight: 600; }
+.forma-partidos small { font-variant-numeric: tabular-nums; }
+.forma-nota { margin: 0; color: var(--report-muted); font-size: 12px; line-height: 1.45; }
 .forma-nota.aviso { color: #f5a524; }
-.forma-filas { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 4px 22px; }
-@media print { .forma-reciente { display: none; } }
+.forma-hoja:not([data-oscuro]) .forma-nota.aviso { color: #a15c00; }
+.forma-hoja:not([data-oscuro]) .n-chip.bueno { color: #1a7f37; }
+.forma-hoja:not([data-oscuro]) .n-chip.malo { color: #c62828; }
+.forma-filas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 28px; align-content: start; }
+.forma-filas > .n-fila:nth-child(2) { border-top: 0; }
+@media (max-width: 700px) { .forma-filas { grid-template-columns: 1fr; } .forma-filas > .n-fila:nth-child(2) { border-top: .7px solid color-mix(in srgb, var(--n-filete) 60%, transparent); } }
+body.print-layout-check .forma-ventanas { display: none !important; }
+@media print { .forma-ventanas { display: none !important; } }
 
 /* Dónde aparece un jugador (Similitud: objetivo y comparable) */
 .donde-aparece { display: grid; gap: 6px; margin-top: 4px; }
@@ -8040,3 +8055,32 @@ body.print-layout-check .app-shell[data-tema] .pizarra-duelos > ol { grid-templa
 @media (max-width: 760px) {
   .app-shell .ajustes-ficha, .app-shell .report-preview-wrap > .periodo, .app-shell .report-preview-wrap > .inline-error { margin-inline: 14px; }
 }
+
+/* Ranking: la cabecera dice el puesto y su período; el chip del período no
+   hereda el estilo de rótulo (verde, 9 px, mayúsculas) de los span de la
+   cabecera. El panel "Más filtros" usa la misma cabecera que "Personalizar". */
+.app-shell .rank-page > header .periodo-de-lista { color: var(--ink); font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; }
+.app-shell .rank-page > header .periodo-de-lista em { color: var(--muted); font-size: 12px; letter-spacing: 0; }
+.app-shell .rank-page .cajon-cabecera h2 { margin: 0; font-size: 16px; }
+.app-shell .rank-herramientas { align-items: center; }
+.rank-mas-filtros { margin-left: auto; }
+.rank-mas-filtros.activo { border-color: color-mix(in srgb, var(--acento, #4f7cff) 55%, transparent); color: var(--ink); }
+.app-shell .cajon-ajustes .filtros-barra { padding: 0; border: 0; background: none; }
+.app-shell .cajon-ajustes .filtros-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* Ficha ampliada: los controles de ligas fuera de la hoja; dentro, solo el texto. */
+.app-shell .snap-ajustes { max-width: 1180px; margin: 12px auto 0; padding: 0 16px; }
+.app-shell .snap-ajustes .snap-ligas { margin-top: 0; }
+.app-shell[data-tema] .snap-ligas-texto { margin: 6px 0 0; color: var(--muted); font-size: 12px; }
+@media print { .app-shell .snap-ajustes, .app-shell .periodo-host { display: none !important; } }
+
+.app-shell .rank-page > header span.periodo-de-lista:first-child { color: var(--ink); font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; }
+.app-shell .rank-page > header span.periodo-de-lista em { letter-spacing: 0; text-transform: none; }
+.app-shell .rank-mas-filtros { margin-left: 0; cursor: pointer; }
+
+/* Ficha ampliada: ligas y temporadas en un mismo bloque, alineado con la hoja. */
+.app-shell .snap-encima { display: grid; gap: 10px; max-width: 1280px; margin: 12px auto 0; padding: 0 8px; }
+.app-shell .snap-encima .snap-ajustes, .app-shell .snap-encima .periodo-host { max-width: none; margin: 0; padding: 0; }
+.app-shell .snap-encima .periodo { margin: 0; }
+.app-shell[data-tema] .snap-encima .snap-ligas select { width: auto; }
+@media print { .app-shell .snap-encima { display: none !important; } }

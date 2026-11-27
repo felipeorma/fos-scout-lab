@@ -2226,7 +2226,7 @@ export default function ScoutStudio() {
   const paginasParaImprimir: Array<{ page: ReportPage; title: string; hint: string }> = espacio === "maldonado"
     ? [{ page: BOARD_PAGE, title: t("Mesa de detección"), hint: t("Perfiles, once ideal y variación") }]
     : [
-      { page: CARD_PAGE, title: t("Ficha y radar"), hint: t("Percentiles del jugador") },
+      { page: CARD_PAGE, title: t("Ficha y radar"), hint: t("Percentiles del jugador y su forma reciente") },
       { page: SIMILARITY_PAGE, title: t("Similitud"), hint: t("Jugadores comparables") },
       { page: SNAPSHOT_PAGE, title: t("Ficha ampliada"), hint: t("Familias, mapas y parecidos") },
       { page: RUNS_PAGE, title: t("Carreras"), hint: t("Mapa sin balón") },
@@ -2805,9 +2805,19 @@ export default function ScoutStudio() {
                     {hayOtrasTemporadas && !medirTodasLasTemporadas && ` ${t("Hay bases de otras temporadas cargadas: elige «Bases: Todas las cargadas».")}`}</div>}
                   {reportArticleNode && preguntaDePeriodo(t("el radar y la ficha"))}
                   {reportArticleNode ? <div className="legal-page-shell">{reportArticleNode}</div> : <div className="empty-preview">{t("Selecciona un jugador para generar el informe.")}</div>}
-                  {/* La forma reciente: fuera de la hoja (no se imprime), debajo. */}
-                  {report && fuenteDeForma && reportPage === CARD_PAGE && <FormaReciente informe={report} filas={filasDelInforme} indice={indiceDelInforme}
-                    minutosMin={minimumMinutes} elegidas={metricPicks[report.cohort]} porLiga={porLiga} fuente={fuenteDeForma} conMedia={periodoDelJugador.anios.length > 1} />}
+                  {/* La forma reciente: su propia hoja, con el ancho y el tema de
+                      la ficha; en el PDF sale justo detrás de ella. */}
+                  {report && fuenteDeForma && <FormaReciente informe={report} filas={filasDelInforme} indice={indiceDelInforme}
+                    minutosMin={minimumMinutes} elegidas={metricPicks[report.cohort]} porLiga={porLiga} fuente={fuenteDeForma} conMedia={periodoDelJugador.anios.length > 1}
+                    estilo={reportThemeStyle(reportTheme)} oscuro={Boolean(reportTheme.oscuro)}
+                    notaDeDatos={`${lineaDeDatos({ descripcion: base.descripcion, cargadaEl: base.cargadaEl, generadoEl: impresoEl })}.`}
+                    firmas={<div className="report-signatures">
+                      <AutorDelInforme />
+                      <div className="report-recipient">
+                        {recipientLogoReady ? <ReportImage src={reportRecipientLogoUrl.trim()} alt={recipientName} className="dossier-footer-club-logo" /> : <span className="dossier-footer-club-fallback">{recipientName.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span>}
+                        <div><span>{t("REPORTE GENERADO PARA")}</span><b>{recipientName}</b></div>
+                      </div>
+                    </div>} />}
                 </section>
               </div> : null}
               {/* La similitud vive montada siempre: filtros, pesos y candidato
@@ -2860,9 +2870,9 @@ export default function ScoutStudio() {
                   lista, y antes la Ficha ampliada salía al final aunque el
                   diálogo la pusiera tercera. Lo vigila
                   tests/orden-del-pdf.test.mjs. */}
-              {espacio === "cavalry" && report && reportPage === SNAPSHOT_PAGE && !printRun && <div className="periodo-host">{preguntaDePeriodo(t("la ficha ampliada"))}</div>}
               {espacio === "cavalry" && report && paginaMontada(SNAPSHOT_PAGE) && (
                 <SnapshotPage rows={filasDeLasPiezas} indice={indiceDeLasPiezas} informe={report} perfilTm={profile} minutosMin={minimumMinutes} claseHoja={claseHoja(SNAPSHOT_PAGE)} temporada={temporadaDeReferencia?.etiqueta} temporadasDelPeriodo={textoDelPeriodoDelJugador}
+                  periodo={!printRun ? <div className="periodo-host">{preguntaDePeriodo(t("la ficha ampliada"))}</div> : null}
                   clavesPorFila={ligasDeLasPiezas} ligasDeFila={ligasDeLasPiezas} feedOpta={feedOpta} avisoSkillcorner={avisoSc}
                   destinatario={reportRecipientName} logoDestinatario={reportRecipientLogoUrl} onAbrirJugador={(indice) => { const enBase = enLaBase(indice); if (enBase >= 0) selectPlayer(enBase); }} />
               )}
