@@ -8086,3 +8086,12 @@ body.print-layout-check .forma-ventanas { display: none !important; }
 .app-shell .snap-encima .periodo { margin: 0; }
 .app-shell[data-tema] .snap-encima .snap-ligas select { width: auto; }
 @media print { .app-shell .snap-encima { display: none !important; } }
+
+/* PDF: nada de la pantalla delante de las hojas. La barra del jugador y la
+   pregunta de temporadas se imprimían encima de la ficha y la empujaban
+   265 px: cada hoja Legal quedaba partida entre dos páginas. Además, cada
+   hoja empieza en página nueva y no se parte, aunque algo se cuele delante. */
+@media print {
+  .app-shell .barra-jugador, .app-shell .periodo, .app-shell .ajustes-ficha, .app-shell .report-preview-wrap > .inline-error { display: none !important; }
+  .legal-page-shell { break-before: page; break-inside: avoid; }
+}
