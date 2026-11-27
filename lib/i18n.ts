@@ -1641,6 +1641,7 @@ const EN: Record<string, string> = {
   "temporada P{p}": "season P{p}",
   "Percentiles del jugador y su forma reciente": "Player percentiles and recent form",
   "Suben 10+": "Up 10+",
+  "Buscar jugador ({a} o /)": "Search player ({a} or /)",
   "Bajan 10+": "Down 10+",
   "igual": "same",
   "La barra es su percentil en esos partidos; la marca, el de la media de sus temporadas.": "The bar is their percentile in those matches; the mark, their seasons' average.",

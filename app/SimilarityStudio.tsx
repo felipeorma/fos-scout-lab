@@ -10,7 +10,7 @@ import { PERFILES, PERFILES_FILTRO } from "@/lib/perfiles";
 const nombreDeGrupo = (id: string) => PERFILES.find((perfil) => perfil.id === id)?.nombre ?? id;
 
 import { type CSSProperties, type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDownToLine, ChevronDown, Printer, RotateCcw, Search, Sparkles, Upload } from "./Icons";
+import { ArrowDownToLine, ChevronDown, Printer, RotateCcw, Search, Sparkles, Upload, X } from "./Icons";
 import { reportThemeStyle, type ReportTheme } from "./reportTheme";
 import { SimilarityReportMain, type SimilarityReportPayload } from "./SimilarityReport";
 import type { EstiloRadarComparativo } from "./ComparisonRadar";
@@ -321,6 +321,15 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
   // elección se recuerda.
   // Plegado de entrada: es calibración fina, no el camino normal.
   const [pesosVisibles, setPesosVisibles] = useState(false);
+  // "Más filtros" (pasaporte, rol secundario, lado, encaje): el mismo cajón
+  // de la derecha que en el Ranking y en "Personalizar" de la ficha.
+  const [masFiltrosAbierto, setMasFiltrosAbierto] = useState(false);
+  useEffect(() => {
+    if (!masFiltrosAbierto) return;
+    const alPulsar = (evento: KeyboardEvent) => { if (evento.key === "Escape") setMasFiltrosAbierto(false); };
+    window.addEventListener("keydown", alPulsar);
+    return () => window.removeEventListener("keydown", alPulsar);
+  }, [masFiltrosAbierto]);
   const barraDeLaHojaRef = useRef<HTMLDivElement | null>(null);
   const rankingRef = useRef<HTMLElement | null>(null);
   /** La pestaña abierta de "Personalizar la hoja". */
@@ -731,6 +740,7 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
     setMetricWeights({});
   }
 
+  const masFiltrosActivos = [passport, secondaryRole, side, conEncaje && equipoEncaje].filter(Boolean).length;
   function resetFilters() {
     setQuery("");
     setAgeMin("");
@@ -1149,6 +1159,14 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
             <div className="filtros-barra similarity-filtros" role="group" aria-label={t("Filtros")}>
               <label className="campo-busqueda"><Search size={14} /><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("Escribe un nombre…")} aria-label={t("Buscar jugador o club")} /></label>
               <div className="filtros-chips">
+                {ligasDelFondo.length > 1 && <MenuDeLigas ligas={ligasDelFondo} elegida={ligaCandidato}
+                  onElegir={setLigaCandidato} ariaLabel={t("Liga del candidato")} />}
+                {aniosDelFondo.length > 1 && <Desplegable etiqueta={t("Año")} valor={anioCandidato ? String(anioCandidato) : t("Todos")} activo={Boolean(anioCandidato)}>
+                  <select aria-label={t("Año del candidato")} value={anioCandidato || ""} onChange={(event) => setAnioCandidato(Number(event.target.value))}>
+                    <option value="">{t("Todos")}</option>
+                    {aniosDelFondo.map((anio) => <option key={anio} value={anio}>{anio}</option>)}
+                  </select>
+                </Desplegable>}
                 <label className={ageMin || ageMax ? "filtro-chip numero activo" : "filtro-chip numero"}>
                   <span>{t("Edad")}</span>
                   <input type="number" min="14" max="50" inputMode="numeric" value={ageMin} onChange={(event) => setAgeMin(event.target.value)} placeholder="—" aria-label={t("Edad mínima")} />
@@ -1159,35 +1177,60 @@ export function SimilarityStudio({ rows, selectedIndex, sourceName, lang = "es",
                   <span>{t("Mín. minutos")}</span>
                   <input type="number" min="0" step="100" inputMode="numeric" value={minimumMinutes} onChange={(event) => cambiarMinutos(event.target.value)} aria-label={t("Mínimo de minutos")} />
                 </label>
-                {ligasDelFondo.length > 1 && <MenuDeLigas ligas={ligasDelFondo} elegida={ligaCandidato}
-                  onElegir={setLigaCandidato} ariaLabel={t("Liga del candidato")} />}
-                {aniosDelFondo.length > 1 && <Desplegable etiqueta={t("Año")} valor={anioCandidato ? String(anioCandidato) : t("Todos")} activo={Boolean(anioCandidato)}>
-                  <select aria-label={t("Año del candidato")} value={anioCandidato || ""} onChange={(event) => setAnioCandidato(Number(event.target.value))}>
-                    <option value="">{t("Todos")}</option>
-                    {aniosDelFondo.map((anio) => <option key={anio} value={anio}>{anio}</option>)}
-                  </select>
-                </Desplegable>}
-                <Desplegable etiqueta={t("Pasaporte")} valor={passport || t("Todos")} activo={Boolean(passport)}>
-                  <select aria-label={t("Pasaporte · principal o secundario")} value={passport} onChange={(event) => setPassport(event.target.value)}><option value="">{t("Todos los pasaportes")}</option>{options.passports.map((item) => <option key={item} value={item}>{item}</option>)}</select>
-                </Desplegable>
                 <Desplegable etiqueta={t("Rol")} valor={position || t("Todos")} activo={Boolean(position)}>
                   <select aria-label={t("Rol principal")} value={position} onChange={(event) => { setPosition(event.target.value); setSecondaryRole(""); }}><option value="">{t("Todos los roles")}</option>{options.positions.map((item) => <option key={item} value={item}>{item}</option>)}</select>
                 </Desplegable>
-                {hayRolesSecundarios && <Desplegable etiqueta={t("Rol secundario")} valor={secondaryRole || t("Cualquiera")} activo={Boolean(secondaryRole)} apagado={!secondaryOptions.length} aviso={secondaryOptions.length ? undefined : t("Este rol no tiene posiciones secundarias en la base")}>
-                  <select aria-label={t("Rol secundario · según el primer filtro")} value={secondaryRole} onChange={(event) => setSecondaryRole(event.target.value)} disabled={!secondaryOptions.length}><option value="">{t("Cualquiera")}</option>{secondaryOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select>
-                </Desplegable>}
-                <Desplegable etiqueta={t("Lado")} valor={side === "left" ? t("Izquierdo (L)") : side === "right" ? t("Derecho (R)") : t("Cualquiera")} activo={Boolean(side)}>
-                  <select aria-label={t("Lado del campo · prefijo L / R")} value={side} onChange={(event) => setSide(event.target.value as "" | "left" | "right")}><option value="">{t("Cualquiera")}</option><option value="left">{t("Izquierdo (L)")}</option><option value="right">{t("Derecho (R)")}</option></select>
-                </Desplegable>
-                {conEncaje && <Desplegable etiqueta={t("Encaje con")} valor={equipoEncaje || t("No mostrar")} activo={Boolean(equipoEncaje)}>
-                  <select aria-label={t("Encaje con un equipo")} value={equipoEncaje} onChange={(event) => setEquipoEncaje(event.target.value)}>
-                    <option value="">{t("No mostrar")}</option>
-                    {equiposEncaje.map((equipo) => <option key={equipo} value={equipo}>{equipo}</option>)}
-                  </select>
-                </Desplegable>}
+                <button type="button" className={masFiltrosActivos ? "filtro-chip activo rank-mas-filtros" : "filtro-chip rank-mas-filtros"}
+                  onClick={() => setMasFiltrosAbierto(true)} aria-controls="mas-filtros-de-similitud" aria-expanded={masFiltrosAbierto}>
+                  <span>{t("Más filtros")}</span>{masFiltrosActivos > 0 && <b>{masFiltrosActivos}</b>}
+                </button>
               </div>
               <div className="filtros-barra-cola"><button type="button" onClick={resetFilters}>{t("Restablecer filtros")}</button></div>
             </div>
+            {/* Lo que estrecha la lista y se usa menos, en el cajón de la
+                derecha: la fila de arriba queda para nombre, liga, año, edad,
+                minutos y rol. */}
+            <aside id="mas-filtros-de-similitud" className={masFiltrosAbierto ? "control-panel cajon-ajustes abierto" : "control-panel cajon-ajustes"}
+              aria-label={t("Más filtros")} aria-hidden={!masFiltrosAbierto} inert={!masFiltrosAbierto}>
+              <header className="cajon-cabecera">
+                <h2>{t("Más filtros")}</h2>
+                <button type="button" className="menu-cerrar" aria-label={t("Cerrar")} onClick={() => setMasFiltrosAbierto(false)}><X size={15} /></button>
+              </header>
+              <div className="panel-seccion">
+                <span className="panel-seccion-titulo">{t("Quiénes")}</span>
+                <div className="filtros-barra"><div className="filtros-chips">
+                  <Desplegable etiqueta={t("Pasaporte")} valor={passport || t("Todos")} activo={Boolean(passport)}>
+                    <select aria-label={t("Pasaporte · principal o secundario")} value={passport} onChange={(event) => setPassport(event.target.value)}><option value="">{t("Todos los pasaportes")}</option>{options.passports.map((item) => <option key={item} value={item}>{item}</option>)}</select>
+                  </Desplegable>
+                </div></div>
+              </div>
+              <div className="panel-seccion">
+                <span className="panel-seccion-titulo">{t("Puesto")}</span>
+                <div className="filtros-barra"><div className="filtros-chips">
+                  {hayRolesSecundarios && <Desplegable etiqueta={t("Rol secundario")} valor={secondaryRole || t("Cualquiera")} activo={Boolean(secondaryRole)} apagado={!secondaryOptions.length} aviso={secondaryOptions.length ? undefined : t("Este rol no tiene posiciones secundarias en la base")}>
+                    <select aria-label={t("Rol secundario · según el primer filtro")} value={secondaryRole} onChange={(event) => setSecondaryRole(event.target.value)} disabled={!secondaryOptions.length}><option value="">{t("Cualquiera")}</option>{secondaryOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select>
+                  </Desplegable>}
+                  <Desplegable etiqueta={t("Lado")} valor={side === "left" ? t("Izquierdo (L)") : side === "right" ? t("Derecho (R)") : t("Cualquiera")} activo={Boolean(side)}>
+                    <select aria-label={t("Lado del campo · prefijo L / R")} value={side} onChange={(event) => setSide(event.target.value as "" | "left" | "right")}><option value="">{t("Cualquiera")}</option><option value="left">{t("Izquierdo (L)")}</option><option value="right">{t("Derecho (R)")}</option></select>
+                  </Desplegable>
+                </div></div>
+              </div>
+              {conEncaje && <div className="panel-seccion">
+                <span className="panel-seccion-titulo">{t("Encaje con un equipo")}</span>
+                <div className="filtros-barra"><div className="filtros-chips">
+                  <Desplegable etiqueta={t("Encaje con")} valor={equipoEncaje || t("No mostrar")} activo={Boolean(equipoEncaje)}>
+                    <select aria-label={t("Encaje con un equipo")} value={equipoEncaje} onChange={(event) => setEquipoEncaje(event.target.value)}>
+                      <option value="">{t("No mostrar")}</option>
+                      {equiposEncaje.map((equipo) => <option key={equipo} value={equipo}>{equipo}</option>)}
+                    </select>
+                  </Desplegable>
+                </div></div>
+                <small className="temporadas-chips-nota">{t("Añade una columna con lo que ese equipo pide en el puesto y el lugar que ocuparía en su plantilla.")}</small>
+              </div>}
+              <div className="panel-seccion">
+                <button type="button" className="button secondary compact" onClick={resetFilters}><RotateCcw size={13} />{t("Restablecer filtros")}</button>
+              </div>
+            </aside>
             {/* La ponderación sigue junto a la búsqueda porque es parte de
                 ella —cambiar un peso cambia QUIÉN sale— pero como una fila
                 que se despliega: es afinado, no el camino normal. */}

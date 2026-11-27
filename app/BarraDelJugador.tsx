@@ -100,6 +100,28 @@ export function BarraDelJugador({ jugadores, elegido, club, periodo, recientes, 
     window.addEventListener(ABRIR_BUSCADOR, desdeFuera);
     return () => window.removeEventListener(ABRIR_BUSCADOR, desdeFuera);
   }, []);
+  // Atajo de teclado: ⌘K / Ctrl+K desde cualquier sitio, o "/" si no se está
+  // escribiendo. Solo con la barra a la vista (en las pizarras no está, y la
+  // del estudio táctico usa ⌘K para su propia paleta).
+  useEffect(() => {
+    const escribiendo = (objetivo: EventTarget | null) => objetivo instanceof HTMLElement
+      && (objetivo.isContentEditable || Boolean(objetivo.closest("input, textarea, select")));
+    const alPulsar = (evento: globalThis.KeyboardEvent) => {
+      if (evento.defaultPrevented || evento.isComposing || !raiz.current?.offsetParent) return;
+      const mando = (evento.metaKey || evento.ctrlKey) && !evento.altKey && !evento.shiftKey && evento.key.toLowerCase() === "k";
+      const barra = evento.key === "/" && !evento.metaKey && !evento.ctrlKey && !evento.altKey && !escribiendo(evento.target);
+      if (!mando && !barra) return;
+      evento.preventDefault();
+      raiz.current.scrollIntoView({ block: "nearest" });
+      abrir("buscar");
+    };
+    window.addEventListener("keydown", alPulsar);
+    return () => window.removeEventListener("keydown", alPulsar);
+  }, []);
+  // El atajo que se enseña: ⌘K en Mac, Ctrl K en lo demás. Se decide en el
+  // cliente para que el HTML estático no cambie al hidratar.
+  const [atajo, setAtajo] = useState("");
+  useEffect(() => { setAtajo(/Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent) ? "⌘K" : "Ctrl K"); }, []);
   const elegir = (jugador: JugadorDeLaBarra) => { setAbierto(false); onElegir(jugador.index); };
   const teclas = (evento: KeyboardEvent<HTMLInputElement>) => {
     if (evento.key === "ArrowDown") { evento.preventDefault(); setActiva((i) => Math.min(i + 1, resultados.length - 1)); }
@@ -115,10 +137,12 @@ export function BarraDelJugador({ jugadores, elegido, club, periodo, recientes, 
       <button type="button" className="barra-jugador-flecha" disabled={!historial.puedeAvanzar} onClick={historial.avanzar} aria-label={t("Adelante")} title={t("Adelante")}><ChevronRight size={16} /></button>
     </div>
     <div className="barra-jugador-buscador" ref={raiz}>
-      <button type="button" className="barra-jugador-actual" aria-haspopup="dialog" aria-expanded={abierto} onClick={() => (abierto ? setAbierto(false) : abrir())}>
+      <button type="button" className="barra-jugador-actual" aria-haspopup="dialog" aria-expanded={abierto} onClick={() => (abierto ? setAbierto(false) : abrir())}
+        aria-keyshortcuts="Meta+K Control+K /" title={atajo ? tf("Buscar jugador ({a} o /)", { a: atajo }) : undefined}>
         <Search size={15} aria-hidden="true" />
         <b>{elegido?.player ?? t("Elige un jugador")}</b>
         {club && <small>{club}</small>}
+        {atajo && <kbd className="barra-jugador-atajo" aria-hidden="true">{atajo}</kbd>}
         <ChevronDown size={14} aria-hidden="true" />
       </button>
       {abierto && <div className="barra-jugador-panel" role="dialog" aria-label={t("Elegir jugador")}
